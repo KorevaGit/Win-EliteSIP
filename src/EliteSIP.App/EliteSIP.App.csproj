@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EliteSIP.SipCore\EliteSIP.SipCore.csproj" />
+    <ProjectReference Include="..\EliteSIP.SipCore.Udp\EliteSIP.SipCore.Udp.csproj" />
+    <ProjectReference Include="..\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
+    <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+    <ProjectReference Include="..\EliteSIP.CallGuard\EliteSIP.CallGuard.csproj" />
+    <ProjectReference Include="..\EliteSIP.CallHistory\EliteSIP.CallHistory.csproj" />
+    <ProjectReference Include="..\EliteSIP.AdminAccess\EliteSIP.AdminAccess.csproj" />
+    <ProjectReference Include="..\EliteSIP.PanelLink\EliteSIP.PanelLink.csproj" />
+    <ProjectReference Include="..\EliteSIP.Diagnostics\EliteSIP.Diagnostics.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>
