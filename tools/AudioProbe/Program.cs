@@ -26,12 +26,28 @@ internal static class Program
             return 1;
         }
 
-        return args[0] switch
+        try
         {
-            "devices" => DeviceList.Run(),
-            "capture" => CaptureProbe.Run(ParseSeconds(args, 10)),
-            _ => Unknown(args[0]),
-        };
+            return args[0] switch
+            {
+                "devices" => DeviceList.Run(),
+                "capture" => CaptureProbe.Run(Positional(args, 10)),
+                "loop" => LoopProbe.Run(
+                    Option(args, "--in"),
+                    Option(args, "--out"),
+                    Text(args, "--in-name"),
+                    Text(args, "--out-name"),
+                    Positional(args, 20),
+                    Flag(args, "--mute"),
+                    Option(args, "--prime") ?? 20),
+                _ => Unknown(args[0]),
+            };
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            Console.Error.WriteLine(e.Message);
+            return 1;
+        }
     }
 
     private static int Unknown(string command)
@@ -41,25 +57,70 @@ internal static class Program
         return 1;
     }
 
-    private static int ParseSeconds(string[] args, int fallback)
+    /// <summary>Первое число среди аргументов — длительность прогона.</summary>
+    private static int Positional(string[] args, int fallback)
     {
-        if (args.Length < 2)
+        for (int i = 1; i < args.Length; i++)
         {
-            return fallback;
+            if (int.TryParse(args[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
+                && !args[i - 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                return value;
+            }
         }
 
-        return int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
-            ? value
-            : fallback;
+        return fallback;
     }
+
+    private static int? Option(string[] args, string name)
+    {
+        for (int i = 1; i < args.Length - 1; i++)
+        {
+            if (args[i] == name
+                && int.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Значение строкового ключа. Нужен, потому что номер устройства оказался
+    /// ненадёжен: порядок перечисления менялся между запусками подряд.
+    /// </summary>
+    private static string? Text(string[] args, string name)
+    {
+        for (int i = 1; i < args.Length - 1; i++)
+        {
+            if (args[i] == name)
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private static bool Flag(string[] args, string name) => Array.IndexOf(args, name) > 0;
 
     private static void PrintUsage()
     {
         Console.WriteLine("""
             Стенд аудиотракта EliteSIP (этап W0).
 
-              AudioProbe devices            устройства, форматы, периоды
-              AudioProbe capture [секунд]   замер такта захвата. Звука не издаёт
+              AudioProbe devices
+                  устройства с номерами, форматы, периоды
+
+              AudioProbe capture [секунд]
+                  замер такта захвата. Звука не издаёт
+
+              AudioProbe loop [--in N | --in-name Кусок] [--out N | --out-name Кусок]
+                              [--mute] [секунд]
+                  дуплексная петля: расхождение часов, задержка, срывы.
+                  Без --mute выводит микрофон в наушники — на открытых
+                  динамиках это самовозбуждение, надевайте гарнитуру
 
             """);
     }

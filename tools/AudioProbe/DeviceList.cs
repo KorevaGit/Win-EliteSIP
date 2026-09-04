@@ -42,15 +42,14 @@ internal static class DeviceList
             // стенда: у машины без микрофона так и будет.
         }
 
-        foreach (MMDevice device in enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active))
+        IReadOnlyList<MMDevice> all = Devices.All(enumerator, flow);
+        for (int i = 0; i < all.Count; i++)
         {
+            MMDevice device = all[i];
             using (device)
             {
-                // Роль Communications, а не Multimedia: софтфон обязан ехать на
-                // том устройстве, которое человек выбрал для связи, — иначе
-                // разговор уйдёт в колонки, а рингтон в гарнитуру.
-                string mark = device.ID == defaultId ? " ← по умолчанию для связи" : string.Empty;
-                Console.WriteLine($"{device.FriendlyName}{mark}");
+                string mark = device.ID == defaultId ? "  ← по умолчанию для связи" : string.Empty;
+                Console.WriteLine($"[{i}] {device.FriendlyName}{mark}");
 
                 try
                 {
