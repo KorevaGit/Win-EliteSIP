@@ -1,0 +1,47 @@
+<Project>
+
+  <!--
+    Общие свойства всех проектов решения. Один файл, чтобы настройки не
+    расходились между десятком .csproj: в оригинале ту же роль играл
+    Version.xcconfig и общие swiftSettings в каждом Package.swift.
+  -->
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!--
+      Nullable и предупреждения-как-ошибки — это то немногое, чем в C#
+      воспроизводится строгость Swift 6. Оригинал собирался в
+      .swiftLanguageMode(.v6), где ни nil, ни гонку через границу потока
+      протащить было нельзя. Отключать по проекту нельзя: смысл именно в том,
+      что правило одно на всё решение.
+    -->
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!--
+      Интерфейс двуязычный (ru/en), поэтому глобализацию не урезаем.
+      Инвариантный режим сломал бы сравнение и сортировку строк в истории
+      звонков раньше, чем кто-нибудь заметил бы.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Версия одна на всё решение. Меняется релизным скриптом, руками — не
+    трогать: в оригинале ручной выпуск из десяти шагов рано или поздно
+    выпускался без одного из них, и обычно это была версия.
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Company>EliteSIP</Company>
+    <Product>EliteSIP</Product>
+  </PropertyGroup>
+
+</Project>
