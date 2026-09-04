@@ -40,6 +40,11 @@ internal static class Program
                     Positional(args, 20),
                     Flag(args, "--mute"),
                     Option(args, "--prime") ?? 20),
+                "aec" => AecProbe.Run(
+                    Text(args, "--in-name"),
+                    Text(args, "--out-name"),
+                    Positional(args, 30),
+                    Option(args, "--delay") ?? 60),
                 _ => Unknown(args[0]),
             };
         }
@@ -121,6 +126,10 @@ internal static class Program
                   дуплексная петля: расхождение часов, задержка, срывы.
                   Без --mute выводит микрофон в наушники — на открытых
                   динамиках это самовозбуждение, надевайте гарнитуру
+
+              AudioProbe aec [--in-name Кусок] [--out-name Кусок] [--delay мс] [секунд]
+                  замер эхоподавления в децибелах ERLE. Играет шум в
+                  наушники, во время замера надо молчать
 
             """);
     }

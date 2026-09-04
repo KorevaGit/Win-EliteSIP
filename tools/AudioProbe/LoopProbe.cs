@@ -161,6 +161,34 @@ internal static class LoopProbe
         AudioClockClient captureClock = captureClient.AudioClockClient;
         AudioClockClient renderClock = renderClient.AudioClockClient;
 
+        // Наклон, а не разность концов.
+        //
+        // IAudioClock обновляется раз в период, то есть квантован десятью
+        // миллисекундами. На окне в семнадцать секунд это шум в шестьсот ppm —
+        // больше самого измеряемого ухода, и первые прогоны честно показывали
+        // то +500, то -2650 ppm на одной и той же гарнитуре. Регрессия по
+        // сотням точек убирает квантование: случайная ошибка каждой пробы в
+        // наклон почти не идёт.
+        var drift = new DriftEstimator();
+        var sampler = new Thread(() =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                double t = watch.Elapsed.TotalSeconds;
+                if (t >= WarmupSeconds)
+                {
+                    drift.Add(t, Snapshot.Seconds(captureClock) - Snapshot.Seconds(renderClock));
+                }
+
+                Thread.Sleep(250);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "clock-sampler",
+        };
+        sampler.Start();
+
         Thread.Sleep(WarmupSeconds * 1000);
         var start = Snapshot.Take(stats, watch, captureClock, renderClock);
         stats.ResetIncidents();
@@ -169,12 +197,13 @@ internal static class LoopProbe
         var end = Snapshot.Take(stats, watch, captureClock, renderClock);
 
         stop.Cancel();
+        sampler.Join(1000);
         captureThread.Join(1000);
         renderThread.Join(1000);
         captureClient.Stop();
         renderClient.Stop();
 
-        Report(stats, captureFormat, renderFormat, start, end, ring);
+        Report(stats, captureFormat, renderFormat, start, end, ring, drift);
         return stats.Underruns == 0 && stats.Overruns == 0 ? 0 : 2;
     }
 
@@ -374,7 +403,8 @@ internal static class LoopProbe
         WaveFormat renderFormat,
         Snapshot start,
         Snapshot end,
-        MonoRing ring)
+        MonoRing ring,
+        DriftEstimator drift)
     {
         Console.WriteLine();
 
@@ -404,10 +434,27 @@ internal static class LoopProbe
         Console.WriteLine();
         Console.WriteLine("Часы захвата:             {0:F3} с   {1,9:F1} ppm к часам машины", captureClock, capturePpm);
         Console.WriteLine("Часы вывода:              {0:F3} с   {1,9:F1} ppm к часам машины", renderClock, renderPpm);
-        Console.WriteLine("Расхождение между ними:   {0,9:F1} ppm", driftPpm);
-        Console.WriteLine("                          {0:F2} мс за минуту, {1:F1} с за восьмичасовую смену",
-            Math.Abs(driftPpm) / 1000.0 * 60.0,
-            Math.Abs(driftPpm) / 1_000_000.0 * 8 * 3600.0);
+        Console.WriteLine("Разность концов:          {0,9:F1} ppm  — квантована периодом, верить нельзя", driftPpm);
+
+        double slopePpm = drift.Ppm;
+        double errorPpm = drift.StandardError;
+        Console.WriteLine();
+        Console.WriteLine("УХОД ЧАСОВ (наклон):      {0,9:F1} ± {1:F1} ppm   по {2} пробам за {3:F0} с",
+            slopePpm,
+            errorPpm,
+            drift.Count,
+            drift.WindowSeconds);
+
+        if (errorPpm > Math.Abs(slopePpm) / 3.0)
+        {
+            Console.WriteLine("                          мерили мало: ошибка сравнима с наклоном, нужен прогон длиннее");
+        }
+        else
+        {
+            Console.WriteLine("                          {0:F1} мс за минуту, {1:F1} с за восьмичасовую смену",
+                Math.Abs(slopePpm) / 1000.0 * 60.0,
+                Math.Abs(slopePpm) / 1_000_000.0 * 8 * 3600.0);
+        }
 
         Console.WriteLine();
         Console.WriteLine("Кольцо, мс:               среднее {0:F1}   мин {1:F1}   макс {2:F1}",
@@ -455,7 +502,7 @@ internal static class LoopProbe
         /// позиции приходится на секунду; у разных драйверов она разная, и
         /// делить надо именно на неё, а не на частоту дискретизации.
         /// </summary>
-        private static double Seconds(AudioClockClient clock)
+        public static double Seconds(AudioClockClient clock)
         {
             ulong frequency = clock.Frequency;
             return frequency == 0 ? 0 : (double)clock.AdjustedPosition / frequency;
