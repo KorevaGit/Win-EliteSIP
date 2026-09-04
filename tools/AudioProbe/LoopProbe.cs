@@ -288,6 +288,7 @@ internal static class LoopProbe
         double ratio = (double)sourceRate / format.SampleRate;
         double position = 0;
         var scratch = new float[format.SampleRate];
+        int sourceCount = 0;
         bool primed = false;
 
         while (!token.IsCancellationRequested)
@@ -321,10 +322,12 @@ internal static class LoopProbe
                 primed = true;
             }
 
-            // Выводим ровно столько, сколько обеспечено кольцом. WASAPI не
-            // требует заполнять буфер целиком, а досыпать тишину «до края» —
-            // значит вставлять щелчок там, где звук просто ещё не доехал.
-            int affordable = (int)((fill - 1) / ratio);
+            // Выводим ровно столько, сколько обеспечено кольцом и остатком с
+            // прошлого витка. WASAPI не требует заполнять буфер целиком, а
+            // досыпать тишину «до края» — значит вставлять щелчок там, где звук
+            // просто ещё не доехал.
+            int availableSource = sourceCount + fill;
+            int affordable = (int)((availableSource - position - 1) / ratio);
             int toWrite = Math.Min(free, Math.Max(0, affordable));
 
             if (toWrite == 0)
@@ -336,12 +339,20 @@ internal static class LoopProbe
                 continue;
             }
 
-            int need = Math.Min((int)Math.Ceiling(toWrite * ratio) + 2, scratch.Length);
-            int got = ring.Read(scratch.AsSpan(0, need));
-            if (got < need)
+            // Сколько исходных отсчётов понадобится, считая от текущей дробной
+            // позиции. Плюс один — на правого соседа для интерполяции.
+            int needTotal = (int)(position + ((toWrite - 1) * ratio)) + 2;
+            if (needTotal > scratch.Length)
             {
-                Array.Clear(scratch, got, need - got);
+                Array.Resize(ref scratch, needTotal);
             }
+
+            if (sourceCount < needTotal)
+            {
+                sourceCount += ring.Read(scratch.AsSpan(sourceCount, needTotal - sourceCount));
+            }
+
+            int got = sourceCount;
 
             nint buffer = render.GetBuffer(toWrite);
             unsafe
@@ -376,9 +387,25 @@ internal static class LoopProbe
             render.ReleaseBuffer(toWrite, AudioClientBufferFlags.None);
             Interlocked.Add(ref stats.FramesRendered, toWrite);
 
-            // Дробная часть переносится на следующий виток: без этого пересчёт
-            // частоты копит ошибку и уезжает.
-            position = (position + (toWrite * ratio)) % 1.0;
+            // Остаток переносится на следующий виток целиком — и дробная
+            // позиция, и неиспользованные отсчёты.
+            //
+            // Здесь была ошибка, которая испортила первые пятиминутные замеры:
+            // из кольца читалось на два отсчёта больше, чем выводилось, и
+            // лишние просто выбрасывались. Двести отсчётов в секунду — это две
+            // тысячи ppm, и стенд честно показал их как «уход часов» на
+            // проводной гарнитуре, где кварц физически один. Число выглядело
+            // убедительно (± 2,3 ppm по тысяче проб) ровно до тех пор, пока его
+            // не сошлись с разницей счётчиков.
+            double advanced = position + (toWrite * ratio);
+            int consumed = (int)advanced;
+            position = advanced - consumed;
+
+            if (consumed > 0)
+            {
+                Array.Copy(scratch, consumed, scratch, 0, Math.Max(0, sourceCount - consumed));
+                sourceCount = Math.Max(0, sourceCount - consumed);
+            }
         }
     }
 
