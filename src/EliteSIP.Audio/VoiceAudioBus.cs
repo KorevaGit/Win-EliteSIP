@@ -1,19 +1,6 @@
 namespace EliteSIP.Audio;
 
 /// <summary>
-/// Ставит работу на срок и отдаёт то, чем её можно отменить.
-///
-/// Отдельным делегатом ради проверяемости: отложенное освобождение устройства —
-/// главное решение этого типа, и проверять его настоящим ожиданием секунды в
-/// тесте значило бы не проверять вовсе. Своя реализация по умолчанию сидит на
-/// таймере; тест подставляет ручную.
-/// </summary>
-/// <param name="delay">Через сколько выполнить.</param>
-/// <param name="work">Что выполнить.</param>
-/// <returns>Освобождение отменяет работу, если она ещё не началась.</returns>
-public delegate IDisposable RetirementScheduler(TimeSpan delay, Action work);
-
-/// <summary>
 /// Один аудиотракт на приложение, который берут по очереди.
 ///
 /// <b>Зачем.</b> Микрофон, выход и обработка голоса у оператора одни, а
@@ -63,7 +50,7 @@ public sealed class VoiceAudioBus : IDisposable
 
     private readonly object _gate = new();
     private readonly Func<VoiceAudioConfiguration, IVoiceAudioEngine> _factory;
-    private readonly RetirementScheduler _schedule;
+    private readonly DelayedWorkScheduler _schedule;
     private readonly TimeSpan _retirementDelay;
     private readonly AudioOwnership _ownership = new();
 
@@ -79,7 +66,7 @@ public sealed class VoiceAudioBus : IDisposable
     public VoiceAudioBus(
         IVoiceAudioEngine engine,
         Func<VoiceAudioConfiguration, IVoiceAudioEngine> factory,
-        RetirementScheduler? scheduler = null,
+        DelayedWorkScheduler? scheduler = null,
         TimeSpan? retirementDelay = null)
     {
         ArgumentNullException.ThrowIfNull(engine);

@@ -123,6 +123,20 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private int _lastDelayMilliseconds;
     private double _correctionCarry;
     private double _lastClockSample;
+    private AudioDeviceWatch? _watch;
+    private RestartSupervisor? _supervisor;
+
+    /// <summary>
+    /// Чем тракт связан с устройствами: что просили в настройках и что
+    /// досталось на самом деле.
+    ///
+    /// Пишется при сборке, читается с рабочего потока звуковой службы, и потому
+    /// целиком одной записью: разобранная на поля, она читалась бы наполовину
+    /// обновлённой — с новым микрофоном и старым выходом, — а по такой смеси
+    /// фильтр уведомлений ответил бы неверно.
+    /// </summary>
+    private AudioRouteBinding _binding = AudioRouteBinding.None;
+
     private bool _running;
     private bool _disposed;
 
@@ -197,12 +211,15 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             }
 
             _running = true;
+            StartWatching();
         }
     }
 
     /// <inheritdoc/>
     public void Stop()
     {
+        StopWatching();
+
         lock (_control)
         {
             if (!_running)
@@ -215,9 +232,30 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Пересобирает тракт.
+    ///
+    /// <b>Замок не держится во время ожидания между попытками, и это
+    /// существенно.</b> Первый вариант спал внутри замка — то есть отбой,
+    /// пришедший посреди серии попыток, ждал бы до десяти секунд, пока серия не
+    /// кончится, и всё это время приложение выглядело бы зависшим. Теперь
+    /// каждая попытка берёт замок заново, а между ними он свободен: остановка
+    /// проходит в промежуток, снимает <c>_running</c>, и следующая попытка
+    /// видит это и уходит.
+    ///
+    /// <b>Чего это всё же не лечит, и это надо знать.</b> Сама попытка сборки
+    /// держит замок, и на исправном устройстве это дёшево — замерено 511 мс на
+    /// пересборку и 626 мс на первый запуск. Но на <b>умирающем</b>
+    /// Bluetooth-устройстве открытие блокируется в драйвере надолго: в прогоне,
+    /// где AirPods уходили из режима связи, серия попыток растянулась на
+    /// десятки секунд, и отбой всё это время ждал бы замка. Лечится это только
+    /// сторожевым таймером на саму сборку, то есть отдельной работой; здесь
+    /// записано, потому что заметить это можно лишь на живой гарнитуре, а
+    /// объяснять придётся оператору.
+    /// </summary>
     public void Restart(string reason)
     {
+        AudioRestartPolicy policy;
         lock (_control)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -227,20 +265,31 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 return;
             }
 
+            policy = _configuration.RestartSettings.CreatePolicy();
             Report(new VoiceAudioEvent.Restarting(reason, 1));
-
-            AudioRestartPolicy policy = _configuration.RestartSettings.CreatePolicy();
-            Stopwatch since = Stopwatch.StartNew();
-
             Teardown();
+        }
 
-            while (true)
+        Stopwatch since = Stopwatch.StartNew();
+
+        while (true)
+        {
+            TimeSpan wait;
+
+            lock (_control)
             {
+                // Пока мы ждали, тракт могли остановить или закрыть. Собирать
+                // его обратно после этого — значит открыть устройство, которое
+                // уже никому не нужно, и оставить гарнитуру в режиме связи.
+                if (_disposed || !_running)
+                {
+                    return;
+                }
+
                 try
                 {
                     Build();
                     policy.RecordSuccess();
-                    _running = true;
                     Report(new VoiceAudioEvent.Restarted(reason));
                     return;
                 }
@@ -260,14 +309,82 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                         $"пересборка не удалась ({e.Message}), попытка {decision.Attempt} "
                         + $"через {decision.Delay.TotalMilliseconds:F0} мс");
                     Report(new VoiceAudioEvent.Restarting(reason, decision.Attempt + 1));
-                    Thread.Sleep(decision.Delay);
+                    wait = decision.Delay;
                 }
             }
+
+            Thread.Sleep(wait);
         }
     }
 
+    /// <summary>
+    /// Подписывается на смену устройств.
+    ///
+    /// Подписка живёт от <see cref="Start"/> до <see cref="Stop"/>, а не от
+    /// сборки до разбора: пересборка сама разбирает и собирает тракт, и
+    /// отписываться на это время значило бы пропустить ровно те уведомления,
+    /// ради которых подписка и нужна, — те, что приходят, пока устройство в
+    /// переходе.
+    /// </summary>
+    private void StartWatching()
+    {
+        _supervisor = new RestartSupervisor(reason => Restart(reason));
+
+        try
+        {
+            _watch = new AudioDeviceWatch(OnDeviceChanged);
+        }
+        catch (COMException e)
+        {
+            // Звуковая служба не дала подписаться. Разговор от этого не
+            // отменяется — он просто не переживёт смену устройства, и об этом
+            // надо сказать в журнал, а не падать.
+            Diagnostic($"следить за сменой устройств не удалось: {e.Message}");
+        }
+    }
+
+    private void StopWatching()
+    {
+        _watch?.Dispose();
+        _watch = null;
+
+        _supervisor?.Dispose();
+        _supervisor = null;
+    }
+
+    /// <summary>
+    /// Уведомление от звуковой службы.
+    ///
+    /// Вызывается на её рабочем потоке, который держит внутренний замок, пока
+    /// разносит уведомления. Здесь поэтому только фильтр и запись повода:
+    /// пересобирать тракт отсюда значило бы подвесить звук во всей системе на
+    /// то время, пока мы открываем устройство.
+    /// </summary>
+    private void OnDeviceChanged(AudioDeviceChange change)
+    {
+        AudioRouteBinding binding = Volatile.Read(ref _binding);
+        if (!DeviceChangeRelevance.AffectsRoute(change, binding))
+        {
+            return;
+        }
+
+        _supervisor?.Notify(Describe(change));
+    }
+
+    private static string Describe(AudioDeviceChange change) => change.Kind switch
+    {
+        AudioDeviceChangeKind.DeviceAdded => "устройство вернулось",
+        AudioDeviceChangeKind.DeviceRemoved => "устройство исчезло",
+        AudioDeviceChangeKind.DefaultChanged => "сменилось устройство для связи",
+        _ => change.Availability == AudioDeviceAvailability.Active
+            ? "устройство снова доступно"
+            : "устройство сменило состояние",
+    };
+
     public void Dispose()
     {
+        StopWatching();
+
         lock (_control)
         {
             if (_disposed)
@@ -314,6 +431,16 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     ? "в системе нет ни микрофона, ни выхода"
                     : _inputDevice is null ? "нет микрофона" : "нет устройства воспроизведения");
         }
+
+        // Привязка запоминается до открытия потоков: по ней фильтруются
+        // уведомления, а прийти они могут уже в следующую миллисекунду.
+        Volatile.Write(
+            ref _binding,
+            new AudioRouteBinding(
+                _configuration.InputDeviceId,
+                _configuration.OutputDeviceId,
+                _inputDevice.ID,
+                _outputDevice.ID));
 
         _captureClient = _inputDevice.CreateAudioClient();
         _renderClient = _outputDevice.CreateAudioClient();
@@ -1001,13 +1128,33 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private static short ToPcm(float sample) =>
         (short)Math.Clamp(sample * 32767f, short.MinValue, short.MaxValue);
 
+    /// <summary>
+    /// Поток звука получил отказ от драйвера.
+    ///
+    /// <b>Чинить отсюда нельзя, и объявлять разговор мёртвым тоже нельзя.</b>
+    /// Пересборка требует замка, а его в этот момент может держать отбой — да и
+    /// поток, который сам себя пересобирает, разбирал бы себя изнутри. Поэтому
+    /// повод уходит надзирателю, а тот склеит его с уведомлениями системы,
+    /// которые про то же самое событие сейчас придут, и пересоберёт тракт один
+    /// раз.
+    ///
+    /// Прежний вариант объявлял здесь <c>Broken</c> сразу. Это ровно тот
+    /// приговор без вины, ради которого написана
+    /// <see cref="AudioRestartPolicy"/>: выдернутая на секунду гарнитура — не
+    /// конец разговора.
+    /// </summary>
     private void FailFromThread(string stage, Exception error)
     {
-        // С потока звука не чиним: пересборка требует замка, а его сейчас может
-        // держать отбой. Сообщаем и уходим — решение принимает тот, кто владеет
-        // трактом.
         Diagnostic($"{stage}: устройство отказало ({error.Message})");
-        Report(new VoiceAudioEvent.Broken($"{stage}: {error.Message}"));
+
+        RestartSupervisor? supervisor = _supervisor;
+        if (supervisor is null)
+        {
+            // Надзирателя нет — тракт уже останавливают. Чинить нечего.
+            return;
+        }
+
+        supervisor.Notify($"{stage}: {error.Message}");
     }
 
     private void Diagnostic(string text) => Handlers.Diagnostic?.Invoke(text);
