@@ -57,6 +57,10 @@ internal static class Program
                     Positional(args, 12),
                     Flag(args, "--raw"),
                     (Option(args, "--level") ?? 15) / 100f),
+                "aec-model" => AecModelProbe.Run(
+                    Positional(args, 14),
+                    Option(args, "--reverb") ?? 150,
+                    !Flag(args, "--isolate")),
                 "aec-selftest" => AecSelfTest.Run(Option(args, "--delay") ?? 60, Positional(args, 20)),
                 _ => Unknown(args[0]),
             };
