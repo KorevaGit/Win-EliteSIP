@@ -246,10 +246,12 @@ internal sealed class ScriptedSipServer : ISipTransportChannel
         SipRequest request,
         string nonce = "1234abcd",
         string realm = "asterisk",
-        bool withObservedAddress = true) =>
+        bool withObservedAddress = true,
+        SipEndpoint? observedAddress = null) =>
         Response(
             request,
             401,
+            observedAddress: observedAddress,
             withObservedAddress: withObservedAddress,
             extraHeaders: (SipHeaderName.WwwAuthenticate, $"Digest algorithm=MD5, realm=\"{realm}\", nonce=\"{nonce}\""));
 
@@ -257,7 +259,8 @@ internal sealed class ScriptedSipServer : ISipTransportChannel
     public static SipResponse RegistrationAccepted(
         SipRequest request,
         int expires = 300,
-        bool withObservedAddress = true)
+        bool withObservedAddress = true,
+        SipEndpoint? observedAddress = null)
     {
         string contact;
         if (request.Contacts.Count > 0)
@@ -274,6 +277,7 @@ internal sealed class ScriptedSipServer : ISipTransportChannel
         return Response(
             request,
             200,
+            observedAddress: observedAddress,
             withObservedAddress: withObservedAddress,
             extraHeaders: (SipHeaderName.Contact, contact));
     }
