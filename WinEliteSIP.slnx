@@ -13,6 +13,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/EliteSIP.AdminAccess.Tests/EliteSIP.AdminAccess.Tests.csproj" />
+    <Project Path="tests/EliteSIP.Audio.Tests/EliteSIP.Audio.Tests.csproj" />
     <Project Path="tests/EliteSIP.CallGuard.Tests/EliteSIP.CallGuard.Tests.csproj" />
     <Project Path="tests/EliteSIP.CallHistory.Tests/EliteSIP.CallHistory.Tests.csproj" />
     <Project Path="tests/EliteSIP.Diagnostics.Tests/EliteSIP.Diagnostics.Tests.csproj" />
