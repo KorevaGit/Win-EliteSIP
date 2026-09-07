@@ -47,8 +47,16 @@ internal static class Program
                     Option(args, "--delay") ?? 60,
                     quiet: false,
                     suppression: !Flag(args, "--isolate"),
-                    raw: Flag(args, "--raw")),
+                    raw: Flag(args, "--raw"),
+                    primeMs: Option(args, "--prime") ?? 60,
+                    mobile: Flag(args, "--mobile")),
                 "aec-sweep" => AecSweep(args),
+                "echo-path" => EchoPathProbe.Run(
+                    Text(args, "--in-name"),
+                    Text(args, "--out-name"),
+                    Positional(args, 12),
+                    Flag(args, "--raw"),
+                    (Option(args, "--level") ?? 15) / 100f),
                 "aec-selftest" => AecSelfTest.Run(Option(args, "--delay") ?? 60, Positional(args, 20)),
                 _ => Unknown(args[0]),
             };
@@ -90,7 +98,8 @@ internal static class Program
                 quiet: true,
                 suppression: false,
                 convergeSeconds: 5,
-                raw: Flag(args, "--raw"));
+                raw: Flag(args, "--raw"),
+                primeMs: Option(args, "--prime") ?? 60);
         }
 
         Console.WriteLine();

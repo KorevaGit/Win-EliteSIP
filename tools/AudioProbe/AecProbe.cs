@@ -56,7 +56,7 @@ internal static class AecProbe
     /// каждой заминке, и в микрофон приходит рваное эхо, которое не подавит
     /// никакой AEC.
     /// </summary>
-    private const double PlaybackPrimeMs = 60.0;
+    private static double _playbackPrimeMs = 60.0;
 
     /// <summary>
     /// Сколько раз кольцу воспроизведения не хватило звука. Считается потому,
@@ -88,7 +88,9 @@ internal static class AecProbe
         bool quiet = false,
         bool suppression = true,
         int convergeSeconds = ConvergeSeconds,
-        bool raw = false)
+        bool raw = false,
+        double primeMs = 60.0,
+        bool mobile = false)
     {
         if (seconds <= convergeSeconds + 2)
         {
@@ -131,7 +133,7 @@ internal static class AecProbe
 
             // mobileMode = false: это AEC3, полноценный. Мобильный режим —
             // упрощённый AECM для телефонов, он заметно слабее.
-            config.SetEchoCanceller(true, false);
+            config.SetEchoCanceller(true, mobile);
 
             // Шумодав и АРУ выключаются ключом --isolate: они тоже меняют
             // энергию выхода, и с ними ERLE перестаёт быть мерой одного лишь
@@ -178,13 +180,24 @@ internal static class AecProbe
         // AUDCLNT_STREAMOPTIONS_RAW выключает эту обработку. Категория
         // Communications — отдельно от неё: она сообщает системе, что это
         // разговор, и на части устройств меняет маршрутизацию.
+        // Сырым должен быть и вывод, а не только захват.
+        //
+        // Первая попытка сделала сырым один захват. Уровень микрофона сразу
+        // перестал гулять — с 26 дБ разброса до полутора, — но подавление так и
+        // осталось плоским на 6-8 дБ. Оставшаяся половина причины на другом
+        // конце: динамики Realtek имеют свой APO с тонкомпенсацией и
+        // подъёмом низа, и он нелинейный. Эхоподавитель строит линейную модель
+        // пути «опорный сигнал → микрофон»; если между ними стоит нелинейная
+        // обработка, такой модели не существует, и сойтись не на чем.
         if (raw)
         {
             captureClient.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.Raw);
+            renderClient.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.Raw);
         }
         else
         {
             captureClient.SetClientProperties(AudioStreamCategory.Communications);
+            renderClient.SetClientProperties(AudioStreamCategory.Communications);
         }
 
         captureClient.Initialize(
@@ -221,7 +234,8 @@ internal static class AecProbe
         // Кольцо заполняется заранее: иначе первые кадры вывода — тишина, а
         // эхоподавитель в это время уже сходится и учится на пустом месте.
         var farEnd = new FarEndSource(ProcessingRate);
-        var prime = new float[(int)(PlaybackPrimeMs / 1000.0 * ProcessingRate)];
+        _playbackPrimeMs = primeMs;
+        var prime = new float[(int)(primeMs / 1000.0 * ProcessingRate)];
         farEnd.Fill(prime);
         playback.Write(prime);
 

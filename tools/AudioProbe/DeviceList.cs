@@ -66,6 +66,19 @@ internal static class DeviceList
                         "    период:  {0:F2} мс по умолчанию, {1:F2} мс минимум",
                         client.DefaultDevicePeriod / 10000.0,
                         client.MinimumDevicePeriod / 10000.0);
+
+                    // Громкость и текущий пик.
+                    //
+                    // Этого здесь не было, и зря: замер эхоподавления двое суток
+                    // показывал «эхо не давится», а прямой замер пути эха дал
+                    // корреляцию 0,035 — то есть микрофон почти не слышал того,
+                    // что мы играли. Первое, что надо было исключить, — что
+                    // динамики просто убавлены.
+                    Console.WriteLine(
+                        "    громкость: {0:P0}{1},  пик сейчас {2:P1}",
+                        device.AudioEndpointVolume.MasterVolumeLevelScalar,
+                        device.AudioEndpointVolume.Mute ? ", ВЫКЛЮЧЕН" : string.Empty,
+                        device.AudioMeterInformation.MasterPeakValue);
                 }
                 catch (System.Runtime.InteropServices.COMException e)
                 {

@@ -25,7 +25,7 @@ internal sealed class FarEndSource
     /// ограничение, а нелинейное искажение эхоподавитель не давит по
     /// построению, он линейный.
     /// </summary>
-    private const float Amplitude = 0.15f;
+    private readonly float _amplitude;
 
     private readonly int _sampleRate;
     private readonly Random _random;
@@ -36,9 +36,10 @@ internal sealed class FarEndSource
     private float _lowState;
     private float _highState;
 
-    public FarEndSource(int sampleRate, int seed = 20260904)
+    public FarEndSource(int sampleRate, float amplitude = 0.15f, int seed = 20260904)
     {
         _sampleRate = sampleRate;
+        _amplitude = amplitude;
         _random = new Random(seed);
     }
 
@@ -67,7 +68,7 @@ internal sealed class FarEndSource
             _highState += highAlpha * (_lowState - _highState);
             float band = _lowState - _highState;
 
-            frame[i] = IsActive(_position) ? band * Amplitude : 0f;
+            frame[i] = IsActive(_position) ? band * _amplitude : 0f;
             _position++;
         }
     }
