@@ -60,7 +60,8 @@ internal static class Program
                 "aec-model" => AecModelProbe.Run(
                     Positional(args, 14),
                     Option(args, "--reverb") ?? 150,
-                    !Flag(args, "--isolate")),
+                    !Flag(args, "--isolate"),
+                    product: Flag(args, "--product")),
                 "aec-selftest" => AecSelfTest.Run(Option(args, "--delay") ?? 60, Positional(args, 20)),
                 // Длительность и ключом тоже: общий разборщик позиционного
                 // числа пропускает его, если слева стоит флаг, и «tract

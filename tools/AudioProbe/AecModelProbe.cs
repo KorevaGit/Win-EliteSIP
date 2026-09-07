@@ -1,3 +1,4 @@
+using EliteSIP.Audio;
 using SoundFlow.Extensions.WebRtc.Apm;
 
 namespace AudioProbe;
@@ -34,12 +35,15 @@ internal static class AecModelProbe
     /// <summary>Задержка прямого прихода. Из живого замера на этой машине.</summary>
     private const int DirectDelayMs = 67;
 
-    public static int Run(int seconds, int reverbMs, bool suppression)
+    public static int Run(int seconds, int reverbMs, bool suppression, bool product = false)
     {
         int frame = Rate / 1000 * FrameMs;
 
         Console.WriteLine("Эхоподавление на модели комнаты. Устройства не открываются, звука нет.");
         Console.WriteLine("Прямой приход {0} мс, хвост отражений {1} мс.", DirectDelayMs, reverbMs);
+        Console.WriteLine(product
+            ? "Обработка: ПРОДУКТОВАЯ (EliteSIP.Audio.VoiceProcessor), полная цепочка."
+            : "Обработка: собранная стендом.");
         Console.WriteLine();
 
         float[] response = RoomResponse(reverbMs);
@@ -63,7 +67,9 @@ internal static class AecModelProbe
 
         foreach (int echoToNoiseDb in ratios)
         {
-            (double erle, double residual) = Measure(seconds, frame, response, echoToNoiseDb, suppression);
+            (double erle, double residual) = product
+                ? MeasureProduct(seconds, frame, response, echoToNoiseDb)
+                : Measure(seconds, frame, response, echoToNoiseDb, suppression);
             Console.WriteLine("{0,5} дБ   {1,5:F1}    {2,6:F1} дБ", echoToNoiseDb, erle, residual);
 
             if (erle >= 20)
@@ -237,6 +243,106 @@ internal static class AecModelProbe
         double erle = 10.0 * Math.Log10(inputEnergy / outputEnergy);
         double residual = 10.0 * Math.Log10(outputEnergy / counted);
         return (erle, residual);
+    }
+
+    /// <summary>
+    /// Тот же замер, но через продуктовый блок обработки.
+    ///
+    /// <b>Зачем повторять уже сделанное.</b> Прогон выше проверяет APM,
+    /// настроенный <b>стендом</b>. Продукт настраивает его сам и своим кодом, и
+    /// между этими настройками помещается целый класс ошибок, которых замер
+    /// стенда не увидит: не тот порядок вызовов, потерянный блок цепочки,
+    /// кадр не той длины, мобильный режим вместо AEC3. Все они выглядят как
+    /// работающий тракт — просто эхо не давится, а узнать об этом можно только
+    /// от собеседника.
+    ///
+    /// Разница между двумя столбцами чисел и есть ответ на вопрос «настроено ли
+    /// в продукте то же, что проверено в W0».
+    ///
+    /// Опорный сигнал здесь только <b>наблюдается</b>, а не обрабатывается:
+    /// продукт зовёт <c>AnalyzeReverse</c> на то, что уже отдал устройству, и
+    /// свёртка комнаты идёт по тому же неизменённому сигналу. Это ближе к
+    /// действительности, чем <c>ProcessReverseStream</c> в прогоне выше.
+    /// </summary>
+    private static (double Erle, double Residual) MeasureProduct(
+        int seconds,
+        int frame,
+        float[] response,
+        int echoToNoiseDb)
+    {
+        using var processor = new VoiceProcessor(Rate, automaticGainControl: false);
+
+        if (processor.FrameSamples != frame)
+        {
+            throw new InvalidOperationException(
+                $"кадр продукта {processor.FrameSamples} не совпадает с кадром стенда {frame}");
+        }
+
+        var farEnd = new FarEndSource(Rate, 0.4f);
+        var random = new Random(20260907);
+
+        var far = new float[frame];
+        var near = new float[frame];
+        var nearOut = new float[frame];
+        var history = new float[response.Length + frame];
+
+        int frames = seconds * 1000 / FrameMs;
+        int converge = 4 * 1000 / FrameMs;
+        double noiseAmplitude = 0.4 * Math.Pow(10.0, -echoToNoiseDb / 20.0) * 0.3;
+
+        double inputEnergy = 0;
+        double outputEnergy = 0;
+        int counted = 0;
+
+        for (int f = 0; f < frames; f++)
+        {
+            farEnd.Fill(far);
+            processor.AnalyzeReverse(far);
+
+            Array.Copy(history, frame, history, 0, history.Length - frame);
+            Array.Copy(far, 0, history, history.Length - frame, frame);
+
+            for (int i = 0; i < frame; i++)
+            {
+                double echo = 0;
+                int position = history.Length - frame + i;
+                for (int k = 0; k < response.Length; k++)
+                {
+                    int index = position - k;
+                    if (index < 0)
+                    {
+                        break;
+                    }
+
+                    echo += history[index] * response[k];
+                }
+
+                float noise = (float)(((random.NextDouble() * 2.0) - 1.0) * noiseAmplitude);
+                near[i] = (float)echo + noise;
+            }
+
+            processor.Process(near, nearOut, DirectDelayMs);
+
+            if (f >= converge)
+            {
+                double before = Energy(near);
+                if (before > 1e-12)
+                {
+                    inputEnergy += before;
+                    outputEnergy += Energy(nearOut);
+                    counted++;
+                }
+            }
+        }
+
+        if (counted == 0 || outputEnergy <= 0)
+        {
+            return (0, double.NegativeInfinity);
+        }
+
+        return (
+            10.0 * Math.Log10(inputEnergy / outputEnergy),
+            10.0 * Math.Log10(outputEnergy / counted));
     }
 
     private static double Energy(float[] samples)

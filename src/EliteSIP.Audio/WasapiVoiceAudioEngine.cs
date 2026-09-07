@@ -83,6 +83,48 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// </summary>
     private const int RingHeadroomFactor = 4;
 
+    /// <summary>
+    /// Сколько остановка ждёт замок, прежде чем оставить разбор пересборке.
+    ///
+    /// Две секунды — с запасом на исправное устройство, где вся сборка стоит
+    /// 511–626 мс, и заведомо меньше того, на что способен умирающий Bluetooth.
+    /// Ждать дольше значит вернуть ту самую задержку отбоя, ради которой всё и
+    /// сделано.
+    /// </summary>
+    private static readonly TimeSpan StopLockWait = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Сколько раз пробовать поднять тракт при запуске.
+    ///
+    /// <b>Случай наблюдён, а не выдуман.</b> Сразу после того, как устройство
+    /// освободил другой процесс, <c>Initialize</c> вернул
+    /// <c>0x8007000E</c> — нехватку ресурсов, — и звонок не поднялся. Через
+    /// секунду тот же вызов прошёл. Для оператора это выглядит как «позвонил
+    /// сразу после закрытия другой программы, и связи нет»: он не знает, что
+    /// надо подождать, и не должен знать.
+    ///
+    /// Три попытки, а не серия с запасом терпения, как при пересборке: там
+    /// разговор уже идёт и его жалко, здесь человек ждёт гудка и лишние
+    /// секунды тишины хуже честного отказа.
+    /// </summary>
+    private const int StartAttempts = 3;
+
+    /// <summary>Пауза между попытками запуска.</summary>
+    private static readonly TimeSpan StartRetryDelay = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>
+    /// Отказ, который через секунду может пройти сам.
+    ///
+    /// Список узкий намеренно: «микрофона нет вовсе» повторять бессмысленно, и
+    /// звонок в этом случае обязан отказать сразу, а не заставлять человека
+    /// ждать секунду впустую.
+    /// </summary>
+    private static bool IsTransient(Exception error) => error is COMException com
+        && com.HResult is
+            unchecked((int)0x8007000E)   // ресурсы: устройство ещё держит другой процесс
+            or unchecked((int)0x88890004) // устройство отключено или перенастроено
+            or unchecked((int)0x8889000A); // устройство занято монопольно
+
     private readonly Lock _control = new();
     private readonly Lock _ring = new();
 
@@ -139,6 +181,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
     private bool _running;
     private bool _disposed;
+
+    /// <summary>
+    /// Тракт просили остановить. Читается путями, которые могут не дождаться
+    /// замка, поэтому отдельно от <see cref="_running"/>.
+    /// </summary>
+    private bool _stopRequested;
 
     public WasapiVoiceAudioEngine(VoiceAudioConfiguration configuration)
     {
@@ -197,17 +245,32 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 return;
             }
 
-            try
+            // Новый запуск отменяет намерение остановиться: прежнее относилось
+            // к прошлому разговору.
+            Volatile.Write(ref _stopRequested, false);
+
+            for (int attempt = 1; ; attempt++)
             {
-                Build();
-            }
-            catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException)
-            {
-                // Разбираем недособранное сами: оставить половину открытых
-                // потоков значит держать гарнитуру в режиме связи после
-                // неудавшегося звонка.
-                Teardown();
-                throw new VoiceAudioException("тракт не поднялся: " + e.Message, e);
+                try
+                {
+                    Build();
+                    break;
+                }
+                catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException)
+                {
+                    // Разбираем недособранное сами: оставить половину открытых
+                    // потоков значит держать гарнитуру в режиме связи после
+                    // неудавшегося звонка.
+                    Teardown();
+
+                    if (attempt >= StartAttempts || !IsTransient(e))
+                    {
+                        throw new VoiceAudioException("тракт не поднялся: " + e.Message, e);
+                    }
+
+                    Diagnostic($"запуск не удался ({e.Message}), попытка {attempt + 1}");
+                    Thread.Sleep(StartRetryDelay);
+                }
             }
 
             _running = true;
@@ -216,11 +279,36 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     }
 
     /// <inheritdoc/>
+    /// <summary>
+    /// Останавливает тракт.
+    ///
+    /// <b>Не ждёт пересборку, застрявшую в драйвере.</b> Замер на живой
+    /// гарнитуре: открытие <b>умирающего</b> Bluetooth-устройства блокируется
+    /// внутри драйвера, и серия попыток растянулась на десятки секунд. Отбой,
+    /// который в это время просто ждал бы замка, выглядит для оператора как
+    /// зависшее приложение — а он всего лишь положил трубку.
+    ///
+    /// Поэтому намерение остановиться объявляется <b>до</b> замка и отдельным
+    /// флагом. Если замок свободен, тракт разбирается здесь же, как раньше.
+    /// Если нет — разберёт его сама пересборка, увидев флаг, как только драйвер
+    /// её отпустит. В обоих случаях устройство закрывается ровно один раз.
+    /// </summary>
     public void Stop()
     {
+        // Порядок важен: сначала флаг, потом отписка. Наоборот — и уведомление,
+        // проскочившее между ними, назначило бы пересборку уже остановленного
+        // тракта.
+        Volatile.Write(ref _stopRequested, true);
         StopWatching();
 
-        lock (_control)
+        if (!_control.TryEnter(StopLockWait))
+        {
+            Diagnostic(
+                "остановка: пересборка держит тракт, устройство закроется по её выходе");
+            return;
+        }
+
+        try
         {
             if (!_running)
             {
@@ -229,6 +317,10 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
             _running = false;
             Teardown();
+        }
+        finally
+        {
+            _control.Exit();
         }
     }
 
@@ -281,14 +373,36 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 // Пока мы ждали, тракт могли остановить или закрыть. Собирать
                 // его обратно после этого — значит открыть устройство, которое
                 // уже никому не нужно, и оставить гарнитуру в режиме связи.
-                if (_disposed || !_running)
+                //
+                // Флаг проверяется отдельно от `_running`: остановка, не
+                // дождавшаяся замка, до `_running` не добралась и оставила
+                // разбор нам.
+                if (_disposed || !_running || Volatile.Read(ref _stopRequested))
                 {
+                    if (_running)
+                    {
+                        _running = false;
+                        Teardown();
+                    }
+
                     return;
                 }
 
                 try
                 {
                     Build();
+
+                    // Пока мы собирали, могли попросить остановиться — и
+                    // именно так и происходит, когда сборка застревает в
+                    // драйвере на десятки секунд. Оставить тракт поднятым
+                    // значило бы держать гарнитуру открытой после отбоя.
+                    if (Volatile.Read(ref _stopRequested))
+                    {
+                        _running = false;
+                        Teardown();
+                        return;
+                    }
+
                     policy.RecordSuccess();
                     Report(new VoiceAudioEvent.Restarted(reason));
                     return;
@@ -383,6 +497,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
     public void Dispose()
     {
+        Volatile.Write(ref _stopRequested, true);
         StopWatching();
 
         lock (_control)
