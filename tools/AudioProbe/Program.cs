@@ -31,7 +31,7 @@ internal static class Program
             return args[0] switch
             {
                 "devices" => DeviceList.Run(),
-                "capture" => CaptureProbe.Run(Positional(args, 10)),
+                "capture" => CaptureProbe.Run(Positional(args, 10), Text(args, "--in-name")),
                 "loop" => LoopProbe.Run(
                     Option(args, "--in"),
                     Option(args, "--out"),
@@ -44,7 +44,12 @@ internal static class Program
                     Text(args, "--in-name"),
                     Text(args, "--out-name"),
                     Positional(args, 30),
-                    Option(args, "--delay") ?? 60),
+                    Option(args, "--delay") ?? 60,
+                    quiet: false,
+                    suppression: !Flag(args, "--isolate"),
+                    raw: Flag(args, "--raw")),
+                "aec-sweep" => AecSweep(args),
+                "aec-selftest" => AecSelfTest.Run(Option(args, "--delay") ?? 60, Positional(args, 20)),
                 _ => Unknown(args[0]),
             };
         }
@@ -53,6 +58,44 @@ internal static class Program
             Console.Error.WriteLine(e.Message);
             return 1;
         }
+    }
+
+    /// <summary>
+    /// Перебор объявленной задержки опорного сигнала.
+    ///
+    /// Нужен потому, что одиночный замер на открытых динамиках дал ERLE 3,3 дБ
+    /// при живом эхе, и объявленная задержка — первый подозреваемый: AEC3
+    /// ищет отражение в окне вокруг того числа, которое ему назвали, и если
+    /// промахнуться, он не найдёт ничего и честно ничего не подавит.
+    ///
+    /// Шумодав и АРУ на переборе выключены: они тоже меняют энергию выхода, а
+    /// здесь надо видеть один лишь эхоподавитель.
+    /// </summary>
+    private static int AecSweep(string[] args)
+    {
+        int[] delays = [0, 20, 40, 60, 80, 120, 160, 200, 260];
+        string? inputName = Text(args, "--in-name");
+        string? outputName = Text(args, "--out-name");
+
+        Console.WriteLine("Перебор задержки. Шум будет идти примерно {0} с. Молчите.", delays.Length * 12);
+        Console.WriteLine();
+
+        foreach (int delay in delays)
+        {
+            AecProbe.Run(
+                inputName,
+                outputName,
+                seconds: 12,
+                delayMs: delay,
+                quiet: true,
+                suppression: false,
+                convergeSeconds: 5,
+                raw: Flag(args, "--raw"));
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Если ERLE не растёт ни на одной задержке — дело не в ней.");
+        return 0;
     }
 
     private static int Unknown(string command)

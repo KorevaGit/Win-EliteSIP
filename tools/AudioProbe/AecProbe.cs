@@ -17,43 +17,82 @@ namespace AudioProbe;
 /// на двух гарнитурах получат два разных ответа, а через месяц никто не
 /// вспомнит, было ли лучше. Поэтому считается ERLE (Echo Return Loss
 /// Enhancement) — во сколько раз обработка ослабила то, что микрофон поймал из
-/// наушников. Это одно число в децибелах, воспроизводимое от прогона к
-/// прогону.
-///
-/// Порядок: в наушники подаётся сигнал дальней стороны, он же отдаётся
-/// эхоподавителю как опорный. Микрофон ловит его отражение. ERLE — отношение
-/// энергии микрофона до обработки к энергии после, взятое только на тех
-/// кадрах, где дальняя сторона звучит.
+/// динамиков. Это одно число в децибелах, воспроизводимое от прогона к прогону.
 ///
 /// **Во время замера надо молчать.** Собственная речь — это полезный сигнал, а
 /// не эхо; эхоподавитель обязан её сохранить, и в замер она войдёт как
 /// «неподавленное эхо», занизив результат.
+///
+/// **Почему весь APM живёт на одном потоке.** Первая версия звала
+/// <c>AnalyzeReverseStream</c> из потока воспроизведения, а <c>ProcessStream</c>
+/// — из потока захвата, как это устроено в самом WebRTC. Эхоподавление не
+/// работало вовсе: ERLE 1–3 дБ, и одинаковый на всех девяти пробах задержки от
+/// нуля до 260 мс. Плоский отклик на перебор задержки означает, что опорного
+/// сигнала эхоподавитель не видел совсем, — при верном опорном сигнале и
+/// неверной задержке график имел бы горб.
+///
+/// Здесь оба конца сведены на поток захвата: он же и тактирует. Кадр дальней
+/// стороны рождается, отдаётся эхоподавителю опорным и уходит в кольцо
+/// воспроизведения — в одном месте и в одном порядке. Поток вывода стал
+/// глупым: только забрать из кольца и отдать устройству.
 /// </summary>
 internal static class AecProbe
 {
     /// <summary>
-    /// Частота обработки. 48 кГц — родная частота обоих устройств этой машины,
-    /// и на ней в стенде нет ни одного пересчёта частоты. Пересчёт добавил бы
-    /// свою задержку и своё искажение к тому, что мы как раз измеряем.
-    /// APM работает на 8, 16, 32 и 48 кГц; в бою частота будет выбираться под
-    /// кодек, но качество эхоподавления проверяется здесь, а не там.
+    /// Частота обработки. 48 кГц — родная частота устройств этой машины, и на
+    /// ней в стенде нет ни одного пересчёта частоты. Пересчёт добавил бы свою
+    /// задержку и своё искажение к тому, что как раз измеряется.
     /// </summary>
     private const int ProcessingRate = 48000;
 
     /// <summary>Кадр APM — всегда 10 мс, это заложено в WebRTC.</summary>
     private const int FrameMs = 10;
 
-    /// <summary>
-    /// Сколько дать эхоподавителю на сходимость, прежде чем начать считать.
-    /// AEC3 подстраивается под задержку и характеристику помещения не мгновенно.
-    /// </summary>
     private const int ConvergeSeconds = 5;
 
-    public static int Run(string? inputName, string? outputName, int seconds, int delayMs)
+    /// <summary>
+    /// Запас кольца воспроизведения. Кадры дальней стороны рождаются в такте
+    /// микрофона, а забираются в такте динамиков; без запаса вывод голодает на
+    /// каждой заминке, и в микрофон приходит рваное эхо, которое не подавит
+    /// никакой AEC.
+    /// </summary>
+    private const double PlaybackPrimeMs = 60.0;
+
+    /// <summary>
+    /// Сколько раз кольцу воспроизведения не хватило звука. Считается потому,
+    /// что голодание рвёт связь между опорным сигналом и тем, что реально
+    /// прозвучало: эхоподавителю показывают одно, а из динамика идёт другое, и
+    /// сойтись он не может в принципе.
+    /// </summary>
+    private static int _playbackStarved;
+
+    /// <summary>
+    /// Заполнение буфера устройства вывода, как его видел поток вывода на
+    /// последнем витке. Нужно потоку захвата, чтобы посчитать задержку.
+    /// </summary>
+    private static int _renderPadding;
+
+    /// <summary>
+    /// Латентность обоих потоков в отсчётах — то, что устройство держит внутри
+    /// себя сверх наших буферов. Из счётчиков колец её не видно, а в задержку
+    /// она входит: динамик звучит позже, чем мы отдали кадр, а микрофон отдаёт
+    /// позже, чем звук до него дошёл.
+    /// </summary>
+    private static int _streamLatencyFrames;
+
+    public static int Run(
+        string? inputName,
+        string? outputName,
+        int seconds,
+        int delayMs,
+        bool quiet = false,
+        bool suppression = true,
+        int convergeSeconds = ConvergeSeconds,
+        bool raw = false)
     {
-        if (seconds <= ConvergeSeconds + 5)
+        if (seconds <= convergeSeconds + 2)
         {
-            Console.Error.WriteLine($"Прогон короче {ConvergeSeconds + 6} с ничего не покажет: сходимость съест замер.");
+            Console.Error.WriteLine($"Прогон короче {convergeSeconds + 3} с ничего не покажет: сходимость съест замер.");
             return 1;
         }
 
@@ -61,9 +100,12 @@ internal static class AecProbe
         using MMDevice input = Devices.Pick(enumerator, DataFlow.Capture, null, inputName);
         using MMDevice output = Devices.Pick(enumerator, DataFlow.Render, null, outputName);
 
-        Console.WriteLine($"Вход:   {input.FriendlyName}");
-        Console.WriteLine($"Выход:  {output.FriendlyName}");
-        Console.WriteLine();
+        if (!quiet)
+        {
+            Console.WriteLine($"Вход:   {input.FriendlyName}");
+            Console.WriteLine($"Выход:  {output.FriendlyName}");
+            Console.WriteLine();
+        }
 
         using AudioClient captureClient = input.CreateAudioClient();
         using AudioClient renderClient = output.CreateAudioClient();
@@ -74,8 +116,7 @@ internal static class AecProbe
         {
             Console.Error.WriteLine(
                 $"Стенд считает эхоподавление только на {ProcessingRate} Гц без пересчёта частоты. "
-                + $"Здесь захват {captureFormat.SampleRate}, вывод {renderFormat.SampleRate}. "
-                + "Пересчёт добавил бы свою задержку к тому, что измеряется.");
+                + $"Здесь захват {captureFormat.SampleRate}, вывод {renderFormat.SampleRate}.");
             return 1;
         }
 
@@ -84,29 +125,67 @@ internal static class AecProbe
         using var apm = new AudioProcessingModule();
         using (var config = new ApmConfig())
         {
-            // mobileMode = false: это AEC3, полноценный. Мобильный режим —
-            // упрощённый AECM для телефонов, он заметно слабее и на настольной
-            // машине не нужен.
-            config.SetEchoCanceller(true, false);
-            config.SetNoiseSuppression(true, NoiseSuppressionLevel.High);
-            config.SetHighPassFilter(true);
-            config.SetGainController2(true);
+            // Порядок важен: сначала конвейер, потом блоки. SetPipeline задаёт
+            // частоту, на которой APM вообще работает.
             config.SetPipeline(ProcessingRate, false, false, DownmixMethod.AverageChannels);
+
+            // mobileMode = false: это AEC3, полноценный. Мобильный режим —
+            // упрощённый AECM для телефонов, он заметно слабее.
+            config.SetEchoCanceller(true, false);
+
+            // Шумодав и АРУ выключаются ключом --isolate: они тоже меняют
+            // энергию выхода, и с ними ERLE перестаёт быть мерой одного лишь
+            // эхоподавления. Для приговора «слышно ли эхо» нужна вся цепочка,
+            // для поиска причины — только AEC.
+            config.SetNoiseSuppression(suppression, NoiseSuppressionLevel.High);
+            config.SetHighPassFilter(suppression);
+            config.SetGainController2(suppression);
+
             apm.ApplyConfig(config);
         }
 
         apm.Initialize();
 
-        Console.WriteLine("Обработка: WebRTC APM, AEC3 + шумодав + АРУ, {0} Гц, кадр {1} мс", ProcessingRate, FrameMs);
-        Console.WriteLine("Задержка опорного сигнала объявлена: {0} мс", delayMs);
-        Console.WriteLine();
-        Console.WriteLine("СЕЙЧАС В НАУШНИКАХ БУДЕТ ШУМ. Молчите: собственная речь занизит результат.");
-        Console.WriteLine($"Первые {ConvergeSeconds} с — сходимость, в замер не идут.");
-        Console.WriteLine();
+        if (!quiet)
+        {
+            Console.WriteLine(
+                "Обработка: WebRTC APM, AEC3{0}, {1} Гц, кадр {2} мс, захват {3}",
+                suppression ? " + шумодав + АРУ" : " один, без шумодава и АРУ",
+                ProcessingRate,
+                FrameMs,
+                raw ? "СЫРОЙ, системная обработка выключена" : "обычный, с обработкой системы");
+            Console.WriteLine("Задержка опорного сигнала объявлена: {0} мс", delayMs);
+            Console.WriteLine();
+            Console.WriteLine("СЕЙЧАС БУДЕТ ШУМ. Молчите: собственная речь занизит результат.");
+            Console.WriteLine($"Первые {convergeSeconds} с — сходимость, в замер не идут.");
+            Console.WriteLine();
+        }
 
-        var farEnd = new FarEndSource(ProcessingRate);
-        var reference = new MonoRing(ProcessingRate * 2);
+        var playback = new MonoRing(ProcessingRate * 2);
         var meter = new ErleMeter();
+        Interlocked.Exchange(ref _playbackStarved, 0);
+
+        // Сырой режим захвата.
+        //
+        // Улика, из-за которой он здесь появился: уровень микрофона скакал на
+        // 26 дБ между прогонами при неподвижном ноутбуке и неизменном опорном
+        // сигнале — от −38,6 до −64,5 дБ. Так себя ведёт не акустика, а чужая
+        // обработка в тракте. «Набор микрофонов» Realtek — это массив со своим
+        // эхоподавителем и своей АРУ в системном APO, и он воюет с нашим: AEC3
+        // видит на входе уже обработанное и меняющееся во времени эхо, для
+        // которого линейной модели не существует.
+        //
+        // AUDCLNT_STREAMOPTIONS_RAW выключает эту обработку. Категория
+        // Communications — отдельно от неё: она сообщает системе, что это
+        // разговор, и на части устройств меняет маршрутизацию.
+        if (raw)
+        {
+            captureClient.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.Raw);
+        }
+        else
+        {
+            captureClient.SetClientProperties(AudioStreamCategory.Communications);
+        }
 
         captureClient.Initialize(
             AudioClientShareMode.Shared,
@@ -124,6 +203,13 @@ internal static class AecProbe
             renderFormat,
             Guid.Empty);
 
+        // Латентность потоков спрашивается у самих устройств — и только после
+        // Initialize, до него клиент про неё не знает. У каждого устройства она
+        // своя, и на Bluetooth она на порядок больше, чем на USB.
+        Interlocked.Exchange(
+            ref _streamLatencyFrames,
+            (int)((captureClient.StreamLatency + renderClient.StreamLatency) / 10_000_000.0 * ProcessingRate));
+
         using var captureReady = new EventWaitHandle(false, EventResetMode.AutoReset);
         using var renderReady = new EventWaitHandle(false, EventResetMode.AutoReset);
         captureClient.SetEventHandle(captureReady.SafeWaitHandle.DangerousGetHandle());
@@ -132,8 +218,15 @@ internal static class AecProbe
         using var stop = new CancellationTokenSource();
         var counting = new ManualResetEventSlim(false);
 
+        // Кольцо заполняется заранее: иначе первые кадры вывода — тишина, а
+        // эхоподавитель в это время уже сходится и учится на пустом месте.
+        var farEnd = new FarEndSource(ProcessingRate);
+        var prime = new float[(int)(PlaybackPrimeMs / 1000.0 * ProcessingRate)];
+        farEnd.Fill(prime);
+        playback.Write(prime);
+
         var renderThread = new Thread(() =>
-            RenderLoop(renderClient, renderReady, renderFormat, farEnd, reference, frame, apm, stop.Token))
+            RenderLoop(renderClient, renderReady, renderFormat, playback, stop.Token))
         {
             Priority = ThreadPriority.Highest,
             IsBackground = true,
@@ -141,7 +234,9 @@ internal static class AecProbe
         };
 
         var captureThread = new Thread(() =>
-            CaptureLoop(captureClient, captureReady, captureFormat, apm, reference, meter, frame, delayMs, counting, stop.Token))
+            CaptureLoop(
+                captureClient, captureReady, captureFormat, apm, farEnd, playback,
+                meter, frame, delayMs, counting, stop.Token))
         {
             Priority = ThreadPriority.Highest,
             IsBackground = true,
@@ -153,12 +248,11 @@ internal static class AecProbe
         renderThread.Start();
         captureThread.Start();
 
-        Thread.Sleep(ConvergeSeconds * 1000);
+        Thread.Sleep(convergeSeconds * 1000);
         meter.Reset();
         counting.Set();
-        Console.WriteLine("Считаю…");
 
-        Thread.Sleep((seconds - ConvergeSeconds) * 1000);
+        Thread.Sleep((seconds - convergeSeconds) * 1000);
 
         stop.Cancel();
         captureThread.Join(1000);
@@ -166,26 +260,24 @@ internal static class AecProbe
         captureClient.Stop();
         renderClient.Stop();
 
-        return Report(meter, apm);
+        return Report(meter, apm, delayMs, quiet);
     }
 
+    /// <summary>
+    /// Поток вывода намеренно глупый: забрать из кольца и отдать устройству.
+    /// Всё, что касается эхоподавителя, живёт на потоке захвата.
+    /// </summary>
     private static void RenderLoop(
         AudioClient client,
         EventWaitHandle ready,
         WaveFormat format,
-        FarEndSource farEnd,
-        MonoRing reference,
-        int frame,
-        AudioProcessingModule apm,
+        MonoRing playback,
         CancellationToken token)
     {
         AudioRenderClient render = client.AudioRenderClient;
         int channels = format.Channels;
         int bufferFrames = client.BufferSize;
-        var mono = new float[frame];
-        var reverse = new float[1][];
-        reverse[0] = mono;
-        using var reverseConfig = new StreamConfig(ProcessingRate, 1);
+        var mono = new float[format.SampleRate];
 
         while (!token.IsCancellationRequested)
         {
@@ -194,35 +286,41 @@ internal static class AecProbe
                 continue;
             }
 
-            int free = bufferFrames - client.CurrentPadding;
+            int padding = client.CurrentPadding;
+            Interlocked.Exchange(ref _renderPadding, padding);
 
-            // Выдаём целыми кадрами по 10 мс: APM другого размера не принимает,
-            // а опорный сигнал обязан совпадать с тем, что реально прозвучало.
-            while (free >= frame && !token.IsCancellationRequested)
+            int free = bufferFrames - padding;
+            if (free <= 0)
             {
-                farEnd.Fill(mono);
+                continue;
+            }
 
-                // Опорный сигнал отдаётся эхоподавителю ровно тот, что уходит в
-                // наушники, и до того, как придёт микрофонный кадр.
-                apm.AnalyzeReverseStream(reverse, reverseConfig);
-                reference.Write(mono);
+            if (free > mono.Length)
+            {
+                free = mono.Length;
+            }
 
-                nint buffer = render.GetBuffer(frame);
-                unsafe
+            int got = playback.Read(mono.AsSpan(0, free));
+            if (got < free)
+            {
+                Interlocked.Increment(ref _playbackStarved);
+                Array.Clear(mono, got, free - got);
+            }
+
+            nint buffer = render.GetBuffer(free);
+            unsafe
+            {
+                float* destination = (float*)buffer;
+                for (int i = 0; i < free; i++)
                 {
-                    float* destination = (float*)buffer;
-                    for (int i = 0; i < frame; i++)
+                    for (int c = 0; c < channels; c++)
                     {
-                        for (int c = 0; c < channels; c++)
-                        {
-                            destination[(i * channels) + c] = mono[i];
-                        }
+                        destination[(i * channels) + c] = mono[i];
                     }
                 }
-
-                render.ReleaseBuffer(frame, AudioClientBufferFlags.None);
-                free -= frame;
             }
+
+            render.ReleaseBuffer(free, AudioClientBufferFlags.None);
         }
     }
 
@@ -231,7 +329,8 @@ internal static class AecProbe
         EventWaitHandle ready,
         WaveFormat format,
         AudioProcessingModule apm,
-        MonoRing reference,
+        FarEndSource farEnd,
+        MonoRing playback,
         ErleMeter meter,
         int frame,
         int delayMs,
@@ -241,12 +340,17 @@ internal static class AecProbe
         AudioCaptureClient capture = client.AudioCaptureClient;
         int channels = format.Channels;
         var pending = new MonoRing(ProcessingRate * 2);
-        var scratch = new float[frame];
+        var scratch = new float[frame * 8];
+
         var near = new float[1][];
-        var outp = new float[1][];
+        var nearOut = new float[1][];
+        var far = new float[1][];
+        var farOut = new float[1][];
         near[0] = new float[frame];
-        outp[0] = new float[frame];
-        var referenceFrame = new float[frame];
+        nearOut[0] = new float[frame];
+        far[0] = new float[frame];
+        farOut[0] = new float[frame];
+
         using var streamConfig = new StreamConfig(ProcessingRate, 1);
 
         while (!token.IsCancellationRequested)
@@ -259,7 +363,7 @@ internal static class AecProbe
             while (capture.GetNextPacketSize() > 0)
             {
                 nint buffer = capture.GetBuffer(out int frames, out _);
-                if (frames > 0 && scratch.Length < frames)
+                if (frames > scratch.Length)
                 {
                     scratch = new float[frames];
                 }
@@ -287,36 +391,56 @@ internal static class AecProbe
                 capture.ReleaseBuffer(frames);
             }
 
-            // Обрабатываем накопленное целыми кадрами по 10 мс.
             while (pending.Count >= frame && !token.IsCancellationRequested)
             {
-                pending.Read(near[0]);
+                // 1. Рождается кадр дальней стороны.
+                farEnd.Fill(far[0]);
+                bool farEndActive = Energy(far[0]) > 1e-9;
 
+                // 2. Он же отдаётся эхоподавителю опорным — до того, как
+                //    придёт микрофонный кадр с его отражением.
+                apm.ProcessReverseStream(far, streamConfig, streamConfig, farOut);
+
+                // 3. И уходит в кольцо воспроизведения.
+                playback.Write(far[0]);
+
+                // 4. Микрофонный кадр обрабатывается.
+                pending.Read(near[0]);
                 double before = Energy(near[0]);
 
-                apm.SetStreamDelayMs(delayMs);
-                apm.ProcessStream(near, streamConfig, streamConfig, outp);
+                // Задержка считается, а не объявляется.
+                //
+                // Объявленная константа не работает: попытка назвать её числом
+                // дала 37,6 дБ в одном прогоне и 2,7 дБ в следующем на том же
+                // значении 160 мс. Причина в том, что задержка не постоянная —
+                // она зависит от того, где на старте улеглось кольцо
+                // воспроизведения, а это гонка потоков, разная каждый раз.
+                //
+                // Считать её, наоборот, просто: это время, которое кадр
+                // проведёт в кольце и в буфере устройства, прежде чем
+                // прозвучит, плюс то, что микрофонный кадр уже пролежал у нас.
+                // Ровно это и означает «задержка между ProcessReverseStream и
+                // ProcessStream» в документации APM.
+                int ringFill = playback.Count;
+                int padding = Interlocked.CompareExchange(ref _renderPadding, 0, 0);
+                int captured = pending.Count;
 
-                double after = Energy(outp[0]);
+                int measured = delayMs >= 0
+                    ? delayMs
+                    : (int)((ringFill + padding + captured + _streamLatencyFrames) * 1000.0 / ProcessingRate);
 
-                // Опорный кадр нужен только чтобы понять, звучала ли дальняя
-                // сторона: ERLE считается по тем кадрам, где эху есть откуда
-                // взяться.
-                bool farEndActive = reference.Count >= frame
-                    && ReadActive(reference, referenceFrame);
+                meter.NoteDelay(measured, ringFill, padding, captured);
+                apm.SetStreamDelayMs(measured);
+                apm.ProcessStream(near, streamConfig, streamConfig, nearOut);
+
+                double after = Energy(nearOut[0]);
 
                 if (counting.IsSet)
                 {
-                    meter.Add(before, after, farEndActive);
+                    meter.Add(before, after, farEndActive, Energy(far[0]));
                 }
             }
         }
-    }
-
-    private static bool ReadActive(MonoRing reference, float[] frame)
-    {
-        reference.Read(frame);
-        return Energy(frame) > 1e-8;
     }
 
     private static double Energy(float[] samples)
@@ -330,8 +454,25 @@ internal static class AecProbe
         return sum / samples.Length;
     }
 
-    private static int Report(ErleMeter meter, AudioProcessingModule apm)
+    private static int Report(ErleMeter meter, AudioProcessingModule apm, int delayMs, bool quiet)
     {
+        if (quiet)
+        {
+            Console.WriteLine(
+                "  задержка {0,4} мс   опорный {1,6:F1} дБ   микрофон {2,6:F1} дБ   после {3,6:F1} дБ   ERLE {4,5:F1} дБ   голоданий {5}",
+                delayMs,
+                meter.FarEndDb,
+                meter.InputDb,
+                meter.OutputDb,
+                meter.Erle,
+                _playbackStarved);
+            Console.WriteLine("       посчитанная задержка: среднее {0:F0} мс, от {1} до {2}",
+                meter.AverageDelay,
+                meter.MinDelay == int.MaxValue ? 0 : meter.MinDelay,
+                meter.MaxDelay);
+            return 0;
+        }
+
         Console.WriteLine();
 
         if (meter.ActiveFrames < 50)
@@ -343,11 +484,21 @@ internal static class AecProbe
         double erle = meter.Erle;
 
         Console.WriteLine("Кадров в замере:          {0} с эхом, {1} в тишине", meter.ActiveFrames, meter.QuietFrames);
+        Console.WriteLine("Опорный сигнал:           {0,7:F1} дБ", meter.FarEndDb);
         Console.WriteLine("Микрофон до обработки:    {0,7:F1} дБ", meter.InputDb);
         Console.WriteLine("После обработки:          {0,7:F1} дБ", meter.OutputDb);
         Console.WriteLine();
         Console.WriteLine("ERLE (подавление эха):    {0,7:F1} дБ", erle);
         Console.WriteLine("Задержка по мнению APM:   {0} мс", apm.GetStreamDelayMs());
+        Console.WriteLine("Голоданий вывода:         {0}", _playbackStarved);
+        Console.WriteLine("Задержка посчитанная:     среднее {0:F0} мс, от {1} до {2}",
+            meter.AverageDelay,
+            meter.MinDelay == int.MaxValue ? 0 : meter.MinDelay,
+            meter.MaxDelay);
+        Console.WriteLine("  из них кольцо вывода:   {0:F1} мс", meter.AverageRing / ProcessingRate * 1000.0);
+        Console.WriteLine("  буфер устройства:       {0:F1} мс", meter.AveragePadding / ProcessingRate * 1000.0);
+        Console.WriteLine("  не разобранный захват:  {0:F1} мс", meter.AverageCaptured / ProcessingRate * 1000.0);
+        Console.WriteLine("  латентность потоков:    {0:F1} мс", _streamLatencyFrames / (double)ProcessingRate * 1000.0);
         Console.WriteLine();
 
         if (erle >= 30)
@@ -362,7 +513,7 @@ internal static class AecProbe
             return 0;
         }
 
-        Console.WriteLine("Эхоподавление не работает. Первый подозреваемый — задержка опорного сигнала (--delay).");
+        Console.WriteLine("Эхоподавление не работает.");
         return 2;
     }
 
@@ -371,13 +522,13 @@ internal static class AecProbe
         private readonly Lock _gate = new();
         private double _input;
         private double _output;
-        private double _quiet;
+        private double _far;
 
         public int ActiveFrames { get; private set; }
 
         public int QuietFrames { get; private set; }
 
-        public void Add(double before, double after, bool farEndActive)
+        public void Add(double before, double after, bool farEndActive, double farEnergy)
         {
             lock (_gate)
             {
@@ -385,13 +536,46 @@ internal static class AecProbe
                 {
                     _input += before;
                     _output += after;
+                    _far += farEnergy;
                     ActiveFrames++;
                 }
                 else
                 {
-                    _quiet += after;
                     QuietFrames++;
                 }
+            }
+        }
+
+        public int MinDelay { get; private set; } = int.MaxValue;
+
+        public int MaxDelay { get; private set; }
+
+        public double AverageDelay => _delayCount == 0 ? 0 : (double)_delaySum / _delayCount;
+
+        private long _delaySum;
+        private long _delayCount;
+
+        public double AverageRing => _delayCount == 0 ? 0 : (double)_ringSum / _delayCount;
+
+        public double AveragePadding => _delayCount == 0 ? 0 : (double)_paddingSum / _delayCount;
+
+        public double AverageCaptured => _delayCount == 0 ? 0 : (double)_capturedSum / _delayCount;
+
+        private long _ringSum;
+        private long _paddingSum;
+        private long _capturedSum;
+
+        public void NoteDelay(int delayMs, int ring, int padding, int captured)
+        {
+            lock (_gate)
+            {
+                _delaySum += delayMs;
+                _delayCount++;
+                _ringSum += ring;
+                _paddingSum += padding;
+                _capturedSum += captured;
+                MinDelay = Math.Min(MinDelay, delayMs);
+                MaxDelay = Math.Max(MaxDelay, delayMs);
             }
         }
 
@@ -399,9 +583,16 @@ internal static class AecProbe
         {
             lock (_gate)
             {
+                _delaySum = 0;
+                _delayCount = 0;
+                _ringSum = 0;
+                _paddingSum = 0;
+                _capturedSum = 0;
+                MinDelay = int.MaxValue;
+                MaxDelay = 0;
                 _input = 0;
                 _output = 0;
-                _quiet = 0;
+                _far = 0;
                 ActiveFrames = 0;
                 QuietFrames = 0;
             }
@@ -413,12 +604,7 @@ internal static class AecProbe
             {
                 lock (_gate)
                 {
-                    if (ActiveFrames == 0 || _output <= 0)
-                    {
-                        return 0;
-                    }
-
-                    return 10.0 * Math.Log10(_input / _output);
+                    return ActiveFrames == 0 || _output <= 0 ? 0 : 10.0 * Math.Log10(_input / _output);
                 }
             }
         }
@@ -427,14 +613,9 @@ internal static class AecProbe
 
         public double OutputDb => Db(_output, ActiveFrames);
 
-        private static double Db(double energy, int frames)
-        {
-            if (frames == 0 || energy <= 0)
-            {
-                return double.NegativeInfinity;
-            }
+        public double FarEndDb => Db(_far, ActiveFrames);
 
-            return 10.0 * Math.Log10(energy / frames);
-        }
+        private static double Db(double energy, int frames) =>
+            frames == 0 || energy <= 0 ? double.NegativeInfinity : 10.0 * Math.Log10(energy / frames);
     }
 }

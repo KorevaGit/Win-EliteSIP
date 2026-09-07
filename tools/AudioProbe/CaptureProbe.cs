@@ -22,14 +22,14 @@ namespace AudioProbe;
 /// </summary>
 internal static class CaptureProbe
 {
-    public static int Run(int seconds)
+    public static int Run(int seconds, string? name = null)
     {
         using var enumerator = new MMDeviceEnumerator();
 
         MMDevice device;
         try
         {
-            device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+            device = Devices.Pick(enumerator, DataFlow.Capture, null, name);
         }
         catch (COMException)
         {
@@ -200,7 +200,17 @@ internal static class CaptureProbe
         Console.WriteLine("Таймаутов:        {0}", timeouts);
         Console.WriteLine();
 
-        bool ok = discontinuities == 0 && timeouts == 0;
+        // Порог, а не ноль.
+        //
+        // Таймаут здесь — это «событие не пришло за два периода», и одиночные
+        // такие на исправном устройстве бывают: планировщик Windows не
+        // реального времени. Требовать ровно ноль — значит объявлять рваной
+        // проводную гарнитуру, которая отдала 99,92% звука без единого разрыва,
+        // и тем самым обесценить приговор ровно тогда, когда он понадобится.
+        // Приговор выносится по потерянному звуку, а не по нервности ожидания.
+        bool ok = discontinuities == 0
+            && delivered / expected >= 0.995
+            && timeouts <= wakeups / 100;
         Console.WriteLine(ok
             ? "Такт ровный. На таком фундаменте эхоподавление можно мерить."
             : "Такт рваный. Мерить эхоподавление на нём бессмысленно — сначала разобраться здесь.");
