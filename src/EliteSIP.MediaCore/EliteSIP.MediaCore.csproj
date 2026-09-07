@@ -4,6 +4,16 @@
     <ProjectReference Include="..\EliteSIP.Diagnostics\EliteSIP.Diagnostics.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Тесты видят внутреннее: в оригинале ту же роль играл @testable import.
+      Проверяются, в частности, референсные формулы G.711 — таблицы сверяются
+      именно с ними, и делать формулы публичными ради теста значило бы
+      предложить продукту два способа кодировать один и тот же отсчёт.
+    -->
+    <InternalsVisibleTo Include="EliteSIP.MediaCore.Tests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
