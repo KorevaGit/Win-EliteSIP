@@ -57,21 +57,6 @@ internal sealed class RemoteSourceFilter
     /// <summary>SSRC, признанный своим. <c>null</c> — первого пакета ещё не было.</summary>
     public uint? Accepted { get; private set; }
 
-    /// <summary>
-    /// Забывает собеседника: следующий пакет снова задаст источник.
-    ///
-    /// Нужно там, где поток пересобирается целиком, — собеседник вернулся с
-    /// другого адреса и вполне мог сменить SSRC вместе с ним. Прежний номер про
-    /// новый поток не говорит ничего, а оставленный — заставил бы фильтр
-    /// отбрасывать законные пакеты первые пять кадров подряд.
-    /// </summary>
-    public void Forget()
-    {
-        Accepted = null;
-        _candidate = null;
-        _candidateRun = 0;
-    }
-
     /// <summary>Разбирает очередной SSRC.</summary>
     public RemoteSourceVerdict Admit(uint ssrc)
     {
