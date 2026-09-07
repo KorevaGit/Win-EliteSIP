@@ -22,6 +22,38 @@ public readonly record struct RestartDecision(
     TimeSpan Elapsed);
 
 /// <summary>
+/// Настройки терпения — без самого счёта попыток.
+///
+/// <b>Зачем отдельно от политики.</b> В оригинале политика была значением, и
+/// положить её в настройки разговора было безопасно: каждый, кто её брал,
+/// получал свою копию со своими счётчиками. Здесь политика — класс (иначе
+/// серия попыток считалась бы заново на каждой копии, см.
+/// <see cref="AudioRestartPolicy"/>), и та же запись в настройках означала бы
+/// <b>общий счётчик у всех, кто эти настройки получил</b>: два тракта на одних
+/// настройках жгли бы один запас терпения на двоих, и второй сдавался бы, ни
+/// разу не попробовав.
+///
+/// Поэтому в настройках лежат числа, а счётчик заводит себе тот, кто чинится.
+/// </summary>
+/// <param name="FirstDelay">Отсрочка перед первой повторной попыткой.</param>
+/// <param name="MaximumDelay">Потолок отсрочки.</param>
+/// <param name="Budget">Сколько всего терпим, считая от первой неудачи.</param>
+public sealed record AudioRestartSettings(
+    TimeSpan FirstDelay,
+    TimeSpan MaximumDelay,
+    TimeSpan Budget)
+{
+    /// <summary>Значения по умолчанию — те же, что в оригинале.</summary>
+    public static AudioRestartSettings Default { get; } = new(
+        TimeSpan.FromMilliseconds(300),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(10));
+
+    /// <summary>Заводит свежий счёт попыток по этим настройкам.</summary>
+    public AudioRestartPolicy CreatePolicy() => new(FirstDelay, MaximumDelay, Budget);
+}
+
+/// <summary>
 /// Что делать, когда тракт не удалось пересобрать.
 ///
 /// <b>Зачем отдельный тип.</b> До этого политики не было вовсе: одна неудачная
