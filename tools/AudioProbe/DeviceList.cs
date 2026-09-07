@@ -1,4 +1,5 @@
 using System.Globalization;
+using EliteSIP.Audio;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
@@ -12,6 +13,13 @@ namespace AudioProbe;
 /// минимальный период. В macOS-версии соответствующее решение принимала
 /// система, и знать их было незачем; здесь на них считается размер кадра и
 /// выясняется, достижимы ли вообще 20 мс без режима исключительного доступа.
+///
+/// <b>Первая строка каждого устройства печатается продуктовым каталогом</b>
+/// (<see cref="AudioDeviceCatalog"/>), а не стендом. Правило перенесено из
+/// оригинала: формат сводки обязан быть один и тот же в приложении и здесь,
+/// иначе два отчёта перестанут сравниваться глазами. Заодно это и есть
+/// приёмка каталога на живом железе — стенд гоняют на всей матрице устройств,
+/// и неверно опознанная шина будет видна сразу.
 /// </summary>
 internal static class DeviceList
 {
@@ -49,7 +57,15 @@ internal static class DeviceList
             using (device)
             {
                 string mark = device.ID == defaultId ? "  ← по умолчанию для связи" : string.Empty;
-                Console.WriteLine($"[{i}] {device.FriendlyName}{mark}");
+
+                // Сводка — продуктовая: имя, шина, направление, каналы,
+                // частота. Стенд добавляет к ней только то, чего в каталоге
+                // нет и быть не должно, — периоды и громкость.
+                AudioDevice? described = AudioDeviceCatalog.Describe(
+                    device,
+                    flow == DataFlow.Capture ? AudioDeviceDirection.Capture : AudioDeviceDirection.Render);
+
+                Console.WriteLine($"[{i}] {described?.Summary ?? device.FriendlyName}{mark}");
 
                 try
                 {

@@ -1,6 +1,27 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!--
+      Тот же NAudio, на котором собран стенд W0. Обёртка над MMDevice API и
+      WASAPI: писать её самим значило бы переписать полтысячи строк объявлений
+      COM ради того же самого, а расхождение стенда и продукта в этом слое
+      обесценило бы все замеры W0.
+    -->
+    <PackageReference Include="NAudio" Version="3.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Тесты видят внутреннее — то же решение, что в MediaCore. Здесь это
+      разбор имени перечислителя: единственное в работе с устройствами, что
+      можно проверить без звуковой карты, и потому единственное, что нельзя
+      оставить непроверенным. Делать его открытым ради теста незачем — снаружи
+      им пользоваться нечем.
+    -->
+    <InternalsVisibleTo Include="EliteSIP.Audio.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
     <ProjectReference Include="..\EliteSIP.Diagnostics\EliteSIP.Diagnostics.csproj" />
   </ItemGroup>
