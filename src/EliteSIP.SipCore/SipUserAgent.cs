@@ -564,6 +564,8 @@ public sealed partial class SipUserAgent : IDisposable
         CancellationTokenSource? registration;
         CancellationTokenSource? keepAlive;
 
+        var closed = new SipRegistrationState.Failed(reason, null);
+
         lock (_gate)
         {
             if (_isStopping || _isChannelClosed)
@@ -575,13 +577,20 @@ public sealed partial class SipUserAgent : IDisposable
             _registrationCts = null;
             keepAlive = _keepAliveCts;
             _keepAliveCts = null;
+
+            // Состояние пишется под той же блокировкой, что и признак закрытия.
+            // Иначе между ними успевает войти цикл регистрации, уже вошедший в
+            // обработку отказа, и кладёт своё «повтор через N с» поверх «канал
+            // закрыт». В оригинале эту гонку закрывала изоляция actor: между
+            // проверкой признака и записью состояния там нет ни одного await.
+            _state = closed;
         }
 
         registration?.Cancel();
         keepAlive?.Cancel();
 
         Log(SipLogLevel.Error, $"канал закрыт: {reason}");
-        SetState(new SipRegistrationState.Failed(reason, null));
+        _events.Writer.TryWrite(new SipUserAgentEvent.Registration(closed));
         _events.Writer.TryWrite(new SipUserAgentEvent.ChannelClosed(reason));
     }
 
@@ -648,20 +657,29 @@ public sealed partial class SipUserAgent : IDisposable
             {
                 // Закрытый канал уже всё сказал про себя сам, и «повтор через
                 // N с» поверх этого был бы обещанием, которое не сбудется.
+                int failures;
                 lock (_gate)
                 {
                     if (_isStopping || _isChannelClosed)
                     {
                         return;
                     }
-                    _consecutiveFailures++;
+                    failures = ++_consecutiveFailures;
                 }
 
                 LastRegistrationFailure = error as SipRegistrationException;
-                int delay = BackoffDelay(_consecutiveFailures);
+                int delay = BackoffDelay(failures);
                 string reason = Describe(error);
 
-                SetState(new SipRegistrationState.Failed(reason, DateTimeOffset.UtcNow.AddSeconds(delay)));
+                // Проверка признака повторяется внутри записи состояния: между
+                // ней и записью канал может закрыться, и тогда писать нечего.
+                if (!SetStateUnlessClosed(new SipRegistrationState.Failed(
+                    reason,
+                    DateTimeOffset.UtcNow.AddSeconds(delay))))
+                {
+                    return;
+                }
+
                 Log(
                     SipLogLevel.Warning,
                     $"регистрация не удалась: {reason}. Повтор через {delay.ToString(CultureInfo.InvariantCulture)} с");
@@ -1086,6 +1104,36 @@ public sealed partial class SipUserAgent : IDisposable
     }
 
     private static TimeSpan Now => TimeSpan.FromMilliseconds(Environment.TickCount64);
+
+    /// <summary>
+    /// Записывает состояние, если канал ещё жив.
+    ///
+    /// Проверка и запись — под одной блокировкой: разнести их значит вернуть ту
+    /// самую гонку, из-за которой на экране оставалось «повтор через N с» поверх
+    /// закрытого канала.
+    /// </summary>
+    private bool SetStateUnlessClosed(SipRegistrationState newState)
+    {
+        bool changed;
+        lock (_gate)
+        {
+            if (_isStopping || _isChannelClosed)
+            {
+                return false;
+            }
+            changed = _state != newState;
+            if (changed)
+            {
+                _state = newState;
+            }
+        }
+
+        if (changed)
+        {
+            _events.Writer.TryWrite(new SipUserAgentEvent.Registration(newState));
+        }
+        return true;
+    }
 
     private void SetState(SipRegistrationState newState)
     {
