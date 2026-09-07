@@ -10,4 +10,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!--
+      Тесты видят внутреннее: в оригинале ту же роль играл @testable import.
+      Проверяются, в частности, эталоны MD5 и выбор qop — делать их публичными
+      ради теста значило бы расширить API продукта под нужды проверки.
+    -->
+    <InternalsVisibleTo Include="EliteSIP.SipCore.Tests" />
+  </ItemGroup>
+
 </Project>
