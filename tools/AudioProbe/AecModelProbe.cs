@@ -49,29 +49,49 @@ internal static class AecModelProbe
         Console.WriteLine("Эхо/шум   ERLE     остаток");
         Console.WriteLine("-------   ------   -------");
 
-        int worst = 0;
-        foreach (int echoToNoiseDb in new[] { 40, 30, 20, 15, 10, 6, 3, 0 })
+        // Наименьшее отношение эха к шуму, на котором подавление ещё держит
+        // 20 дБ.
+        //
+        // Здесь была ошибка вывода, стоившая неверного приговора в отчёте:
+        // порог запоминался как «последнее пройденное значение», а перебор
+        // идёт сверху вниз. Пока проходили не все, это случайно совпадало с
+        // правдой; когда прошли все до нуля включительно, порог обнулился, и
+        // стенд объявил, что подавления нет вовсе, — на прогоне, где оно было
+        // лучшим из всех.
+        int[] ratios = [40, 30, 20, 15, 10, 6, 3, 0];
+        int threshold = int.MaxValue;
+
+        foreach (int echoToNoiseDb in ratios)
         {
             (double erle, double residual) = Measure(seconds, frame, response, echoToNoiseDb, suppression);
             Console.WriteLine("{0,5} дБ   {1,5:F1}    {2,6:F1} дБ", echoToNoiseDb, erle, residual);
 
             if (erle >= 20)
             {
-                worst = echoToNoiseDb;
+                threshold = Math.Min(threshold, echoToNoiseDb);
             }
         }
 
         Console.WriteLine();
-        if (worst > 0)
+
+        if (threshold == int.MaxValue)
+        {
+            Console.WriteLine("Подавление не выходит на 20 дБ ни при каком отношении эха к шуму.");
+            return 2;
+        }
+
+        if (threshold == ratios[^1])
         {
             Console.WriteLine(
-                "AEC3 держит 20 дБ подавления, пока эхо выше шума хотя бы на {0} дБ.", worst);
-            Console.WriteLine("Это и есть требование к рабочему месту, а не к коду.");
+                "Подавление держит 20 дБ на всех проверенных отношениях, вплоть до {0} дБ.",
+                ratios[^1]);
+            Console.WriteLine("Требования к рабочему месту эта цепочка не предъявляет.");
             return 0;
         }
 
-        Console.WriteLine("AEC3 не выходит на 20 дБ ни при каком отношении эха к шуму.");
-        return 2;
+        Console.WriteLine("Подавление держит 20 дБ, пока эхо выше шума хотя бы на {0} дБ.", threshold);
+        Console.WriteLine("Это и есть требование к рабочему месту, а не к коду.");
+        return 0;
     }
 
     /// <summary>
