@@ -476,10 +476,27 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _encoder = new AudioFrameEncoder(_configuration.Codec);
         _decoder = new AudioFrameDecoder(_configuration.Codec);
 
+        // Сколько отсчётов законно висит в пути между устройством и кодером.
+        //
+        // Считать это надо в отсчётах разговора и по всем местам, где они
+        // задерживаются, а не только по фильтрам. Первый вариант заложил одни
+        // фильтры — и прогон матрицы показал ровно то, ради чего баланс и
+        // написан, только наоборот: сводка говорила «сходится», а приговор
+        // стенда «разошёлся», потому что баланс читается с чужого потока
+        // посреди работы захвата и застаёт кадр на полпути.
+        //
+        // Слагаемых три: два кадра обработки, которые ждут, пока наберутся
+        // (устройство отдаёт пакеты пачками, и двух хватает), плюс задержки
+        // обоих ядер пересчёта.
+        double toCodec = (double)codecRate / processingRate;
+        int inFlight = (int)Math.Ceiling(
+            ((2 * _processor.FrameSamples) + _captureToProcessing.LatencySamples
+                + _processingToCodec.LatencySamples) * toCodec) + 2;
+
         _balance = new SampleBalance(
             (double)codecRate / _captureFormat.SampleRate,
             _configuration.SamplesPerFrame,
-            _captureToProcessing.LatencySamples + _processingToCodec.LatencySamples + 1);
+            inFlight);
         _captureActivity = new DeviceActivityWatch(_captureFormat.SampleRate);
         _rateController = new PlaybackRateController(targetFill, _renderFormat.SampleRate);
         _drift.Reset();

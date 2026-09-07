@@ -62,6 +62,16 @@ internal static class Program
                     Option(args, "--reverb") ?? 150,
                     !Flag(args, "--isolate")),
                 "aec-selftest" => AecSelfTest.Run(Option(args, "--delay") ?? 60, Positional(args, 20)),
+                // Длительность и ключом тоже: общий разборщик позиционного
+                // числа пропускает его, если слева стоит флаг, и «tract
+                // --matrix 30» молча превращалось в шестьдесят секунд. Ключ
+                // работает при любом порядке аргументов.
+                "tract" => TractProbe.Run(
+                    Text(args, "--in-name"),
+                    Text(args, "--out-name"),
+                    Option(args, "--seconds") ?? Positional(args, 60),
+                    audible: Flag(args, "--audible"),
+                    matrix: Flag(args, "--matrix")),
                 _ => Unknown(args[0]),
             };
         }
@@ -186,6 +196,13 @@ internal static class Program
               AudioProbe aec [--in-name Кусок] [--out-name Кусок] [--delay мс] [секунд]
                   замер эхоподавления в децибелах ERLE. Играет шум в
                   наушники, во время замера надо молчать
+
+              AudioProbe tract [--in-name Кусок] [--out-name Кусок]
+                               [--matrix] [--audible] [секунд]
+                  прогон боевого тракта (этап W4): баланс отсчётов,
+                  состояние устройства, уход часов, поправка темпа.
+                  --matrix прогоняет каждую пару «вход — выход».
+                  Без --audible звук наружу не идёт
 
             """);
     }
