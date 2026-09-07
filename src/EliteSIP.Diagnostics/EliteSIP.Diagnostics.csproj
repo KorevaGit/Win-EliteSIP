@@ -1,9 +1,26 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!--
+      Нужно ровно одному файлу — AppendOnlyFile.cs. LibraryImport разворачивает
+      вызовы в kernel32 в код с fixed, и без этого флага он не собирается.
+      Своего unsafe в проекте нет.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Тесты видят внутреннее: в оригинале ту же роль играл @testable import.
+      Проверяются, в частности, форматирование строки и список секретных полей —
+      делать их публичными ради теста значило бы расширить API продукта под
+      нужды проверки.
+    -->
+    <InternalsVisibleTo Include="EliteSIP.Diagnostics.Tests" />
+  </ItemGroup>
 
 </Project>
