@@ -8,6 +8,14 @@
       обесценило бы все замеры W0.
     -->
     <PackageReference Include="NAudio" Version="3.0.1" />
+
+    <!--
+      Эхоподавление, шумодав и АРУ. На macOS всё это давал один флаг системы;
+      здесь его нет, и обработка своя. Пакет везёт готовую нативную сборку
+      WebRTC APM под win-x64 — сборка C++ с meson и abseil, заложенная в аудит
+      как главный риск проекта, отпала целиком (см. docs/W0-AUDIO.md).
+    -->
+    <PackageReference Include="SoundFlow.Extensions.WebRtc.Apm" Version="1.4.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +38,13 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!--
+      Буфер WASAPI приходит сырым указателем, и другого способа его прочитать
+      нет. Разрешение стоит только здесь, в единственном проекте, который
+      разговаривает с устройством напрямую: в стенде W0 ровно так же.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
 </Project>

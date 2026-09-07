@@ -114,7 +114,7 @@ public sealed class SampleBalanceTests
         {
             balance.NoteCaptured(480);
             balance.NoteConverted(80);
-            if (packet % 4 == 3)
+            if (packet % 8 == 7)
             {
                 balance.NoteEncodedFrame();
             }
@@ -122,7 +122,9 @@ public sealed class SampleBalanceTests
 
         Assert.Equal(0, balance.ConversionDiscrepancy);
         Assert.False(balance.IsBalanced, balance.Summary);
-        Assert.True(balance.MaximumPending >= SamplesPerFrame * 2, balance.Summary);
+        Assert.True(
+            balance.MaximumPending >= SamplesPerFrame * SampleBalance.PendingBurstFactor,
+            balance.Summary);
     }
 
     [Fact]
@@ -140,7 +142,9 @@ public sealed class SampleBalanceTests
             }
         }
 
-        Assert.True(balance.MaximumPending < SamplesPerFrame * 2, balance.Summary);
+        Assert.True(
+            balance.MaximumPending < SamplesPerFrame * SampleBalance.PendingBurstFactor,
+            balance.Summary);
         Assert.True(balance.IsBalanced, balance.Summary);
     }
 

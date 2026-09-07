@@ -25,6 +25,21 @@ namespace EliteSIP.Audio;
 /// </summary>
 public sealed class SampleBalance
 {
+    /// <summary>
+    /// Во сколько раз остаток может законно превысить кадр.
+    ///
+    /// Не два, а четыре, и число из замера, а не из осторожности. Устройство
+    /// отдаёт пакеты пачками: одно пробуждение приносит два-три пакета, и все
+    /// они превращаются в отсчёты до того, как кодер соберёт первый кадр. На
+    /// первом прогоне тракта на живом железе наибольший остаток вышел 304
+    /// отсчёта при кадре в 160 — то есть предел в два кадра проходился впритык
+    /// и однажды не прошёл бы вовсе.
+    ///
+    /// Утечку, ради которой всё считается, это не прячет: она растёт без
+    /// предела, а не упирается в четыре кадра.
+    /// </summary>
+    public const int PendingBurstFactor = 4;
+
     private readonly double _ratio;
     private readonly int _samplesPerFrame;
     private readonly long _conversionAllowance;
@@ -96,7 +111,7 @@ public sealed class SampleBalance
         ConversionDiscrepancy <= 1
         && ConversionDiscrepancy >= -_conversionAllowance
         && Pending >= 0
-        && MaximumPending < _samplesPerFrame * 2;
+        && MaximumPending < _samplesPerFrame * PendingBurstFactor;
 
     public void NoteCaptured(int samples) => Interlocked.Add(ref _captured, samples);
 
