@@ -499,7 +499,9 @@ internal static class AecProbe
 
         Console.WriteLine("Кадров в замере:          {0} с эхом, {1} в тишине", meter.ActiveFrames, meter.QuietFrames);
         Console.WriteLine("Опорный сигнал:           {0,7:F1} дБ", meter.FarEndDb);
-        Console.WriteLine("Микрофон до обработки:    {0,7:F1} дБ", meter.InputDb);
+        Console.WriteLine("Микрофон под эхом:        {0,7:F1} дБ", meter.InputDb);
+        Console.WriteLine("Микрофон в паузе:         {0,7:F1} дБ", meter.QuietDb);
+        Console.WriteLine("ЭХО НАД ШУМОМ:            {0,7:F1} дБ", meter.InputDb - meter.QuietDb);
         Console.WriteLine("После обработки:          {0,7:F1} дБ", meter.OutputDb);
         Console.WriteLine();
         Console.WriteLine("ERLE (подавление эха):    {0,7:F1} дБ", erle);
@@ -537,6 +539,7 @@ internal static class AecProbe
         private double _input;
         private double _output;
         private double _far;
+        private double _quietInput;
 
         public int ActiveFrames { get; private set; }
 
@@ -555,6 +558,10 @@ internal static class AecProbe
                 }
                 else
                 {
+                    // Микрофон в паузе дальней стороны — это шум тракта и
+                    // комнаты без эха. Разница с уровнем под эхом и есть
+                    // ответ на вопрос «сколько тут вообще эха».
+                    _quietInput += before;
                     QuietFrames++;
                 }
             }
@@ -607,6 +614,7 @@ internal static class AecProbe
                 _input = 0;
                 _output = 0;
                 _far = 0;
+                _quietInput = 0;
                 ActiveFrames = 0;
                 QuietFrames = 0;
             }
@@ -628,6 +636,8 @@ internal static class AecProbe
         public double OutputDb => Db(_output, ActiveFrames);
 
         public double FarEndDb => Db(_far, ActiveFrames);
+
+        public double QuietDb => Db(_quietInput, QuietFrames);
 
         private static double Db(double energy, int frames) =>
             frames == 0 || energy <= 0 ? double.NegativeInfinity : 10.0 * Math.Log10(energy / frames);
