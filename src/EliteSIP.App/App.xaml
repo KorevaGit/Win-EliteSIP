@@ -1,9 +1,22 @@
-﻿<Application x:Class="EliteSIP.App.App"
+<Application x:Class="EliteSIP.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:EliteSIP.App"
-             StartupUri="MainWindow.xaml">
-    <Application.Resources>
-         
-    </Application.Resources>
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+      Стартового окна в разметке нет: панель поднимает `OnStartup`, потому что
+      до неё нужно выбрать язык и палитру. Окно, созданное `StartupUri`,
+      успевает нарисоваться раньше и мигает не той темой.
+  -->
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!--
+            Палитра сюда не входит: её кладёт `AppearanceService` при запуске и
+            подменяет при смене темы. Здесь только то, что от темы не зависит.
+        -->
+        <ResourceDictionary Source="Theme/Icons.xaml" />
+        <ResourceDictionary Source="Theme/Controls.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
 </Application>

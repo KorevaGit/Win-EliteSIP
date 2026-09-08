@@ -1,0 +1,40 @@
+<!--
+    Тёмная палитра. Ключи те же, что в светлой, — почему, сказано там же.
+
+    Цвета состояния здесь не те же самые, а осветлённые: на тёмном фоне
+    #FF0F7B0F уходит в чёрно-зелёное пятно, а точка состояния — это восемь
+    точек экрана, единственное, чем показано обычное состояние регистрации.
+    Числа — из палитры Windows 11 для тёмной темы, а не подобранные на глаз.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFFFFFFF" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C5FFFFFF" />
+  <SolidColorBrush x:Key="TextTertiaryBrush" Color="#87FFFFFF" />
+
+  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF202020" />
+  <SolidColorBrush x:Key="SurfaceBrush" Color="#FF2C2C2C" />
+  <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#15FFFFFF" />
+  <SolidColorBrush x:Key="ControlHoverBrush" Color="#21FFFFFF" />
+  <SolidColorBrush x:Key="ControlPressedBrush" Color="#0AFFFFFF" />
+  <SolidColorBrush x:Key="SeparatorBrush" Color="#18FFFFFF" />
+
+  <SolidColorBrush x:Key="StatusRegisteredBrush" Color="#FF6CCB5F" />
+  <SolidColorBrush x:Key="StatusConnectingBrush" Color="#FFFCA02E" />
+  <SolidColorBrush x:Key="StatusOfflineBrush" Color="#C5FFFFFF" />
+  <SolidColorBrush x:Key="StatusFailureBrush" Color="#FFFF99A4" />
+  <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF60CDFF" />
+
+  <SolidColorBrush x:Key="AnswerBrush" Color="#FF6CCB5F" />
+  <SolidColorBrush x:Key="DeclineBrush" Color="#FFFF99A4" />
+
+  <SolidColorBrush x:Key="OutcomeCompletedBrush" Color="#C5FFFFFF" />
+  <SolidColorBrush x:Key="OutcomeAnsweredBrush" Color="#FF6CCB5F" />
+  <SolidColorBrush x:Key="OutcomeUnreachableBrush" Color="#FFFCA02E" />
+  <SolidColorBrush x:Key="OutcomeMissedBrush" Color="#FFFF99A4" />
+
+  <SolidColorBrush x:Key="CautionBrush" Color="#FFFCA02E" />
+  <SolidColorBrush x:Key="UnsavedBrush" Color="#FFFCA02E" />
+
+</ResourceDictionary>

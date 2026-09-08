@@ -1,0 +1,163 @@
+<Window x:Class="EliteSIP.App.Panel.PanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        Title="{res:Loc PanelWindowTitle}"
+        Width="270"
+        Height="250"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display">
+
+  <!--
+      Полосу заголовка панель рисует сама, но окно остаётся системным:
+      `WindowChrome` оставляет Windows тень, привязку к краям экрана, анимацию
+      сворачивания и «Показать рабочий стол». Окно без рамки (`WindowStyle=None`
+      с `AllowsTransparency`) всё это теряет, а софтфон живёт поверх чужих окон
+      весь день — окно, которое ведёт себя не как окно, там видно сразу.
+
+      Заголовок свой, потому что системный на этой ширине не помещается:
+      270 точек — это имя окна и три системные кнопки, из которых две (развернуть
+      и изменение размера) панели не нужны вовсе.
+
+      CaptionHeight — та зона, за которую окно таскают. Ровно высота полосы:
+      ниже начинается строка состояния с капсулой профиля, и захват мышью там
+      съедал бы щелчок по капсуле.
+  -->
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="32"
+                        CornerRadius="0"
+                        GlassFrameThickness="0"
+                        ResizeBorderThickness="0"
+                        UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <!-- Полоса заголовка. -->
+      <RowDefinition Height="32" />
+      <RowDefinition Height="4" />
+      <!-- Строка состояния. -->
+      <RowDefinition Height="22" />
+      <RowDefinition Height="5" />
+      <!--
+          Изменчивая середина. Единственная строка, которая тянется: всё, что
+          может поменять высоту — вторая линия, поле перевода, число макросов, —
+          живёт здесь и не двигает низ.
+      -->
+      <RowDefinition Height="*" />
+      <RowDefinition Height="15" />
+      <!-- Неподвижный низ: звонок и история. -->
+      <RowDefinition Height="46" />
+    </Grid.RowDefinitions>
+
+    <!-- Полоса заголовка: имя окна по центру, кнопки справа. -->
+    <Grid Grid.Row="0">
+      <TextBlock Text="{res:Loc PanelWindowTitle}"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 FontSize="13"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource TextPrimaryBrush}" />
+
+      <StackPanel Orientation="Horizontal"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Center"
+                  Margin="0,0,6,0"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
+        <Button x:Name="MinimizeButton"
+                Style="{StaticResource ChromeButtonStyle}"
+                ToolTip="{res:Loc PanelMinimize}"
+                Click="OnMinimizeClick">
+          <theme:Icon Glyph="pause.fill" Size="10" />
+        </Button>
+        <Button x:Name="CloseButton"
+                Style="{StaticResource ChromeButtonStyle}"
+                ToolTip="{res:Loc PanelClose}"
+                Click="OnCloseClick">
+          <theme:Icon Glyph="xmark.circle.fill" Size="12" />
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!--
+        Строка состояния: капсула профиля слева, слот беды посередине,
+        шестерёнка справа. Крайние слоты не меняют размер никогда, средний
+        тянется и обрезается — иначе капсула ездила бы от длины чужой надписи.
+    -->
+    <Grid Grid.Row="2" Margin="12,0,12,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" MinWidth="72" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Капсула профиля. Точка состояния, номер, пометка, шеврон. -->
+      <Border Grid.Column="0"
+              Height="22"
+              CornerRadius="11"
+              Padding="6,0"
+              Background="{DynamicResource ControlBackgroundBrush}">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Ellipse Width="8"
+                   Height="8"
+                   Fill="{DynamicResource StatusOfflineBrush}"
+                   VerticalAlignment="Center" />
+          <TextBlock Text="—"
+                     Margin="6,0,0,0"
+                     FontSize="11"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource TextPrimaryBrush}" />
+        </StackPanel>
+      </Border>
+
+      <!--
+          Слот беды. Короткая причина — и это всё, что говорит панель:
+          подробности живут в журнале, где записаны подробнее.
+      -->
+      <TextBlock Grid.Column="1"
+                 Margin="6,0,6,0"
+                 VerticalAlignment="Center"
+                 FontSize="11"
+                 TextTrimming="CharacterEllipsis"
+                 Foreground="{DynamicResource CautionBrush}"
+                 Text="" />
+
+      <Button Grid.Column="2"
+              Style="{StaticResource ChromeButtonStyle}"
+              ToolTip="{res:Loc PanelSettings}">
+        <theme:Icon Glyph="gearshape" Size="12" />
+      </Button>
+    </Grid>
+
+    <!--
+        Середина. Пока пуста: шапка, ряд управления и сетка макросов приезжают
+        со своей моделью следующим шагом этапа. Слот при этом уже заперт —
+        именно он и есть та рамка, которая не отдаёт свою высоту содержимому.
+    -->
+    <Border Grid.Row="4" />
+
+    <!--
+        Неподвижный низ. Кнопка завершения звонка не двигается никогда: ни
+        вторая линия, ни потеря регистрации, ни поле перевода, ни число
+        макросов не могут сдвинуть низ панели.
+    -->
+    <Grid Grid.Row="6" Margin="12,0,12,12">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="6" />
+        <ColumnDefinition Width="64" />
+      </Grid.ColumnDefinitions>
+
+      <Button Grid.Column="0" Height="34" Content="{res:Loc PanelCall}" />
+      <Button Grid.Column="2" Height="34" Content="{res:Loc PanelHistory}" />
+    </Grid>
+  </Grid>
+</Window>

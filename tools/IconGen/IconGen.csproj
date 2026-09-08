@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Стенд сборки иконок. Одноразовым не считается: комплект значков — часть
+    макета, и когда дизайнер правит SVG, XAML пересобирается отсюда, а не
+    подтачивается руками. Подточенный руками XAML расходится с макетом молча.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

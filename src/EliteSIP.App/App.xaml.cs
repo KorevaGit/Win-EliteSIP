@@ -1,13 +1,45 @@
-﻿using System.Configuration;
-using System.Data;
 using System.Windows;
+using EliteSIP.App.Panel;
+using EliteSIP.App.Resources;
+using EliteSIP.App.Theme;
 
 namespace EliteSIP.App;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
-public partial class App : Application
+// IDisposable у приложения — не церемония: `AppearanceService` подписан на
+// статическое событие Windows о смене темы, и неотписанная подписка живёт
+// дольше процесса, стреляя по закрытым окнам.
+public partial class App : Application, IDisposable
 {
-}
+    private AppearanceService? _appearance;
 
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        // Порядок важен: язык и палитра выбираются до первого окна. Иначе
+        // панель успевает нарисоваться английской и светлой и перекрашивается
+        // на глазах — именно то мигание, ради которого убран `StartupUri`.
+        //
+        // Выбора оператора пока нет: настройки приезжают со своим шагом этапа,
+        // и до тех пор и язык, и оформление берутся у системы.
+        Strings.Apply(chosen: null);
+
+        _appearance = new AppearanceService(this);
+        _appearance.Apply();
+
+        new PanelWindow().Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Dispose();
+        base.OnExit(e);
+    }
+
+    public void Dispose()
+    {
+        _appearance?.Dispose();
+        _appearance = null;
+        GC.SuppressFinalize(this);
+    }
+}

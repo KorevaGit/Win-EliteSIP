@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Английские подписи. Нейтральный, то есть запасной, каталог — он же тот,
+    который видит система с любым языком, кроме русского.
+
+    Почему запасной именно английский, объяснено в `docs/localization.md`
+    оригинала: француз и японец должны видеть английский, а не язык, который им
+    ещё незнакомее. На macOS это обеспечивал `developmentRegion = en`, здесь —
+    то, что английский лежит в нейтральном `Strings.resx`, а русский в
+    `Strings.ru.resx`.
+
+    Ключи здесь именованные, а не «ключ — это сам русский текст», как в
+    оригинале. Причина не в решении, а в языке: resx собирается в класс, и
+    свойства с именем «Завершить» в C# не бывает. Взамен пропадает и цена того
+    решения — правка русской подписи больше не заводит новый ключ и не роняет
+    английский перевод.
+-->
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="PanelWindowTitle" xml:space="preserve">
+    <value>EliteSIP</value>
+    <comment>заголовок окна панели</comment>
+  </data>
+  <data name="PanelClose" xml:space="preserve">
+    <value>Close</value>
+    <comment>кнопка полосы заголовка</comment>
+  </data>
+  <data name="PanelMinimize" xml:space="preserve">
+    <value>Minimize</value>
+    <comment>кнопка полосы заголовка</comment>
+  </data>
+  <data name="PanelSettings" xml:space="preserve">
+    <value>Settings</value>
+    <comment>шестерёнка в строке состояния</comment>
+  </data>
+  <data name="PanelHistory" xml:space="preserve">
+    <value>History</value>
+    <comment>кнопка в неподвижном низу панели</comment>
+  </data>
+  <data name="PanelCall" xml:space="preserve">
+    <value>Call</value>
+    <comment>кнопка в неподвижном низу панели</comment>
+  </data>
+</root>

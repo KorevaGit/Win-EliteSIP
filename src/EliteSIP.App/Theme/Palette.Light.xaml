@@ -1,0 +1,59 @@
+<!--
+    Светлая палитра. Ключи те же, что в тёмной: подменяется весь словарь
+    целиком, а не отдельные кисти, поэтому расходиться им негде.
+
+    Оригинал брал цвета текста у системы — `labelColor`, `secondaryLabelColor`,
+    `tertiaryLabelColor`, — и это было решением: свои подобранные RGB он снял
+    6 августа 2026. Здесь системных взять негде. `SystemColors` WPF — палитра
+    Windows Classic: `ControlTextBrush` там непрозрачный чёрный, второго и
+    третьего уровня нет вовсе, а тёмной темы эти ключи не знают. Поэтому цвета
+    названы своими, а числа взяты из палитры самой Windows 11 (WinUI 2 Common),
+    чтобы приложение не выделялось на фоне системных окон.
+
+    Уровней текста три, как в оригинале, и заданы они прозрачностью чёрного, а
+    не тремя серыми: поверхность под текстом бывает разная (плашка, поле,
+    подсветка), и серый, подобранный под одну, на другой читается как другой
+    уровень.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Текст. Три уровня: обычный, второстепенный, третьестепенный. -->
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#E4000000" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9E000000" />
+  <SolidColorBrush x:Key="TextTertiaryBrush" Color="#72000000" />
+
+  <!-- Поверхности. -->
+  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFF3F3F3" />
+  <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFFFF" />
+  <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#0F000000" />
+  <SolidColorBrush x:Key="ControlHoverBrush" Color="#17000000" />
+  <SolidColorBrush x:Key="ControlPressedBrush" Color="#22000000" />
+  <SolidColorBrush x:Key="SeparatorBrush" Color="#14000000" />
+
+  <!--
+      Состояние регистрации. Четыре цвета, и четвёртый — не оттенок третьего:
+      «нет сети» и «отказ сервера» чинятся разным, и различать их обязано
+      первое, что оператор видит.
+  -->
+  <SolidColorBrush x:Key="StatusRegisteredBrush" Color="#FF0F7B0F" />
+  <SolidColorBrush x:Key="StatusConnectingBrush" Color="#FFC4600C" />
+  <SolidColorBrush x:Key="StatusOfflineBrush" Color="#9E000000" />
+  <SolidColorBrush x:Key="StatusFailureBrush" Color="#FFC42B1C" />
+  <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF005FB8" />
+
+  <!-- Приём и отбой в окне входящего. -->
+  <SolidColorBrush x:Key="AnswerBrush" Color="#FF0F7B0F" />
+  <SolidColorBrush x:Key="DeclineBrush" Color="#FFC42B1C" />
+
+  <!-- Исход звонка в истории. Те же четыре, что и в macOS-версии. -->
+  <SolidColorBrush x:Key="OutcomeCompletedBrush" Color="#9E000000" />
+  <SolidColorBrush x:Key="OutcomeAnsweredBrush" Color="#FF0F7B0F" />
+  <SolidColorBrush x:Key="OutcomeUnreachableBrush" Color="#FFC4600C" />
+  <SolidColorBrush x:Key="OutcomeMissedBrush" Color="#FFC42B1C" />
+
+  <!-- Предупреждение и точка «здесь есть несохранённое». -->
+  <SolidColorBrush x:Key="CautionBrush" Color="#FFC4600C" />
+  <SolidColorBrush x:Key="UnsavedBrush" Color="#FFC4600C" />
+
+</ResourceDictionary>
