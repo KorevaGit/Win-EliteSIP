@@ -16,6 +16,7 @@
         -->
         <ResourceDictionary Source="Theme/Icons.xaml" />
         <ResourceDictionary Source="Theme/Controls.xaml" />
+        <ResourceDictionary Source="Theme/SettingsKit.xaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>

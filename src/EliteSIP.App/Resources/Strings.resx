@@ -118,4 +118,184 @@
     <value>Disconnected</value>
     <comment>пункт списка профилей</comment>
   </data>
+  <data name="SettingsWindowTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SectionWork" xml:space="preserve">
+    <value>Work</value>
+  </data>
+  <data name="SectionAudio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="SectionRingtone" xml:space="preserve">
+    <value>Ringtone</value>
+  </data>
+  <data name="SectionAppearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="SectionSupport" xml:space="preserve">
+    <value>Support</value>
+  </data>
+  <data name="WorkPlace" xml:space="preserve">
+    <value>Workplace</value>
+  </data>
+  <data name="WorkOffice" xml:space="preserve">
+    <value>Office</value>
+  </data>
+  <data name="WorkRemote" xml:space="preserve">
+    <value>Remote</value>
+  </data>
+  <data name="WorkPbxAddress" xml:space="preserve">
+    <value>PBX address</value>
+  </data>
+  <data name="WorkSiteNote" xml:space="preserve">
+    <value>Switching changes the PBX address and re-registers: the internal address is unreachable from home, and from the office the external one leads to the same server the long way round.</value>
+  </data>
+  <data name="WorkInCallNote" xml:space="preserve">
+    <value>A call is in progress — switching is not possible right now.</value>
+  </data>
+  <data name="WorkTroubleSection" xml:space="preserve">
+    <value>If it will not connect</value>
+  </data>
+  <data name="WorkRepairNetwork" xml:space="preserve">
+    <value>Repair network</value>
+  </data>
+  <data name="WorkRepairNote" xml:space="preserve">
+    <value>Opens the way to the PBX from outside — once and right now. Needed when it stops connecting from home for no visible reason: the home address changed and the gateway remembers the old one.</value>
+  </data>
+  <data name="AudioMicrophone" xml:space="preserve">
+    <value>Microphone</value>
+  </data>
+  <data name="AudioHeadphones" xml:space="preserve">
+    <value>Headphones</value>
+  </data>
+  <data name="AudioGain" xml:space="preserve">
+    <value>Gain</value>
+  </data>
+  <data name="AudioVolume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="AudioSystemDefaultInput" xml:space="preserve">
+    <value>System default</value>
+  </data>
+  <data name="AudioSystemDefaultOutput" xml:space="preserve">
+    <value>System default</value>
+  </data>
+  <data name="AudioGainAutoNote" xml:space="preserve">
+    <value>The system sets the gain: to set it by hand, turn off automatic control below.</value>
+  </data>
+  <data name="AudioAgc" xml:space="preserve">
+    <value>Automatic gain control</value>
+  </data>
+  <data name="AudioRelease" xml:space="preserve">
+    <value>Release the headphones between calls</value>
+  </data>
+  <data name="AudioLevelsNote" xml:space="preserve">
+    <value>Levels appear here during a call and during the check below: they show what goes into the line and what comes out of it.</value>
+  </data>
+  <data name="AudioSelfTestNote" xml:space="preserve">
+    <value>Five seconds of recording and immediate playback — through the same path as a call.</value>
+  </data>
+  <data name="AudioSelfTestStart" xml:space="preserve">
+    <value>Record and play back</value>
+  </data>
+  <data name="AudioAggregateNote" xml:space="preserve">
+    <value>Different devices: there will be no system echo cancellation. On speakers the other side will hear themselves, in headphones they will not.</value>
+  </data>
+  <data name="RingtoneEnabled" xml:space="preserve">
+    <value>Play a ringtone</value>
+  </data>
+  <data name="RingtonePlayIn" xml:space="preserve">
+    <value>Play through</value>
+  </data>
+  <data name="RingtoneSystemOutput" xml:space="preserve">
+    <value>System device</value>
+  </data>
+  <data name="RingtoneCallOutput" xml:space="preserve">
+    <value>Call device</value>
+  </data>
+  <data name="RingtoneOutputNote" xml:space="preserve">
+    <value>A headset lying on the desk cannot be heard — then the speakers should ring.</value>
+  </data>
+  <data name="RingtoneSound" xml:space="preserve">
+    <value>Sound</value>
+  </data>
+  <data name="RingtoneDefault" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="RingtoneChooseFile" xml:space="preserve">
+    <value>Choose a file…</value>
+  </data>
+  <data name="RingtonePreview" xml:space="preserve">
+    <value>Play</value>
+  </data>
+  <data name="RingtoneMissingSuffix" xml:space="preserve">
+    <value> — file not found</value>
+  </data>
+  <data name="SupportArchiveNote" xml:space="preserve">
+    <value>An archive with the log and system details: support uses it to work out what happened to a call.</value>
+  </data>
+  <data name="SupportCollectLogs" xml:space="preserve">
+    <value>Collect logs</value>
+  </data>
+  <data name="SupportVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="SupportCheckUpdates" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="SupportNewKeySection" xml:space="preserve">
+    <value>New key</value>
+  </data>
+  <data name="SupportNewKeyNote" xml:space="preserve">
+    <value>If you were sent a key to change the settings, enter it here. The number and settings will change by themselves; nothing needs reinstalling.</value>
+  </data>
+  <data name="SupportKey" xml:space="preserve">
+    <value>Key</value>
+  </data>
+  <data name="SupportApplyKey" xml:space="preserve">
+    <value>Apply key</value>
+  </data>
+  <data name="AppearanceTheme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="AppearanceSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="AppearanceLight" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="AppearanceDark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="AppearanceLanguage" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="AppearanceLanguageSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="AppearanceLanguageNote" xml:space="preserve">
+    <value>“System” follows Windows: Russian where the system has Russian, English in all other cases.</value>
+  </data>
+  <data name="AppearanceLanguageRestartNote" xml:space="preserve">
+    <value>Switching restarts the application: the language is chosen at startup and cannot be changed for open windows. The registration will be dropped and re-established, and a call in progress will be cut off.</value>
+  </data>
+  <data name="AppearanceThemeNote" xml:space="preserve">
+    <value>The theme applies immediately and needs no restart.</value>
+  </data>
+  <data name="AppearanceLanguageQuestion" xml:space="preserve">
+    <value>Change the language?</value>
+  </data>
+  <data name="AppearanceLanguageQuestionBody" xml:space="preserve">
+    <value>The language changes for all windows at once, and the application will restart for that: the registration will be dropped and re-established. If a call is in progress, it will be cut off.</value>
+  </data>
+  <data name="AdminModeTitle" xml:space="preserve">
+    <value>Administrator mode</value>
+  </data>
+  <data name="AdminModeNeedsPassword" xml:space="preserve">
+    <value>Password required</value>
+  </data>
+  <data name="AdminModeOpen" xml:space="preserve">
+    <value>Administration ›</value>
+  </data>
 </root>

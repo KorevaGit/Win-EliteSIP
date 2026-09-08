@@ -19,6 +19,7 @@
   <SolidColorBrush x:Key="ControlHoverBrush" Color="#21FFFFFF" />
   <SolidColorBrush x:Key="ControlPressedBrush" Color="#0AFFFFFF" />
   <SolidColorBrush x:Key="SeparatorBrush" Color="#18FFFFFF" />
+  <SolidColorBrush x:Key="SelectionBrush" Color="#4460CDFF" />
 
   <SolidColorBrush x:Key="StatusRegisteredBrush" Color="#FF6CCB5F" />
   <SolidColorBrush x:Key="StatusConnectingBrush" Color="#FFFCA02E" />

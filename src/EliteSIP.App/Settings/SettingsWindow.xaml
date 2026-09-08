@@ -1,0 +1,504 @@
+<Window x:Class="EliteSIP.App.Settings.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:settings="clr-namespace:EliteSIP.App.Settings"
+        xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=settings:SettingsViewModel}"
+        Title="{res:Loc SettingsWindowTitle}"
+        Width="620"
+        Height="480"
+        MinWidth="620"
+        MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display"
+        theme:SettingsLayout.LabelColumn="72"
+        theme:SettingsLayout.RowMaxWidth="420">
+
+  <!--
+      Ширина 620 — сайдбар 160 плюс строка во всю свою ширину плюс поля.
+      Высота 420 задаётся содержимым: разделов пять, и они видны на любой
+      высоте, а самый высокий — «Звук» с двумя устройствами и самопроверкой.
+
+      Колонка подписей — менеджерские 72, а не административные 132: подписи
+      здесь короткие («Громкость», «Микрофон»), и широкая колонка отодвинула бы
+      управление от левого края на пустое место.
+  -->
+
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <!-- Сайдбар фиксирован: список не тянется вместе с окном, иначе на
+           широком мониторе пять коротких названий разъезжаются по полосе в
+           треть экрана. -->
+      <ColumnDefinition Width="160" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <!-- Боковой список разделов. -->
+
+    <Border Grid.Column="0" Background="{DynamicResource ControlBackgroundBrush}">
+      <ListBox ItemsSource="{Binding Sections}"
+               SelectedValue="{Binding Section}"
+               SelectedValuePath="Kind"
+               Background="Transparent"
+               BorderThickness="0"
+               Margin="6,8,6,8"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="Row"
+                          Background="Transparent"
+                          CornerRadius="6"
+                          Padding="{TemplateBinding Padding}">
+                    <ContentPresenter />
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelectionBrush}" />
+                      <Setter Property="FontWeight" Value="SemiBold" />
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </ListBox.ItemContainerStyle>
+
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type settings:SettingsSectionItem}">
+            <StackPanel Orientation="Horizontal">
+              <!-- Значок 15, а не системные 16: наши нарисованы на сетке 20×20
+                   обводкой 1.5 и на шестнадцати читаются грубее соседей. -->
+              <theme:Icon Glyph="{Binding Glyph}" Size="15" VerticalAlignment="Center"
+                          Foreground="{DynamicResource TextSecondaryBrush}" />
+              <TextBlock Text="{Binding Title}" Margin="6,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!-- Открытый раздел и полоса низа. -->
+
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <ScrollViewer Grid.Row="0"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    Padding="12,12,12,0">
+        <!--
+            Потолок ширины строк задан здесь, столбцу разделов, а не каждой
+            строке порознь. Порознь не выходит: строке с ползунком нужно
+            тянуться до потолка, а элемент, который и тянется, и ограничен
+            сверху, WPF ставит по середине оставшегося места — на широком окне
+            раздел уезжал бы от левого края.
+        -->
+        <Grid HorizontalAlignment="Left"
+              Width="{Binding (theme:SettingsLayout.RowMaxWidth), RelativeSource={RelativeSource Self}}">
+
+          <!-- Раздел «Работа». -->
+          <StackPanel Visibility="{Binding ShowsWork, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc WorkPlace}">
+              <theme:SettingsRow Header="{res:Loc SectionWork}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Site"
+                               Content="{res:Loc WorkOffice}"
+                               IsChecked="{Binding Settings.Account.Site, Converter={StaticResource EnumToBool}, ConverterParameter=Office}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Site"
+                               Content="{res:Loc WorkRemote}"
+                               IsChecked="{Binding Settings.Account.Site, Converter={StaticResource EnumToBool}, ConverterParameter=Remote}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc WorkPbxAddress}">
+                <TextBlock Text="{Binding Settings.Account.Domain}"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc WorkSiteNote}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc WorkTroubleSection}">
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc WorkRepairNetwork}"
+                        IsEnabled="False" />
+              </theme:SettingsIndented>
+              <theme:SettingsNote Text="{res:Loc WorkRepairNote}" />
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Звук». -->
+          <StackPanel Visibility="{Binding ShowsAudio, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc SectionAudio}">
+              <theme:SettingsRow Header="{res:Loc AudioMicrophone}">
+                <ComboBox ItemsSource="{Binding Inputs}"
+                          DisplayMemberPath="Name"
+                          SelectedValuePath="Id"
+                          SelectedValue="{Binding Settings.Audio.InputDeviceId}" />
+              </theme:SettingsRow>
+
+              <!--
+                  Ползунок стоит под своим устройством, а не отдельным блоком
+                  «Громкость» внизу страницы: отдельным блоком обе подписи
+                  пришлось бы называть «Микрофон» и «Наушники» второй раз.
+              -->
+              <theme:SettingsRow Header="{res:Loc AudioGain}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0"
+                          Minimum="0" Maximum="2"
+                          SmallChange="0.05" LargeChange="0.1"
+                          VerticalAlignment="Center"
+                          Value="{Binding Settings.Audio.MicrophoneGain}"
+                          IsEnabled="{Binding Settings.Audio.GainIsAdjustable}" />
+                  <TextBlock Grid.Column="1"
+                             Margin="6,0,0,0"
+                             MinWidth="40"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding Settings.Audio.MicrophoneGain, Converter={StaticResource Percent}}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <!--
+                  Почему ручка серая — здесь, а не подсказкой при наведении:
+                  «управление серое и молчит» — худший вид отказа.
+              -->
+              <theme:SettingsNote Text="{res:Loc AudioGainAutoNote}"
+                                  Visibility="{Binding Settings.Audio.AutomaticGainControl, Converter={StaticResource BoolToVisibility}}" />
+
+              <theme:SettingsRow Header="{res:Loc AudioHeadphones}">
+                <ComboBox ItemsSource="{Binding Outputs}"
+                          DisplayMemberPath="Name"
+                          SelectedValuePath="Id"
+                          SelectedValue="{Binding Settings.Audio.OutputDeviceId}" />
+              </theme:SettingsRow>
+
+              <!-- Выше единицы не идёт: микшер громче не умеет. -->
+              <theme:SettingsRow Header="{res:Loc AudioVolume}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0"
+                          Minimum="0" Maximum="1"
+                          SmallChange="0.05" LargeChange="0.1"
+                          VerticalAlignment="Center"
+                          Value="{Binding Settings.Audio.PlaybackVolume}" />
+                  <TextBlock Grid.Column="1"
+                             Margin="6,0,0,0"
+                             MinWidth="40"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding Settings.Audio.PlaybackVolume, Converter={StaticResource Percent}}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AudioLevelsNote}" />
+
+              <theme:SettingsNote Text="{res:Loc AudioAggregateNote}"
+                                  Visibility="{Binding NeedsAggregate, Converter={StaticResource BoolToVisibility}}" />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AudioAgc}"
+                        IsChecked="{Binding Settings.Audio.AutomaticGainControl}" />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AudioRelease}"
+                        IsChecked="{Binding Settings.Audio.ReleasesDeviceWhenIdle}" />
+
+              <theme:SettingsDivider />
+
+              <theme:SettingsNote Text="{res:Loc AudioSelfTestNote}" />
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AudioSelfTestStart}"
+                        IsEnabled="False" />
+              </theme:SettingsIndented>
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Звонок». -->
+          <StackPanel Visibility="{Binding ShowsRingtone, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc SectionRingtone}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc RingtoneEnabled}"
+                        IsChecked="{Binding Settings.Ringtone.IsEnabled}" />
+
+              <!--
+                  Гаснет весь раздел, кроме собственного выключателя: он и есть
+                  то, чем раздел возвращают.
+              -->
+              <theme:SettingsRow Header="{res:Loc AudioVolume}"
+                                 IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0"
+                          Minimum="0" Maximum="1"
+                          SmallChange="0.05" LargeChange="0.1"
+                          VerticalAlignment="Center"
+                          Value="{Binding Settings.Ringtone.Volume}" />
+                  <TextBlock Grid.Column="1"
+                             Margin="6,0,0,0"
+                             MinWidth="40"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding Settings.Ringtone.Volume, Converter={StaticResource Percent}}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc RingtonePlayIn}"
+                                 IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="RingtoneOutput"
+                               Content="{res:Loc RingtoneSystemOutput}"
+                               IsChecked="{Binding Settings.Ringtone.Output, Converter={StaticResource EnumToBool}, ConverterParameter=SystemDefault}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="RingtoneOutput"
+                               Content="{res:Loc RingtoneCallOutput}"
+                               IsChecked="{Binding Settings.Ringtone.Output, Converter={StaticResource EnumToBool}, ConverterParameter=CallDevice}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc RingtoneOutputNote}" />
+
+              <theme:SettingsRow Header="{res:Loc RingtoneSound}"
+                                 IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
+                <TextBlock Text="{Binding RingtoneName}"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsIndented IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Content="{res:Loc RingtoneChooseFile}"
+                          Click="OnChooseRingtoneClick" />
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Margin="6,0,0,0"
+                          Content="{res:Loc RingtoneDefault}"
+                          Click="OnDefaultRingtoneClick"
+                          IsEnabled="{Binding Settings.Ringtone.HasCustomSound}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Margin="6,0,0,0"
+                          Content="{res:Loc RingtonePreview}"
+                          Click="OnPreviewRingtoneClick" />
+                </StackPanel>
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote x:Name="RingtoneProblem"
+                                  IsAlarming="True"
+                                  Visibility="Collapsed" />
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Оформление». -->
+          <StackPanel Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
+            <!--
+                Раздел был из одной строки, и это не считалось недосмотром:
+                панель висит поверх CRM весь день, и если CRM светлая, а система
+                тёмная, выбор делает тот, кто на это смотрит.
+            -->
+            <theme:SettingsSection Header="{res:Loc SectionAppearance}">
+              <theme:SettingsRow Header="{res:Loc AppearanceTheme}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Theme"
+                               Content="{res:Loc AppearanceSystem}"
+                               IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Theme"
+                               Content="{res:Loc AppearanceLight}"
+                               IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Theme"
+                               Content="{res:Loc AppearanceDark}"
+                               IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <!--
+                  Тема применяется сразу, и это отличие от оригинала не
+                  косметическое: там переключение корпуса требовало перезапуска,
+                  потому что стекло выбиралось при сборке окон. Здесь палитра —
+                  словарь ресурсов, и подменяется он на живых окнах.
+              -->
+              <theme:SettingsNote Text="{res:Loc AppearanceThemeNote}" />
+            </theme:SettingsSection>
+
+            <!--
+                Свой раздел, а не строка рядом с темой. Язык не оформление: тема
+                решает, как приложение выглядит, а язык — на чём оно
+                разговаривает, и меняют его один раз при заведении рабочего
+                места, а не по настроению.
+            -->
+            <theme:SettingsSection Header="{res:Loc AppearanceLanguage}">
+              <theme:SettingsRow Header="">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Language"
+                               Content="{res:Loc AppearanceLanguageSystem}"
+                               Checked="OnLanguageChosen"
+                               Tag="System"
+                               IsChecked="{Binding Settings.Appearance.Language, Converter={StaticResource EnumToBool}, ConverterParameter=System, Mode=OneWay}" />
+                  <!-- Названия языков написаны на них самих, как в «Языке и
+                       регионе» самой системы: человек, у которого приложение
+                       говорит на незнакомом ему языке, ищет в списке слово,
+                       которое узнаёт, а не перевод этого слова. -->
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Language"
+                               Content="Русский"
+                               Checked="OnLanguageChosen"
+                               Tag="Russian"
+                               IsChecked="{Binding Settings.Appearance.Language, Converter={StaticResource EnumToBool}, ConverterParameter=Russian, Mode=OneWay}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="Language"
+                               Content="English"
+                               Checked="OnLanguageChosen"
+                               Tag="English"
+                               IsChecked="{Binding Settings.Appearance.Language, Converter={StaticResource EnumToBool}, ConverterParameter=English, Mode=OneWay}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AppearanceLanguageNote}" />
+              <theme:SettingsNote Text="{res:Loc AppearanceLanguageRestartNote}" />
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Техподдержка». -->
+          <StackPanel Visibility="{Binding ShowsSupport, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc SectionSupport}">
+              <theme:SettingsNote Text="{res:Loc SupportArchiveNote}" />
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc SupportCollectLogs}"
+                        IsEnabled="False" />
+              </theme:SettingsIndented>
+
+              <!--
+                  Версия — прямо над проверкой обновлений. Первое, что просит
+                  поддержка по телефону, — «какая у вас версия», и человек тут
+                  же может выяснить, не устарела ли она.
+              -->
+              <theme:SettingsRow Header="{res:Loc SupportVersion}">
+                <TextBlock Text="{Binding Version}"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc SupportCheckUpdates}"
+                        IsEnabled="False" />
+              </theme:SettingsIndented>
+            </theme:SettingsSection>
+
+            <!--
+                Поле ключа стоит здесь, а не в «Управлении», и это решение:
+                смена отдела перестала означать выезд к машине. Административного
+                пароля оно не требует намеренно — пароль защищает настройки
+                машины, а ключ сам по себе есть право их сменить, и выдаёт его
+                панель.
+            -->
+            <theme:SettingsSection Header="{res:Loc SupportNewKeySection}">
+              <theme:SettingsNote Text="{res:Loc SupportNewKeyNote}" />
+
+              <theme:SettingsRow Header="{res:Loc SupportKey}">
+                <TextBox Text="K7M2-9XQP-4TFB"
+                         FontFamily="Consolas"
+                         IsEnabled="False" />
+              </theme:SettingsRow>
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc SupportApplyKey}"
+                        IsEnabled="False" />
+              </theme:SettingsIndented>
+            </theme:SettingsSection>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
+
+      <!--
+          Полоса низа — не про сохранение: менеджерские настройки применяются
+          сразу, и кнопок «Сохранить» с «Отменить» тут нет и быть не может.
+          Полосу занимает дверь в «Управление» — единственное в этом окне
+          действие, которое относится к окну целиком, а не к открытому разделу.
+      -->
+      <Border Grid.Row="1" Padding="12,8">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <theme:Icon Grid.Column="0"
+                      Glyph="lock.shield.fill"
+                      Size="14"
+                      VerticalAlignment="Center"
+                      Foreground="{DynamicResource TextSecondaryBrush}" />
+
+          <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="{res:Loc AdminModeTitle}" />
+            <!--
+                Предупреждение, а не объяснение: перечислять, что лежит за
+                дверью, менеджеру незачем — он туда не идёт; а вот знать, что
+                дверь заперта, надо до нажатия, иначе запрос пароля выглядит
+                отказом.
+            -->
+            <TextBlock Text="{res:Loc AdminModeNeedsPassword}"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+          </StackPanel>
+
+          <!-- Шеврон — потому что кнопка ведёт в другое окно. Оно и заменяет
+               собой это: «Управление» закрывает настройки, а не встаёт рядом. -->
+          <Button Grid.Column="2"
+                  Style="{StaticResource SettingsButtonStyle}"
+                  Content="{res:Loc AdminModeOpen}"
+                  IsEnabled="False" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

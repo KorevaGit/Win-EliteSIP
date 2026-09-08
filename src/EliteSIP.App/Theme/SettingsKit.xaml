@@ -1,0 +1,275 @@
+<!--
+    Вид кирпичей настроек. Устройство и доводы — в SettingsKit.cs.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theme="clr-namespace:EliteSIP.App.Theme">
+
+  <!-- Группа: заголовок и плашка. -->
+  <Style TargetType="{x:Type theme:SettingsSection}">
+    <Setter Property="Margin" Value="0,0,0,8" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type theme:SettingsSection}">
+          <StackPanel>
+            <TextBlock Text="{TemplateBinding Header}"
+                       Margin="0,0,0,4"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+
+            <!--
+                Тот же слабый слой, что у клавиш панели: полупрозрачный, и фон
+                окна под ним остаётся виден — иначе окно было бы одного тона
+                только по краям.
+            -->
+            <Border Background="{DynamicResource ControlBackgroundBrush}"
+                    CornerRadius="12"
+                    Padding="8">
+              <ItemsPresenter />
+            </Border>
+          </StackPanel>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+
+    <Setter Property="ItemsPanel">
+      <Setter.Value>
+        <ItemsPanelTemplate>
+          <!-- Шаг между строками раздела — 6, ступень «между элементами». -->
+          <StackPanel />
+        </ItemsPanelTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Строка «подпись — управление». -->
+  <!--
+      Строка тянется до своего потолка, а не ужимается по содержимому: иначе
+      ползунок получал бы ширину своей ручки. Потолок ширины задан столбцу
+      разделов целиком — см. окно настроек.
+  -->
+  <Style TargetType="{x:Type theme:SettingsRow}">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Margin" Value="0,3" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type theme:SettingsRow}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="{Binding (theme:SettingsLayout.LabelColumn), RelativeSource={RelativeSource Self}}" />
+              <ColumnDefinition Width="6" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--
+                Подпись прижата вправо, к своему управлению: колонка выравнивает
+                не начала подписей, а их концы — тогда подпись и то, чем она
+                управляет, читаются парой.
+            -->
+            <TextBlock Grid.Column="0"
+                       Text="{TemplateBinding Header}"
+                       TextAlignment="Right"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+
+            <ContentPresenter Grid.Column="2" VerticalAlignment="Center" />
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Отступ до колонки управления для всего, у чего нет своей подписи. -->
+  <Style TargetType="{x:Type theme:SettingsIndented}">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Margin" Value="0,3" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type theme:SettingsIndented}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="{Binding (theme:SettingsLayout.LabelColumn), RelativeSource={RelativeSource Self}}" />
+              <ColumnDefinition Width="6" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ContentPresenter Grid.Column="2" />
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Пояснение. -->
+  <Style TargetType="{x:Type theme:SettingsNote}">
+    <Setter Property="Margin" Value="0,3" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type theme:SettingsNote}">
+          <theme:SettingsIndented>
+            <TextBlock x:Name="Body"
+                       Text="{TemplateBinding Text}"
+                       FontSize="11"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+          </theme:SettingsIndented>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsAlarming" Value="True">
+              <Setter TargetName="Body" Property="Foreground" Value="{DynamicResource StatusFailureBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Черта. -->
+  <Style TargetType="{x:Type theme:SettingsDivider}">
+    <Setter Property="Margin" Value="0,3" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type theme:SettingsDivider}">
+          <theme:SettingsIndented>
+            <Border Height="1" Background="{DynamicResource SeparatorBrush}" />
+          </theme:SettingsIndented>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Выключатель. Своей подписи у строки нет — она у самого выключателя, иначе
+      подпись стояла бы дважды.
+
+      Пилюля, а не системная «птичка»: в макете это тумблер, и заводить в одном
+      окне два разных вида двоичного выбора значит учить второму языку. Ширину
+      забирает подпись, а пилюля стоит справа — тогда все выключатели страницы
+      на одной вертикали.
+  -->
+  <Style x:Key="SettingsSwitchStyle" TargetType="{x:Type CheckBox}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Margin" Value="0,3" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type CheckBox}">
+          <Grid Background="Transparent">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="6" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!--
+                Подпись переносится, а не обрезается: «Автоматическая регулировка
+                усиле…» не сообщает ничего, а укорачивать саму настройку ради
+                двадцати точек ширины — менять смысл под вёрстку.
+            -->
+            <ContentPresenter Grid.Column="0" VerticalAlignment="Center" />
+
+            <Border Grid.Column="2"
+                    x:Name="Track"
+                    Width="34"
+                    Height="18"
+                    CornerRadius="9"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource ControlHoverBrush}">
+              <Ellipse x:Name="Knob"
+                       Width="12"
+                       Height="12"
+                       Margin="3,0,0,0"
+                       HorizontalAlignment="Left"
+                       Fill="{DynamicResource TextSecondaryBrush}" />
+            </Border>
+          </Grid>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Track" Property="Background" Value="{DynamicResource StatusInCallBrush}" />
+              <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+              <Setter TargetName="Knob" Property="Margin" Value="0,0,3,0" />
+              <Setter TargetName="Knob" Property="Fill" Value="White" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Кнопка настроек. Обычная, с рамкой: акцентных кнопок в этом окне нет
+      вовсе — ни одно менеджерское действие не является главным на странице.
+  -->
+  <Style x:Key="SettingsButtonStyle" TargetType="{x:Type Button}">
+    <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Padding" Value="10,4" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Button}">
+          <Border x:Name="Surface"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="6"
+                  Padding="{TemplateBinding Padding}"
+                  SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Сегментированный переключатель. Своего в WPF нет, а в макете он есть:
+      тема, язык, рабочее место и выход рингтона выбираются именно им.
+      Собран из переключателей с общим родителем — то есть остаётся
+      переключателем и для доступности, а не превращается в набор кнопок.
+  -->
+  <Style x:Key="SegmentStyle" TargetType="{x:Type RadioButton}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Padding" Value="10,3" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type RadioButton}">
+          <Border x:Name="Surface"
+                  Background="Transparent"
+                  CornerRadius="6"
+                  Padding="{TemplateBinding Padding}"
+                  SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SelectionBrush}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Обойма сегментов: общая подложка, по которой ездит выбранный. -->
+  <Style x:Key="SegmentGroupStyle" TargetType="{x:Type ItemsControl}">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+
+</ResourceDictionary>

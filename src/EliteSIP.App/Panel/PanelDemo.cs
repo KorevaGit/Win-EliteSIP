@@ -20,7 +20,7 @@ namespace EliteSIP.App.Panel;
 /// </remarks>
 internal static class PanelDemo
 {
-    public static void Apply(PanelViewModel model, IReadOnlyList<string> arguments)
+    public static void Apply(PanelViewModel model, Settings.AppSettings settings, IReadOnlyList<string> arguments)
     {
         var index = arguments.ToList().IndexOf("--demo");
         if (index < 0)
@@ -34,6 +34,11 @@ internal static class PanelDemo
         model.StatusTitle = "172";
         model.StatusLabel = "Офис";
         model.CanPlaceCall = true;
+
+        // Учётка показательная: раздел «Работа» без адреса АТС выглядит
+        // сломанным, а не пустым.
+        settings.Account.Username = "172";
+        settings.Account.Domain = "pbx.elite.local";
 
         // Подписи макросов — из тех, на которых у заказчика ломалась вёрстка:
         // одно длинное слово, два слова и короткое. Ровно три разных случая

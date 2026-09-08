@@ -98,4 +98,184 @@
   <data name="PanelOffline" xml:space="preserve">
     <value>Отключён</value>
   </data>
+  <data name="SettingsWindowTitle" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="SectionWork" xml:space="preserve">
+    <value>Работа</value>
+  </data>
+  <data name="SectionAudio" xml:space="preserve">
+    <value>Звук</value>
+  </data>
+  <data name="SectionRingtone" xml:space="preserve">
+    <value>Звонок</value>
+  </data>
+  <data name="SectionAppearance" xml:space="preserve">
+    <value>Оформление</value>
+  </data>
+  <data name="SectionSupport" xml:space="preserve">
+    <value>Техподдержка</value>
+  </data>
+  <data name="WorkPlace" xml:space="preserve">
+    <value>Рабочее место</value>
+  </data>
+  <data name="WorkOffice" xml:space="preserve">
+    <value>Офис</value>
+  </data>
+  <data name="WorkRemote" xml:space="preserve">
+    <value>Из дома</value>
+  </data>
+  <data name="WorkPbxAddress" xml:space="preserve">
+    <value>Адрес АТС</value>
+  </data>
+  <data name="WorkSiteNote" xml:space="preserve">
+    <value>Переключение меняет адрес АТС и заново поднимает регистрацию: из дома внутренний адрес недостижим, а из офиса внешний ведёт на тот же сервер длинной дорогой через шлюз.</value>
+  </data>
+  <data name="WorkInCallNote" xml:space="preserve">
+    <value>Идёт разговор — переключить сейчас нельзя.</value>
+  </data>
+  <data name="WorkTroubleSection" xml:space="preserve">
+    <value>Если не подключается</value>
+  </data>
+  <data name="WorkRepairNetwork" xml:space="preserve">
+    <value>Исправить сеть</value>
+  </data>
+  <data name="WorkRepairNote" xml:space="preserve">
+    <value>Открывает дорогу до АТС снаружи — один раз и прямо сейчас. Нужно, когда из дома перестало подключаться без видимой причины: у домашнего интернета сменился адрес, а шлюз помнит прежний.</value>
+  </data>
+  <data name="AudioMicrophone" xml:space="preserve">
+    <value>Микрофон</value>
+  </data>
+  <data name="AudioHeadphones" xml:space="preserve">
+    <value>Наушники</value>
+  </data>
+  <data name="AudioGain" xml:space="preserve">
+    <value>Усиление</value>
+  </data>
+  <data name="AudioVolume" xml:space="preserve">
+    <value>Громкость</value>
+  </data>
+  <data name="AudioSystemDefaultInput" xml:space="preserve">
+    <value>Системный по умолчанию</value>
+  </data>
+  <data name="AudioSystemDefaultOutput" xml:space="preserve">
+    <value>Системные по умолчанию</value>
+  </data>
+  <data name="AudioGainAutoNote" xml:space="preserve">
+    <value>Усиление считает система: чтобы поставить его руками, выключите автоматическую регулировку ниже.</value>
+  </data>
+  <data name="AudioAgc" xml:space="preserve">
+    <value>Автоматическая регулировка усиления</value>
+  </data>
+  <data name="AudioRelease" xml:space="preserve">
+    <value>Отпускать наушники между звонками</value>
+  </data>
+  <data name="AudioLevelsNote" xml:space="preserve">
+    <value>Уровни появятся здесь в разговоре и во время проверки ниже: по ним видно, что уходит в линию и что приходит из неё.</value>
+  </data>
+  <data name="AudioSelfTestNote" xml:space="preserve">
+    <value>Пять секунд записи и сразу воспроизведение — тем же трактом, что и разговор.</value>
+  </data>
+  <data name="AudioSelfTestStart" xml:space="preserve">
+    <value>Записать и прослушать</value>
+  </data>
+  <data name="AudioAggregateNote" xml:space="preserve">
+    <value>Разные устройства: системного эхоподавления не будет. На колонках собеседник услышит себя, в наушниках — нет.</value>
+  </data>
+  <data name="RingtoneEnabled" xml:space="preserve">
+    <value>Проигрывать рингтон</value>
+  </data>
+  <data name="RingtonePlayIn" xml:space="preserve">
+    <value>Играть в</value>
+  </data>
+  <data name="RingtoneSystemOutput" xml:space="preserve">
+    <value>Системное устройство</value>
+  </data>
+  <data name="RingtoneCallOutput" xml:space="preserve">
+    <value>Устройство разговора</value>
+  </data>
+  <data name="RingtoneOutputNote" xml:space="preserve">
+    <value>Гарнитуру на столе не слышно — тогда звонить должны колонки.</value>
+  </data>
+  <data name="RingtoneSound" xml:space="preserve">
+    <value>Звук</value>
+  </data>
+  <data name="RingtoneDefault" xml:space="preserve">
+    <value>Стандартный</value>
+  </data>
+  <data name="RingtoneChooseFile" xml:space="preserve">
+    <value>Выбрать файл…</value>
+  </data>
+  <data name="RingtonePreview" xml:space="preserve">
+    <value>Прослушать</value>
+  </data>
+  <data name="RingtoneMissingSuffix" xml:space="preserve">
+    <value> — файл не найден</value>
+  </data>
+  <data name="SupportArchiveNote" xml:space="preserve">
+    <value>Архив с журналом и сведениями о системе: по нему в поддержке разбирают, что случилось со звонком.</value>
+  </data>
+  <data name="SupportCollectLogs" xml:space="preserve">
+    <value>Собрать логи</value>
+  </data>
+  <data name="SupportVersion" xml:space="preserve">
+    <value>Версия</value>
+  </data>
+  <data name="SupportCheckUpdates" xml:space="preserve">
+    <value>Проверить обновления</value>
+  </data>
+  <data name="SupportNewKeySection" xml:space="preserve">
+    <value>Новый ключ</value>
+  </data>
+  <data name="SupportNewKeyNote" xml:space="preserve">
+    <value>Если вам прислали ключ для смены настроек — введите его здесь. Номер и настройки сменятся сами; переустанавливать ничего не нужно.</value>
+  </data>
+  <data name="SupportKey" xml:space="preserve">
+    <value>Ключ</value>
+  </data>
+  <data name="SupportApplyKey" xml:space="preserve">
+    <value>Применить ключ</value>
+  </data>
+  <data name="AppearanceTheme" xml:space="preserve">
+    <value>Тема</value>
+  </data>
+  <data name="AppearanceSystem" xml:space="preserve">
+    <value>Системная</value>
+  </data>
+  <data name="AppearanceLight" xml:space="preserve">
+    <value>Светлая</value>
+  </data>
+  <data name="AppearanceDark" xml:space="preserve">
+    <value>Тёмная</value>
+  </data>
+  <data name="AppearanceLanguage" xml:space="preserve">
+    <value>Язык</value>
+  </data>
+  <data name="AppearanceLanguageSystem" xml:space="preserve">
+    <value>Системный</value>
+  </data>
+  <data name="AppearanceLanguageNote" xml:space="preserve">
+    <value>«Системный» — как в Windows: русский там, где в системе есть русский, английский во всех остальных случаях.</value>
+  </data>
+  <data name="AppearanceLanguageRestartNote" xml:space="preserve">
+    <value>Переключение перезапускает приложение: язык выбирается при запуске, и поменять его у открытых окон нельзя. Регистрация снимется и поднимется заново, а звонок в этот момент оборвётся.</value>
+  </data>
+  <data name="AppearanceThemeNote" xml:space="preserve">
+    <value>Тема применяется сразу и перезапуска не требует.</value>
+  </data>
+  <data name="AppearanceLanguageQuestion" xml:space="preserve">
+    <value>Сменить язык?</value>
+  </data>
+  <data name="AppearanceLanguageQuestionBody" xml:space="preserve">
+    <value>Язык меняется у всех окон сразу, и для этого приложение перезапустится: регистрация снимется и поднимется заново. Если сейчас идёт разговор, он оборвётся.</value>
+  </data>
+  <data name="AdminModeTitle" xml:space="preserve">
+    <value>Режим администратора</value>
+  </data>
+  <data name="AdminModeNeedsPassword" xml:space="preserve">
+    <value>Требуется пароль</value>
+  </data>
+  <data name="AdminModeOpen" xml:space="preserve">
+    <value>Управление ›</value>
+  </data>
 </root>

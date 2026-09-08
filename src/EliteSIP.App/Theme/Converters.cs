@@ -50,3 +50,40 @@ public sealed class PresenceToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>Доля в проценты: «0,7» рядом с ползунком не говорит ничего.</summary>
+public sealed class PercentConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is double share ? Math.Round(share * 100).ToString("0", culture) + " %" : string.Empty;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Сегмент выбран, когда значение равно его доводу. Двусторонний: нажатие
+/// сегмента кладёт в свойство его же значение.
+/// </summary>
+///
+/// <remarks>
+/// Сегментированного переключателя в WPF нет, а в макете он есть — тема, язык,
+/// рабочее место и выход рингтона выбираются именно им. Собран он из
+/// переключателей с общим родителем, и каждому нужен ответ на вопрос «это про
+/// меня?».
+///
+/// Обратное преобразование отдаёт значение только при выборе: снятие галочки
+/// приходит от соседнего сегмента, который в этот же миг сообщает своё, — и
+/// записать на него <c>null</c> значило бы стереть только что сделанный выбор.
+/// </remarks>
+public sealed class EnumToBoolConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is not null && parameter is not null
+            && string.Equals(value.ToString(), parameter.ToString(), StringComparison.Ordinal);
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true && parameter is not null
+            ? Enum.Parse(Nullable.GetUnderlyingType(targetType) ?? targetType, parameter.ToString()!)
+            : Binding.DoNothing;
+}

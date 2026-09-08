@@ -17,6 +17,8 @@
   <theme:InverseBooleanToVisibilityConverter x:Key="NotBoolToVisibility" />
   <theme:PresenceToVisibilityConverter x:Key="PresenceToVisibility" />
   <theme:InverseBooleanConverter x:Key="NotBool" />
+  <theme:PercentConverter x:Key="Percent" />
+  <theme:EnumToBoolConverter x:Key="EnumToBool" />
 
   <!-- Непрозрачность выключенного элемента: одна на всё приложение. -->
   <sys:Double x:Key="DisabledOpacity">0.57</sys:Double>
