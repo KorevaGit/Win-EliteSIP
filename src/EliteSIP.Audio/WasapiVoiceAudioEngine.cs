@@ -215,6 +215,38 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     public int DeclaredDelayMilliseconds => Volatile.Read(ref _lastDelayMilliseconds);
 
     /// <inheritdoc/>
+    ///
+    /// <remarks>
+    /// Считается из тех же величин, что и задержка для эхоподавителя, но по
+    /// половинам: их складывают в разных местах и лечат разным. Числа берутся
+    /// мгновенным снимком без замка на кольце — цена точности здесь ноль, а
+    /// брать замок кольца ради диагностики значило бы вставать в очередь к
+    /// потоку вывода.
+    /// </remarks>
+    public AudioLatencySnapshot Latency
+    {
+        get
+        {
+            int processingRate = _processor?.SampleRate ?? (int)_configuration.Codec.SampleRate();
+            if (processingRate <= 0)
+            {
+                return default;
+            }
+
+            int ringFill = _playbackRing?.Available ?? 0;
+            int renderRate = _renderFormat?.SampleRate ?? processingRate;
+            double toProcessing = (double)processingRate / renderRate;
+
+            double playbackSamples = (ringFill + Volatile.Read(ref _renderPadding)) * toProcessing;
+            double captureSamples = Volatile.Read(ref _capturePendingSamples) + _latencyFrames;
+
+            return new AudioLatencySnapshot(
+                captureSamples * 1000.0 / processingRate,
+                playbackSamples * 1000.0 / processingRate);
+        }
+    }
+
+    /// <inheritdoc/>
     public void Reconfigure(VoiceAudioConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);

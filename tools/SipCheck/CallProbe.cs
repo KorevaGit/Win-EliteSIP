@@ -38,6 +38,7 @@ internal static class CallProbe
         double talkSeconds,
         string? dtmf,
         int calls,
+        bool measureLatency,
         CancellationToken cancellationToken)
     {
         using VoiceAudioBus bus = MakeBus();
@@ -50,7 +51,7 @@ internal static class CallProbe
                 Console.WriteLine($"=== звонок {attempt} из {calls} ===");
             }
 
-            if (!await PlaceAsync(agent, target, talkSeconds, dtmf, bus, cancellationToken)
+            if (!await PlaceAsync(agent, target, talkSeconds, dtmf, bus, measureLatency, cancellationToken)
                 .ConfigureAwait(false))
             {
                 all = false;
@@ -76,6 +77,7 @@ internal static class CallProbe
         double talkSeconds,
         string? dtmf,
         VoiceAudioBus bus,
+        bool measureLatency,
         CancellationToken cancellationToken)
     {
         // Адрес для SDP берётся у агента, а не у сокета: это тот же адрес, что
@@ -94,6 +96,7 @@ internal static class CallProbe
                 + reservation.RtpPort.ToString(CultureInfo.InvariantCulture));
 
         MediaSession? session = null;
+        LatencyProbe? latency = null;
         bool answered = false;
         bool endedCleanly = false;
 
@@ -119,7 +122,8 @@ internal static class CallProbe
                         break;
 
                     case SipCallEvent.Answered response:
-                        session = await OpenMediaAsync(response, offer, reservation, bus, cancellationToken)
+                        (session, latency) = await OpenMediaAsync(
+                                response, offer, reservation, bus, measureLatency, cancellationToken)
                             .ConfigureAwait(false);
                         if (session is null)
                         {
@@ -164,6 +168,20 @@ internal static class CallProbe
                 // Сводка снимается до остановки: счётчики буфера обнуляются
                 // вместе с ним, и спросить их после отбоя будет уже не у кого.
                 Console.WriteLine($"   итог: {session.Summary()}");
+
+                if (latency is not null)
+                {
+                    AudioDelayEstimate? measured = latency.Measure();
+                    LatencyProbe.Report(measured, session.Latency, latency.Levels);
+
+                    if (measured is null || !measured.IsConfident)
+                    {
+                        // Данные для разбора: «не нашлась» без них — приговор
+                        // без улик, а восстановить огибающие потом неоткуда.
+                        Console.WriteLine($"   огибающие сложены в {latency.Dump(Path.GetTempPath())}");
+                    }
+                }
+
                 await session.StopAsync().ConfigureAwait(false);
                 session.Dispose();
             }
@@ -177,11 +195,12 @@ internal static class CallProbe
     }
 
     /// <summary>Поднимает медиа по ответу сервера.</summary>
-    private static async Task<MediaSession?> OpenMediaAsync(
+    private static async Task<(MediaSession? Session, LatencyProbe? Latency)> OpenMediaAsync(
         SipCallEvent.Answered response,
         SessionDescription offer,
         RtpPortReservation reservation,
         VoiceAudioBus bus,
+        bool measureLatency,
         CancellationToken cancellationToken)
     {
         try
@@ -201,9 +220,30 @@ internal static class CallProbe
             session.OnAudioEvent = value => Console.WriteLine($"   тракт: {value}");
             session.OnRemoteView = view => Console.WriteLine($"   у собеседника: {view.Summary}");
 
+            // Проба заводится здесь, когда кодек уже согласован: огибающая
+            // считается по частоте кодека, и заводить её раньше значит
+            // угадывать. Обе половины замера снимаются с одной сессии —
+            // отправленное и принятое обязаны быть с одних часов.
+            LatencyProbe? latency = measureLatency ? new LatencyProbe(negotiated.Codec) : null;
+            if (latency is not null)
+            {
+                session.OnSentFrame = latency.NoteSent;
+                session.OnDecodedSamples = latency.NoteReceived;
+
+                // В линию идёт проверочный сигнал, а не микрофон: в тихой
+                // комнате отправлять нечего, и сравнивать вернувшееся будет не
+                // с чем. Заодно замер перестаёт зависеть от того, говорит ли
+                // кто-то рядом со стендом.
+                session.OutgoingTestSignal = new AudioTestSignal(
+                    negotiated.Codec,
+                    negotiated.PacketTimeMilliseconds);
+
+                Console.WriteLine("   замер задержки: в линию идёт проверочный сигнал вместо микрофона");
+            }
+
             await session.StartAsync(cancellationToken).ConfigureAwait(false);
             Console.WriteLine("[v] звук пошёл");
-            return session;
+            return (session, latency);
         }
         catch (SdpParseException failure)
         {
@@ -221,7 +261,7 @@ internal static class CallProbe
             Console.WriteLine($"[x] тракт не поднялся: {failure.Message}");
         }
 
-        return null;
+        return (null, null);
     }
 
     /// <summary>Держит разговор, печатает сводку и кладёт трубку в срок.</summary>

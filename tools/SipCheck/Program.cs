@@ -78,7 +78,7 @@ internal static class Program
             // Звонок — отдельный путь целиком: держать после него регистрацию
             // незачем, всё, ради чего стенд звали, уже случилось.
             bool talked = await CallProbe.RunAsync(
-                agent, number, options.Talk, options.Dtmf, options.Calls, stopping.Token);
+                agent, number, options.Talk, options.Dtmf, options.Calls, options.Latency, stopping.Token);
             await ShutdownAsync(agent, stopping, printer);
             return talked ? 0 : 1;
         }
@@ -113,6 +113,7 @@ internal static class Program
           --talk <секунды>      сколько говорить, по умолчанию 60
           --dtmf <строка>       набрать тоном сразу после ответа
           --calls <число>       сколько звонков подряд, по умолчанию 1
+          --latency             замерить задержку тракта по звуку (звонить на эхо-номер)
         """;
 
     private static async Task<bool> WaitForRegistrationAsync(SipUserAgent agent, TimeSpan timeout)
@@ -238,6 +239,9 @@ internal static class Program
         /// <summary>Сколько звонков подряд. Больше одного — проверка «звонок сразу после отбоя».</summary>
         public int Calls { get; init; } = 1;
 
+        /// <summary>Мерить задержку по звуку, вернувшемуся из линии. Нужен эхо-номер.</summary>
+        public bool Latency { get; init; }
+
         public static CommandLineOptions Parse(string[] arguments)
         {
             Dictionary<string, string> values = new(StringComparer.Ordinal);
@@ -289,6 +293,7 @@ internal static class Program
                     && int.TryParse(calls, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedCalls)
                         ? parsedCalls
                         : 1,
+                Latency = values.ContainsKey("latency"),
             };
         }
     }

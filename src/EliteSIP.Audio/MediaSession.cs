@@ -15,6 +15,67 @@ public enum MediaRenegotiation
     StreamRebuilt,
 }
 
+/// <summary>
+/// Задержка разговора, разложенная по местам, где звук ждёт.
+///
+/// <b>Складывается из наших же счётчиков — и потому это оценка, а не замер.</b>
+/// Она отвечает на вопрос «сколько задержки мы себе устроили» и повторяет наши
+/// собственные заблуждения: если кольцо держит больше, чем думает, число этого
+/// не покажет. Настоящий замер делается звуком, прошедшим весь путь
+/// (<see cref="MediaCore.AudioDelayEstimator"/>), и расхождение двух чисел само
+/// по себе находка.
+/// </summary>
+/// <param name="CaptureMilliseconds">От микрофона до отправленного кадра.</param>
+/// <param name="JitterMilliseconds">Сколько принятое ждёт в джиттер-буфере.</param>
+/// <param name="PlaybackMilliseconds">От кадра из буфера до динамика.</param>
+/// <param name="NetworkRoundTripMilliseconds">
+/// Круговая задержка сети по отчётам RTCP. <c>null</c> — собеседник ещё не
+/// прислал ни одного отчёта: первый приходит через пять секунд разговора.
+/// </param>
+public sealed record MediaLatency(
+    double CaptureMilliseconds,
+    double JitterMilliseconds,
+    double PlaybackMilliseconds,
+    double? NetworkRoundTripMilliseconds)
+{
+    /// <summary>Задержка внутри нас: без сети, но со всеми буферами.</summary>
+    public double LocalMilliseconds => CaptureMilliseconds + JitterMilliseconds + PlaybackMilliseconds;
+
+    /// <summary>
+    /// Рот-в-ухо в одну сторону: наши буферы плюс половина круга по сети.
+    ///
+    /// Половина — потому что круг RTCP меряет путь туда и обратно, а слышимая
+    /// задержка набирается в одну. Строго это верно лишь на симметричном
+    /// маршруте, но других на телефонии практически не бывает.
+    ///
+    /// Норма разговора — до 150 мс в одну сторону (ITU-T G.114); после 300 мс
+    /// собеседники начинают перебивать друг друга, и это слышно всем, кроме
+    /// того, кто мерил только буферы.
+    /// </summary>
+    public double? MouthToEarMilliseconds => NetworkRoundTripMilliseconds is double roundTrip
+        ? LocalMilliseconds + (roundTrip / 2)
+        : null;
+
+    public string Summary
+    {
+        get
+        {
+            string buffers = string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"захват {CaptureMilliseconds:F0} мс + буфер {JitterMilliseconds:F0} мс"
+                    + $" + вывод {PlaybackMilliseconds:F0} мс");
+
+            return NetworkRoundTripMilliseconds is double roundTrip
+                ? string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"{buffers} + сеть {roundTrip / 2:F0} мс = {MouthToEarMilliseconds:F0} мс рот-в-ухо")
+                : string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"{buffers} = {LocalMilliseconds:F0} мс без сети");
+        }
+    }
+}
+
 /// <summary>Пересогласование сменило кодек: от него зависит вся цепочка звука.</summary>
 public sealed class MediaCodecChangedException : Exception
 {
@@ -355,6 +416,57 @@ public sealed class MediaSession : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Задержка разговора прямо сейчас, разложенная по буферам.
+    ///
+    /// Глубина буфера берётся текущая, а не целевая: цель — это то, что мы
+    /// хотим держать, а слышно то, что лежит.
+    /// </summary>
+    public MediaLatency Latency
+    {
+        get
+        {
+            double jitterMilliseconds;
+            lock (_bufferGate)
+            {
+                jitterMilliseconds = _jitter.Depth * (double)_audioConfiguration.PacketTimeMilliseconds;
+            }
+
+            AudioLatencySnapshot tract = default;
+            _bus.TryWithEngine(_token, engine => engine.Latency, out tract);
+
+            return new MediaLatency(
+                tract.CaptureMilliseconds,
+                jitterMilliseconds,
+                tract.PlaybackMilliseconds,
+                RemoteView?.RoundTripTime?.TotalMilliseconds);
+        }
+    }
+
+    /// <summary>
+    /// Проверочный сигнал вместо микрофона.
+    ///
+    /// Пока он задан, в линию уходит он, а не то, что услышал микрофон. Нужен
+    /// замеру задержки: измерение сравнивает отправленное с вернувшимся, а в
+    /// тихой комнате отправлять нечего — шумодав честно сводит фон к нулю, и
+    /// сравнивать оказывается нечего с чем. Той же ручкой на этапе W8
+    /// пользуется проверка «меня слышно?».
+    ///
+    /// Захват при этом продолжает работать: эхоподавитель обязан видеть, что
+    /// творится в комнате, иначе его настройка на время проверки перестаёт
+    /// соответствовать разговору.
+    /// </summary>
+    public AudioTestSignal? OutgoingTestSignal { get; set; }
+
+    /// <summary>
+    /// Кадр, ушедший в линию, — как есть, кодированным.
+    ///
+    /// Нужен замеру задержки: сравнивать надо то, что мы отправили, с тем, что
+    /// вернулось, а другого места, где виден отправленный звук, нет. Зовётся с
+    /// потока захвата — не блокировать.
+    /// </summary>
+    public Action<ReadOnlyMemory<byte>>? OnSentFrame { get; set; }
 
     /// <summary>Статистика джиттер-буфера.</summary>
     public JitterStatistics Statistics
@@ -1052,7 +1164,13 @@ public sealed class MediaSession : IDisposable
                 return;
             }
 
-            rtp.Send(payload);
+            // Проверочный сигнал подменяет микрофон здесь, а не выше по тракту:
+            // так он проходит ровно тот же путь, что и голос, — кодек, RTP,
+            // сеть, — и меряется именно этот путь, а не наша выдумка о нём.
+            ReadOnlyMemory<byte> outgoing = OutgoingTestSignal?.NextFrame() ?? payload;
+
+            rtp.Send(outgoing);
+            OnSentFrame?.Invoke(outgoing);
         },
 
         // Такт воспроизведения задаёт звуковая карта, а не таймер: кадр просят

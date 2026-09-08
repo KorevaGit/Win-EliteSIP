@@ -15,6 +15,9 @@ internal sealed class FakeVoiceAudioEngine : IVoiceAudioEngine
 {
     public VoiceAudioHandlers Handlers { get; set; } = VoiceAudioHandlers.None;
 
+    /// <summary>Что заглушка отвечает про свои задержки. Задаётся тестом.</summary>
+    public AudioLatencySnapshot Latency { get; set; }
+
     public int StartCount { get; private set; }
     public int StopCount { get; private set; }
     public int RestartCount { get; private set; }
