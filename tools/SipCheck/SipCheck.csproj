@@ -3,11 +3,25 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\EliteSIP.SipCore\EliteSIP.SipCore.csproj" />
     <ProjectReference Include="..\..\src\EliteSIP.SipCore.Udp\EliteSIP.SipCore.Udp.csproj" />
+    <ProjectReference Include="..\..\src\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
+
+    <!--
+      Тракт — то есть звуковая карта — здесь ради этапа W5: сквозной звонок
+      проверяется целиком или не проверяется вовсе. Ровно так же в оригинале
+      `sipcheck` линковался с MediaCore, где лежал и весь звук.
+    -->
+    <ProjectReference Include="..\..\src\EliteSIP.Audio\EliteSIP.Audio.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+
+    <!--
+      Windows-версия платформы вместо голой net10.0: со стенда теперь звонят со
+      звуком, а тракт живёт только на Windows. До W5 стенд был чистым — тогда он
+      и не поднимал ничего, кроме сигнализации.
+    -->
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

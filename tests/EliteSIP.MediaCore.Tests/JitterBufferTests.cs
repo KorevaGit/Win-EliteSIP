@@ -298,24 +298,44 @@ public sealed class JitterBufferTests
         // пересинхронизируется, и пропуски просто перескакиваются вместо того,
         // чтобы маскироваться.
         List<ushort> played = [];
+        List<ushort> real = [];
         foreach (ushort sequence in incoming)
         {
             buffer.Push(Packet(sequence));
             if (buffer.Pop() is JitterFrame frame)
             {
                 played.Add(frame.SequenceNumber);
+                if (!frame.IsConcealment)
+                {
+                    real.Add(frame.SequenceNumber);
+                }
             }
         }
 
         while (buffer.Pop() is JitterFrame frame)
         {
             played.Add(frame.SequenceNumber);
+            if (!frame.IsConcealment)
+            {
+                real.Add(frame.SequenceNumber);
+            }
         }
 
-        // Главное свойство: на выход номера идут строго по возрастанию, без
-        // повторов и без провалов назад.
+        // Главное свойство: на выход номера идут по возрастанию, без провалов
+        // назад.
         Assert.Equal(played.Order(), played);
-        Assert.Equal(played.Count, played.Distinct().Count());
+
+        // Повтор номера допустим — но только у сокрытия на пустом буфере: оно
+        // означает «кадр ещё не доехал», ожидаемый номер при этом стоит на
+        // месте, и пришедший следом настоящий пакет играется, а не
+        // выбрасывается опоздавшим. Настоящие кадры обязаны идти по одному
+        // разу.
+        //
+        // В оригинале этого различения не было: там сокрытие двигало номер
+        // всегда, и тест требовал уникальности от всей выдачи. Разница
+        // измерена на живом разговоре — 6 023 выброшенных пакета из 29 993
+        // при нулевых потерях сети (см. docs/W5-CALL.md).
+        Assert.Equal(real.Count, real.Distinct().Count());
         Assert.True(played.Count > 40, $"проиграно всего {played.Count} кадров");
         Assert.True(buffer.Statistics.Concealed > 0, "потери должны быть замаскированы");
     }
@@ -380,5 +400,57 @@ public sealed class JitterBufferTests
 
         Assert.True(buffer.JitterMilliseconds < 5, $"джиттер {buffer.JitterMilliseconds} мс");
         Assert.Equal(2, buffer.TargetDepth);
+    }
+
+    [Fact]
+    public void Недобор_не_уводит_ожидаемый_номер_вперёд_прихода()
+    {
+        // Пустой буфер означает «кадр ещё не доехал», а не «кадра не будет».
+        // Сдвинув на нём ожидаемый номер, буфер уходит вперёд прихода навсегда:
+        // ожидаемый пакет прилетает через двадцать миллисекунд и объявляется
+        // опоздавшим. Замер на живом десятиминутном разговоре: 6 023
+        // выброшенных пакета из 29 993 при нулевых потерях сети.
+        JitterBuffer buffer = new(targetDepth: 2, minimumDepth: 2);
+
+        buffer.Push(Packet(1));
+        buffer.Push(Packet(2));
+        Assert.Equal<ushort?>(1, buffer.Pop()?.SequenceNumber);
+        Assert.Equal<ushort?>(2, buffer.Pop()?.SequenceNumber);
+
+        // Буфер пуст, а звуковой карте нужен кадр: отдаём сокрытие.
+        JitterFrame? filler = buffer.Pop();
+        Assert.NotNull(filler);
+        Assert.True(filler.IsConcealment);
+
+        // Задержавшийся кадр приходит следом — и обязан быть сыгран, а не
+        // выброшен: время растянулось на двадцать миллисекунд повтора, запас
+        // буфера остался на месте.
+        buffer.Push(Packet(3));
+        JitterFrame? delayed = buffer.Pop();
+
+        Assert.Equal<ushort?>(3, delayed?.SequenceNumber);
+        Assert.False(delayed?.IsConcealment);
+        Assert.Equal(0, buffer.Statistics.Late);
+    }
+
+    [Fact]
+    public void Настоящая_потеря_ожидаемый_номер_двигает()
+    {
+        // Обратный случай: кадр не «в пути», а потерян — за ним в буфере уже
+        // лежит следующий. Стоять на месте здесь значит остановить разговор.
+        JitterBuffer buffer = new(targetDepth: 2, minimumDepth: 2);
+
+        buffer.Push(Packet(1));
+        buffer.Push(Packet(2));
+        Assert.Equal<ushort?>(1, buffer.Pop()?.SequenceNumber);
+        Assert.Equal<ushort?>(2, buffer.Pop()?.SequenceNumber);
+
+        // Третий потерян, четвёртый доехал.
+        buffer.Push(Packet(4));
+        JitterFrame? concealed = buffer.Pop();
+        Assert.True(concealed?.IsConcealment);
+
+        Assert.Equal<ushort?>(4, buffer.Pop()?.SequenceNumber);
+        Assert.Equal(1, buffer.Statistics.Concealed);
     }
 }

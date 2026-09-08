@@ -79,7 +79,10 @@ public sealed class RtcpTests
         IReadOnlyList<RtcpPacket> packets = Rtcp.Parse(compound);
         Assert.Equal(2, packets.Count);
         Assert.Equal(42u, Assert.IsType<RtcpReceiverReport>(packets[0]).Ssrc);
-        Assert.Equal((byte)RtcpPacketType.SourceDescription, Assert.IsType<RtcpOther>(packets[1]).Type);
+
+        RtcpSourceDescription description = Assert.IsType<RtcpSourceDescription>(packets[1]);
+        Assert.Equal(42u, description.Ssrc);
+        Assert.Equal("elitesip@16384", description.CanonicalName);
     }
 
     [Fact]
@@ -159,8 +162,11 @@ public sealed class RtcpSessionTests
 {
     private const uint Ssrc = 0x0BAD_F00D;
 
+    /// <summary>Постоянное имя источника: по нему собеседник узнаёт нас после пересборки потока.</summary>
+    private const string CanonicalName = "elitesip@test";
+
     private static RtcpSession MakeSession(ushort localPort) =>
-        new(Ssrc, "elitesip@test", 8000, localPort, "127.0.0.1", 40012);
+        new(Ssrc, CanonicalName, 8000, localPort, "127.0.0.1", 40012);
 
     private static ushort FreePort()
     {
@@ -185,7 +191,13 @@ public sealed class RtcpSessionTests
 
         // Отчёт без CNAME Asterisk выбрасывает, и статистика у него остаётся
         // пустой при внешне исправном обмене.
-        Assert.Equal((byte)RtcpPacketType.SourceDescription, Assert.IsType<RtcpOther>(packets[1]).Type);
+        //
+        // Проверяется именно содержимое, а не тип пакета: раньше описание
+        // источника не разбиралось вовсе и приезжало сюда «пакетом типа 202»,
+        // так что тест подтверждал только его наличие в потоке.
+        RtcpSourceDescription description = Assert.IsType<RtcpSourceDescription>(packets[1]);
+        Assert.Equal(Ssrc, description.Ssrc);
+        Assert.Equal(CanonicalName, description.CanonicalName);
     }
 
     [Fact]

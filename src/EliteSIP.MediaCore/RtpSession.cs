@@ -100,7 +100,7 @@ public sealed class RtpSession : IDisposable
 
     private readonly RtpSessionConfiguration _configuration;
     private readonly Socket _socket;
-    private readonly IPEndPoint _remote;
+    private IPEndPoint _remote;
     private readonly Lock _lock = new();
     private readonly CancellationTokenSource _stopping = new();
 
@@ -121,11 +121,20 @@ public sealed class RtpSession : IDisposable
     private uint _packetsSent;
     private uint _octetsSent;
 
+    /// <param name="boundSocket">
+    /// Уже привязанный к <paramref name="localPort"/> сокет — обычно взятый у
+    /// <see cref="RtpPortReservation.TakeRtpSocket"/>. Если он передан, порт не
+    /// отпускается ни на мгновение и занять его между резервацией и разговором
+    /// не может никто, включая соседний процесс. Без него сокет создаётся и
+    /// привязывается здесь — так работают проверки, которым резервация не
+    /// нужна.
+    /// </param>
     public RtpSession(
         RtpSessionConfiguration configuration,
         ushort localPort,
         string remoteHost,
-        ushort remotePort)
+        ushort remotePort,
+        Socket? boundSocket = null)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
@@ -149,6 +158,12 @@ public sealed class RtpSession : IDisposable
         _timestamp = (uint)RandomNumberGenerator.GetInt32(int.MaxValue);
         SynchronizationSource = (uint)RandomNumberGenerator.GetInt32(1, int.MaxValue);
 
+        if (boundSocket is not null)
+        {
+            _socket = boundSocket;
+            return;
+        }
+
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
         {
             // Без этого Windows разрешает второму сокету встать на тот же порт,
@@ -159,6 +174,31 @@ public sealed class RtpSession : IDisposable
         // Привязка к конкретному локальному порту — то, что делает RTP
         // симметричным: ответный поток придёт на этот же сокет.
         _socket.Bind(new IPEndPoint(IPAddress.Any, localPort));
+    }
+
+    /// <summary>
+    /// Переводит поток на другой адрес собеседника, не трогая сокет.
+    ///
+    /// Так выглядит пересогласование, в котором сервер вернулся с другого
+    /// плеча: адрес сменился, порт остался наш, разговор тот же.
+    /// Пересобирать ради этого сокет нельзя дважды. Во-первых, новый пришлось
+    /// бы привязывать к тому же порту после закрытия старого — а это зазор, в
+    /// котором порт свободен для всей машины. Во-вторых, вместе с сокетом
+    /// пропали бы номер последовательности и метка времени: собеседник увидел
+    /// бы обрыв потока там, где всего лишь сменился адрес.
+    /// </summary>
+    public void Retarget(string remoteHost, ushort remotePort)
+    {
+        ArgumentNullException.ThrowIfNull(remoteHost);
+
+        IPEndPoint replacement = new(IPAddress.Parse(remoteHost), remotePort);
+        lock (_lock)
+        {
+            _remote = replacement;
+
+            // Маркер: для собеседника это начало речи с нового плеча.
+            _needsMarker = true;
+        }
     }
 
     /// <summary>Пришедший пакет. Вызывается на потоке приёма — не блокировать.</summary>
@@ -249,6 +289,33 @@ public sealed class RtpSession : IDisposable
         }
 
         SendRaw(data);
+    }
+
+    /// <summary>
+    /// Пропускает кадр: время идёт, звук не уходит.
+    ///
+    /// Так выглядит немой микрофон. Просто не отправить кадр нельзя: метка
+    /// времени растёт только на отправке, и собеседник, получив после минуты
+    /// молчания пакет с меткой минутной давности, услышит не паузу, а
+    /// рассинхронизацию — его джиттер-буфер будет разгребать её как приход
+    /// безнадёжно старых кадров.
+    ///
+    /// Маркер ставится по той же причине, по какой он ставится после события
+    /// DTMF: следующий отправленный кадр начинает новый участок речи, и
+    /// принимающей стороне надо об этом сказать.
+    /// </summary>
+    public void SkipFrame()
+    {
+        lock (_lock)
+        {
+            if (_isStopped)
+            {
+                return;
+            }
+
+            _timestamp = unchecked(_timestamp + _configuration.TimestampIncrement);
+            _needsMarker = true;
+        }
     }
 
     /// <summary>
@@ -482,11 +549,53 @@ public sealed class RtpPortReservation : IDisposable
     }
 
     /// <summary>
+    /// Отдаёт уже привязанный сокет RTP тому, кто будет им говорить.
+    ///
+    /// <b>Это замена «освободить и привязать заново», и разница не косметическая.</b>
+    /// Между освобождением проверочного сокета и привязкой рабочего есть зазор,
+    /// в котором порт свободен для всей машины. Внутрипроцессный учёт этот
+    /// зазор не закрывает: другой процесс — второй экземпляр приложения или
+    /// стенд рядом — про наш список занятых портов не знает вовсе и займёт
+    /// порт совершенно законно. Отказ вылезет там, где его никто не ждёт: в
+    /// конструкторе потока, посреди уже принятого звонка.
+    ///
+    /// Отданный сокет больше не принадлежит резервации: закрывать его будет
+    /// поток. Порт при этом не отпускается ни на мгновение.
+    /// </summary>
+    public Socket TakeRtpSocket() => Take(0);
+
+    /// <summary>Тот же приём для RTCP: порт RTP плюс один.</summary>
+    public Socket TakeRtcpSocket() => Take(1);
+
+    private Socket Take(int index)
+    {
+        lock (_stateLock)
+        {
+            ObjectDisposedException.ThrowIf(_isReleased, this);
+
+            if (index >= _sockets.Count || _sockets[index] is not Socket socket)
+            {
+                throw new InvalidOperationException(
+                    "сокет уже отдан или резервация активирована — порт придётся занимать заново");
+            }
+
+            // Место занимается null, а не удаляется: индексы у пары
+            // постоянные, и «второй» обязан остаться вторым даже после того,
+            // как первый ушёл.
+            _sockets[index] = null!;
+            return socket;
+        }
+    }
+
+    /// <summary>
     /// Освобождает проверочные сокеты непосредственно перед запуском RTP/RTCP.
     ///
     /// Логическое владение парой остаётся за объектом до <see cref="Release"/>,
     /// поэтому другая линия этого процесса не сможет забрать порт в коротком
     /// зазоре, пока создаются рабочие сокеты.
+    ///
+    /// <b>Оставлено ради проверок и совместимости.</b> Рабочий путь —
+    /// <see cref="TakeRtpSocket"/>: он не оставляет зазора вовсе.
     /// </summary>
     public void Activate()
     {
@@ -499,7 +608,7 @@ public sealed class RtpPortReservation : IDisposable
 
             foreach (Socket socket in _sockets)
             {
-                socket.Dispose();
+                socket?.Dispose();
             }
 
             _sockets = [];
@@ -524,7 +633,7 @@ public sealed class RtpPortReservation : IDisposable
 
         foreach (Socket socket in held)
         {
-            socket.Dispose();
+            socket?.Dispose();
         }
 
         lock (RegistryLock)

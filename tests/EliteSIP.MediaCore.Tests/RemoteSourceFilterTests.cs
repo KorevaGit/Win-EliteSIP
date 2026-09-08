@@ -87,4 +87,21 @@ public sealed class RemoteSourceFilterTests
 
         Assert.Equal(0x1111_1111u, filter.Accepted);
     }
+
+    [Fact]
+    public void Забытый_источник_задаётся_заново_первым_же_пакетом()
+    {
+        RemoteSourceFilter filter = new();
+        filter.Admit(0x1111_1111);
+
+        // Так выглядит пересобранный поток: собеседник вернулся с другого адреса
+        // и сменил SSRC вместе с ним. Оставленный прежний номер заставил бы
+        // фильтр отбрасывать законные пакеты первые пять кадров подряд — то
+        // есть сто миллисекунд тишины на каждом удержании.
+        filter.Forget();
+        Assert.Null(filter.Accepted);
+
+        Assert.Equal(RemoteSourceVerdict.Known, filter.Admit(0x9999_9999));
+        Assert.Equal(0x9999_9999u, filter.Accepted);
+    }
 }

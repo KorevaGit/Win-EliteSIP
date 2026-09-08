@@ -86,7 +86,7 @@ public sealed class RtcpSession : IDisposable
     private readonly string _canonicalName;
     private readonly uint _clockRate;
     private readonly Socket _socket;
-    private readonly IPEndPoint _remote;
+    private IPEndPoint _remote;
     private readonly Lock _lock = new();
     private readonly CancellationTokenSource _stopping = new();
 
@@ -101,24 +101,49 @@ public sealed class RtcpSession : IDisposable
     private bool _isStopped;
     private bool _isStarted;
 
+    /// <param name="boundSocket">
+    /// Уже привязанный сокет — обычно из
+    /// <see cref="RtpPortReservation.TakeRtcpSocket"/>. Причина та же, что у
+    /// потока RTP: порт не должен освобождаться между резервацией и разговором
+    /// даже на миллисекунду.
+    /// </param>
     public RtcpSession(
         uint ssrc,
         string canonicalName,
         uint clockRate,
         ushort localPort,
         string remoteHost,
-        ushort remotePort)
+        ushort remotePort,
+        Socket? boundSocket = null)
     {
         _ssrc = ssrc;
         _canonicalName = canonicalName;
         _clockRate = clockRate;
         _remote = new IPEndPoint(IPAddress.Parse(remoteHost), remotePort);
 
+        if (boundSocket is not null)
+        {
+            _socket = boundSocket;
+            return;
+        }
+
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
         {
             ExclusiveAddressUse = true,
         };
         _socket.Bind(new IPEndPoint(IPAddress.Any, localPort));
+    }
+
+    /// <summary>Переводит отчёты на другое плечо собеседника, не трогая сокет.</summary>
+    public void Retarget(string remoteHost, ushort remotePort)
+    {
+        ArgumentNullException.ThrowIfNull(remoteHost);
+
+        IPEndPoint replacement = new(IPAddress.Parse(remoteHost), remotePort);
+        lock (_lock)
+        {
+            _remote = replacement;
+        }
     }
 
     public Action<RemoteMediaView>? OnRemoteView { get; set; }
@@ -244,6 +269,13 @@ public sealed class RtcpSession : IDisposable
 
                 case RtcpGoodbye:
                     OnDiagnostic?.Invoke("собеседник закрыл поток RTCP");
+                    break;
+
+                case RtcpSourceDescription:
+                    // Штатная часть каждого составного отчёта, и говорить о ней
+                    // нечего: имя источника нужно тем, кто сводит несколько
+                    // потоков, а у софтфона собеседник один. Раньше она попадала
+                    // в общую ветку и засоряла журнал каждые пять секунд.
                     break;
 
                 case RtcpOther other:

@@ -220,7 +220,14 @@ public sealed partial class SipUserAgent : IDisposable
 
         _account = account;
         _credentials = credentials;
-        _transactions = new SipTransactionLayer(channel, timers);
+        _transactions = new SipTransactionLayer(channel, timers)
+        {
+            // Отброшенное входящее уходит в тот же журнал, что и всё остальное.
+            // Без этой строки оно не оставляло следа нигде, а объяснять им
+            // приходится самые дорогие жалобы — «разговор висит после того, как
+            // собеседник положил трубку».
+            OnDiscarded = (level, text) => Log(level, text),
+        };
         _userAgentName = userAgentName;
         _transferResultTimeout = transferResultTimeout ?? TimeSpan.FromSeconds(60);
         _ringingLimit = ringingLimit ?? DefaultRingingLimit;

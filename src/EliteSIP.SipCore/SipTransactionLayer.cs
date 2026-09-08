@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Threading.Channels;
 
 namespace EliteSIP.SipCore;
@@ -100,8 +101,12 @@ public sealed class SipTransactionLayer : IDisposable
     private readonly ISipTransportChannel _channel;
     private readonly SipTransactionTimers _timers;
 
+    /// <summary>Сколько входящих запросов ждут разбора. Переполнение — это затор наверху.</summary>
+    internal const int InboundQueueCapacity = 64;
+
     private readonly Channel<SipRequest> _inbound =
-        Channel.CreateBounded<SipRequest>(new BoundedChannelOptions(64) { FullMode = BoundedChannelFullMode.DropOldest });
+        Channel.CreateBounded<SipRequest>(
+            new BoundedChannelOptions(InboundQueueCapacity) { FullMode = BoundedChannelFullMode.DropOldest });
 
     private readonly Channel<SipServerInviteEvent> _serverInviteEvents =
         Channel.CreateBounded<SipServerInviteEvent>(new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.DropOldest });
@@ -179,6 +184,17 @@ public sealed class SipTransactionLayer : IDisposable
     /// не кладёт.
     /// </summary>
     public IAsyncEnumerable<string> ChannelClosures => _channelClosures.Reader.ReadAllAsync();
+
+    /// <summary>
+    /// Что пришло на наш порт и было отброшено, с причиной.
+    ///
+    /// Не поток, а обработчик: это диагностика, у неё нет ни очереди, ни
+    /// порядка, ни потребителя, который обязан её дождаться. Существует затем,
+    /// что отброшенное входящее — единственный класс событий, который в
+    /// прежнем виде не оставлял вообще никакого следа, а объяснять им
+    /// приходится самые дорогие жалобы: «разговор висит», «звонок не пришёл».
+    /// </summary>
+    public Action<SipLogLevel, string>? OnDiscarded { get; set; }
 
     /// <summary>
     /// Сколько ответов лежит в кэше. Доступно проверкам: потолок, который никто
@@ -975,10 +991,21 @@ public sealed class SipTransactionLayer : IDisposable
         {
             message = SipParser.Parse(data);
         }
-        catch (SipParseException)
+        catch (SipParseException error)
         {
             // Битое сообщение — не повод рвать канал: на UDP это может быть
             // чужой мусор, залетевший на наш порт.
+            //
+            // <b>Но молчать о нём нельзя.</b> Раньше здесь стоял голый
+            // return, и любое непонятое сообщение исчезало без следа. Цена
+            // такого молчания видна на одном примере: если так пропадёт BYE,
+            // у оператора останется разговор, который собеседник давно
+            // положил, — и в журнале не будет ни строки о том, что вообще
+            // что-то приходило. Разбор такой жалобы начинается с пустого
+            // места.
+            OnDiscarded?.Invoke(
+                SipLogLevel.Warning,
+                $"входящее не разобрано ({error.Kind}): {Describe(data)}");
             return;
         }
 
@@ -1032,7 +1059,55 @@ public sealed class SipTransactionLayer : IDisposable
             return;
         }
 
+        // Очередь входящих ограничена и при переполнении вытесняет самое
+        // старое — то есть теряет запрос, который уже приняли, но не успели
+        // разобрать. Переполнить её может только затор наверху, и тогда
+        // пропасть может что угодно, включая BYE. Проверка до записи, потому
+        // что вытеснение само по себе тихое: TryWrite в этом режиме всегда
+        // отвечает «записал».
+        if (_inbound.Reader.Count >= InboundQueueCapacity)
+        {
+            OnDiscarded?.Invoke(
+                SipLogLevel.Warning,
+                $"очередь входящих полна ({InboundQueueCapacity.ToString(CultureInfo.InvariantCulture)}), "
+                    + $"самый старый запрос вытеснен приходом {request.Method.Name()}");
+        }
+
         _inbound.Writer.TryWrite(request);
+    }
+
+    /// <summary>
+    /// Короткая выжимка из непонятого пакета — для журнала.
+    ///
+    /// Берётся только стартовая строка и только печатные знаки: дальше в
+    /// сообщении идут заголовки, среди которых бывает <c>Authorization</c>, а
+    /// правило проекта — паролей в журнале нет. Длина ограничена, потому что на
+    /// наш порт может прилететь что угодно, включая мегабайт мусора.
+    /// </summary>
+    internal static string Describe(ReadOnlyMemory<byte> data)
+    {
+        const int Limit = 120;
+
+        ReadOnlySpan<byte> span = data.Span;
+        int end = span.IndexOf((byte)'\r');
+        if (end < 0)
+        {
+            end = span.IndexOf((byte)'\n');
+        }
+
+        if (end < 0)
+        {
+            end = span.Length;
+        }
+
+        StringBuilder text = new(Math.Min(end, Limit));
+        for (int index = 0; index < end && text.Length < Limit; index++)
+        {
+            byte value = span[index];
+            text.Append(value is >= 0x20 and < 0x7F ? (char)value : '.');
+        }
+
+        return $"{data.Length.ToString(CultureInfo.InvariantCulture)} байт, начало «{text}»";
     }
 
     private async Task HandleResponseAsync(SipResponse response)
@@ -1041,6 +1116,11 @@ public sealed class SipTransactionLayer : IDisposable
         // CSeq. Только branch недостаточно.
         if (response.TopVia?.Branch is not string branch || response.CSeq is not (int, SipMethod) cseq)
         {
+            // Ответ без branch или без CSeq сопоставить не с чем. Это не наш
+            // ответ и, скорее всего, вообще не ответ на что-либо разумное.
+            OnDiscarded?.Invoke(
+                SipLogLevel.Warning,
+                $"ответ {response.StatusCode.ToString(CultureInfo.InvariantCulture)} без Via branch или CSeq — сопоставить не с чем");
             return;
         }
 
@@ -1056,6 +1136,14 @@ public sealed class SipTransactionLayer : IDisposable
         {
             if (!_clientTransactions.TryGetValue(key, out ClientTransaction? transaction))
             {
+                // Уровень «отладка», а не предупреждение: сюда штатно попадают
+                // повторы уже отвеченного — сервер ретранслирует, пока не
+                // увидит наше подтверждение. Кричать об этом значит залить
+                // журнал ровно тем, что в порядке вещей.
+                OnDiscarded?.Invoke(
+                    SipLogLevel.Debug,
+                    $"ответ {response.StatusCode.ToString(CultureInfo.InvariantCulture)} на "
+                        + $"{cseq.Method.Name()} без живой транзакции — отброшен");
                 return;
             }
 

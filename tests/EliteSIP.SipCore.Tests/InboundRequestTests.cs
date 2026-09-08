@@ -110,4 +110,63 @@ public sealed class InboundRequestTests
         Assert.Equal(501, response.StatusCode);
         Assert.NotNull(response.Headers.First("Allow"));
     }
+
+    [Fact]
+    public async Task Непонятое_входящее_оставляет_след_а_не_исчезает()
+    {
+        // Раньше здесь стоял голый return: непонятое сообщение отбрасывалось
+        // молча. Цена такого молчания — жалоба «разговор висит после того, как
+        // собеседник положил трубку», у которой в журнале нет ни строки о том,
+        // что вообще что-то приходило.
+        var server = new ScriptedSipServer((_, _) => null);
+        using var layer = new SipTransactionLayer(server, TestSupport.FastTimers());
+
+        List<(SipLogLevel Level, string Text)> discarded = [];
+        layer.OnDiscarded = (level, text) =>
+        {
+            lock (discarded)
+            {
+                discarded.Add((level, text));
+            }
+        };
+
+        await layer.StartAsync();
+        server.Inject("BROKEN sip:100@here SIP/9.9\r\n\r\n"u8.ToArray());
+
+        Assert.True(await TestSupport.WaitUntilAsync(() =>
+        {
+            lock (discarded)
+            {
+                return discarded.Count > 0;
+            }
+        }));
+
+        await layer.StopAsync();
+
+        (SipLogLevel level, string text) = discarded[0];
+        Assert.Equal(SipLogLevel.Warning, level);
+        Assert.Contains("не разобрано", text, StringComparison.Ordinal);
+
+        // В строку попадает только стартовая строка: дальше в сообщении идут
+        // заголовки, среди которых бывает Authorization, а паролей в журнале не
+        // бывает.
+        Assert.Contains("BROKEN sip:100@here SIP/9.9", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Выжимка_из_мусора_не_тащит_в_журнал_ни_длину_ни_непечатное()
+    {
+        // На открытый UDP-порт прилетает что угодно, вплоть до мегабайта
+        // двоичного мусора. Обрезка и замена непечатного — не косметика: журнал
+        // читают глазами, и одна такая строка способна его испортить целиком.
+        byte[] noise = new byte[4096];
+        Array.Fill(noise, (byte)0x00);
+        noise[0] = (byte)'X';
+
+        string described = SipTransactionLayer.Describe(noise);
+
+        Assert.Contains("4096 байт", described, StringComparison.Ordinal);
+        Assert.DoesNotContain(described, character => character == '\0');
+        Assert.True(described.Length < 200, $"строка длиной {described.Length} — это уже не выжимка");
+    }
 }

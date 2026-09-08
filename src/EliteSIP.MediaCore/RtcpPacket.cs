@@ -79,6 +79,18 @@ public sealed record RtcpReceiverReport(uint Ssrc, IReadOnlyList<RtcpReportBlock
 public sealed record RtcpGoodbye(uint Ssrc) : RtcpPacket;
 
 /// <summary>
+/// Описание источника (RFC 3550 §6.5): кто говорит на том конце.
+///
+/// Разбирается ради одного поля — CNAME. Оно и есть постоянное имя источника:
+/// SSRC меняется при пересборке потока, CNAME остаётся. Свой такой пакет мы
+/// шлём с первого дня (без него Asterisk выбрасывает наши отчёты); чужой до
+/// этой правки не разбирался вовсе, и каждые пять секунд в журнал уходила
+/// строка «пакет типа 202 пропущен» — то есть журнал разговора состоял в
+/// основном из сообщений о том, что мы чего-то не поняли.
+/// </summary>
+public sealed record RtcpSourceDescription(uint Ssrc, string? CanonicalName) : RtcpPacket;
+
+/// <summary>
 /// Разобрать не смогли или он нам неинтересен. Тип сохраняется: по нему видно,
 /// что именно шлёт сервер.
 /// </summary>
@@ -245,6 +257,10 @@ public static class Rtcp
                     packets.Add(ParseReceiverReport(body, reportCount));
                     break;
 
+                case RtcpPacketType.SourceDescription:
+                    packets.Add(ParseSourceDescription(body));
+                    break;
+
                 case RtcpPacketType.Goodbye:
                     if (body.Length < 4)
                     {
@@ -339,6 +355,54 @@ public static class Rtcp
         // Длина в 32-битных словах, не считая первого. Заголовок — 4 байта.
         AppendBigEndian(data, (ushort)(((bodyLength + 4) / 4) - 1));
         return [.. data];
+    }
+
+    /// <summary>
+    /// Разбирает первый кусок описания источника — тот, что про собеседника.
+    ///
+    /// Кусков в пакете бывает несколько (микшер описывает всех, кого сводит), но
+    /// софтфону нужен только первый: он про того, с кем мы говорим. Внутри
+    /// куска — список полей вида «тип, длина, текст», и нас интересует
+    /// единственное поле CNAME (тип 1).
+    /// </summary>
+    private static RtcpSourceDescription ParseSourceDescription(ReadOnlySpan<byte> body)
+    {
+        const byte CanonicalNameItem = 1;
+
+        if (body.Length < 4)
+        {
+            throw new RtcpParseException(RtcpParseFailure.TooShort, body.Length);
+        }
+
+        uint ssrc = BinaryPrimitives.ReadUInt32BigEndian(body);
+        string? canonicalName = null;
+
+        int offset = 4;
+        while (offset + 1 < body.Length)
+        {
+            byte item = body[offset];
+            if (item == 0)
+            {
+                // Ноль закрывает список полей куска. Дальше идёт выравнивание.
+                break;
+            }
+
+            int length = body[offset + 1];
+            int start = offset + 2;
+            if (start + length > body.Length)
+            {
+                throw new RtcpParseException(RtcpParseFailure.TooShort, body.Length - start);
+            }
+
+            if (item == CanonicalNameItem)
+            {
+                canonicalName = System.Text.Encoding.UTF8.GetString(body.Slice(start, length));
+            }
+
+            offset = start + length;
+        }
+
+        return new RtcpSourceDescription(ssrc, canonicalName);
     }
 
     private static RtcpSenderReport ParseSenderReport(ReadOnlySpan<byte> body, int reportCount)

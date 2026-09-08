@@ -1073,7 +1073,14 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             SampleClocks(now);
 
             bool fed = false;
-            while (fill < ring.TargetFill * 2)
+            // Запас — из настройки, а не числом на месте: на нём сходятся
+            // тракт и джиттер-буфер, и разъезд здесь стоит половины разговора
+            // (см. VoiceAudioConfiguration.PlaybackLeadFrames).
+            int lead = ring.TargetFill
+                / Math.Max(_configuration.TargetPlaybackFrames, 1)
+                * _configuration.PlaybackLeadFrames;
+
+            while (fill < lead)
             {
                 PlaybackFrame? next = Handlers.NeedsFrame?.Invoke();
                 if (next is not PlaybackFrame playback)

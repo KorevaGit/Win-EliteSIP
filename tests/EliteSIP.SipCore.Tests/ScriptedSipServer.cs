@@ -169,6 +169,16 @@ internal sealed class ScriptedSipServer : ISipTransportChannel
     public void Inject(SipResponse response) =>
         _events.Writer.TryWrite(new SipTransportEvent.Received(response.Encoded()));
 
+    /// <summary>
+    /// Присылает клиенту сырые байты.
+    ///
+    /// Нужно для того, что не является ни запросом, ни ответом: чужой мусор,
+    /// залетевший на открытый UDP-порт, и сообщение, которое наш разборщик не
+    /// понял. Собрать такое из <see cref="SipRequest"/> нельзя по определению.
+    /// </summary>
+    public void Inject(byte[] data) =>
+        _events.Writer.TryWrite(new SipTransportEvent.Received(data));
+
     /// <summary>Отказ, после которого канал жив: сетевая подсистема повторит сама.</summary>
     public void Fail(string reason) => _events.Writer.TryWrite(new SipTransportEvent.Failed(reason));
 

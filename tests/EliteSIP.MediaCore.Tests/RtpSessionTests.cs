@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Sockets;
+
 namespace EliteSIP.MediaCore.Tests;
 
 /// <summary>
@@ -176,5 +179,126 @@ public sealed class RtpSessionTests
         // Первый пакет разговора помечается маркером: по нему принимающая
         // сторона понимает начало речи.
         Assert.True(packet.Marker);
+    }
+
+    [Fact]
+    public void Взятый_у_резервации_сокет_не_освобождает_порт_ни_на_миг()
+    {
+        // Раньше между «отпустить проверочный сокет» и «привязать рабочий» был
+        // зазор, в котором порт свободен для всей машины. Внутрипроцессный учёт
+        // его не закрывает: соседний процесс про наш список занятых портов не
+        // знает и займёт порт совершенно законно — а отказ вылезет в
+        // конструкторе потока, посреди уже принятого звонка.
+        using RtpPortReservation reservation = RtpPortReservation.Reserve();
+        ushort port = reservation.RtpPort;
+
+        using RtpSession session = new(
+            new RtpSessionConfiguration(),
+            port,
+            "127.0.0.1",
+            40110,
+            reservation.TakeRtpSocket());
+
+        // Порт всё это время наш: попытка занять его со стороны обязана
+        // провалиться, а не «успеть в зазор».
+        using Socket intruder = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+        {
+            ExclusiveAddressUse = true,
+        };
+
+        Assert.Throws<SocketException>(() => intruder.Bind(new IPEndPoint(IPAddress.Any, port)));
+    }
+
+    [Fact]
+    public void Отданный_дважды_сокет_даёт_понятный_отказ()
+    {
+        using RtpPortReservation reservation = RtpPortReservation.Reserve();
+        _ = reservation.TakeRtpSocket();
+
+        // Второй желающий на тот же сокет — это ошибка вызывающего, и молчать о
+        // ней нельзя: разговор пошёл бы по сокету, который уже закрывает
+        // кто-то другой.
+        Assert.Throws<InvalidOperationException>(reservation.TakeRtpSocket);
+    }
+
+    [Fact]
+    public void Смена_плеча_собеседника_не_рвёт_нумерацию_потока()
+    {
+        // Так выглядит пересогласование: сервер вернулся с другого адреса. Для
+        // собеседника это должен быть тот же поток — иначе его джиттер-буфер
+        // разберёт смену плеча как обрыв связи.
+        using RtpPortReservation reservation = RtpPortReservation.Reserve();
+        using Socket first = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        using Socket second = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        first.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        second.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+
+        using RtpSession session = new(
+            new RtpSessionConfiguration(),
+            reservation.RtpPort,
+            "127.0.0.1",
+            (ushort)((IPEndPoint)first.LocalEndPoint!).Port,
+            reservation.TakeRtpSocket());
+
+        byte[] silence = new byte[160];
+        Array.Fill(silence, G711.MuLawSilence);
+        session.Send(silence);
+
+        RtpPacket before = Receive(first);
+
+        session.Retarget("127.0.0.1", (ushort)((IPEndPoint)second.LocalEndPoint!).Port);
+        session.Send(silence);
+
+        RtpPacket after = Receive(second);
+
+        Assert.Equal(before.Ssrc, after.Ssrc);
+        Assert.Equal((ushort)(before.SequenceNumber + 1), after.SequenceNumber);
+        Assert.Equal(before.Timestamp + 160u, after.Timestamp);
+
+        // Маркер: для собеседника это начало речи с нового плеча.
+        Assert.True(after.Marker);
+    }
+
+    private static RtpPacket Receive(Socket socket)
+    {
+        byte[] buffer = new byte[2048];
+        socket.ReceiveTimeout = 2000;
+        int read = socket.Receive(buffer);
+        return RtpPacket.Parse(buffer.AsSpan(0, read));
+    }
+
+    [Fact]
+    public void Пропущенный_кадр_двигает_метку_времени_и_ставит_маркер()
+    {
+        // Так выглядит немой микрофон. Просто не отправлять кадры нельзя: метка
+        // времени растёт только на отправке, и пакет с меткой минутной давности
+        // собеседник разберёт не как паузу, а как приход безнадёжно старого
+        // звука.
+        using RtpPortReservation reservation = RtpPortReservation.Reserve();
+        reservation.Activate();
+
+        using RtpSession session = new(
+            new RtpSessionConfiguration(),
+            reservation.RtpPort,
+            "127.0.0.1",
+            40108);
+
+        byte[] silence = new byte[160];
+        Array.Fill(silence, G711.MuLawSilence);
+        session.Send(silence);
+
+        (uint Packets, uint Octets, uint Timestamp, uint Ssrc) before = session.SendStatistics;
+
+        session.SkipFrame();
+        session.SkipFrame();
+
+        (uint Packets, uint Octets, uint Timestamp, uint Ssrc) after = session.SendStatistics;
+
+        // Время идёт на два такта, а пакетов не прибавилось: пропущенный кадр —
+        // это молчание, а не потерянный пакет, и в счёт отправителя он не
+        // входит.
+        Assert.Equal(before.Timestamp + 320u, after.Timestamp);
+        Assert.Equal(before.Packets, after.Packets);
+        Assert.Equal(before.Octets, after.Octets);
     }
 }

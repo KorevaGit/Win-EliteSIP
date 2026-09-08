@@ -12,14 +12,15 @@ namespace EliteSIP.Tools.SipCheck;
 /// это можно только на настоящем сервере. Интерфейс для такой проверки — лишний
 /// слой: здесь виден весь обмен и точный код ответа.
 ///
-/// На этапе W2 стенд умеет ровно то, чем этап и принимается: регистрацию с
-/// digest-вызовом, обновление по таймеру и ответы на опрос сервера. Звонок,
-/// удержание и перевод приедут сюда вместе с медиа — этапы W3–W5, — потому что
-/// без RTP «позвонил» проверить нечем.
+/// На этапе W2 стенд умел ровно то, чем принимался тот этап: регистрацию с
+/// digest-вызовом, обновление по таймеру и ответы на опрос сервера. На W5 к
+/// этому добавился исходящий звонок со звуком в обе стороны — приёмка этапа.
+/// Удержание, перевод и приём входящего приедут сюда на W6.
 ///
 /// Примеры:
 ///   dotnet run --project tools/SipCheck -- --user 100 --password elite100
 ///   dotnet run --project tools/SipCheck -- --user 100 --password elite100 --host 10.0.0.1 --duration 120
+///   dotnet run --project tools/SipCheck -- --user 100 --password elite100 --host 10.0.0.1 --call 600 --talk 600
 /// </summary>
 internal static class Program
 {
@@ -72,6 +73,16 @@ internal static class Program
 
         Console.WriteLine("[v] регистрация прошла");
 
+        if (options.Call is string number)
+        {
+            // Звонок — отдельный путь целиком: держать после него регистрацию
+            // незачем, всё, ради чего стенд звали, уже случилось.
+            bool talked = await CallProbe.RunAsync(
+                agent, number, options.Talk, options.Dtmf, options.Calls, stopping.Token);
+            await ShutdownAsync(agent, stopping, printer);
+            return talked ? 0 : 1;
+        }
+
         // Держим регистрацию: за это время должны пройти обновление по таймеру и
         // ответы на опрос сервера. Разрыв сети проверяется руками — выдернуть
         // кабель и посмотреть, поднимется ли регистрация сама.
@@ -98,6 +109,10 @@ internal static class Program
           --transport udp|tcp   по умолчанию udp; tls появится на этапе W11
           --expires <секунды>   запрашиваемый срок регистрации, по умолчанию 120
           --duration <секунды>  сколько держать регистрацию, по умолчанию 10
+          --call <номер>        позвонить со звуком и положить трубку в срок
+          --talk <секунды>      сколько говорить, по умолчанию 60
+          --dtmf <строка>       набрать тоном сразу после ответа
+          --calls <число>       сколько звонков подряд, по умолчанию 1
         """;
 
     private static async Task<bool> WaitForRegistrationAsync(SipUserAgent agent, TimeSpan timeout)
@@ -131,11 +146,13 @@ internal static class Program
                         break;
 
                     case SipUserAgentEvent.IncomingCall incoming:
-                        // Принять его нечем: медиа приедет этапами W3–W5. Пока
-                        // отвечаем отказом, чтобы вызов вернулся в очередь.
+                        // Медиа для входящего есть с W5, а вот принять вызов —
+                        // это окно, антиавтокликер и вся обвязка приёма, то есть
+                        // этапы W6 и W9. Пока отвечаем отказом, чтобы вызов
+                        // вернулся в очередь, а не висел до таймаута.
                         Console.WriteLine(
                             $"<- входящий от {incoming.Call.DisplayNumber} на {incoming.Call.CalledNumber},"
-                                + " отклоняем: звук появится на этапе W4");
+                                + " отклоняем: приём входящего — этап W6");
                         await agent.RejectIncomingCallAsync(incoming.Call.CallId);
                         break;
 
@@ -207,6 +224,20 @@ internal static class Program
 
         public double Duration { get; init; } = 10;
 
+        /// <summary>Кому звонить. <c>null</c> — стенд проверяет только регистрацию.</summary>
+        public string? Call { get; init; }
+
+        /// <summary>
+        /// Сколько держать разговор. Минута — чтобы уход часов успел проявиться:
+        /// на окне короче минуты его оценка недостоверна (замер W4).
+        /// </summary>
+        public double Talk { get; init; } = 60;
+
+        public string? Dtmf { get; init; }
+
+        /// <summary>Сколько звонков подряд. Больше одного — проверка «звонок сразу после отбоя».</summary>
+        public int Calls { get; init; } = 1;
+
         public static CommandLineOptions Parse(string[] arguments)
         {
             Dictionary<string, string> values = new(StringComparer.Ordinal);
@@ -248,6 +279,16 @@ internal static class Program
                     && double.TryParse(duration, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsedDuration)
                         ? parsedDuration
                         : 10,
+                Call = values.GetValueOrDefault("call") is { Length: > 0 } call ? call : null,
+                Talk = values.GetValueOrDefault("talk") is { Length: > 0 } talk
+                    && double.TryParse(talk, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsedTalk)
+                        ? parsedTalk
+                        : 60,
+                Dtmf = values.GetValueOrDefault("dtmf") is { Length: > 0 } dtmf ? dtmf : null,
+                Calls = values.GetValueOrDefault("calls") is { Length: > 0 } calls
+                    && int.TryParse(calls, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedCalls)
+                        ? parsedCalls
+                        : 1,
             };
         }
     }
