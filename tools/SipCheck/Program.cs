@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Threading.Channels;
 using EliteSIP.SipCore;
 using EliteSIP.SipCore.Udp;
 
@@ -15,7 +16,9 @@ namespace EliteSIP.Tools.SipCheck;
 /// На этапе W2 стенд умел ровно то, чем принимался тот этап: регистрацию с
 /// digest-вызовом, обновление по таймеру и ответы на опрос сервера. На W5 к
 /// этому добавился исходящий звонок со звуком в обе стороны — приёмка этапа.
-/// Удержание, перевод и приём входящего приедут сюда на W6.
+/// На W6 к этому добавились линии, удержание, приём входящего, тоны по
+/// активной линии и консультационный перевод — режимы --lines, --hold,
+/// --answer, --reject, --conference и --consult.
 ///
 /// Примеры:
 ///   dotnet run --project tools/SipCheck -- --user 100 --password elite100
@@ -59,7 +62,14 @@ internal static class Program
                 + $"держим {options.Duration.ToString(CultureInfo.InvariantCulture)} с");
 
         using var stopping = new CancellationTokenSource();
-        Task printer = PrintEventsAsync(agent, stopping.Token);
+        // Входящие уходят стенду только в режимах приёма. Иначе их отклоняет
+        // сам печатник: очередь событий у агента одна, и два читателя поделили
+        // бы её между собой — половина сообщений досталась бы не тому.
+        Channel<SipIncomingCall>? incoming = options.Answer || options.Reject
+            ? Channel.CreateUnbounded<SipIncomingCall>()
+            : null;
+
+        Task printer = PrintEventsAsync(agent, incoming?.Writer, stopping.Token);
 
         await agent.StartAsync();
 
@@ -72,6 +82,47 @@ internal static class Program
         }
 
         Console.WriteLine("[v] регистрация прошла");
+
+        // Режимы W6 идут до обычного звонка: все они тоже звонят, но проверяют
+        // не разговор, а то, что вокруг него, — линии, удержание, приём и
+        // перевод.
+        if (options.Lines is IReadOnlyList<string> lineTargets)
+        {
+            bool passed = await LineProbe.RunLinesAsync(agent, lineTargets, options.Talk, stopping.Token);
+            await ShutdownAsync(agent, stopping, printer);
+            return passed ? 0 : 1;
+        }
+
+        if (options.Answer || options.Reject)
+        {
+            bool passed = await LineProbe.RunAnswerAsync(
+                agent, incoming!.Reader, options.Duration, options.Talk, options.Reject, options.Conference,
+                stopping.Token);
+            await ShutdownAsync(agent, stopping, printer);
+            return passed ? 0 : 1;
+        }
+
+        if (options.Call is string primary && options.Consult is string consult)
+        {
+            bool passed = await LineProbe.RunConsultAsync(agent, primary, consult, options.Talk, stopping.Token);
+            await ShutdownAsync(agent, stopping, printer);
+            return passed ? 0 : 1;
+        }
+
+        if (options.Call is string dialed && options.Conference is string code)
+        {
+            bool passed = await LineProbe.RunConferenceAsync(
+                agent, dialed, code, options.Talk, options.Hold ?? 4, stopping.Token);
+            await ShutdownAsync(agent, stopping, printer);
+            return passed ? 0 : 1;
+        }
+
+        if (options.Call is string held && options.Hold is double holdAfter)
+        {
+            bool passed = await LineProbe.RunHoldAsync(agent, held, options.Talk, holdAfter, stopping.Token);
+            await ShutdownAsync(agent, stopping, printer);
+            return passed ? 0 : 1;
+        }
 
         if (options.Call is string number)
         {
@@ -114,6 +165,13 @@ internal static class Program
           --dtmf <строка>       набрать тоном сразу после ответа
           --calls <число>       сколько звонков подряд, по умолчанию 1
           --latency             замерить задержку тракта по звуку (звонить на эхо-номер)
+          --lines 700,701,702   завести линии подряд, переключиться на первую и класть по одной
+          --hold <секунды>      удержание и возврат посреди разговора (с --call)
+          --consult <номер>     консультационный перевод: REFER с Replaces (с --call)
+          --answer              дождаться входящего и снять трубку
+          --reject              дождаться входящего и ответить 486
+          --conference <код>    отправить код тонами по активной линии (с --call или --answer);
+                        момент отправки задаёт --hold, по умолчанию через 4 с
         """;
 
     private static async Task<bool> WaitForRegistrationAsync(SipUserAgent agent, TimeSpan timeout)
@@ -130,7 +188,10 @@ internal static class Program
         return false;
     }
 
-    private static async Task PrintEventsAsync(SipUserAgent agent, CancellationToken token)
+    private static async Task PrintEventsAsync(
+        SipUserAgent agent,
+        ChannelWriter<SipIncomingCall>? incoming,
+        CancellationToken token)
     {
         try
         {
@@ -146,15 +207,20 @@ internal static class Program
                         Console.WriteLine($"   [{log.Level.ToString().ToLowerInvariant()}] {log.Message}");
                         break;
 
-                    case SipUserAgentEvent.IncomingCall incoming:
-                        // Медиа для входящего есть с W5, а вот принять вызов —
-                        // это окно, антиавтокликер и вся обвязка приёма, то есть
-                        // этапы W6 и W9. Пока отвечаем отказом, чтобы вызов
-                        // вернулся в очередь, а не висел до таймаута.
+                    case SipUserAgentEvent.IncomingCall call when incoming is not null:
+                        // Ждут — отдаём. Приём входящего целиком, с окном и
+                        // защитой от автокликера, приедет на W8 и W9; здесь
+                        // проверяется порядок ответов и медиа.
+                        incoming.TryWrite(call.Call);
+                        break;
+
+                    case SipUserAgentEvent.IncomingCall call:
+                        // Никто не ждёт — отклоняем, чтобы вызов вернулся в
+                        // очередь следующему агенту, а не висел до таймаута.
                         Console.WriteLine(
-                            $"<- входящий от {incoming.Call.DisplayNumber} на {incoming.Call.CalledNumber},"
-                                + " отклоняем: приём входящего — этап W6");
-                        await agent.RejectIncomingCallAsync(incoming.Call.CallId);
+                            $"<- входящий от {call.Call.DisplayNumber} на {call.Call.CalledNumber},"
+                                + " отклоняем: стенд запущен не в режиме приёма");
+                        await agent.RejectIncomingCallAsync(call.Call.CallId);
                         break;
 
                     case SipUserAgentEvent.UnsupportedRequest unsupported:
@@ -242,6 +308,24 @@ internal static class Program
         /// <summary>Мерить задержку по звуку, вернувшемуся из линии. Нужен эхо-номер.</summary>
         public bool Latency { get; init; }
 
+        /// <summary>Номера, на которые заводить линии подряд. Приёмка многолинейности.</summary>
+        public IReadOnlyList<string>? Lines { get; init; }
+
+        /// <summary>Через сколько секунд разговора нажать «Удержание».</summary>
+        public double? Hold { get; init; }
+
+        /// <summary>Номер коллеги для консультационного перевода.</summary>
+        public string? Consult { get; init; }
+
+        /// <summary>Ждать входящий и снять трубку.</summary>
+        public bool Answer { get; init; }
+
+        /// <summary>Ждать входящий и ответить «занято».</summary>
+        public bool Reject { get; init; }
+
+        /// <summary>Код конференции — тот же, что в настройках оператора.</summary>
+        public string? Conference { get; init; }
+
         public static CommandLineOptions Parse(string[] arguments)
         {
             Dictionary<string, string> values = new(StringComparer.Ordinal);
@@ -294,6 +378,19 @@ internal static class Program
                         ? parsedCalls
                         : 1,
                 Latency = values.ContainsKey("latency"),
+                Lines = values.GetValueOrDefault("lines") is { Length: > 0 } lines
+                    ? lines.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    : null,
+                Hold = values.GetValueOrDefault("hold") is { Length: > 0 } hold
+                    && double.TryParse(hold, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsedHold)
+                        ? parsedHold
+                        : null,
+                Consult = values.GetValueOrDefault("consult") is { Length: > 0 } consult ? consult : null,
+                Answer = values.ContainsKey("answer"),
+                Reject = values.ContainsKey("reject"),
+                Conference = values.GetValueOrDefault("conference") is { Length: > 0 } conference
+                    ? conference
+                    : null,
             };
         }
     }

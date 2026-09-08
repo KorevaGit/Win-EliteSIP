@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!--
+      Линии стоят ровно на стыке сигнализации и звука, и обе стороны им нужны
+      целиком: удержание — это повторный INVITE (SipCore) плюс переключение
+      направления в тракте (Audio), а переключение линий — REFER плюс передача
+      владения звуковой картой. Разложить это по двум существующим проектам
+      значило бы завести между ними ссылку, которой в оригинале не было: там
+      обе половины сводил AppModel, и здесь их сводит отдельный слой.
+    -->
+    <ProjectReference Include="..\EliteSIP.SipCore\EliteSIP.SipCore.csproj" />
+    <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!--
+      Windows-версия платформы: слой берёт тракт, а тракт живёт на WASAPI.
+      Логика линий при этом проверяется без звуковой карты — через
+      ILineMedia и ILineSignaling, см. тесты.
+    -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

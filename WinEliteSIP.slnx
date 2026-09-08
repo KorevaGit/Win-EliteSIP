@@ -6,6 +6,7 @@
     <Project Path="src/EliteSIP.CallGuard/EliteSIP.CallGuard.csproj" />
     <Project Path="src/EliteSIP.CallHistory/EliteSIP.CallHistory.csproj" />
     <Project Path="src/EliteSIP.Diagnostics/EliteSIP.Diagnostics.csproj" />
+    <Project Path="src/EliteSIP.Lines/EliteSIP.Lines.csproj" />
     <Project Path="src/EliteSIP.MediaCore/EliteSIP.MediaCore.csproj" />
     <Project Path="src/EliteSIP.PanelLink/EliteSIP.PanelLink.csproj" />
     <Project Path="src/EliteSIP.SipCore.Udp/EliteSIP.SipCore.Udp.csproj" />
@@ -17,6 +18,7 @@
     <Project Path="tests/EliteSIP.CallGuard.Tests/EliteSIP.CallGuard.Tests.csproj" />
     <Project Path="tests/EliteSIP.CallHistory.Tests/EliteSIP.CallHistory.Tests.csproj" />
     <Project Path="tests/EliteSIP.Diagnostics.Tests/EliteSIP.Diagnostics.Tests.csproj" />
+    <Project Path="tests/EliteSIP.Lines.Tests/EliteSIP.Lines.Tests.csproj" />
     <Project Path="tests/EliteSIP.MediaCore.Tests/EliteSIP.MediaCore.Tests.csproj" />
     <Project Path="tests/EliteSIP.PanelLink.Tests/EliteSIP.PanelLink.Tests.csproj" />
     <Project Path="tests/EliteSIP.SipCore.Tests/EliteSIP.SipCore.Tests.csproj" />

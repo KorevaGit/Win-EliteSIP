@@ -11,6 +11,13 @@
       `sipcheck` линковался с MediaCore, где лежал и весь звук.
     -->
     <ProjectReference Include="..\..\src\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+
+    <!--
+      Слой линий — приёмка W6: стенд не повторяет его логику, а пользуется той
+      же, что поедет в приложение. Стенд, у которого своя копия правил
+      переключения, проверяет копию.
+    -->
+    <ProjectReference Include="..\..\src\EliteSIP.Lines\EliteSIP.Lines.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
