@@ -278,4 +278,34 @@
   <data name="AdminModeOpen" xml:space="preserve">
     <value>Управление ›</value>
   </data>
+  <data name="HistoryWindowTitle" xml:space="preserve">
+    <value>История звонков</value>
+  </data>
+  <data name="HistoryWindowTitleWithProfile" xml:space="preserve">
+    <value>История звонков — {0}</value>
+  </data>
+  <data name="HistoryEmpty" xml:space="preserve">
+    <value>Здесь пока ничего нет</value>
+  </data>
+  <data name="HistoryToday" xml:space="preserve">
+    <value>Сегодня</value>
+  </data>
+  <data name="HistoryYesterday" xml:space="preserve">
+    <value>Вчера</value>
+  </data>
+  <data name="HistoryTransferred" xml:space="preserve">
+    <value>переведён</value>
+  </data>
+  <data name="HistoryConference" xml:space="preserve">
+    <value>конференция</value>
+  </data>
+  <data name="HistoryRedial" xml:space="preserve">
+    <value>Позвонить снова</value>
+  </data>
+  <data name="HistorySnapshot" xml:space="preserve">
+    <value>Снимок списка в буфер обмена</value>
+  </data>
+  <data name="HistorySnapshotDone" xml:space="preserve">
+    <value>Снимок в буфере обмена</value>
+  </data>
 </root>

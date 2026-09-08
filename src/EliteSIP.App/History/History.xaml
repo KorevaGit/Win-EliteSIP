@@ -1,0 +1,147 @@
+<!--
+    Вид значка исхода и кнопки фильтра. Устройство и доводы — в OutcomeBadge.cs.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:history="clr-namespace:EliteSIP.App.History">
+
+  <history:OutcomeTextConverter x:Key="OutcomeText" />
+  <history:CallStampConverter x:Key="CallStamp" />
+  <history:CallSubtitleConverter x:Key="CallSubtitle" />
+  <history:IsIncomingConverter x:Key="IsIncoming" />
+  <history:EqualityConverter x:Key="Equality" />
+
+  <!--
+      Значок исхода. Кружок залит, когда поговорили, и обведён, когда нет;
+      стрелка показывает направление, цвет — исход.
+
+      Толщина обводки и стрелки — size/14, как в оригинале: на любом из двух
+      размеров (22 в строке, 14 на кнопке) она остаётся видимой линией, а не
+      волоском. Задана она через Viewbox: фигуры нарисованы на сетке 20×20, и
+      масштаб держит их пропорции сам.
+  -->
+  <Style TargetType="{x:Type history:OutcomeBadge}">
+    <Setter Property="Foreground" Value="{DynamicResource OutcomeCompletedBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type history:OutcomeBadge}">
+          <Viewbox Width="{TemplateBinding Size}" Height="{TemplateBinding Size}">
+            <Grid Width="20" Height="20">
+
+              <!-- Поговорили: залитый кружок. -->
+              <Ellipse x:Name="Disc"
+                       Fill="{TemplateBinding Foreground}"
+                       Visibility="Collapsed" />
+
+              <!-- Не поговорили: одно кольцо. -->
+              <Ellipse x:Name="Ring"
+                       Stroke="{TemplateBinding Foreground}"
+                       StrokeThickness="1.43"
+                       Margin="0.7" />
+
+              <!--
+                  Стрелка. Внутри залитого кружка она рисуется фоном окна, а не
+                  белым: в тёмной теме белая стрелка на светлом кружке
+                  «дозвонился» почти пропадает, а фон окна по определению
+                  контрастен своей теме.
+              -->
+              <Path x:Name="Arrow"
+                    Data="M 13.5,6.5 L 6.5,13.5 M 11,13.5 H 6.5 V 9"
+                    Stroke="{TemplateBinding Foreground}"
+                    StrokeThickness="1.43"
+                    StrokeStartLineCap="Round"
+                    StrokeEndLineCap="Round"
+                    StrokeLineJoin="Round" />
+            </Grid>
+          </Viewbox>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsCompleted" Value="True">
+              <Setter TargetName="Disc" Property="Visibility" Value="Visible" />
+              <Setter TargetName="Ring" Property="Visibility" Value="Collapsed" />
+              <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource WindowBackgroundBrush}" />
+            </Trigger>
+
+            <!-- Исходящий: стрелка вверх-вправо, из нас наружу. -->
+            <Trigger Property="IsIncoming" Value="False">
+              <Setter TargetName="Arrow" Property="Data" Value="M 6.5,13.5 L 13.5,6.5 M 9,6.5 H 13.5 V 11" />
+            </Trigger>
+
+            <!-- Цвет — исход. Четыре, и четвёртый не оттенок третьего. -->
+            <Trigger Property="Outcome" Value="Missed">
+              <Setter Property="Foreground" Value="{DynamicResource OutcomeMissedBrush}" />
+            </Trigger>
+            <Trigger Property="Outcome" Value="Busy">
+              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+            </Trigger>
+            <Trigger Property="Outcome" Value="NoAnswer">
+              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+            </Trigger>
+            <Trigger Property="Outcome" Value="UnknownNumber">
+              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+            </Trigger>
+            <Trigger Property="Outcome" Value="Declined">
+              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+            </Trigger>
+            <Trigger Property="Outcome" Value="Failed">
+              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+            </Trigger>
+
+            <!--
+                Состоявшийся входящий — зелёный, состоявшийся исходящий —
+                второстепенный. Разговор, который набрал сам оператор, не
+                новость; входящий, на который успели ответить, — новость.
+            -->
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="Outcome" Value="Completed" />
+                <Condition Property="IsIncoming" Value="True" />
+              </MultiTrigger.Conditions>
+              <Setter Property="Foreground" Value="{DynamicResource OutcomeAnsweredBrush}" />
+            </MultiTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Кнопка фильтра: своя капсула вместо системной рамки.
+
+      В оригинале системный бордюр рисовался по своим метрикам, а подпись внутри
+      по нашим, и на живой системе они разошлись — текст вылезал за края
+      капсулы. Ужимать подпись нельзя: «Пропущенн…» — это уже не название
+      фильтра, а обещание, что за кнопкой что-то не поместилось.
+  -->
+  <Style x:Key="FilterChipStyle" TargetType="{x:Type RadioButton}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="Margin" Value="0,0,6,0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type RadioButton}">
+          <Border x:Name="Chip"
+                  Background="{DynamicResource ControlBackgroundBrush}"
+                  CornerRadius="8"
+                  Padding="{TemplateBinding Padding}"
+                  MinHeight="24">
+            <ContentPresenter VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Chip" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Chip" Property="Background" Value="{DynamicResource SelectionBrush}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,236 @@
+<Window x:Class="EliteSIP.App.History.CallHistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:history="clr-namespace:EliteSIP.App.History"
+        xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=history:CallHistoryViewModel}"
+        Width="640"
+        Height="520"
+        MinWidth="600"
+        MinHeight="380"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display">
+
+  <!--
+      Отдельным окном, а не вкладкой панели: панель шириной 270 точек — это
+      согласованное свойство продукта, а не текущее состояние вёрстки, и список
+      с фильтрами и длительностями влезает туда только ценой нечитаемых строк.
+
+      Уже 600 окно быть не может: ширину задаёт не строка, а верхний ряд —
+      четыре кнопки фильтров со значками и снимок. Строка звонка укладывалась и
+      в 520, а ряд нет: подпись «Пропущенные» ужималась до «Пропущенн…».
+
+      Ниже 380 список перестаёт быть списком: видно две строки, и окно отвечает
+      на «кому я звонил» одним звонком.
+  -->
+
+  <Grid Margin="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="8" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Фильтры и снимок одним рядом по центру. -->
+    <Grid Grid.Row="0">
+      <ItemsControl ItemsSource="{Binding Filters}" HorizontalAlignment="Center">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type history:HistoryFilterItem}">
+            <RadioButton Style="{StaticResource FilterChipStyle}"
+                         GroupName="HistoryFilter"
+                         Tag="{Binding Filter}"
+                         Checked="OnFilterChosen">
+              <RadioButton.IsChecked>
+                <MultiBinding Converter="{StaticResource Equality}" Mode="OneWay">
+                  <Binding Path="Filter" />
+                  <Binding Path="DataContext.Filter" RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                </MultiBinding>
+              </RadioButton.IsChecked>
+              <StackPanel Orientation="Horizontal">
+                <!--
+                    Значок тот же, что в строке списка, а не голая стрелка:
+                    кнопка обязана показывать ровно ту фигуру, которую человек
+                    будет искать глазами в списке.
+                -->
+                <history:OutcomeBadge Size="14"
+                                      VerticalAlignment="Center"
+                                      IsIncoming="{Binding IsIncoming}"
+                                      IsCompleted="{Binding IsCompleted}"
+                                      Outcome="{Binding Outcome}" />
+                <TextBlock Text="{Binding Title}" Margin="4,0,0,0" VerticalAlignment="Center" />
+              </StackPanel>
+            </RadioButton>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Button HorizontalAlignment="Right"
+              Style="{StaticResource SettingsButtonStyle}"
+              Padding="8,2"
+              MinHeight="24"
+              Click="OnSnapshotClick"
+              IsEnabled="{Binding HasRecords}"
+              ToolTip="{res:Loc HistorySnapshot}">
+        <theme:Icon Glyph="square.grid.3x3" Size="12" />
+      </Button>
+    </Grid>
+
+    <!--
+        Список или пустое состояние — на одной и той же плашке. Слой один на оба
+        случая намеренно: появляйся плашка только под строками, переключение
+        фильтра на пустой набор меняло бы не содержимое окна, а его форму, — и
+        это читается как поломка, а не как «здесь ничего нет».
+    -->
+    <Border Grid.Row="2"
+            x:Name="ListSurface"
+            Background="{DynamicResource ControlBackgroundBrush}"
+            CornerRadius="12">
+      <Grid>
+        <TextBlock Text="{res:Loc HistoryEmpty}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+
+        <ScrollViewer x:Name="Scroller"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="0,8"
+                      ScrollChanged="OnScrollChanged"
+                      Visibility="{Binding IsEmpty, Converter={StaticResource NotBoolToVisibility}}">
+          <ItemsControl ItemsSource="{Binding Days}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type history:HistoryDay}">
+                <StackPanel>
+                  <!--
+                      Заголовок дня — кеглем раздела, а не мелкой серой
+                      подписью: день это то, по чему в списке ориентируются, и
+                      вторым планом ему стоять нельзя.
+                  -->
+                  <TextBlock Text="{Binding Title}"
+                             Margin="8,12,8,4"
+                             FontSize="13"
+                             FontWeight="SemiBold" />
+
+                  <!--
+                      Разделительных линий между звонками нет: строка
+                      двухъярусная, значок исхода задаёт ей чёткое начало, а дни
+                      разделены заголовками. Линия поверх этого делит уже
+                      разделённое и превращает список в таблицу — а таблицу
+                      читают по колонкам, тогда как историю читают по строкам.
+                  -->
+                  <ItemsControl ItemsSource="{Binding Records}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Grid Margin="8,6">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="124" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+
+                          <history:OutcomeBadge Grid.Column="0"
+                                                Size="22"
+                                                VerticalAlignment="Center"
+                                                Outcome="{Binding Outcome}"
+                                                IsCompleted="{Binding IsAnswered}"
+                                                IsIncoming="{Binding Converter={StaticResource IsIncoming}}" />
+
+                          <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Converter={StaticResource CallSubtitle}}"
+                                       Margin="0,2,0,0"
+                                       FontSize="11"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                          </StackPanel>
+
+                          <!--
+                              Колонка постоянной ширины: иначе исход и время
+                              ездят по горизонтали от длины слова исхода, и
+                              кнопки повтора всех строк перестают стоять на
+                              одной вертикали.
+                          -->
+                          <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Converter={StaticResource OutcomeText}}"
+                                       TextAlignment="Right">
+                              <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                  <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMissed}" Value="True">
+                                      <Setter Property="Foreground" Value="{DynamicResource OutcomeMissedBrush}" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}}"
+                                       Margin="0,2,0,0"
+                                       FontSize="11"
+                                       TextAlignment="Right"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                          </StackPanel>
+
+                          <!--
+                              Повтор набора живёт в своей кнопке, а не в выборе
+                              строки: выбор строки здесь не значит ничего, и
+                              звонок по случайному щелчку по списку — худшее,
+                              что может сделать софтфон.
+                          -->
+                          <Button Grid.Column="3"
+                                  Margin="8,0,0,0"
+                                  Width="28"
+                                  Height="28"
+                                  VerticalAlignment="Center"
+                                  Style="{StaticResource SurfaceButtonStyle}"
+                                  Click="OnRedialClick"
+                                  Tag="{Binding Number}"
+                                  ToolTip="{res:Loc HistoryRedial}">
+                            <theme:Icon Glyph="phone.fill" Size="12" />
+                          </Button>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!--
+            Сообщение о снимке — поверх списка и снизу, где его не закроет рука
+            с мышью, идущая к кнопке наверху. В сам снимок оно не попадает:
+            картинка собирается в момент нажатия, до того как сообщение
+            появилось.
+        -->
+        <Border x:Name="Notice"
+                VerticalAlignment="Bottom"
+                HorizontalAlignment="Center"
+                Margin="0,0,0,12"
+                Padding="12,6"
+                CornerRadius="14"
+                Visibility="Collapsed"
+                Background="{DynamicResource SurfaceBrush}">
+          <TextBlock x:Name="NoticeText" FontSize="11" />
+        </Border>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

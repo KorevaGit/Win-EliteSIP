@@ -1,9 +1,12 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using EliteSIP.App.Panel;
 using EliteSIP.App.Resources;
 using EliteSIP.App.Settings;
 using EliteSIP.App.Theme;
+using EliteSIP.CallHistory;
+using EliteSIP.App.History;
 
 namespace EliteSIP.App;
 
@@ -15,6 +18,9 @@ public partial class App : Application, IDisposable
     private AppearanceService? _appearance;
     private AppSettings? _settings;
     private SettingsWindow? _settingsWindow;
+    private CallHistoryWindow? _historyWindow;
+    private CallHistoryStore? _history;
+    private PanelViewModel? _panel;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -39,18 +45,39 @@ public partial class App : Application, IDisposable
 
         // Слоя приложения ещё нет: панель поднимается со своим состоянием, а
         // звонить ей пока нечем. Настоящая модель подпишется на те же команды.
-        var model = new PanelViewModel
+        // История открывается сразу с настоящим хранилищем: оно готово с W7 и
+        // ничего от слоя приложения не ждёт. Показательные записи, если их
+        // просили, ложатся в отдельный файл — чужую историю ими не портим.
+        _history = new CallHistoryStore(new CallHistoryStore.Settings(
+            Path.Combine(
+                Path.GetDirectoryName(AppSettings.DefaultPath)!,
+                e.Args.Contains("--demo") ? "history-demo.db" : "history.db")));
+
+        _panel = new PanelViewModel
         {
             ShowSettings = new RelayCommand(_ => ShowSettings()),
+            ShowHistory = new RelayCommand(_ => ShowHistory()),
         };
 
+        var model = _panel;
+
         PanelDemo.Apply(model, _settings, e.Args);
+
+        if (e.Args.Contains("--demo"))
+        {
+            HistoryDemo.Seed(_history, _settings.Account.ProfileId);
+        }
 
         new PanelWindow(model).Show();
 
         // Тот же ключ, что в оригинале: снимок окна настроек нужен для сверки
         // раскладки, а дотянуться до него скриптом иначе нечем — окно
         // открывается из панели, а панель до фокуса не доходит.
+        if (e.Args.Contains("--open-history"))
+        {
+            ShowHistory();
+        }
+
         var opened = Array.IndexOf(e.Args, "--open-settings");
         if (opened >= 0)
         {
@@ -100,6 +127,31 @@ public partial class App : Application, IDisposable
         _settingsWindow.Show();
     }
 
+    /// <summary>Открывает историю — или поднимает уже открытую.</summary>
+    private void ShowHistory()
+    {
+        if (_historyWindow is { IsLoaded: true })
+        {
+            _historyWindow.Activate();
+            return;
+        }
+
+        // Срез читается при создании окна, а не при каждом его показе: список,
+        // перечитанный поверх уже разложенных строк, уводил бы прокрутку.
+        var model = new CallHistoryViewModel(
+            _history!,
+            _settings!.Account.ProfileId,
+            _settings.Account.Username);
+
+        _historyWindow = new CallHistoryWindow(model, _appearance!);
+
+        // Перезвонить — дело панели: там поле набора, там же и разрешение
+        // звонить. История только говорит, какой номер выбрали.
+        _historyWindow.RedialRequested += number => _panel!.DialedNumber = number;
+        _historyWindow.Closed += (_, _) => _historyWindow = null;
+        _historyWindow.Show();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         Dispose();
@@ -128,6 +180,11 @@ public partial class App : Application, IDisposable
     {
         _appearance?.Dispose();
         _appearance = null;
+
+        // База закрывается явно: у хранилища свой поток, и незакрытое оно
+        // держит файл после выхода — следующий запуск встречает занятый.
+        _history?.Dispose();
+        _history = null;
         GC.SuppressFinalize(this);
     }
 }

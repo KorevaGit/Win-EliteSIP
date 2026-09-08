@@ -73,12 +73,12 @@ public static class CallOutcomes
     public static string? Title(this CallOutcome outcome) => outcome switch
     {
         CallOutcome.Completed => null,
-        CallOutcome.Missed => "пропущен",
-        CallOutcome.Busy => "занято",
-        CallOutcome.NoAnswer => "не ответил",
-        CallOutcome.UnknownNumber => "нет номера",
-        CallOutcome.Declined => "отклонён",
-        _ => "отказ",
+        CallOutcome.Missed => Resources.PackageStrings.Get("OutcomeMissed"),
+        CallOutcome.Busy => Resources.PackageStrings.Get("OutcomeBusy"),
+        CallOutcome.NoAnswer => Resources.PackageStrings.Get("OutcomeNoAnswer"),
+        CallOutcome.UnknownNumber => Resources.PackageStrings.Get("OutcomeUnknownNumber"),
+        CallOutcome.Declined => Resources.PackageStrings.Get("OutcomeDeclined"),
+        _ => Resources.PackageStrings.Get("OutcomeFailed"),
     };
 
     /// <summary>
@@ -246,7 +246,7 @@ public sealed record CallRecord
     public string Title
         => !string.IsNullOrEmpty(DisplayName)
             ? DisplayName
-            : (Number.Length == 0 ? "неизвестный номер" : Number);
+            : (Number.Length == 0 ? Resources.PackageStrings.Get("UnknownNumber") : Number);
 
     /// <summary>
     /// Исход, как его показывает история.

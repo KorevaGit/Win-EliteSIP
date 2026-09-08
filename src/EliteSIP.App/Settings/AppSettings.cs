@@ -223,9 +223,24 @@ public sealed class AppearanceSettings : Observable
 /// <summary>Учётка и рабочее место — то немногое из них, что видит менеджер.</summary>
 public sealed class AccountSettings : Observable
 {
+    private Guid _profileId = Guid.NewGuid();
     private string _username = string.Empty;
     private string _domain = string.Empty;
     private WorkplaceSite _site = WorkplaceSite.Office;
+
+    /// <summary>Кому принадлежат звонки в истории.</summary>
+    ///
+    /// <remarks>
+    /// Заводится сам при первом запуске и не меняется: история отобрана по нему
+    /// жёстко, и смена значения означала бы, что все прежние звонки исчезли.
+    /// Профилей в настройках пока один — их список приедет с «Управлением», и
+    /// тогда это поле станет ссылкой на выбранный.
+    /// </remarks>
+    public Guid ProfileId
+    {
+        get => _profileId;
+        set => Set(ref _profileId, value);
+    }
 
     public string Username
     {

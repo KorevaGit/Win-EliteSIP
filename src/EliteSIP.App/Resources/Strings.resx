@@ -298,4 +298,34 @@
   <data name="AdminModeOpen" xml:space="preserve">
     <value>Administration ›</value>
   </data>
+  <data name="HistoryWindowTitle" xml:space="preserve">
+    <value>Call history</value>
+  </data>
+  <data name="HistoryWindowTitleWithProfile" xml:space="preserve">
+    <value>Call history — {0}</value>
+  </data>
+  <data name="HistoryEmpty" xml:space="preserve">
+    <value>Nothing here yet</value>
+  </data>
+  <data name="HistoryToday" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="HistoryYesterday" xml:space="preserve">
+    <value>Yesterday</value>
+  </data>
+  <data name="HistoryTransferred" xml:space="preserve">
+    <value>transferred</value>
+  </data>
+  <data name="HistoryConference" xml:space="preserve">
+    <value>conference</value>
+  </data>
+  <data name="HistoryRedial" xml:space="preserve">
+    <value>Call again</value>
+  </data>
+  <data name="HistorySnapshot" xml:space="preserve">
+    <value>Copy the list as a picture</value>
+  </data>
+  <data name="HistorySnapshotDone" xml:space="preserve">
+    <value>Picture copied</value>
+  </data>
 </root>

@@ -13,16 +13,15 @@ public enum HistoryFilter
     Missed,
 }
 
-/// <summary>Слова фильтров. Русские литералы до ресурсов W8, как и везде.</summary>
+/// <summary>Слова фильтров. Свои у пакета — см. `PackageStrings`.</summary>
 public static class HistoryFilters
 {
     public static string Title(this HistoryFilter filter) => filter switch
     {
-        HistoryFilter.All => "Все",
-        HistoryFilter.Incoming => "Входящие",
-        HistoryFilter.Outgoing => "Исходящие",
-        HistoryFilter.Missed => "Пропущенные",
-        _ => "Все",
+        HistoryFilter.Incoming => Resources.PackageStrings.Get("FilterIncoming"),
+        HistoryFilter.Outgoing => Resources.PackageStrings.Get("FilterOutgoing"),
+        HistoryFilter.Missed => Resources.PackageStrings.Get("FilterMissed"),
+        _ => Resources.PackageStrings.Get("FilterAll"),
     };
 
     /// <summary>
