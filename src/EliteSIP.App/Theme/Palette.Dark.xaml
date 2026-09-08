@@ -26,8 +26,15 @@
   <SolidColorBrush x:Key="StatusFailureBrush" Color="#FFFF99A4" />
   <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF60CDFF" />
 
+  <!--
+      Заливка кнопок звонка одна на обе палитры и не осветляется: под ней
+      белая надпись, и светлая заливка тёмной темы делала бы «Завершить»
+      нечитаемой. Осветлены только цвета надписей — см. светлую палитру.
+  -->
   <SolidColorBrush x:Key="AnswerBrush" Color="#FF6CCB5F" />
   <SolidColorBrush x:Key="DeclineBrush" Color="#FFFF99A4" />
+  <SolidColorBrush x:Key="AnswerFillBrush" Color="#FF107C10" />
+  <SolidColorBrush x:Key="DeclineFillBrush" Color="#FFC42B1C" />
 
   <SolidColorBrush x:Key="OutcomeCompletedBrush" Color="#C5FFFFFF" />
   <SolidColorBrush x:Key="OutcomeAnsweredBrush" Color="#FF6CCB5F" />

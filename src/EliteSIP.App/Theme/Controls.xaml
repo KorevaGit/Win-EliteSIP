@@ -1,10 +1,25 @@
 <!--
     Общие стили. Здесь только то, чем пользуется больше одного окна; вёрстка
     конкретного окна живёт рядом с ним.
+
+    Системными стилями кнопок и полей панель не пользуется вовсе, и это то же
+    решение, что в оригинале: у системной кнопки свой радиус, своя рамка и своя
+    высота, и в окне шириной 270 точек, собранном по макету, она выпадает.
+    Плюс своя высота у системного стиля означает, что кнопка растягивает не
+    себя, а ряд, в котором стоит, — а в панели заперты все ярусы.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
                     xmlns:theme="clr-namespace:EliteSIP.App.Theme">
+
+  <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+  <theme:InverseBooleanToVisibilityConverter x:Key="NotBoolToVisibility" />
+  <theme:PresenceToVisibilityConverter x:Key="PresenceToVisibility" />
+  <theme:InverseBooleanConverter x:Key="NotBool" />
+
+  <!-- Непрозрачность выключенного элемента: одна на всё приложение. -->
+  <sys:Double x:Key="DisabledOpacity">0.57</sys:Double>
 
   <!--
       Значок. Шаблон один на все тридцать четыре: фигура приезжает ресурсом по
@@ -32,33 +47,175 @@
   </Style>
 
   <!--
-      Кнопка окна: закрыть и свернуть в полосе заголовка панели.
+      Кнопка-поверхность: подложка, скругление, подсветка под курсором.
+      Основание для всего, что в панели нажимается, кроме звонка — у того своя
+      заливка цветом действия.
 
-      Своя, а не системная рамка окна, потому что полосу заголовка панель
-      рисует сама (`PanelChrome`). Подсветка — квадрат `StatusIconHitSize`:
-      та же, что у шестерёнки строкой ниже, иначе два ряда кнопок в шапке
-      подсвечивались бы по-разному.
+      Область нажатия — весь прямоугольник кнопки, а не только подпись внутри.
+      В оригинале это пришлось чинить отдельно (`contentShape`): подсветка
+      занимала все 22 точки, а щёлкать приходилось по значку в 12, и промах
+      читался как «шестерёнка сломалась». В WPF так по умолчанию — лишь бы фон
+      не был `null`, поэтому он `Transparent`, а не пустой.
   -->
-  <Style x:Key="ChromeButtonStyle" TargetType="{x:Type Button}">
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-    <Setter Property="Width" Value="22" />
-    <Setter Property="Height" Value="22" />
+  <Style x:Key="SurfaceButtonStyle" TargetType="{x:Type Button}">
+    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="{x:Type Button}">
-          <Border x:Name="Highlight"
+          <Border x:Name="Surface"
                   Background="{TemplateBinding Background}"
-                  CornerRadius="8">
+                  CornerRadius="8"
+                  SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+            </Trigger>
+            <!--
+                Выключенная кнопка гаснет, но остаётся видимой: три почти
+                невидимые кнопки читаются как сломанные, а не как «пока нечем
+                пользоваться».
+            -->
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Кнопка окна: закрыть и свернуть в полосе заголовка панели. -->
+  <Style x:Key="ChromeButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource SurfaceButtonStyle}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Width" Value="22" />
+    <Setter Property="Height" Value="22" />
+  </Style>
+
+  <!--
+      Кнопка ряда управления: удержание, микрофон, перевод, конференция.
+      Включённая (удержание стоит, микрофон выключен) заливается цветом
+      предупреждения — это состояние, а не выбор, и о нём надо помнить.
+  -->
+  <Style x:Key="ControlKeyStyle" TargetType="{x:Type ToggleButton}">
+    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type ToggleButton}">
+          <Border x:Name="Surface"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="8"
+                  SnapsToDevicePixels="True">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Highlight" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
             </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-              <Setter TargetName="Highlight" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource StatusConnectingBrush}" />
+              <Setter Property="Foreground" Value="White" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Клавиша макроса. Высота задаётся кнопке, а не подписи внутри неё: поле
+      системного стиля по версиям разное, и ряды клавиш от него разъезжаются.
+      Здесь стиль свой и поля у него нет вовсе — но правило то же, потому что
+      ряды сетки обязаны быть одинаковыми.
+  -->
+  <Style x:Key="MacroKeyStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource SurfaceButtonStyle}" />
+
+  <!--
+      Кнопка звонка. Заливка задана явно, а не акцентом системы: в неактивном
+      окне системный акцент выцветает в серый, а панель висит поверх CRM и
+      активной бывает редко.
+  -->
+  <Style x:Key="CallButtonStyle" TargetType="{x:Type Button}">
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Background" Value="{DynamicResource AnswerFillBrush}" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Button}">
+          <Border x:Name="Surface"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="8"
+                  SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.88" />
+            </Trigger>
+            <!--
+                Выключенная гаснет сильнее прочих — до 0.4, как в оригинале:
+                ярко-зелёная «Позвонить» иначе выглядит рабочей, хотя ещё нет.
+            -->
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Поле ввода панели. Своё по той же причине, что и кнопки: у системного
+      своя рамка и свой радиус, и рядом с нашими поверхностями оно читается как
+      чужое. Плюс подсказка — её у `TextBox` нет вовсе.
+  -->
+  <Style x:Key="PanelTextBoxStyle" TargetType="{x:Type TextBox}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type TextBox}">
+          <Grid>
+            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+            <TextBlock x:Name="Placeholder"
+                       Text="{TemplateBinding Tag}"
+                       Margin="2,0,0,0"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"
+                       Visibility="Collapsed"
+                       Foreground="{DynamicResource TextTertiaryBrush}" />
+          </Grid>
+          <ControlTemplate.Triggers>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="Text" Value="" />
+                <Condition Property="IsFocused" Value="False" />
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+            </MultiTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>

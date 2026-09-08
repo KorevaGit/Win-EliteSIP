@@ -27,7 +27,12 @@ public partial class App : Application, IDisposable
         _appearance = new AppearanceService(this);
         _appearance.Apply();
 
-        new PanelWindow().Show();
+        // Слоя приложения ещё нет: панель поднимается со своим состоянием, а
+        // звонить ей пока нечем. Настоящая модель подпишется на те же команды.
+        var model = new PanelViewModel();
+        PanelDemo.Apply(model, e.Args);
+
+        new PanelWindow(model).Show();
     }
 
     protected override void OnExit(ExitEventArgs e)

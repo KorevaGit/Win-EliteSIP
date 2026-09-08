@@ -42,9 +42,16 @@
   <SolidColorBrush x:Key="StatusFailureBrush" Color="#FFC42B1C" />
   <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF005FB8" />
 
-  <!-- Приём и отбой в окне входящего. -->
+  <!--
+      Приём и отбой. Две пары ключей, и это не дубль: цвет надписи и цвет
+      заливки под белой надписью — разные величины. В тёмной палитре цвет
+      надписи осветлён, чтобы читаться на тёмном фоне, а заливка обязана
+      остаться насыщенной: белое по светло-розовому не читается вовсе.
+  -->
   <SolidColorBrush x:Key="AnswerBrush" Color="#FF0F7B0F" />
   <SolidColorBrush x:Key="DeclineBrush" Color="#FFC42B1C" />
+  <SolidColorBrush x:Key="AnswerFillBrush" Color="#FF0F7B0F" />
+  <SolidColorBrush x:Key="DeclineFillBrush" Color="#FFC42B1C" />
 
   <!-- Исход звонка в истории. Те же четыре, что и в macOS-версии. -->
   <SolidColorBrush x:Key="OutcomeCompletedBrush" Color="#9E000000" />

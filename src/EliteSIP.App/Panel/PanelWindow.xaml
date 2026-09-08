@@ -3,10 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:panel="clr-namespace:EliteSIP.App.Panel"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        d:DataContext="{d:DesignInstance Type=panel:PanelViewModel}"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
         Title="{res:Loc PanelWindowTitle}"
         Width="270"
-        Height="250"
+        SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True"
@@ -16,15 +21,25 @@
         TextOptions.TextFormattingMode="Display">
 
   <!--
+      Высоту окна задаёт содержимое (`SizeToContent`), а не расчёт по
+      константам.
+
+      В оригинале это место — самое исхоженное во всей панели: высота
+      складывалась из констант, сумма сходилась на одной версии системы и не
+      сходилась на другой, и после четырёх заходов её заменили замером живого
+      содержимого. WPF умеет ровно это сам, поэтому здесь ни расчёта, ни
+      замера нет вовсе.
+
+      Плата за это — в code-behind: растущее окно Windows тянет вниз, оставляя
+      на месте верхний край, а неподвижным в панели обязан быть нижний.
+  -->
+
+  <!--
       Полосу заголовка панель рисует сама, но окно остаётся системным:
       `WindowChrome` оставляет Windows тень, привязку к краям экрана, анимацию
       сворачивания и «Показать рабочий стол». Окно без рамки (`WindowStyle=None`
       с `AllowsTransparency`) всё это теряет, а софтфон живёт поверх чужих окон
       весь день — окно, которое ведёт себя не как окно, там видно сразу.
-
-      Заголовок свой, потому что системный на этой ширине не помещается:
-      270 точек — это имя окна и три системные кнопки, из которых две (развернуть
-      и изменение размера) панели не нужны вовсе.
 
       CaptionHeight — та зона, за которую окно таскают. Ровно высота полосы:
       ниже начинается строка состояния с капсулой профиля, и захват мышью там
@@ -38,27 +53,26 @@
                         UseAeroCaptionButtons="False" />
   </shell:WindowChrome.WindowChrome>
 
-  <Grid>
+  <Grid Margin="12,0,12,12">
     <Grid.RowDefinitions>
-      <!-- Полоса заголовка. -->
+      <!-- Полоса заголовка. Поля 12 её не касаются — она во всю ширину окна. -->
       <RowDefinition Height="32" />
       <RowDefinition Height="4" />
       <!-- Строка состояния. -->
       <RowDefinition Height="22" />
       <RowDefinition Height="5" />
       <!--
-          Изменчивая середина. Единственная строка, которая тянется: всё, что
-          может поменять высоту — вторая линия, поле перевода, число макросов, —
-          живёт здесь и не двигает низ.
+          Изменчивая середина. Всё, что может поменять высоту — вторая линия,
+          поле перевода, число макросов, — живёт здесь.
       -->
-      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
       <RowDefinition Height="15" />
       <!-- Неподвижный низ: звонок и история. -->
       <RowDefinition Height="46" />
     </Grid.RowDefinitions>
 
     <!-- Полоса заголовка: имя окна по центру, кнопки справа. -->
-    <Grid Grid.Row="0">
+    <Grid Grid.Row="0" Margin="-12,0,-12,0">
       <TextBlock Text="{res:Loc PanelWindowTitle}"
                  HorizontalAlignment="Center"
                  VerticalAlignment="Center"
@@ -71,14 +85,12 @@
                   VerticalAlignment="Center"
                   Margin="0,0,6,0"
                   shell:WindowChrome.IsHitTestVisibleInChrome="True">
-        <Button x:Name="MinimizeButton"
-                Style="{StaticResource ChromeButtonStyle}"
+        <Button Style="{StaticResource ChromeButtonStyle}"
                 ToolTip="{res:Loc PanelMinimize}"
                 Click="OnMinimizeClick">
           <theme:Icon Glyph="pause.fill" Size="10" />
         </Button>
-        <Button x:Name="CloseButton"
-                Style="{StaticResource ChromeButtonStyle}"
+        <Button Style="{StaticResource ChromeButtonStyle}"
                 ToolTip="{res:Loc PanelClose}"
                 Click="OnCloseClick">
           <theme:Icon Glyph="xmark.circle.fill" Size="12" />
@@ -91,73 +103,585 @@
         шестерёнка справа. Крайние слоты не меняют размер никогда, средний
         тянется и обрезается — иначе капсула ездила бы от длины чужой надписи.
     -->
-    <Grid Grid.Row="2" Margin="12,0,12,0">
+    <Grid Grid.Row="2">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" MinWidth="72" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
 
-      <!-- Капсула профиля. Точка состояния, номер, пометка, шеврон. -->
+      <!--
+          Капсула профиля: точка состояния, номер, пометка.
+          Состояние и профиль в одном месте намеренно — это один вопрос,
+          «кто я и на линии ли я», а не два.
+      -->
       <Border Grid.Column="0"
               Height="22"
               CornerRadius="11"
-              Padding="6,0"
+              Padding="8,0"
               Background="{DynamicResource ControlBackgroundBrush}">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-          <Ellipse Width="8"
-                   Height="8"
-                   Fill="{DynamicResource StatusOfflineBrush}"
-                   VerticalAlignment="Center" />
-          <TextBlock Text="—"
-                     Margin="6,0,0,0"
+          <!--
+              Точка состояния. Единственное, чем показано обычное положение
+              дел: подпись «На линии» рядом с зелёным кружком занимала место и
+              не сообщала ничего сверх него.
+
+              Отключение решением оператора важнее любого состояния
+              регистрации и потому стоит последним: правила WPF выбирают
+              последнее сработавшее.
+          -->
+          <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+            <Ellipse.Style>
+              <Style TargetType="Ellipse">
+                <Setter Property="Fill" Value="{DynamicResource StatusOfflineBrush}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding Registration}" Value="Registering">
+                    <Setter Property="Fill" Value="{DynamicResource StatusConnectingBrush}" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding Registration}" Value="Registered">
+                    <Setter Property="Fill" Value="{DynamicResource StatusRegisteredBrush}" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding Registration}" Value="Failed">
+                    <Setter Property="Fill" Value="{DynamicResource StatusFailureBrush}" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding IsOfflineByChoice}" Value="True">
+                    <Setter Property="Fill" Value="{DynamicResource StatusOfflineBrush}" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Ellipse.Style>
+          </Ellipse>
+          <TextBlock Text="{Binding StatusTitle}"
+                     Margin="4,0,0,0"
                      FontSize="11"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center"
                      Foreground="{DynamicResource TextPrimaryBrush}" />
+          <!--
+              Пометка профиля вторым планом и ужимается первой: без неё
+              «172 · Офис» и «172 · Удалённо» в свёрнутом виде неразличимы, а
+              различаются они адресом сервера — тем, дозвонится оператор или
+              нет.
+          -->
+          <TextBlock Text="{Binding StatusLabel}"
+                     Margin="4,0,0,0"
+                     FontSize="11"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis"
+                     Foreground="{DynamicResource TextTertiaryBrush}"
+                     Visibility="{Binding StatusLabel, Converter={StaticResource PresenceToVisibility}}" />
         </StackPanel>
       </Border>
 
       <!--
-          Слот беды. Короткая причина — и это всё, что говорит панель:
-          подробности живут в журнале, где записаны подробнее.
+          Слот беды. Пустует почти весь день, и это правильно: место здесь
+          занято не текстом, а его возможностью — появление надписи не должно
+          ничего двигать. Обычное состояние сюда не пишется вовсе, его несёт
+          цвет точки слева.
       -->
-      <TextBlock Grid.Column="1"
-                 Margin="6,0,6,0"
-                 VerticalAlignment="Center"
-                 FontSize="11"
-                 TextTrimming="CharacterEllipsis"
-                 Foreground="{DynamicResource CautionBrush}"
-                 Text="" />
+      <StackPanel Grid.Column="1"
+                  Orientation="Horizontal"
+                  Margin="6,0,6,0"
+                  VerticalAlignment="Center"
+                  Visibility="{Binding Trouble, Converter={StaticResource PresenceToVisibility}}">
+        <theme:Icon Glyph="{Binding Trouble.Glyph}"
+                    Size="10"
+                    VerticalAlignment="Center"
+                    Foreground="{DynamicResource CautionBrush}"
+                    Visibility="{Binding Trouble.Glyph, Converter={StaticResource PresenceToVisibility}}" />
+        <TextBlock Text="{Binding Trouble.Text}"
+                   Margin="4,0,0,0"
+                   FontSize="11"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource CautionBrush}" />
+      </StackPanel>
 
       <Button Grid.Column="2"
               Style="{StaticResource ChromeButtonStyle}"
+              Command="{Binding ShowSettings}"
               ToolTip="{res:Loc PanelSettings}">
         <theme:Icon Glyph="gearshape" Size="12" />
       </Button>
     </Grid>
 
-    <!--
-        Середина. Пока пуста: шапка, ряд управления и сетка макросов приезжают
-        со своей моделью следующим шагом этапа. Слот при этом уже заперт —
-        именно он и есть та рамка, которая не отдаёт свою высоту содержимому.
-    -->
-    <Border Grid.Row="4" />
+    <!-- ==================== Изменчивая середина ==================== -->
+
+    <StackPanel Grid.Row="4">
+
+      <!--
+          Шапка: поле набора в покое, собеседник с таймером в разговоре, два
+          поля при двух линиях. Высота у всех трёх одна и та же — иначе при
+          ответе на вызов шапка вырастала бы и сдвигала вниз всё, что под ней.
+      -->
+      <Grid Height="52">
+
+        <!-- Одна линия или покой: одна поверхность на весь слот. -->
+        <Border CornerRadius="8"
+                Padding="12,0"
+                Background="{DynamicResource ControlBackgroundBrush}"
+                Visibility="{Binding HasSecondLine, Converter={StaticResource NotBoolToVisibility}}">
+          <Grid>
+
+            <!--
+                Поле набора. Настоящее текстовое поле, а не подпись: дайлпада
+                больше нет, номер вводится с клавиатуры — значит поле обязано
+                быть полем. Отсюда бесплатно берутся забой, выделение и вставка,
+                которых в панели не было.
+            -->
+            <Grid Visibility="{Binding IsInCall, Converter={StaticResource NotBoolToVisibility}}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <TextBox Grid.Column="0"
+                       Style="{StaticResource PanelTextBoxStyle}"
+                       Text="{Binding DialedNumber, UpdateSourceTrigger=PropertyChanged}"
+                       Tag="{res:Loc PanelNumberPlaceholder}"
+                       FontSize="18"
+                       IsEnabled="{Binding CanPlaceCall}" />
+
+              <Button Grid.Column="1"
+                      Style="{StaticResource ChromeButtonStyle}"
+                      ToolTip="{res:Loc PanelClearNumber}"
+                      Click="OnClearNumberClick"
+                      Visibility="{Binding HasDialedNumber, Converter={StaticResource BoolToVisibility}}">
+                <theme:Icon Glyph="xmark.circle.fill" Size="12" />
+              </Button>
+            </Grid>
+
+            <!--
+                Карточка собеседника. Две строки: имя крупно, а номер, таймер и
+                состояние — одной мелкой строкой под ним.
+            -->
+            <StackPanel VerticalAlignment="Center"
+                        Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
+              <TextBlock Text="{Binding ActiveLine.Title}"
+                         FontSize="17"
+                         FontWeight="Medium"
+                         TextTrimming="CharacterEllipsis"
+                         Foreground="{DynamicResource TextPrimaryBrush}" />
+
+              <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                <!--
+                    Номер показывается только когда крупным идёт имя, иначе он
+                    повторил бы сам себя. На раздаче из очереди его нет вовсе —
+                    решает это разбор вызова, тот же, что и в окне входящего.
+                -->
+                <TextBlock Text="{Binding ActiveLine.SecondaryNumber}"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
+                <TextBlock Text=" · "
+                           FontSize="11"
+                           Foreground="{DynamicResource TextTertiaryBrush}"
+                           Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
+
+                <TextBlock Text="{Binding ActiveLine.Duration}"
+                           FontSize="11"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Visibility="{Binding ActiveLine.Duration, Converter={StaticResource PresenceToVisibility}}" />
+
+                <TextBlock Text="{Binding CallStatus}"
+                           Margin="4,0,0,0"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!--
+            Две линии — два поля в том же слоте. Отдельной полосы линий нет:
+            линия и есть собеседник, и показывать их порознь значит дважды
+            писать одно и то же.
+        -->
+        <ItemsControl ItemsSource="{Binding Lines}"
+                      VerticalAlignment="Center"
+                      Visibility="{Binding HasSecondLine, Converter={StaticResource BoolToVisibility}}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type panel:CallLineViewModel}">
+              <Border Height="22"
+                      Margin="0,0,0,4"
+                      CornerRadius="8"
+                      Padding="8,0"
+                      Background="{DynamicResource ControlBackgroundBrush}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+
+                  <!--
+                      Точка стоит в колонке шириной с точку капсулы, а не по
+                      своему размеру: она мельче (6 против 8), и выровненные по
+                      краю кружки разошлись бы центрами. Колонка выравнивает
+                      именно центры — глаз считывает их, а не края.
+                  -->
+                  <Ellipse Grid.Column="0"
+                           Width="6"
+                           Height="6"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Fill="{DynamicResource TextTertiaryBrush}">
+                    <Ellipse.Style>
+                      <Style TargetType="Ellipse">
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsActive}" Value="True">
+                            <Setter Property="Fill" Value="{DynamicResource StatusRegisteredBrush}" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Ellipse.Style>
+                  </Ellipse>
+
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding Title}"
+                             Margin="6,0,4,0"
+                             FontSize="12"
+                             FontWeight="Medium"
+                             VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" />
+
+                  <TextBlock Grid.Column="2"
+                             Text="{Binding Status}"
+                             FontSize="11"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Grid>
+
+      <!-- Шапка → ряд управления. -->
+      <Border Height="5" />
+
+      <!--
+          Ряд управления. Четыре кнопки в два ряда, а не четыре в один: панель
+          270 точек шириной, и «Конференция» в четверти этой ширины не читается.
+
+          Виден и в покое, только выключенным. Прятать его целиком значит
+          менять геометрию панели ровно в момент ответа на вызов: макросы и всё
+          под ними подскакивали бы на его высоту.
+      -->
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="32" />
+          <RowDefinition Height="6" />
+          <RowDefinition Height="32" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="6" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <ToggleButton Grid.Row="0" Grid.Column="0"
+                      Style="{StaticResource ControlKeyStyle}"
+                      IsChecked="{Binding IsOnHold, Mode=OneWay}"
+                      IsEnabled="{Binding CanHold}"
+                      Command="{Binding ToggleHold}">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Size="10" VerticalAlignment="Center"
+                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}">
+              <theme:Icon.Style>
+                <Style TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
+                  <Setter Property="Glyph" Value="pause.fill" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsOnHold}" Value="True">
+                      <Setter Property="Glyph" Value="play.fill" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </theme:Icon.Style>
+            </theme:Icon>
+            <TextBlock Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Text" Value="{res:Loc PanelHold}" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsOnHold}" Value="True">
+                      <Setter Property="Text" Value="{res:Loc PanelResume}" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
+          </StackPanel>
+        </ToggleButton>
+
+        <ToggleButton Grid.Row="0" Grid.Column="2"
+                      Style="{StaticResource ControlKeyStyle}"
+                      IsChecked="{Binding IsMicrophoneMuted, Mode=OneWay}"
+                      IsEnabled="{Binding CanMuteMicrophone}"
+                      Command="{Binding ToggleMicrophone}">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Size="10" VerticalAlignment="Center"
+                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}">
+              <theme:Icon.Style>
+                <Style TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
+                  <Setter Property="Glyph" Value="mic.fill" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMicrophoneMuted}" Value="True">
+                      <Setter Property="Glyph" Value="mic.slash.fill" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </theme:Icon.Style>
+            </theme:Icon>
+            <TextBlock Text="{res:Loc PanelMicrophone}" Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center" />
+          </StackPanel>
+        </ToggleButton>
+
+        <!--
+            Имена для доступности стоят на всём, что нажимается: в оригинале
+            это был `compatAccessibilityLabel`, и заведён он был не ради
+            экранного диктора одного — теми же именами живая проверка находит
+            элементы в окне, не целясь в него мышью.
+        -->
+        <ToggleButton Grid.Row="2" Grid.Column="0"
+                      Style="{StaticResource ControlKeyStyle}"
+                      AutomationProperties.AutomationId="TransferKey"
+                      AutomationProperties.Name="Перевести"
+                      IsChecked="{Binding IsTransferEntryVisible, Mode=OneWay}"
+                      IsEnabled="{Binding CanTransfer}"
+                      Click="OnTransferClick">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Glyph="phone.arrow.right" Size="10" VerticalAlignment="Center"
+                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+            <TextBlock Text="{res:Loc PanelTransfer}" Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center" />
+          </StackPanel>
+        </ToggleButton>
+
+        <!--
+            Конференция — штатное действие, а не макрос: она посылает серверный
+            код тонами и помечает линию, то есть приложение знает, что комната
+            собрана. Макросом это выглядело бы так же, но приложение не знало бы
+            ничего.
+        -->
+        <ToggleButton Grid.Row="2" Grid.Column="2"
+                      Style="{StaticResource ControlKeyStyle}"
+                      IsChecked="{Binding IsConferenceStarted, Mode=OneWay}"
+                      IsEnabled="{Binding CanStartConference}"
+                      Command="{Binding StartConference}">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Glyph="person.3.fill" Size="10" VerticalAlignment="Center"
+                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+            <TextBlock Text="{res:Loc PanelConference}" Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center" />
+          </StackPanel>
+        </ToggleButton>
+      </Grid>
+
+      <!--
+          Ряд управления → то, что под ним. Единственная граница между ними —
+          воздух; когда снизу пусто, нет и его.
+      -->
+      <Border Height="15">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsTransferEntryVisible}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding HasMacros}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+              <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                  <Condition Binding="{Binding HasMacros}" Value="False" />
+                  <Condition Binding="{Binding IsTransferEntryVisible}" Value="False" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Visibility" Value="Collapsed" />
+              </MultiDataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+      </Border>
+
+      <!--
+          Сетка макросов на месте бывшего дайлпада. Крупная подпись, три в ряд,
+          порядок постоянный: оператор целится в место, а не читает каждый раз.
+          Вне разговора клавиши видны, но выключены — раскладка должна
+          запоминаться глазами до того, как начнётся звонок.
+      -->
+      <ItemsControl ItemsSource="{Binding Macros}">
+        <ItemsControl.Style>
+          <Style TargetType="ItemsControl">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                  <Condition Binding="{Binding HasMacros}" Value="True" />
+                  <Condition Binding="{Binding ShowsMacros}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Visibility" Value="Visible" />
+              </MultiDataTrigger>
+            </Style.Triggers>
+          </Style>
+        </ItemsControl.Style>
+
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <!--
+                Промежуток между клавишами задан полем справа и снизу у каждой,
+                а лишнее поле по краю снято отрицательным полем самой сетки. Так
+                ряды и колонки получают одинаковые 6 точек, а сетка не отступает
+                от краёв панели.
+            -->
+            <UniformGrid Columns="{Binding MacroColumns}" Margin="0,0,-6,-6" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type panel:MacroViewModel}">
+            <Button Style="{StaticResource MacroKeyStyle}"
+                    Margin="0,0,6,6"
+                    Height="{Binding DataContext.MacroHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                    IsEnabled="{Binding DataContext.CanSendDtmf, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                    Command="{Binding DataContext.SendMacro, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                    CommandParameter="{Binding}">
+              <!--
+                  Подпись из одного слова переносить некуда: `Wrap` разрывал бы
+                  «Бухгалтерию» посреди слова, оставляя висячий слог, — это
+                  первое, что показал живой прогон. `WrapWithOverflow` переносит
+                  только по пробелам, поэтому из нескольких слов подпись
+                  переносится, а из одного остаётся строкой и вылезает за
+                  клавишу.
+
+                  Вылезшее ужимается кеглем — тем же, чем в оригинале работал
+                  `minimumScaleFactor`, и до того же предела в 0.6. Обрезать
+                  хвост здесь нельзя: «Бухгалтер» вместо «Бухгалтерии» читается
+                  как другое слово, а не как обрезанное.
+              -->
+              <theme:ShrinkBox BaseFontSize="15" Margin="4,0" MaxHeight="54">
+                <TextBlock Text="{Binding Title}"
+                           FontWeight="Medium"
+                           TextAlignment="Center"
+                           TextWrapping="WrapWithOverflow" />
+              </theme:ShrinkBox>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!--
+          Поле перевода занимает место сетки макросов, а не встаёт под ней: пока
+          оператор набирает номер перевода, макросы всё равно не нужны, а лишний
+          ярус пришлось бы отнять у чего-то другого.
+      -->
+      <StackPanel Visibility="{Binding IsTransferEntryVisible, Converter={StaticResource BoolToVisibility}}">
+        <Border Height="34"
+                CornerRadius="8"
+                Padding="12,0"
+                Background="{DynamicResource ControlBackgroundBrush}">
+          <TextBox x:Name="TransferField"
+                   Style="{StaticResource PanelTextBoxStyle}"
+                   Text="{Binding TransferNumber, UpdateSourceTrigger=PropertyChanged}"
+                   Tag="{res:Loc PanelTransferNumber}"
+                   FontSize="17"
+                   IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}" />
+        </Border>
+
+        <Grid Margin="0,6,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <Button Grid.Column="0"
+                  Style="{StaticResource SurfaceButtonStyle}"
+                  Height="30"
+                  Content="{res:Loc PanelCancel}"
+                  FontSize="13"
+                  Click="OnCancelTransferClick" />
+
+          <Button Grid.Column="2"
+                  Style="{StaticResource CallButtonStyle}"
+                  Height="30"
+                  Content="{res:Loc PanelTransfer}"
+                  FontSize="13"
+                  IsEnabled="{Binding HasTransferNumber}"
+                  Command="{Binding Transfer}" />
+        </Grid>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- ==================== Неподвижный низ ==================== -->
 
     <!--
-        Неподвижный низ. Кнопка завершения звонка не двигается никогда: ни
-        вторая линия, ни потеря регистрации, ни поле перевода, ни число
-        макросов не могут сдвинуть низ панели.
+        Две кнопки, обе всегда на своём месте. «История» стоит здесь, а не в
+        полосе заголовка, потому что нужна постоянно: перезвонить по
+        пропущенному — основной способ исходящего звонка. Её ширина задана
+        жёстко, чтобы кнопка звонка не меняла размер от длины подписи.
     -->
-    <Grid Grid.Row="6" Margin="12,0,12,12">
+    <Grid Grid.Row="6">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="6" />
         <ColumnDefinition Width="64" />
       </Grid.ColumnDefinitions>
 
-      <Button Grid.Column="0" Height="34" Content="{res:Loc PanelCall}" />
-      <Button Grid.Column="2" Height="34" Content="{res:Loc PanelHistory}" />
+      <Button Grid.Column="0"
+              Command="{Binding CallOrHangUp}"
+              IsEnabled="{Binding IsCallButtonEnabled}">
+        <Button.Style>
+          <Style TargetType="Button" BasedOn="{StaticResource CallButtonStyle}">
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsInCall}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource DeclineFillBrush}" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Button.Style>
+
+        <StackPanel Orientation="Horizontal">
+          <theme:Icon Size="14" VerticalAlignment="Center" Foreground="White">
+            <theme:Icon.Style>
+              <Style TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
+                <Setter Property="Glyph" Value="phone.fill" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsInCall}" Value="True">
+                    <Setter Property="Glyph" Value="phone.down.fill" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </theme:Icon.Style>
+          </theme:Icon>
+
+          <TextBlock Margin="6,0,0,0" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" Foreground="White">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <Setter Property="Text" Value="{res:Loc PanelCall}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsInCall}" Value="True">
+                    <Setter Property="Text" Value="{res:Loc PanelHangUp}" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Style>
+          </TextBlock>
+        </StackPanel>
+      </Button>
+
+      <Button Grid.Column="2"
+              Style="{StaticResource SurfaceButtonStyle}"
+              Command="{Binding ShowHistory}">
+        <StackPanel>
+          <theme:Icon Glyph="clock" Size="14" HorizontalAlignment="Center"
+                      Foreground="{DynamicResource TextPrimaryBrush}" />
+          <TextBlock Text="{res:Loc PanelHistory}"
+                     Margin="0,2,0,0"
+                     FontSize="10"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+      </Button>
     </Grid>
   </Grid>
 </Window>

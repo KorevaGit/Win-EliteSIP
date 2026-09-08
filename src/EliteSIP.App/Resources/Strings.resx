@@ -82,4 +82,40 @@
     <value>Call</value>
     <comment>кнопка в неподвижном низу панели</comment>
   </data>
+  <data name="PanelHangUp" xml:space="preserve">
+    <value>Hang up</value>
+  </data>
+  <data name="PanelNumberPlaceholder" xml:space="preserve">
+    <value>Number</value>
+    <comment>подсказка в поле набора</comment>
+  </data>
+  <data name="PanelClearNumber" xml:space="preserve">
+    <value>Clear number</value>
+  </data>
+  <data name="PanelHold" xml:space="preserve">
+    <value>Hold</value>
+  </data>
+  <data name="PanelResume" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="PanelMicrophone" xml:space="preserve">
+    <value>Microphone</value>
+  </data>
+  <data name="PanelTransfer" xml:space="preserve">
+    <value>Transfer</value>
+  </data>
+  <data name="PanelConference" xml:space="preserve">
+    <value>Conference</value>
+  </data>
+  <data name="PanelTransferNumber" xml:space="preserve">
+    <value>Transfer to</value>
+    <comment>подсказка в поле перевода</comment>
+  </data>
+  <data name="PanelCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="PanelOffline" xml:space="preserve">
+    <value>Disconnected</value>
+    <comment>пункт списка профилей</comment>
+  </data>
 </root>

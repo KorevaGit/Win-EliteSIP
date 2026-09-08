@@ -65,4 +65,37 @@
   <data name="PanelCall" xml:space="preserve">
     <value>Позвонить</value>
   </data>
+  <data name="PanelHangUp" xml:space="preserve">
+    <value>Завершить</value>
+  </data>
+  <data name="PanelNumberPlaceholder" xml:space="preserve">
+    <value>Номер</value>
+  </data>
+  <data name="PanelClearNumber" xml:space="preserve">
+    <value>Очистить номер</value>
+  </data>
+  <data name="PanelHold" xml:space="preserve">
+    <value>Удержать</value>
+  </data>
+  <data name="PanelResume" xml:space="preserve">
+    <value>Вернуть</value>
+  </data>
+  <data name="PanelMicrophone" xml:space="preserve">
+    <value>Микрофон</value>
+  </data>
+  <data name="PanelTransfer" xml:space="preserve">
+    <value>Перевести</value>
+  </data>
+  <data name="PanelConference" xml:space="preserve">
+    <value>Конференция</value>
+  </data>
+  <data name="PanelTransferNumber" xml:space="preserve">
+    <value>Номер перевода</value>
+  </data>
+  <data name="PanelCancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="PanelOffline" xml:space="preserve">
+    <value>Отключён</value>
+  </data>
 </root>
