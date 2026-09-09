@@ -581,4 +581,49 @@
   <data name="TrayIdle" xml:space="preserve">
     <value>Не подключён</value>
   </data>
+  <data name="FirstRunTitle" xml:space="preserve">
+    <value>Настройка рабочего места</value>
+  </data>
+  <data name="FirstRunWelcomeTitle" xml:space="preserve">
+    <value>Добро пожаловать в EliteSIP</value>
+  </data>
+  <data name="FirstRunWelcomeSubtitle" xml:space="preserve">
+    <value>Рабочее место настраивается один раз. Займёт минуту.</value>
+  </data>
+  <data name="FirstRunLanguageNote" xml:space="preserve">
+    <value>Язык интерфейса. Приложение откроется заново на выбранном.</value>
+  </data>
+  <data name="FirstRunUserTitle" xml:space="preserve">
+    <value>Первый пользователь</value>
+  </data>
+  <data name="FirstRunUserSubtitle" xml:space="preserve">
+    <value>Кто будет работать за этой машиной.</value>
+  </data>
+  <data name="FirstRunAdminNote" xml:space="preserve">
+    <value>Административный пароль закрывает «Управление» — аккаунты, клавиши и диагностику. Оставьте пустым, если машина стоит в защищённом месте: пароль можно завести позже.</value>
+  </data>
+  <data name="FirstRunAppearanceSubtitle" xml:space="preserve">
+    <value>Панель висит поверх рабочих окон весь день. Выбирайте то, что не мешает смотреть на них.</value>
+  </data>
+  <data name="FirstRunFinaleTitle" xml:space="preserve">
+    <value>Готово</value>
+  </data>
+  <data name="FirstRunFinaleNote" xml:space="preserve">
+    <value>Остальное — вторая площадка, клавиши макросов, очереди — настраивается в «Управлении», за административным паролем.</value>
+  </data>
+  <data name="FirstRunBack" xml:space="preserve">
+    <value>Назад</value>
+  </data>
+  <data name="FirstRunNext" xml:space="preserve">
+    <value>Далее</value>
+  </data>
+  <data name="FirstRunFinish" xml:space="preserve">
+    <value>Начать работу</value>
+  </data>
+  <data name="FirstRunAbandonTitle" xml:space="preserve">
+    <value>Прервать настройку?</value>
+  </data>
+  <data name="FirstRunAbandonBody" xml:space="preserve">
+    <value>Введённое не сохранится, и приложение закроется: ненастроенная машина не звонит и в «Управление» не пускает. Мастер откроется заново при следующем запуске.</value>
+  </data>
 </root>

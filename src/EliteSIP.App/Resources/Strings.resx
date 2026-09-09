@@ -601,4 +601,49 @@
   <data name="TrayIdle" xml:space="preserve">
     <value>Not connected</value>
   </data>
+  <data name="FirstRunTitle" xml:space="preserve">
+    <value>Workplace setup</value>
+  </data>
+  <data name="FirstRunWelcomeTitle" xml:space="preserve">
+    <value>Welcome to EliteSIP</value>
+  </data>
+  <data name="FirstRunWelcomeSubtitle" xml:space="preserve">
+    <value>The workplace is set up once. It takes a minute.</value>
+  </data>
+  <data name="FirstRunLanguageNote" xml:space="preserve">
+    <value>The interface language. The application will reopen in the one you choose.</value>
+  </data>
+  <data name="FirstRunUserTitle" xml:space="preserve">
+    <value>First user</value>
+  </data>
+  <data name="FirstRunUserSubtitle" xml:space="preserve">
+    <value>Who will work at this machine.</value>
+  </data>
+  <data name="FirstRunAdminNote" xml:space="preserve">
+    <value>The administrator password closes off Administration — accounts, keys and diagnostics. Leave it empty if the machine stands in a protected place: a password can be set later.</value>
+  </data>
+  <data name="FirstRunAppearanceSubtitle" xml:space="preserve">
+    <value>The panel sits above your work windows all day. Choose what does not get in the way of looking at them.</value>
+  </data>
+  <data name="FirstRunFinaleTitle" xml:space="preserve">
+    <value>All set</value>
+  </data>
+  <data name="FirstRunFinaleNote" xml:space="preserve">
+    <value>The rest — the second site, macro keys, queues — is set up in Administration, behind the administrator password.</value>
+  </data>
+  <data name="FirstRunBack" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="FirstRunNext" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="FirstRunFinish" xml:space="preserve">
+    <value>Start working</value>
+  </data>
+  <data name="FirstRunAbandonTitle" xml:space="preserve">
+    <value>Abandon the setup?</value>
+  </data>
+  <data name="FirstRunAbandonBody" xml:space="preserve">
+    <value>What you entered will not be saved and the application will close: an unconfigured machine does not make calls and does not open Administration. The wizard will open again next time.</value>
+  </data>
 </root>

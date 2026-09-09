@@ -10,6 +10,7 @@ using EliteSIP.App.History;
 using EliteSIP.App.Admin;
 using EliteSIP.AdminAccess;
 using EliteSIP.App.Shell;
+using EliteSIP.App.FirstRun;
 
 namespace EliteSIP.App;
 
@@ -53,6 +54,18 @@ public partial class App : Application, IDisposable
 
         _appearance = new AppearanceService(this) { Appearance = _settings.Appearance.Theme };
         _appearance.Apply();
+
+        // Ненастроенная машина встречает мастер, а не панель: панель без
+        // добавочного и адреса не зазвонит, а «Управление» на такой машине
+        // обязано быть заперто раньше пароля.
+        if (!_settings.Setup.IsCompleted || e.Args.Contains("--first-run"))
+        {
+            if (!RunFirstRun())
+            {
+                Shutdown();
+                return;
+            }
+        }
 
         // Слоя приложения ещё нет: панель поднимается со своим состоянием, а
         // звонить ей пока нечем. Настоящая модель подпишется на те же команды.
@@ -210,6 +223,45 @@ public partial class App : Application, IDisposable
         // «Управление» заменяет собой настройки, а не встаёт рядом: два окна об
         // одной машине означали бы две правды о ней.
         _settingsWindow?.Close();
+    }
+
+    /// <summary>Проводит мастер. <c>false</c> — человек отказался.</summary>
+    ///
+    /// <remarks>
+    /// Смена языка в мастере требует перезапуска по той же причине, что и в
+    /// настройках: язык берётся при старте процесса, и поменять его у уже
+    /// собранных окон нельзя. Перезапуск здесь не спрашивается — человек только
+    /// что сам выбрал язык на первом же экране и увидит выбранное сразу.
+    /// </remarks>
+    private bool RunFirstRun()
+    {
+        var model = new FirstRunViewModel(_settings!, _access!);
+        var window = new FirstRunWindow(model, _appearance!);
+
+        if (window.ShowDialog() is not true)
+        {
+            return false;
+        }
+
+        if (model.LanguageChanges)
+        {
+            Restart();
+            return false;
+        }
+
+        _appearance!.Appearance = _settings!.Appearance.Theme;
+        return true;
+    }
+
+    /// <summary>Перезапуск: новый процесс поднимается, этот закрывается.</summary>
+    private void Restart()
+    {
+        if (Environment.ProcessPath is { } executable)
+        {
+            System.Diagnostics.Process.Start(executable);
+        }
+
+        Shutdown();
     }
 
     /// <summary>Показывает панель или прячет её.</summary>

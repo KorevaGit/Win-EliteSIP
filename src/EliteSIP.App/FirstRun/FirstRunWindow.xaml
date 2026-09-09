@@ -1,0 +1,240 @@
+<Window x:Class="EliteSIP.App.FirstRun.FirstRunWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:firstrun="clr-namespace:EliteSIP.App.FirstRun"
+        xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=firstrun:FirstRunViewModel}"
+        Title="{res:Loc FirstRunTitle}"
+        Width="460"
+        Height="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display"
+        theme:SettingsLayout.LabelColumn="132"
+        theme:SettingsLayout.RowMaxWidth="420">
+
+  <!--
+      Размер один на все экраны и фиксированный. По «Далее» щёлкают четыре раза
+      подряд, и кнопка, переезжающая между шагами, ловит четвёртый щелчок мимо.
+      Тот же закон, по которому не двигается «Завершить» на панели.
+  -->
+
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Grid Grid.Row="0">
+
+      <!-- 1. Приветствие и язык. -->
+      <StackPanel VerticalAlignment="Center"
+                  Visibility="{Binding ShowsWelcome, Converter={StaticResource BoolToVisibility}}">
+        <theme:Icon Glyph="phone.fill" Size="40" HorizontalAlignment="Center"
+                    Foreground="{DynamicResource TextPrimaryBrush}" />
+
+        <TextBlock Text="{res:Loc FirstRunWelcomeTitle}"
+                   Margin="0,12,0,0"
+                   FontSize="17"
+                   FontWeight="SemiBold"
+                   TextAlignment="Center" />
+
+        <TextBlock Text="{res:Loc FirstRunWelcomeSubtitle}"
+                   Margin="0,6,0,0"
+                   FontSize="12"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
+          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardLanguage"
+                       Content="{res:Loc AppearanceLanguageSystem}"
+                       IsChecked="{Binding Language, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
+          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardLanguage" Content="Русский"
+                       IsChecked="{Binding Language, Converter={StaticResource EnumToBool}, ConverterParameter=Russian}" />
+          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardLanguage" Content="English"
+                       IsChecked="{Binding Language, Converter={StaticResource EnumToBool}, ConverterParameter=English}" />
+        </StackPanel>
+
+        <TextBlock Text="{res:Loc FirstRunLanguageNote}"
+                   Margin="0,8,0,0"
+                   FontSize="11"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+      </StackPanel>
+
+      <!-- 2. Первый пользователь. -->
+      <StackPanel VerticalAlignment="Center"
+                  Visibility="{Binding ShowsUser, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{res:Loc FirstRunUserTitle}" FontSize="15" FontWeight="SemiBold" TextAlignment="Center" />
+        <TextBlock Text="{res:Loc FirstRunUserSubtitle}"
+                   Margin="0,4,0,10"
+                   FontSize="11"
+                   TextAlignment="Center"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <theme:SettingsRow Header="{res:Loc AdminAccountUsername}">
+          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+            <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                     Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+          </Border>
+        </theme:SettingsRow>
+
+        <theme:SettingsRow Header="{res:Loc AdminAccountPassword}">
+          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+            <PasswordBox x:Name="SipPasswordField"
+                         VerticalContentAlignment="Center"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         CaretBrush="{DynamicResource TextPrimaryBrush}"
+                         PasswordChanged="OnSipPasswordChanged" />
+          </Border>
+        </theme:SettingsRow>
+
+        <theme:SettingsRow Header="{res:Loc AdminAccountDisplayName}">
+          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+            <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                     Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+          </Border>
+        </theme:SettingsRow>
+
+        <theme:SettingsRow Header="{res:Loc WorkPbxAddress}">
+          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+            <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                     Text="{Binding OfficeAddress, UpdateSourceTrigger=PropertyChanged}" />
+          </Border>
+        </theme:SettingsRow>
+
+        <theme:SettingsDivider />
+
+        <theme:SettingsRow Header="{res:Loc AdminAccessNewPassword}">
+          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+            <PasswordBox x:Name="AdminPasswordField"
+                         VerticalContentAlignment="Center"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         CaretBrush="{DynamicResource TextPrimaryBrush}"
+                         PasswordChanged="OnAdminPasswordChanged" />
+          </Border>
+        </theme:SettingsRow>
+
+        <theme:SettingsRow Header="{res:Loc AdminAccessRepeatPassword}">
+          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+            <PasswordBox x:Name="RepeatedAdminPasswordField"
+                         VerticalContentAlignment="Center"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         CaretBrush="{DynamicResource TextPrimaryBrush}"
+                         PasswordChanged="OnRepeatedAdminPasswordChanged" />
+          </Border>
+        </theme:SettingsRow>
+
+        <theme:SettingsNote Text="{res:Loc AdminAccessMismatch}"
+                            IsAlarming="True"
+                            Visibility="{Binding AdminPasswordsDiffer, Converter={StaticResource BoolToVisibility}}" />
+
+        <theme:SettingsNote Text="{res:Loc FirstRunAdminNote}" />
+      </StackPanel>
+
+      <!-- 3. Оформление. -->
+      <StackPanel VerticalAlignment="Center"
+                  Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{res:Loc SectionAppearance}" FontSize="15" FontWeight="SemiBold" TextAlignment="Center" />
+        <TextBlock Text="{res:Loc FirstRunAppearanceSubtitle}"
+                   Margin="0,4,0,14"
+                   FontSize="11"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardTheme"
+                       Content="{res:Loc AppearanceSystem}"
+                       IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
+          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardTheme"
+                       Content="{res:Loc AppearanceLight}"
+                       IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
+          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardTheme"
+                       Content="{res:Loc AppearanceDark}"
+                       IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- 4. Готово. -->
+      <StackPanel VerticalAlignment="Center"
+                  Visibility="{Binding ShowsFinale, Converter={StaticResource BoolToVisibility}}">
+        <theme:Icon Glyph="checkmark.circle" Size="40" HorizontalAlignment="Center"
+                    Foreground="{DynamicResource StatusRegisteredBrush}" />
+
+        <TextBlock Text="{res:Loc FirstRunFinaleTitle}"
+                   Margin="0,12,0,0"
+                   FontSize="17"
+                   FontWeight="SemiBold"
+                   TextAlignment="Center" />
+
+        <!--
+            Сводка коротко и без пароля: она отвечает на «то ли я завёл», а не
+            заменяет собой «Управление».
+        -->
+        <TextBlock Margin="0,10,0,0" FontSize="12" TextAlignment="Center"
+                   Foreground="{DynamicResource TextSecondaryBrush}">
+          <Run Text="{res:Loc AdminAccountUsername}" /><Run Text=": " /><Run Text="{Binding Username}" />
+          <LineBreak />
+          <Run Text="{res:Loc WorkPbxAddress}" /><Run Text=": " /><Run Text="{Binding OfficeAddress}" />
+        </TextBlock>
+
+        <TextBlock Text="{res:Loc FirstRunFinaleNote}"
+                   Margin="0,12,0,0"
+                   FontSize="11"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Полоса шагов. -->
+    <Grid Grid.Row="1" Margin="0,12,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <Button Grid.Column="0"
+              Style="{StaticResource SettingsButtonStyle}"
+              Content="{res:Loc FirstRunBack}"
+              IsEnabled="{Binding CanGoBack}"
+              Click="OnBackClick" />
+
+      <Button Grid.Column="2"
+              Style="{StaticResource SettingsButtonStyle}"
+              MinWidth="90"
+              IsEnabled="{Binding CanGoForward}"
+              Click="OnForwardClick">
+        <TextBlock>
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Text" Value="{res:Loc FirstRunNext}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLastStep}" Value="True">
+                  <Setter Property="Text" Value="{res:Loc FirstRunFinish}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+      </Button>
+    </Grid>
+  </Grid>
+</Window>

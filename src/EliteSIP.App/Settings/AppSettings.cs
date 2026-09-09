@@ -328,6 +328,8 @@ public sealed class AppSettings : Observable
 
     public MaintenanceSettings Maintenance { get; init; } = new();
 
+    public SetupSettings Setup { get; init; } = new();
+
     /// <summary>Пароль учётки. Шифруется DPAPI — см. `SipCredentials`.</summary>
     public SipCredentials Credentials { get; init; } = new();
 
@@ -407,7 +409,7 @@ public sealed class AppSettings : Observable
 
         WatchMacros();
 
-        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, Maintenance, Credentials })
+        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, Maintenance, Credentials, Setup })
         {
             section.PropertyChanged += (_, _) => TrySave(onFailure);
         }

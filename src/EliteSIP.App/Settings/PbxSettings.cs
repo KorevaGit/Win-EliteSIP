@@ -114,6 +114,25 @@ public sealed class QueueSetting : Observable
     }
 }
 
+/// <summary>Пройден ли мастер первоначальной настройки.</summary>
+///
+/// <remarks>
+/// Отдельным разделом, а не полем у аккаунта: это состояние машины, а не
+/// свойство учётки. От него зависит и то, показывать ли мастер, и то, пускать
+/// ли в «Управление»: непройденный мастер запирает его раньше пароля — сброшенная
+/// машина иначе остаётся с пустыми настройками и открытым «Управлением».
+/// </remarks>
+public sealed class SetupSettings : Observable
+{
+    private bool _isCompleted;
+
+    public bool IsCompleted
+    {
+        get => _isCompleted;
+        set => Set(ref _isCompleted, value);
+    }
+}
+
 /// <summary>Журнал и чистка — то, что делают на машине, когда что-то пошло не так.</summary>
 public sealed class MaintenanceSettings : Observable
 {
