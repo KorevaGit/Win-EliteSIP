@@ -114,6 +114,16 @@ public partial class AdministrationWindow : Window
         }
     }
 
+    private void OnKnockAddClick(object sender, RoutedEventArgs e) => Model.AddKnockStep();
+
+    private void OnKnockRemoveClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is PortKnockStepSetting step)
+        {
+            Model.RemoveKnockStep(step);
+        }
+    }
+
     private void OnNewPasswordChanged(object sender, RoutedEventArgs e)
         => Model.NewPassword = NewPasswordField.Password;
 

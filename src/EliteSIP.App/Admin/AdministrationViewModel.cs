@@ -78,6 +78,8 @@ public sealed class AdministrationViewModel : Observable
     private string _transferCode = string.Empty;
     private string _conferenceCode = string.Empty;
     private string _pinnedFingerprint = string.Empty;
+    private double _knockSpacing = 1;
+    private double _knockRepeat = 600;
     private bool _acceptsAnyCertificate;
     private bool _logToFile;
     private bool _logsSipTrace;
@@ -134,8 +136,7 @@ public sealed class AdministrationViewModel : Observable
     /// </remarks>
     public IncomingCallSettings Guard { get; } = new();
 
-    /// <summary>Показать окно входящего для проверки: раздача.</summary>
-    /// <summary>Раздел «Поддержка». `null` — приложение его не завело.</summary>
+    /// <summary>Раздел «Поддержка». <c>null</c> — приложение его не завело.</summary>
     ///
     /// <remarks>
     /// Приходит снаружи, потому что линией панели владеет приложение, а не
@@ -143,6 +144,7 @@ public sealed class AdministrationViewModel : Observable
     /// </remarks>
     public SupportViewModel? Support { get; init; }
 
+    /// <summary>Показать окно входящего для проверки: раздача.</summary>
     public RelayCommand PreviewDistribution { get; }
 
     /// <summary>То же для вызова по сделке. Отдельной кнопкой, а не переключателем.</summary>
@@ -283,6 +285,76 @@ public sealed class AdministrationViewModel : Observable
             NotifyChanged(nameof(IsTls));
             MarkDirty();
         }
+    }
+
+    // --- Стук по портам --------------------------------------------------
+
+    /// <summary>Черновик последовательности стука. Настоящая правится по «Сохранить».</summary>
+    public ObservableCollection<PortKnockStepSetting> KnockSteps { get; } = [];
+
+    public double KnockSpacingSeconds
+    {
+        get => _knockSpacing;
+        set
+        {
+            Set(ref _knockSpacing, value);
+            MarkDirty();
+            NotifyChanged(nameof(KnockSummary));
+        }
+    }
+
+    public double KnockRepeatIntervalSeconds
+    {
+        get => _knockRepeat;
+        set
+        {
+            Set(ref _knockRepeat, value);
+            MarkDirty();
+        }
+    }
+
+    /// <summary>
+    /// Чем стук обойдётся при подключении.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Задержка перед первым REGISTER — то единственное, что оператор от стука
+    /// замечает, и знать её администратор должен до того, как её заметят: восемь
+    /// пакетов с паузой в секунду это семь секунд тишины на каждом запуске
+    /// удалённой машины.
+    /// </remarks>
+    public string KnockSummary
+    {
+        get
+        {
+            var packets = KnockSteps.Sum(step => Math.Max(0, step.Count));
+            var seconds = Math.Max(0, packets - 1) * _knockSpacing;
+
+            return packets == 0
+                ? Strings.Get("AdminKnockDisabled")
+                : Strings.Format("AdminKnockSummary", packets, seconds);
+        }
+    }
+
+    public void AddKnockStep()
+    {
+        PortKnockStepSetting step = new();
+        step.PropertyChanged += (_, _) =>
+        {
+            MarkDirty();
+            NotifyChanged(nameof(KnockSummary));
+        };
+
+        KnockSteps.Add(step);
+        MarkDirty();
+        NotifyChanged(nameof(KnockSummary));
+    }
+
+    public void RemoveKnockStep(PortKnockStepSetting step)
+    {
+        KnockSteps.Remove(step);
+        MarkDirty();
+        NotifyChanged(nameof(KnockSummary));
     }
 
     /// <summary>Показывать ли настройки проверки сертификата.</summary>
@@ -598,6 +670,20 @@ public sealed class AdministrationViewModel : Observable
         _settings.Pbx.Port = Port;
         _settings.Pbx.Transport = Transport;
         _settings.Pbx.PinnedCertificateFingerprint = PinnedCertificateFingerprint.Trim();
+
+        _settings.PortKnock.SpacingSeconds = KnockSpacingSeconds;
+        _settings.PortKnock.RepeatIntervalSeconds = KnockRepeatIntervalSeconds;
+        _settings.PortKnock.Steps.Clear();
+        foreach (var step in KnockSteps)
+        {
+            _settings.PortKnock.Steps.Add(new PortKnockStepSetting
+            {
+                Id = step.Id,
+                Host = step.Host.Trim(),
+                PayloadBytes = step.PayloadBytes,
+                Count = step.Count,
+            });
+        }
         _settings.Pbx.AcceptsAnyTlsCertificate = AcceptsAnyTlsCertificate;
         _settings.Pbx.RegistrationExpirySeconds = RegistrationExpirySeconds;
         _settings.Pbx.TransferFeatureCode = TransferFeatureCode;
@@ -668,6 +754,28 @@ public sealed class AdministrationViewModel : Observable
         _port = _settings.Pbx.Port;
         _transport = _settings.Pbx.Transport;
         _pinnedFingerprint = _settings.Pbx.PinnedCertificateFingerprint;
+        _knockSpacing = _settings.PortKnock.SpacingSeconds;
+        _knockRepeat = _settings.PortKnock.RepeatIntervalSeconds;
+
+        KnockSteps.Clear();
+        foreach (var step in _settings.PortKnock.Steps)
+        {
+            PortKnockStepSetting copy = new()
+            {
+                Id = step.Id,
+                Host = step.Host,
+                PayloadBytes = step.PayloadBytes,
+                Count = step.Count,
+            };
+
+            copy.PropertyChanged += (_, _) =>
+            {
+                MarkDirty();
+                NotifyChanged(nameof(KnockSummary));
+            };
+
+            KnockSteps.Add(copy);
+        }
         _acceptsAnyCertificate = _settings.Pbx.AcceptsAnyTlsCertificate;
         _registrationExpiry = _settings.Pbx.RegistrationExpirySeconds;
         _transferCode = _settings.Pbx.TransferFeatureCode;

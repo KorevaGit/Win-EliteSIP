@@ -12,8 +12,10 @@ using EliteSIP.SipCore.Udp;
 
 // Псевдонимы: транспорт называется одинаково у настроек и у SipCore, и без них
 // имя двусмысленно в каждой строке этого файла.
+using SettingsSite = EliteSIP.App.Settings.WorkplaceSite;
 using SettingsTransport = EliteSIP.App.Settings.SipTransport;
 using SignalingTransport = EliteSIP.SipCore.SipTransport;
+using KnockSite = EliteSIP.SipCore.WorkplaceSite;
 
 namespace EliteSIP.App.Shell;
 
@@ -47,6 +49,7 @@ public sealed class PhoneService : IDisposable
     private readonly Action<string> _log;
 
     private SocketSipTransport? _transport;
+    private PortKnocker? _knocker;
     private SipUserAgent? _agent;
     private VoiceAudioBus? _bus;
     private LineController? _lines;
@@ -121,10 +124,28 @@ public sealed class PhoneService : IDisposable
         };
 
         _transport = new SocketSipTransport(sipAccount.SignalingEndpoint, transport, TrustOf(pbx));
+
+        // Стук по портам (W11): открыть себе дорогу до АТС перед регистрацией.
+        // `null` означает «стучать не надо» — офисное место или выключенный
+        // стук; агент в этом случае просто не делает лишнего шага.
+        _knocker = PortKnocker.ForServer(
+            address,
+            account.Site is SettingsSite.Remote ? KnockSite.Remote : KnockSite.Office,
+            _settings.PortKnock.ToSequence(),
+            _log);
+
+        if (_knocker is not null)
+        {
+            _log($"стук включён: {_settings.PortKnock.Steps.Count} шагов, "
+                + $"{PortKnockPolicy.Explanation(address, KnockSite.Remote)}, "
+                + $"задержка перед REGISTER {_settings.PortKnock.ToSequence().EstimatedDuration.TotalSeconds:0.#} с");
+        }
+
         _agent = new SipUserAgent(
             sipAccount,
             new DigestAuthentication.Credentials(sipAccount.EffectiveAuthUsername, password),
-            _transport);
+            _transport,
+            pathOpener: _knocker);
 
         _bus = new VoiceAudioBus(
             new WasapiVoiceAudioEngine(new VoiceAudioConfiguration()),
@@ -201,11 +222,13 @@ public sealed class PhoneService : IDisposable
 
         _agent.Dispose();
         _transport?.Dispose();
+        _knocker?.Dispose();
         _bus?.Dispose();
         _running?.Dispose();
 
         _agent = null;
         _transport = null;
+        _knocker = null;
         _bus = null;
         _lines = null;
         _running = null;

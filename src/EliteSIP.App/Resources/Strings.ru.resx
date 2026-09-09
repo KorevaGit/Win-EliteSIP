@@ -897,4 +897,35 @@
   <data name="AdminPbxTlsAcceptAnyNote" xml:space="preserve">
     <value>Это отключает защиту от перехвата целиком: сидящий посередине читает пароль SIP и сам разговор, а TLS при этом показывается включённым. Только для лаборатории на этой же машине.</value>
   </data>
+
+  <data name="AdminKnockTitle" xml:space="preserve">
+    <value>Стук по портам</value>
+  </data>
+  <data name="AdminKnockNote" xml:space="preserve">
+    <value>Шлюз держит порты закрытыми и открывает их тому, от кого пришла условленная последовательность ICMP-пакетов определённой длины. Это связность, а не защита: стук решает, кого пускают, и ничего не говорит о том, кто может прочитать, — SIP и RTP как шли открытым UDP, так и идут. Пустой список выключает стук.</value>
+  </data>
+  <data name="AdminKnockHost" xml:space="preserve">
+    <value>Адрес (пусто — АТС)</value>
+  </data>
+  <data name="AdminKnockBytes" xml:space="preserve">
+    <value>Байт</value>
+  </data>
+  <data name="AdminKnockCount" xml:space="preserve">
+    <value>Раз</value>
+  </data>
+  <data name="AdminKnockAdd" xml:space="preserve">
+    <value>Добавить шаг</value>
+  </data>
+  <data name="AdminKnockSpacing" xml:space="preserve">
+    <value>Пауза, секунды</value>
+  </data>
+  <data name="AdminKnockRepeat" xml:space="preserve">
+    <value>Повтор, секунды</value>
+  </data>
+  <data name="AdminKnockSummary" xml:space="preserve">
+    <value>{0} пакетов — это {1:0.#} секунд тишины перед первым REGISTER на удалённой машине.</value>
+  </data>
+  <data name="AdminKnockDisabled" xml:space="preserve">
+    <value>Шагов нет — стук выключен.</value>
+  </data>
 </root>

@@ -919,4 +919,35 @@
   <data name="AdminPbxTlsAcceptAnyNote" xml:space="preserve">
     <value>This turns off protection against interception entirely: whoever sits in the middle reads the SIP password and the call itself, and TLS still shows as on. Only for a lab on this same machine.</value>
   </data>
+
+  <data name="AdminKnockTitle" xml:space="preserve">
+    <value>Port knocking</value>
+  </data>
+  <data name="AdminKnockNote" xml:space="preserve">
+    <value>The gateway keeps the ports closed and opens them to whoever sends the agreed sequence of ICMP packets of certain lengths. This is connectivity, not protection: it decides who is let in and says nothing about who can read — SIP and RTP go the same open UDP as before. An empty list turns knocking off.</value>
+  </data>
+  <data name="AdminKnockHost" xml:space="preserve">
+    <value>Address (empty — the PBX)</value>
+  </data>
+  <data name="AdminKnockBytes" xml:space="preserve">
+    <value>Bytes</value>
+  </data>
+  <data name="AdminKnockCount" xml:space="preserve">
+    <value>Times</value>
+  </data>
+  <data name="AdminKnockAdd" xml:space="preserve">
+    <value>Add a step</value>
+  </data>
+  <data name="AdminKnockSpacing" xml:space="preserve">
+    <value>Gap, seconds</value>
+  </data>
+  <data name="AdminKnockRepeat" xml:space="preserve">
+    <value>Repeat, seconds</value>
+  </data>
+  <data name="AdminKnockSummary" xml:space="preserve">
+    <value>{0} packets: that is {1:0.#} seconds of silence before the first REGISTER on a remote machine.</value>
+  </data>
+  <data name="AdminKnockDisabled" xml:space="preserve">
+    <value>No steps — knocking is off.</value>
+  </data>
 </root>

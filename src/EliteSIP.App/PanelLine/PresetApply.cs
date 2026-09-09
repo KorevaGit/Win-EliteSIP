@@ -21,8 +21,7 @@ namespace EliteSIP.App.PanelLine;
 /// происходит. Правило принято в оригинале и стоит там же: предустановка,
 /// написанная ради макросов, иначе молча стёрла бы политику защиты.
 ///
-/// <b>Чего эта сборка ещё не накладывает.</b> Стук по портам — поля под него
-/// заводятся ниже по этому же этапу. Тайминги DTMF (<c>toneMilliseconds</c>,
+/// <b>Чего эта сборка не накладывает.</b> Тайминги DTMF (<c>toneMilliseconds</c>,
 /// <c>gapMilliseconds</c>, <c>pauseMilliseconds</c>) не накладываются по другой
 /// причине: у них нет настройки, потому что до тракта они не доходят и сейчас —
 /// <c>DtmfTiming</c> берётся умолчаниями внутри <c>MediaCore</c>, и завести
@@ -45,6 +44,7 @@ internal static class PresetApply
         ApplyIncomingCall(settings, fields.IncomingCall);
         ApplyConference(settings, fields.Conference);
         ApplySiteAddresses(settings, fields.SiteAddresses);
+        ApplyPortKnock(settings, fields.PortKnock);
         ApplyTlsTrust(settings, fields.AcceptsAnyTLSCertificate);
         ApplyTransport(settings, fields.Transport);
 
@@ -85,7 +85,8 @@ internal static class PresetApply
             || !string.Equals(settings.Pbx.OfficeAddress, other.Pbx.OfficeAddress, StringComparison.Ordinal)
             || !string.Equals(settings.Pbx.RemoteAddress, other.Pbx.RemoteAddress, StringComparison.Ordinal)
             || settings.Pbx.AcceptsAnyTlsCertificate != other.Pbx.AcceptsAnyTlsCertificate
-            || settings.Pbx.Transport != other.Pbx.Transport;
+            || settings.Pbx.Transport != other.Pbx.Transport
+            || DiffersInKnock(settings.PortKnock, other.PortKnock);
     }
 
     // MARK: - Клавиши
@@ -265,6 +266,52 @@ internal static class PresetApply
     ///
     /// Порт не трогается. Свой, вписанный руками, остаётся своим.
     /// </remarks>
+    /// <summary>
+    /// Стук по портам.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Пустой список шагов — это «стучать нечем», то есть выключенный стук, а не
+    /// отсутствие управления. Отличает их то же самое, что и везде здесь:
+    /// отсутствие ключа даёт <c>null</c> и сюда не доходит.
+    ///
+    /// Шаги заменяются целиком по той же причине, что и клавиши: последовательность
+    /// задаёт администратор целиком, и убранный им шаг обязан исчезнуть.
+    /// </remarks>
+    private static void ApplyPortKnock(AppSettings settings, ManagedFields.PortKnockFields? incoming)
+    {
+        if (incoming is null)
+        {
+            return;
+        }
+
+        if (incoming.SpacingSeconds is { } spacing)
+        {
+            settings.PortKnock.SpacingSeconds = spacing;
+        }
+
+        if (incoming.RepeatIntervalSeconds is { } interval)
+        {
+            settings.PortKnock.RepeatIntervalSeconds = interval;
+        }
+
+        if (incoming.Steps is not { } steps)
+        {
+            return;
+        }
+
+        settings.PortKnock.Steps.Clear();
+        foreach (var step in steps)
+        {
+            settings.PortKnock.Steps.Add(new PortKnockStepSetting
+            {
+                Host = step.Host ?? string.Empty,
+                PayloadBytes = step.PayloadBytes ?? 0,
+                Count = step.Count ?? 1,
+            });
+        }
+    }
+
     private static void ApplyTlsTrust(AppSettings settings, bool? incoming)
     {
         // Единственное поле, которым панель управляет затем, чтобы держать его
@@ -340,6 +387,31 @@ internal static class PresetApply
             if (!string.Equals(left.Title, right.Title, StringComparison.Ordinal)
                 || !string.Equals(left.Sequence, right.Sequence, StringComparison.Ordinal)
                 || left.TransfersCall != right.TransfersCall)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool DiffersInKnock(PortKnockSettings mine, PortKnockSettings theirs)
+    {
+        if (mine.Steps.Count != theirs.Steps.Count
+            || mine.SpacingSeconds != theirs.SpacingSeconds
+            || mine.RepeatIntervalSeconds != theirs.RepeatIntervalSeconds)
+        {
+            return true;
+        }
+
+        for (var index = 0; index < mine.Steps.Count; index++)
+        {
+            var left = mine.Steps[index];
+            var right = theirs.Steps[index];
+
+            if (!string.Equals(left.Host, right.Host, StringComparison.Ordinal)
+                || left.PayloadBytes != right.PayloadBytes
+                || left.Count != right.Count)
             {
                 return true;
             }

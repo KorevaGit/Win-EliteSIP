@@ -218,6 +218,92 @@
             </theme:SettingsSection>
 
             <!--
+                Стук по портам. Механизм связности, а не защиты, — и подпись под
+                разделом говорит об этом прямо: назвать его «защищённым
+                подключением» значит однажды объяснять, почему разговор всё-таки
+                прочитали.
+            -->
+            <theme:SettingsSection Header="{res:Loc AdminKnockTitle}">
+              <theme:SettingsNote Text="{res:Loc AdminKnockNote}" />
+
+              <ItemsControl ItemsSource="{Binding KnockSteps}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type settings:PortKnockStepSetting}">
+                    <Grid Margin="0,3">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="50" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+
+                      <Border Grid.Column="0" Height="26" CornerRadius="6" Padding="6,0"
+                              Background="{DynamicResource ControlHoverBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                                 Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="{res:Loc AdminKnockHost}" />
+                      </Border>
+
+                      <Border Grid.Column="2" Height="26" CornerRadius="6" Padding="6,0"
+                              Background="{DynamicResource ControlHoverBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                                 FontFamily="Consolas"
+                                 Text="{Binding PayloadBytes, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="{res:Loc AdminKnockBytes}" />
+                      </Border>
+
+                      <Border Grid.Column="4" Height="26" CornerRadius="6" Padding="6,0"
+                              Background="{DynamicResource ControlHoverBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                                 FontFamily="Consolas"
+                                 Text="{Binding Count, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="{res:Loc AdminKnockCount}" />
+                      </Border>
+
+                      <Button Grid.Column="6"
+                              Style="{StaticResource SettingsButtonStyle}"
+                              Padding="6,2"
+                              ToolTip="{res:Loc AdminMacroRemove}"
+                              Click="OnKnockRemoveClick">
+                        <theme:Icon Glyph="trash" Size="12" />
+                      </Button>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AdminKnockAdd}"
+                        Click="OnKnockAddClick" />
+              </theme:SettingsIndented>
+
+              <theme:SettingsDivider />
+
+              <theme:SettingsRow Header="{res:Loc AdminKnockSpacing}">
+                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding KnockSpacingSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminKnockRepeat}">
+                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding KnockRepeatIntervalSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{Binding KnockSummary}" />
+            </theme:SettingsSection>
+
+            <!--
                 Проверка сертификата. Видна только при выбранном TLS: на UDP и
                 TCP она не значит ничего, а показанная всегда — приглашает
                 включить «принимать любой» там, где шифрования нет вовсе.

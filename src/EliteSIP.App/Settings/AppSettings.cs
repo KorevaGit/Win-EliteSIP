@@ -336,6 +336,9 @@ public sealed class AppSettings : Observable
     /// <summary>Что машина знает о панели: этап W10. Правится линией панели, не человеком.</summary>
     public PanelSettings Panel { get; init; } = new();
 
+    /// <summary>Стук по портам: этап W11. Правится только из «Управления».</summary>
+    public PortKnockSettings PortKnock { get; init; } = new();
+
     /// <summary>Пароль учётки. Шифруется DPAPI — см. `SipCredentials`.</summary>
     public SipCredentials Credentials { get; init; } = new();
 
@@ -415,7 +418,7 @@ public sealed class AppSettings : Observable
 
         WatchMacros();
 
-        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel })
+        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel, PortKnock })
         {
             section.PropertyChanged += (_, _) => TrySave(onFailure);
         }
