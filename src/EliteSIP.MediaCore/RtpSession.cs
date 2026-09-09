@@ -102,6 +102,18 @@ public sealed class RtpSession : IDisposable
     private readonly Socket _socket;
     private IPEndPoint _remote;
     private readonly Lock _lock = new();
+
+    /// <summary>Защита исходящего направления. `null` — поток открытый.</summary>
+    ///
+    /// <remarks>
+    /// Правится под тем же замком, что и номера с метками времени: у контекста
+    /// есть состояние (счётчик оборотов), и две отправки разом сбили бы его так
+    /// же, как сбили бы нумерацию.
+    /// </remarks>
+    private readonly SrtpContext? _outbound;
+
+    /// <summary>Защита входящего направления. Замка не требует: приём один.</summary>
+    private readonly SrtpContext? _inbound;
     private readonly CancellationTokenSource _stopping = new();
 
     /// <summary>Состояние отправителя. Трогается только под <see cref="_lock"/>.</summary>
@@ -138,14 +150,21 @@ public sealed class RtpSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        if (configuration.Security.IsEncrypted)
+        if (configuration.Security is { IsEncrypted: true } security)
         {
-            // Отправить открытый RTP там, где согласован SRTP, — это молчаливый
-            // downgrade: разговор бы шёл, а защиты бы не было, и заметить это
-            // без снятия трафика невозможно. Пока шифрование не перенесено
-            // (этап W11), отказ громкий.
-            throw new NotSupportedException(
-                "SRTP переносится на этапе W11; поток с согласованным SDES поднимать нельзя.");
+            // Два независимых контекста: исходящий из нашего ключа SDES,
+            // входящий из ключа сервера. Смешивать их нельзя — у направлений
+            // разные ключи, счётчик оборотов и окно повторов.
+            //
+            // Отсутствие любого из ключей при `IsEncrypted` невозможно по
+            // построению `MediaSecurity.Sdes`, но проверка стоит здесь, а не в
+            // виде утверждения: молчаливая отправка открытого RTP там, где
+            // согласован SRTP, — это downgrade, который без снятия трафика не
+            // видно.
+            _outbound = new SrtpContext(security.LocalKey
+                ?? throw new InvalidOperationException("защищённый поток без своего ключа SDES"));
+            _inbound = new SrtpContext(security.RemoteKey
+                ?? throw new InvalidOperationException("защищённый поток без ключа сервера"));
         }
 
         _configuration = configuration;
@@ -285,7 +304,7 @@ public sealed class RtpSession : IDisposable
             // По RFC 3550 считается только полезная нагрузка, без заголовков.
             _octetsSent = unchecked(_octetsSent + (uint)encodedFrame.Length);
 
-            data = packet.Encoded();
+            data = Protected(packet);
         }
 
         SendRaw(data);
@@ -359,7 +378,7 @@ public sealed class RtpSession : IDisposable
             _packetsSent = unchecked(_packetsSent + 1);
             _octetsSent = unchecked(_octetsSent + (uint)encoded.Length);
 
-            data = packet.Encoded();
+            data = Protected(packet);
         }
 
         SendRaw(data);
@@ -387,6 +406,18 @@ public sealed class RtpSession : IDisposable
         _stopping.Dispose();
         _socket.Dispose();
     }
+
+    /// <summary>
+    /// Готовит пакет к отправке: открытый — как есть, защищённый — через SRTP.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Зовётся только под <see cref="_lock"/> — оба места отправки уже под ним.
+    /// Иначе счётчик оборотов исходящего контекста сбивался бы ровно так же, как
+    /// сбивалась бы нумерация: два потока, один счётчик.
+    /// </remarks>
+    private byte[] Protected(RtpPacket packet)
+        => _outbound is null ? packet.Encoded() : _outbound.Protect(packet);
 
     private void SendRaw(byte[] data)
     {
@@ -465,12 +496,19 @@ public sealed class RtpSession : IDisposable
 
             // Битый или чужой пакет молча пропускаем: на открытый UDP-порт
             // прилетает что угодно, и рвать разговор из-за этого нельзя.
+            //
+            // На защищённом потоке сюда же попадает всё, что не прошло проверку
+            // подлинности, и это не досадная мелочь, а главное свойство SRTP:
+            // подделанный или повторённый пакет не должен доходить до разбора
+            // RTP, не говоря о звуковом тракте.
             RtpPacket packet;
             try
             {
-                packet = RtpPacket.Parse(buffer.AsSpan(0, received));
+                packet = _inbound is null
+                    ? RtpPacket.Parse(buffer.AsSpan(0, received))
+                    : _inbound.Unprotect(buffer.AsSpan(0, received));
             }
-            catch (RtpParseException)
+            catch (Exception error) when (error is RtpParseException or SrtpException)
             {
                 continue;
             }

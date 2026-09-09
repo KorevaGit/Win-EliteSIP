@@ -117,21 +117,100 @@ public sealed class RtpSessionTests
         Assert.Equal(before.Timestamp, after.Timestamp);
     }
 
+    /// <summary>
+    /// Согласованный SDES поднимает защищённый поток, а не открытый.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// До W11 на этом месте стояла обратная проверка: поток с согласованным SRTP
+    /// обязан был не подниматься вовсе, потому что шифрования ещё не было, а
+    /// отправить открытый RTP там, где договорились о защите, — это downgrade,
+    /// который без снятия трафика не заметен. Теперь шифрование есть, и
+    /// проверяется то же самое с другой стороны: по проводу идёт не тот RTP,
+    /// который отправляли, а на приёме он снова становится собой.
+    /// </remarks>
     [Fact]
-    public void Согласованный_SDES_не_поднимается_молча_открытым_потоком()
+    public void Согласованный_SDES_поднимает_защищённый_поток()
     {
-        // Шифрование потока переносится на этапе W11. Пока его нет, поток с
-        // согласованным SRTP обязан не подниматься вовсе: отправить открытый
-        // RTP там, где договорились о защите, — это downgrade, который без
-        // снятия трафика не заметен.
-        using RtpPortReservation reservation = RtpPortReservation.Reserve();
-        reservation.Activate();
+        using RtpPortReservation sender = RtpPortReservation.Reserve();
+        using RtpPortReservation receiver = RtpPortReservation.Reserve();
+        sender.Activate();
+        receiver.Activate();
 
-        RtpSessionConfiguration secured = new(
-            Security: MediaSecurity.Sdes(SrtpMasterKey.Random(), SrtpMasterKey.Random()));
+        SrtpMasterKey ours = SrtpMasterKey.Random();
+        SrtpMasterKey theirs = SrtpMasterKey.Random();
 
-        Assert.Throws<NotSupportedException>(
-            () => new RtpSession(secured, reservation.RtpPort, "127.0.0.1", 40106));
+        // Ключи у направлений перекрёстные: наш исходящий — их входящий.
+        RtpSessionConfiguration talkingSide = new(Security: MediaSecurity.Sdes(ours, theirs));
+        RtpSessionConfiguration listeningSide = new(Security: MediaSecurity.Sdes(theirs, ours));
+
+        using ManualResetEventSlim arrived = new();
+        RtpPacket? received = null;
+
+        using RtpSession listening = new(listeningSide, receiver.RtpPort, "127.0.0.1", sender.RtpPort);
+        listening.OnReceivedPacket = packet =>
+        {
+            received = packet;
+            arrived.Set();
+        };
+        listening.Start();
+
+        using RtpSession talking = new(talkingSide, sender.RtpPort, "127.0.0.1", receiver.RtpPort);
+        talking.Start();
+
+        Assert.True(talking.IsSecured);
+
+        byte[] tone = new byte[160];
+        Array.Fill(tone, (byte)0x2A);
+        talking.Send(tone);
+
+        Assert.True(arrived.Wait(TimeSpan.FromSeconds(2)), "защищённый пакет не доехал по петле");
+
+        RtpPacket packet = Assert.IsType<RtpPacket>(received);
+        Assert.Equal(tone, packet.Payload.ToArray());
+        Assert.Equal(talking.SynchronizationSource, packet.Ssrc);
+    }
+
+    /// <summary>
+    /// Чужой ключ на входящем направлении не даёт ни звука, ни разбора.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Проверка сквозная нарочно: отдельно контекст уже проверен, а здесь важно,
+    /// что отказ подлинности гасится в цикле приёма и не роняет разговор — на
+    /// открытый порт прилетает что угодно, и рвать звонок из-за этого нельзя.
+    /// </remarks>
+    [Fact]
+    public void Пакет_с_чужим_ключом_до_тракта_не_доходит()
+    {
+        using RtpPortReservation sender = RtpPortReservation.Reserve();
+        using RtpPortReservation receiver = RtpPortReservation.Reserve();
+        sender.Activate();
+        receiver.Activate();
+
+        SrtpMasterKey ours = SrtpMasterKey.Random();
+        SrtpMasterKey stranger = SrtpMasterKey.Random();
+
+        using ManualResetEventSlim arrived = new();
+
+        using RtpSession listening = new(
+            new RtpSessionConfiguration(Security: MediaSecurity.Sdes(SrtpMasterKey.Random(), stranger)),
+            receiver.RtpPort,
+            "127.0.0.1",
+            sender.RtpPort);
+        listening.OnReceivedPacket = _ => arrived.Set();
+        listening.Start();
+
+        using RtpSession talking = new(
+            new RtpSessionConfiguration(Security: MediaSecurity.Sdes(ours, SrtpMasterKey.Random())),
+            sender.RtpPort,
+            "127.0.0.1",
+            receiver.RtpPort);
+        talking.Start();
+
+        talking.Send(new byte[160]);
+
+        Assert.False(arrived.Wait(TimeSpan.FromMilliseconds(400)), "пакет с чужим ключом дошёл до тракта");
     }
 
     [Fact]
