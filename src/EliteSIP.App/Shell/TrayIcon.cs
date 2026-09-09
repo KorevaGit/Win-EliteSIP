@@ -48,6 +48,17 @@ public sealed class TrayIcon : IDisposable
     /// <summary>Сообщение о щелчке по значку. Своё, из области WM_APP.</summary>
     private const int CallbackMessage = 0x0400 + 1;
 
+    /// <summary>
+    /// «Панель задач создана заново» — сообщение проводника всем окнам верхнего
+    /// уровня.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Номер у него не постоянный: его выдаёт система по имени, одинаково всем
+    /// процессам. Поэтому и <see cref="RegisterWindowMessage"/>, а не константа.
+    /// </remarks>
+    private static readonly int TaskbarCreated = RegisterWindowMessage("TaskbarCreated");
+
     private const int WM_LBUTTONUP = 0x0202;
     private const int WM_RBUTTONUP = 0x0205;
 
@@ -74,16 +85,10 @@ public sealed class TrayIcon : IDisposable
 
         _window.AddHook(OnMessage);
 
-        var data = Data();
-        data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
-        data.uCallbackMessage = CallbackMessage;
-        data.hIcon = CurrentIcon();
-        data.szTip = StatusTitle;
-
         // Ответ системы проверяется, и это не педантизм: если значок не встал,
         // прятать за него панель нельзя — приложение окажется запущенным,
         // невидимым и без выхода. Тогда крестик панели снова означает выход.
-        IsAdded = Shell_NotifyIcon(NIM_ADD, ref data);
+        IsAdded = Place();
 
         _model.PropertyChanged += (_, change) =>
         {
@@ -143,6 +148,20 @@ public sealed class TrayIcon : IDisposable
 
     private nint OnMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
     {
+        // Проводник перезапустился — значка больше нет ни у кого, и поставить
+        // его заново обязан каждый, кто его ставил.
+        //
+        // Перезапускается проводник не только от своего падения: его
+        // перезапускает часть обновлений Windows и всякий, кто «завершил задачу»
+        // в диспетчере. Не переставивший значок остаётся работать без единого
+        // видимого окна — панель спрятана как раз за ним, — и выйти из него
+        // можно только диспетчером задач.
+        if (message == TaskbarCreated)
+        {
+            _ = Place();
+            return 0;
+        }
+
         if (message != CallbackMessage)
         {
             return 0;
@@ -442,6 +461,24 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
+    /// <summary>Ставит значок в область уведомлений. Годится и на повтор.</summary>
+    ///
+    /// <remarks>
+    /// Одним методом на первую установку и на возврат после перезапуска
+    /// проводника: две копии этих полей разошлись бы на первой же правке, и
+    /// вернувшийся значок оказался бы без подписи или без обработчика щелчка.
+    /// </remarks>
+    private bool Place()
+    {
+        var data = Data();
+        data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+        data.uCallbackMessage = CallbackMessage;
+        data.hIcon = CurrentIcon();
+        data.szTip = StatusTitle;
+
+        return Shell_NotifyIcon(NIM_ADD, ref data);
+    }
+
     private NotifyIconData Data() => new()
     {
         cbSize = Marshal.SizeOf<NotifyIconData>(),
@@ -498,6 +535,9 @@ public sealed class TrayIcon : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool DestroyIcon(nint icon);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int RegisterWindowMessage(string name);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(nint window);

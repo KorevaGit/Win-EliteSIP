@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using EliteSIP.App.Panel;
 using EliteSIP.App.Resources;
 using EliteSIP.App.Settings;
@@ -36,6 +37,8 @@ public partial class App : Application, IDisposable
     private IncomingCallPresenter? _incoming;
     private PanelLineHost? _panelLine;
     private UpdateService? _updates;
+    private SingleInstance? _instance;
+    private NetworkWatch? _networkWatch;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -46,6 +49,38 @@ public partial class App : Application, IDisposable
         // Оператор в этот момент видит, что телефон пропал, и звонить в
         // поддержку ему не с чего — поэтому падение обязано оставлять след.
         DispatcherUnhandledException += (_, failure) => Record(failure.Exception);
+
+        // Падение фоновой работы — тоже падение, и до сих пор оно не оставляло
+        // ни строки. Работ вида `_ = ЧтоТоAsync()` в приложении с десяток —
+        // линия панели, отзыв, обновления, — и молча умершая линия выглядит не
+        // ошибкой, а тем, что предустановки «почему-то перестали приезжать».
+        AppDomain.CurrentDomain.UnhandledException += (_, failure) =>
+        {
+            if (failure.ExceptionObject is Exception error)
+            {
+                Record(error);
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, failure) =>
+        {
+            Record(failure.Exception);
+
+            // Иначе исключение доедет до финализатора и уронит процесс целиком:
+            // софтфон не должен закрываться из-за того, что не ответил канал.
+            failure.SetObserved();
+        };
+
+        // Вторая копия только будит первую и выходит: две копии пишут один файл
+        // настроек и теряют правки администратора молча.
+        _instance = SingleInstance.Claim();
+        if (_instance is null)
+        {
+            Shutdown();
+            return;
+        }
+
+        _instance.Watch(() => Dispatcher.Invoke(ShowPanel));
 
         // Порядок важен: настройки читаются до языка, язык — до палитры, палитра
         // — до первого окна. Иначе панель успевает нарисоваться английской и
@@ -213,6 +248,23 @@ public partial class App : Application, IDisposable
                 _updates?.Offer();
             }
         };
+
+        // Выключение Windows и выход из системы: снять регистрацию, пока нас
+        // ещё не убили. Без этого сервер две минуты раздаёт вызовы на
+        // выключенную машину.
+        SessionEnding += (_, _) => LeaveTheAir(TimeSpan.FromSeconds(2));
+
+        // Пробуждение и смена сети — то, чего у настольного телефона не бывает,
+        // а у ноутбука бывает дважды в день.
+        //
+        // После сна сокет мёртв, а в `Contact` стоит вчерашний адрес; после
+        // переезда с одной сети в другую открытый на шлюзе порт выдан адресу,
+        // которого у нас больше нет. И то и другое лечится одним и тем же —
+        // поднять связь заново, а стук переиграть.
+        _networkWatch = new NetworkWatch(
+            () => Dispatcher.BeginInvoke(() => Reconnect("сеть сменилась")),
+            () => Dispatcher.BeginInvoke(() => Reconnect("машина проснулась")),
+            Log);
 
         // Регистрация поднимается сама при запуске — как в оригинале
         // (автоподключение). Ждать нажатия оператора нельзя: софтфон, который
@@ -463,6 +515,72 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>Показывает панель или прячет её.</summary>
+    /// <summary>
+    /// Поднять связь заново после сна или переезда в другую сеть.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Молчащий софтфон и софтфон, который «сейчас переподключится», выглядят
+    /// одинаково, поэтому повод пишется в журнал: разбирающему потом важно
+    /// отличить переезд от отказа сервера.
+    ///
+    /// Сознательно ничего не делаем в разговоре: пересборка транспорта кладёт
+    /// трубку, а разговор по живому сокету переживает и смену адреса — RTP уже
+    /// идёт, и рвать его из-за события системы нельзя. Регистрация подтянется
+    /// после того, как трубку положат.
+    /// </remarks>
+    private void Reconnect(string reason)
+    {
+        if (_phone is null || _panel is null)
+        {
+            return;
+        }
+
+        if (_panel.IsInCall)
+        {
+            Log($"{reason}: связь поднимется после разговора");
+            return;
+        }
+
+        if (_panel.IsOfflineByChoice)
+        {
+            // «Не беспокоить» — это выбор человека, и событие системы его не
+            // отменяет.
+            return;
+        }
+
+        Log($"{reason}: поднимаем регистрацию заново");
+        _ = _phone.ConnectAsync();
+    }
+
+    /// <summary>Показать панель и поднять её наверх.</summary>
+    ///
+    /// <remarks>
+    /// Зовётся, когда по ярлыку щёлкнули второй раз: человек хотел открыть
+    /// софтфон, и открыть ему надо именно панель, а не ещё одну копию
+    /// приложения. Свёрнутое окно при этом разворачивается — иначе «открылось»
+    /// означало бы мигание кнопки в панели задач.
+    /// </remarks>
+    private void ShowPanel()
+    {
+        if (_panelWindow is null)
+        {
+            return;
+        }
+
+        if (!_panelWindow.IsVisible)
+        {
+            _panelWindow.Show();
+        }
+
+        if (_panelWindow.WindowState is WindowState.Minimized)
+        {
+            _panelWindow.WindowState = WindowState.Normal;
+        }
+
+        _panelWindow.Activate();
+    }
+
     private void TogglePanel()
     {
         if (_panelWindow is null)
@@ -513,24 +631,12 @@ public partial class App : Application, IDisposable
     /// </summary>
     ///
     /// <remarks>
-    /// Регистрация снимается до выхода, а не бросается: сервер иначе полчаса
-    /// думает, что рабочее место на связи, и раздаёт ему вызовы, которые никто не
-    /// снимет. Ждать снятие вечно тоже нельзя — установщик уже запущен, поэтому
-    /// у ожидания есть предел.
+    /// Тем же выходом, что и по кнопке: снятие регистрации, предел ожидания и
+    /// закрытие — всё это одинаково нужно и уходящему на обед, и уходящему под
+    /// установщик. Своя копия этих трёх шагов разошлась бы с общей на первой же
+    /// правке — а разница здесь означает регистрацию, оставленную на сервере.
     /// </remarks>
-    private void PrepareForUpdateRestart()
-    {
-        try
-        {
-            _phone?.DisconnectAsync().Wait(TimeSpan.FromSeconds(3));
-        }
-        catch (AggregateException error)
-        {
-            Record(error);
-        }
-
-        Quit();
-    }
+    private void PrepareForUpdateRestart() => Quit();
 
     /// <summary>
     /// Полная чистка машины по подписанному отзыву.
@@ -590,12 +696,64 @@ public partial class App : Application, IDisposable
     /// <summary>Выход. Единственное место, откуда приложение завершают.</summary>
     private void Quit()
     {
+        LeaveTheAir(TimeSpan.FromSeconds(2));
+
         if (_panelWindow is not null)
         {
             _panelWindow.AllowsClosing = true;
         }
 
         Shutdown();
+    }
+
+    /// <summary>
+    /// Снять регистрацию перед уходом — и не ждать этого вечно.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <b>Зачем вообще ждать.</b> Брошенная регистрация живёт на сервере до
+    /// конца своего срока — по умолчанию две минуты. Всё это время Asterisk
+    /// считает рабочее место на связи и раздаёт ему вызовы, которые никто не
+    /// снимет: для конторы, где вызовы — это лиды, конец смены превращается в
+    /// две минуты потерянных звонков.
+    ///
+    /// <b>Почему нельзя просто <c>Wait()</c>.</b> Снятие регистрации
+    /// возвращается в поток интерфейса (<c>ConfigureAwait(true)</c>), а
+    /// <c>Wait()</c> этот самый поток и блокирует — получилось бы взаимное
+    /// ожидание, которое разрешается только по сроку. Поэтому очередь
+    /// диспетчера продолжает работать: <see cref="DispatcherFrame"/> крутится,
+    /// пока задача не кончится или не выйдет время.
+    ///
+    /// <b>Срок обязателен.</b> Сюда приходят с выключением Windows, где система
+    /// ждёт нас считанные секунды и убивает не дождавшись. Лучше уйти без
+    /// снятия, чем быть убитым посреди него.
+    /// </remarks>
+    private void LeaveTheAir(TimeSpan limit)
+    {
+        if (_phone is null)
+        {
+            return;
+        }
+
+        var leaving = _phone.DisconnectAsync();
+        if (leaving.IsCompleted)
+        {
+            return;
+        }
+
+        DispatcherFrame frame = new();
+
+        _ = leaving.ContinueWith(
+            _ => frame.Continue = false,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.FromCurrentSynchronizationContext());
+
+        DispatcherTimer deadline = new(limit, DispatcherPriority.Send, (_, _) => frame.Continue = false, Dispatcher);
+        deadline.Start();
+
+        Dispatcher.PushFrame(frame);
+        deadline.Stop();
     }
 
     /// <summary>Переносит клавиши из настроек в панель.</summary>
@@ -706,6 +864,12 @@ public partial class App : Application, IDisposable
     {
         _appearance?.Dispose();
         _appearance = null;
+
+        _networkWatch?.Dispose();
+        _networkWatch = null;
+
+        _instance?.Dispose();
+        _instance = null;
 
         // База закрывается явно: у хранилища свой поток, и незакрытое оно
         // держит файл после выхода — следующий запуск встречает занятый.
