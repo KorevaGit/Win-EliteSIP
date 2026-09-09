@@ -950,4 +950,36 @@
   <data name="AdminKnockDisabled" xml:space="preserve">
     <value>No steps — knocking is off.</value>
   </data>
+
+  <data name="UpdatesLineOff" xml:space="preserve">
+    <value>the update line is off</value>
+  </data>
+  <data name="UpdatesUpToDate" xml:space="preserve">
+    <value>the installed version is current</value>
+  </data>
+  <data name="UpdatesReady" xml:space="preserve">
+    <value>version {0} is downloaded and waiting</value>
+  </data>
+  <data name="UpdatesDownloadFailed" xml:space="preserve">
+    <value>the installer did not download</value>
+  </data>
+  <data name="UpdateOfferTitle" xml:space="preserve">
+    <value>Update to {0}?</value>
+  </data>
+  <data name="UpdateOfferBody" xml:space="preserve">
+    <value>The update is already downloaded and checked — installing takes a few seconds, and the app will start again on its own. Postponing is fine: the reminder comes back in half an hour.</value>
+  </data>
+  <data name="UpdateOfferInstall" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="AdminDiagnosticsCheckUpdates" xml:space="preserve">
+    <value>Check for updates now</value>
+  </data>
+  <data name="AdminDiagnosticsInstallUpdate" xml:space="preserve">
+    <value>Install the update</value>
+  </data>
+
+  <data name="UpdatesChecking" xml:space="preserve">
+    <value>Checking…</value>
+  </data>
 </root>

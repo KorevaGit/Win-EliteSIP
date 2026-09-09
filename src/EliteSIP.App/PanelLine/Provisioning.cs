@@ -88,6 +88,17 @@ internal static class Provisioning
         public Uri? PresetsUrl() => Address("presets/current.json");
 
         /// <summary>
+        /// Адрес манифеста выпуска.
+        ///
+        /// Тот же канал и та же пара, что у предустановок: второй секрет ничего
+        /// не добавил бы — оба всё равно видны через `strings`, а настоящую
+        /// защиту линии даёт подпись Ed25519.
+        ///
+        /// Среза здесь нет, в отличие от appcast оригинала: сборка одна.
+        /// </summary>
+        public Uri? ReleasesUrl() => Address("releases/current.json");
+
+        /// <summary>
         /// Адрес помашинного объекта: <c>access/&lt;id&gt;</c> или
         /// <c>revoked/&lt;id&gt;</c>.
         ///

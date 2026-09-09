@@ -928,4 +928,36 @@
   <data name="AdminKnockDisabled" xml:space="preserve">
     <value>Шагов нет — стук выключен.</value>
   </data>
+
+  <data name="UpdatesLineOff" xml:space="preserve">
+    <value>линия обновлений выключена</value>
+  </data>
+  <data name="UpdatesUpToDate" xml:space="preserve">
+    <value>установлена свежая версия</value>
+  </data>
+  <data name="UpdatesReady" xml:space="preserve">
+    <value>версия {0} скачана и ждёт</value>
+  </data>
+  <data name="UpdatesDownloadFailed" xml:space="preserve">
+    <value>установщик не скачался</value>
+  </data>
+  <data name="UpdateOfferTitle" xml:space="preserve">
+    <value>Обновить до {0}?</value>
+  </data>
+  <data name="UpdateOfferBody" xml:space="preserve">
+    <value>Обновление уже скачано и проверено — установка займёт несколько секунд, приложение запустится само. Отложить не страшно: напоминание вернётся через полчаса.</value>
+  </data>
+  <data name="UpdateOfferInstall" xml:space="preserve">
+    <value>Обновить</value>
+  </data>
+  <data name="AdminDiagnosticsCheckUpdates" xml:space="preserve">
+    <value>Проверить обновления сейчас</value>
+  </data>
+  <data name="AdminDiagnosticsInstallUpdate" xml:space="preserve">
+    <value>Установить обновление</value>
+  </data>
+
+  <data name="UpdatesChecking" xml:space="preserve">
+    <value>Проверяем…</value>
+  </data>
 </root>

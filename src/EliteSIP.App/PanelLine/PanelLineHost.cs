@@ -7,7 +7,7 @@ using EliteSIP.PanelLink;
 namespace EliteSIP.App.PanelLine;
 
 /// <summary>
-/// Линия панели целиком: два будильника, применение приехавшего и сброс по
+/// Линия панели целиком: опрос канала, применение приехавшего и сброс по
 /// отзыву.
 /// </summary>
 ///
@@ -29,7 +29,6 @@ internal sealed class PanelLineHost : IDisposable
     private readonly PresetService _presets;
     private readonly MachineService _machine;
 
-    private readonly DispatcherTimer _presetTimer;
     private readonly DispatcherTimer _revocationTimer;
 
     /// <param name="isBlocked">
@@ -61,13 +60,13 @@ internal sealed class PanelLineHost : IDisposable
             revocation => ResetByRevocation(revocation, reset),
             log);
 
-        // Такт предустановок — два часа, отзыва — пятнадцать минут. Разные
-        // сроки, потому что отзыв срабатывает ровно с задержкой опроса: на
-        // двухчасовом такте уволенный работал бы ещё два часа после нажатия
-        // «отозвать».
-        _presetTimer = new DispatcherTimer { Interval = PresetService.Interval };
-        _presetTimer.Tick += async (_, _) => await CheckAsync().ConfigureAwait(true);
-
+        // Свой будильник здесь один — отзыв, каждые пятнадцать минут. Такт
+        // предустановок общий с обновлениями и живёт в `UpdateService`: канал
+        // один, и два независимых срока на нём разошлись бы через полгода.
+        //
+        // Отзыв отдельно и вчетверо чаще, потому что срабатывает ровно с
+        // задержкой опроса: на двухчасовом такте уволенный работал бы ещё два
+        // часа после нажатия «отозвать».
         _revocationTimer = new DispatcherTimer { Interval = MachineService.RevocationInterval };
         _revocationTimer.Tick += async (_, _) => await _machine.CheckRevocationAsync().ConfigureAwait(true);
     }
@@ -79,7 +78,7 @@ internal sealed class PanelLineHost : IDisposable
         set => _presets.Report = value;
     }
 
-    /// <summary>Заводит оба будильника и спрашивает канал сразу.</summary>
+    /// <summary>Заводит будильник отзыва и спрашивает канал сразу.</summary>
     ///
     /// <remarks>
     /// Сразу — потому что машина могла простоять выключенной неделю: ждать двух
@@ -88,7 +87,6 @@ internal sealed class PanelLineHost : IDisposable
     /// </remarks>
     internal void Start()
     {
-        _presetTimer.Start();
         _revocationTimer.Start();
 
         _ = CheckAsync();
@@ -107,7 +105,6 @@ internal sealed class PanelLineHost : IDisposable
 
     public void Dispose()
     {
-        _presetTimer.Stop();
         _revocationTimer.Stop();
     }
 

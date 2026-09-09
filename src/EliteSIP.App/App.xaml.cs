@@ -35,6 +35,7 @@ public partial class App : Application, IDisposable
     private PhoneService? _phone;
     private IncomingCallPresenter? _incoming;
     private PanelLineHost? _panelLine;
+    private UpdateService? _updates;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -186,6 +187,22 @@ public partial class App : Application, IDisposable
 
         _panelLine.Start();
 
+        // Линия обновлений (W12). Будильник у неё общий с предустановками: канал
+        // один, и два независимых срока на нём разошлись бы через полгода.
+        _updates = new UpdateService(
+            isBusy: () => model.IsInCall,
+            announce: version => Log(version is null
+                ? "обновление больше не ждёт"
+                : $"обновление {version} ждёт решения оператора"),
+            alsoCheckPresets: () => _ = _panelLine?.CheckAsync(),
+            log: Log)
+        {
+            AskToInstall = AskToInstallUpdate,
+            PrepareForRestart = PrepareForUpdateRestart,
+        };
+
+        _updates.Start();
+
         // Помеха ушла — доложить отложенное. Разговор кончился виден по той же
         // отметке, по которой линия его и ждала.
         model.PropertyChanged += (_, change) =>
@@ -193,6 +210,7 @@ public partial class App : Application, IDisposable
             if (change.PropertyName is nameof(PanelViewModel.IsInCall) && !model.IsInCall)
             {
                 _panelLine?.HostBecameIdle();
+                _updates?.Offer();
             }
         };
 
@@ -325,6 +343,7 @@ public partial class App : Application, IDisposable
         var administration = new AdministrationViewModel(_settings!, _access, PreviewIncomingCall)
         {
             Support = support,
+            Updates = _updates is null ? null : new UpdatesViewModel(_updates),
             // Отчёт последнего вызова — то немногое в «Управлении», что не
             // настройка, а факт: по нему видно, сработала ли защита на живом
             // звонке, не открывая журнал.
@@ -466,6 +485,54 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>
+    /// Предложение обновиться: две кнопки и ничего больше.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Кнопки «Пропустить эту версию» здесь нет и не будет — это решение
+    /// оригинала, перенесённое как есть. Отложить можно сколько угодно раз, а
+    /// пропустить версию нельзя вовсе: рабочее место, оставшееся на старой
+    /// сборке навсегда, — это то, ради чего линия обновлений и заведена.
+    ///
+    /// Файл к этому моменту уже скачан и проверен, поэтому «Обновить» выглядит
+    /// мгновенным: оно ничего не начинает, а завершает.
+    /// </remarks>
+    private bool AskToInstallUpdate(Version version)
+    {
+        var answer = Theme.Dialog.Ask(
+            _panelWindow,
+            Strings.Format("UpdateOfferTitle", version.ToString(3)),
+            Strings.Get("UpdateOfferBody"),
+            confirmTitle: Strings.Get("UpdateOfferInstall"));
+
+        return answer is DialogAnswer.Confirm;
+    }
+
+    /// <summary>
+    /// Уйти с дороги установщика.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Регистрация снимается до выхода, а не бросается: сервер иначе полчаса
+    /// думает, что рабочее место на связи, и раздаёт ему вызовы, которые никто не
+    /// снимет. Ждать снятие вечно тоже нельзя — установщик уже запущен, поэтому
+    /// у ожидания есть предел.
+    /// </remarks>
+    private void PrepareForUpdateRestart()
+    {
+        try
+        {
+            _phone?.DisconnectAsync().Wait(TimeSpan.FromSeconds(3));
+        }
+        catch (AggregateException error)
+        {
+            Record(error);
+        }
+
+        Quit();
+    }
+
+    /// <summary>
     /// Полная чистка машины по подписанному отзыву.
     /// </summary>
     ///
@@ -490,6 +557,9 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private void ResetMachine()
     {
+        _updates?.Dispose();
+        _updates = null;
+
         _panelLine?.Dispose();
         _panelLine = null;
 

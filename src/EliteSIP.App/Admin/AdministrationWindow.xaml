@@ -926,6 +926,32 @@
               </theme:SettingsIndented>
 
               <theme:SettingsNote Text="{res:Loc AdminDiagnosticsNote}" />
+
+              <!--
+                  Обновления: такт двухчасовой, а разбирают неисправность здесь
+                  и сейчас. Кнопка есть ровно поэтому.
+              -->
+              <StackPanel DataContext="{Binding Updates}"
+                          Visibility="{Binding Converter={StaticResource PresenceToVisibility}}">
+                <theme:SettingsDivider />
+
+                <theme:SettingsIndented>
+                  <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource SettingsButtonStyle}"
+                            Content="{res:Loc AdminDiagnosticsCheckUpdates}"
+                            Command="{Binding CheckNow}" />
+
+                    <Button Style="{StaticResource SettingsButtonStyle}"
+                            Margin="6,0,0,0"
+                            Content="{res:Loc AdminDiagnosticsInstallUpdate}"
+                            Command="{Binding Install}"
+                            Visibility="{Binding IsReady, Converter={StaticResource BoolToVisibility}}" />
+                  </StackPanel>
+                </theme:SettingsIndented>
+
+                <theme:SettingsNote Text="{Binding Status}"
+                                    Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibility}}" />
+              </StackPanel>
             </theme:SettingsSection>
           </StackPanel>
         </Grid>

@@ -144,6 +144,15 @@ public sealed class AdministrationViewModel : Observable
     /// </remarks>
     public SupportViewModel? Support { get; init; }
 
+    /// <summary>Обновления в «Диагностике». <c>null</c> — линия не заведена.</summary>
+    ///
+    /// <remarks>
+    /// Внутренний тип у открытого класса: линия обновлений — дело приложения, а
+    /// не чужого кода, и открывать её наружу незачем. Разметка это не смущает —
+    /// привязки идут по имени.
+    /// </remarks>
+    internal UpdatesViewModel? Updates { get; init; }
+
     /// <summary>Показать окно входящего для проверки: раздача.</summary>
     public RelayCommand PreviewDistribution { get; }
 
