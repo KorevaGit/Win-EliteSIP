@@ -303,8 +303,28 @@ public partial class App : Application, IDisposable
             }
         }
 
+        // Раздел «Поддержка» заводится только вместе с линией: без неё показывать
+        // в нём нечего, а кнопки обещали бы связь, которой нет.
+        var support = _panelLine is null
+            ? null
+            : new SupportViewModel(
+                _settings!,
+                _access,
+                checkNow: () => _panelLine.CheckAsync(),
+                isInCall: () => _panel?.IsInCall is true);
+
+        if (support is not null)
+        {
+            // Ответ линии кнопке «Проверить настройки сейчас» ходит через окно, а
+            // не через настройки: «канал ответил 404» — это не состояние машины,
+            // а ответ на нажатие, и жить он должен ровно столько, сколько открыто
+            // окно.
+            _panelLine!.Report = support.ReportFromLine;
+        }
+
         var administration = new AdministrationViewModel(_settings!, _access, PreviewIncomingCall)
         {
+            Support = support,
             // Отчёт последнего вызова — то немногое в «Управлении», что не
             // настройка, а факт: по нему видно, сработала ли защита на живом
             // звонке, не открывая журнал.
@@ -316,6 +336,17 @@ public partial class App : Application, IDisposable
         _administrationWindow.Closed += (_, _) =>
         {
             _administrationWindow = null;
+
+            // Ответ линии больше некому показывать; заодно снимается ссылка на
+            // закрытое окно.
+            if (_panelLine is not null)
+            {
+                _panelLine.Report = null;
+            }
+
+            // «Управление» закрылось — помеха ушла, и отложенная предустановка
+            // может лечь. Ждала она именно этого.
+            _panelLine?.HostBecameIdle();
 
             // Замок защёлкивается здесь, а не при выходе из приложения.
             //

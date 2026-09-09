@@ -26,6 +26,15 @@ public enum AdminSectionKind
 
     /// <summary>Защита приёма вызова: девятый раздел, приехал с W9.</summary>
     Incoming,
+
+    /// <summary>
+    /// Связь с панелью: десятый раздел, приехал с W10.
+    ///
+    /// Единственный, где кнопки действуют сразу, а не по «Сохранить». Так и
+    /// должно быть: «Проверить настройки сейчас» и перепрошивка — это не правки
+    /// машины, а обращения к каналу, и придерживать их черновиком не за чем.
+    /// </summary>
+    Support,
 }
 
 /// <summary>Пункт бокового списка. <paramref name="Group"/> — заголовок над ним.</summary>
@@ -106,6 +115,7 @@ public sealed class AdministrationViewModel : Observable
             new(AdminSectionKind.Access, Strings.Get("AdminSectionAccess"), "lock.shield.fill", null),
             new(AdminSectionKind.Diagnostics, Strings.Get("AdminSectionDiagnostics"), "stethoscope", null),
             new(AdminSectionKind.Maintenance, Strings.Get("AdminSectionMaintenance"), "hammer.fill", null),
+            new(AdminSectionKind.Support, Strings.Get("AdminSectionSupport"), "crown.fill", null),
         ];
 
         Revert();
@@ -123,6 +133,14 @@ public sealed class AdministrationViewModel : Observable
     public IncomingCallSettings Guard { get; } = new();
 
     /// <summary>Показать окно входящего для проверки: раздача.</summary>
+    /// <summary>Раздел «Поддержка». `null` — приложение его не завело.</summary>
+    ///
+    /// <remarks>
+    /// Приходит снаружи, потому что линией панели владеет приложение, а не
+    /// «Управление»: здесь только показ того, что она знает, и три кнопки к ней.
+    /// </remarks>
+    public SupportViewModel? Support { get; init; }
+
     public RelayCommand PreviewDistribution { get; }
 
     /// <summary>То же для вызова по сделке. Отдельной кнопкой, а не переключателем.</summary>
@@ -151,7 +169,7 @@ public sealed class AdministrationViewModel : Observable
             {
                 nameof(ShowsAccount), nameof(ShowsPbx), nameof(ShowsMacros), nameof(ShowsQueues),
                 nameof(ShowsHistory), nameof(ShowsAccess), nameof(ShowsDiagnostics), nameof(ShowsMaintenance),
-                nameof(ShowsIncoming),
+                nameof(ShowsIncoming), nameof(ShowsSupport),
             })
             {
                 NotifyChanged(name);
@@ -176,6 +194,8 @@ public sealed class AdministrationViewModel : Observable
     public bool ShowsMaintenance => _section is AdminSectionKind.Maintenance;
 
     public bool ShowsIncoming => _section is AdminSectionKind.Incoming;
+
+    public bool ShowsSupport => _section is AdminSectionKind.Support;
 
     // --- Аккаунт ---------------------------------------------------------
 

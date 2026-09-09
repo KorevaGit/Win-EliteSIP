@@ -835,4 +835,50 @@
   <data name="FirstRunKeyManual" xml:space="preserve">
     <value>Настроить вручную</value>
   </data>
+
+  <data name="AdminSectionSupport" xml:space="preserve">
+    <value>Поддержка</value>
+  </data>
+  <data name="AdminSupportTitle" xml:space="preserve">
+    <value>Связь с панелью</value>
+  </data>
+  <data name="AdminSupportMachine" xml:space="preserve">
+    <value>Машина</value>
+  </data>
+  <data name="AdminSupportPreset" xml:space="preserve">
+    <value>Предустановка</value>
+  </data>
+  <data name="AdminSupportRevision" xml:space="preserve">
+    <value>ревизия</value>
+  </data>
+  <data name="AdminSupportLastContact" xml:space="preserve">
+    <value>Канал отвечал</value>
+  </data>
+  <data name="AdminSupportManaged" xml:space="preserve">
+    <value>Слушать панель</value>
+  </data>
+  <data name="AdminSupportManagedNote" xml:space="preserve">
+    <value>Выключено — машина живёт тем, что применила, и новых ревизий не берёт. Включено обратно — просит свою предустановку заново и заменяет местные правки серверными.</value>
+  </data>
+  <data name="AdminSupportCheckNow" xml:space="preserve">
+    <value>Проверить настройки сейчас</value>
+  </data>
+  <data name="AdminSupportReflashTitle" xml:space="preserve">
+    <value>Перепрошивка</value>
+  </data>
+  <data name="AdminSupportReflashKey" xml:space="preserve">
+    <value>Ключ</value>
+  </data>
+  <data name="AdminSupportReflashApply" xml:space="preserve">
+    <value>Применить ключ</value>
+  </data>
+  <data name="AdminSupportReflashNote" xml:space="preserve">
+    <value>Ключ, выписанный на эту машину: он заменяет номер, пароль и предустановку. Ключ сгорает в момент проверки, поэтому в разговоре применить его нельзя.</value>
+  </data>
+  <data name="SupportNeverContacted" xml:space="preserve">
+    <value>ни разу</value>
+  </data>
+  <data name="SupportReflashed" xml:space="preserve">
+    <value>Перепрошито: номер {0}, предустановка «{1}»</value>
+  </data>
 </root>

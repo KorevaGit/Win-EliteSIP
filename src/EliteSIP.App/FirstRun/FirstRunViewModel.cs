@@ -476,56 +476,19 @@ public sealed class FirstRunViewModel : Observable
     /// </summary>
     ///
     /// <remarks>
-    /// Порядок тот же, что у ручного пути, и по той же причине: сперва учётка,
-    /// потом настройки конторы, пароли последними. Между ними одно добавление —
-    /// память о панели: без неё машина позвонит, но следующей ревизии не
-    /// получит, потому что искать себя в файле ей будет нечем.
-    ///
-    /// Адрес АТС берётся из управляемых полей — их накладывает та же дорога, что
-    /// и файл предустановок, — а домен учётки подтягивается к офисному адресу:
-    /// пара адресов это настройка машины, а регистрируется учётка по своему
-    /// домену, и одно из другого само не следует. На свежей машине без этой
-    /// строки номер есть, пароль есть, а регистрироваться некуда.
-    ///
-    /// Черновик стирается в самом конце — тогда, когда терять уже нечего.
+    /// Само наложение живёт в `ActivationApply`: пакет приезжает дважды за жизнь
+    /// машины — здесь и при перепрошивке, — и дорога у них обязана быть одна.
+    /// Мастеру остаются две вещи, которых у перепрошивки нет: площадка (машину
+    /// заводят там, где она стоит) и пометка «настроено».
     /// </remarks>
     private void CompleteByActivation(ActivationPackage package)
     {
-        _settings.Account.Username = package.Number;
-        _settings.Account.DisplayName = package.Employee;
         _settings.Account.Site = WorkplaceSite.Office;
-        _settings.Credentials.SetPassword(package.SipPassword);
-
-        _settings.Panel.InstallationID = package.InstallationID;
-        _settings.Panel.SetChannelKey(package.ChannelKey);
-        _settings.Panel.PresetID = package.Preset.ID;
-        _settings.Panel.PresetName = package.Preset.Name;
-        _settings.Panel.Mode = PanelMode.Managed;
-
-        _settings.Apply(ManagedFields.Parse(package.Preset.Settings));
-
-        // Ревизия ставится после наложения: до него она означала бы «применено»
-        // там, где ещё ничего не применялось.
-        _settings.Panel.AppliedRevision = package.Preset.Revision;
-        _settings.Panel.AppliedAt = DateTimeOffset.UtcNow;
-
-        if (_settings.Pbx.OfficeAddress.Length > 0)
-        {
-            _settings.Account.Domain = _settings.Pbx.OfficeAddress;
-        }
-
-        // Административный пароль — из помашинного объекта, а не из пакета: в
-        // пакете его нет вовсе. Не приехал — машина останется с прежним, и
-        // пароль догонит её первым же тактом линии.
-        if (_machineAccess is { AdminPassword.Length: > 0 } access)
-        {
-            var credential = AdminCredential.Create(access.AdminPassword);
-            _settings.Admin.From(credential);
-            _access.Restore(credential);
-        }
+        _settings.Apply(package, _machineAccess, _access);
 
         _settings.Setup.IsCompleted = true;
 
+        // Черновик стирается в самом конце — тогда, когда терять уже нечего.
         ActivationDraftStore.Clear();
     }
 

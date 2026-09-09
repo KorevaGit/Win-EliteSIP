@@ -857,4 +857,50 @@
   <data name="FirstRunKeyManual" xml:space="preserve">
     <value>Set up by hand</value>
   </data>
+
+  <data name="AdminSectionSupport" xml:space="preserve">
+    <value>Support</value>
+  </data>
+  <data name="AdminSupportTitle" xml:space="preserve">
+    <value>Link with the panel</value>
+  </data>
+  <data name="AdminSupportMachine" xml:space="preserve">
+    <value>Machine</value>
+  </data>
+  <data name="AdminSupportPreset" xml:space="preserve">
+    <value>Preset</value>
+  </data>
+  <data name="AdminSupportRevision" xml:space="preserve">
+    <value>revision</value>
+  </data>
+  <data name="AdminSupportLastContact" xml:space="preserve">
+    <value>Channel answered</value>
+  </data>
+  <data name="AdminSupportManaged" xml:space="preserve">
+    <value>Follow the panel</value>
+  </data>
+  <data name="AdminSupportManagedNote" xml:space="preserve">
+    <value>Turned off, the machine keeps what it has and stops taking new revisions. Turned back on, it asks for its preset again and replaces local edits with the server ones.</value>
+  </data>
+  <data name="AdminSupportCheckNow" xml:space="preserve">
+    <value>Check settings now</value>
+  </data>
+  <data name="AdminSupportReflashTitle" xml:space="preserve">
+    <value>Re-flash</value>
+  </data>
+  <data name="AdminSupportReflashKey" xml:space="preserve">
+    <value>Key</value>
+  </data>
+  <data name="AdminSupportReflashApply" xml:space="preserve">
+    <value>Apply the key</value>
+  </data>
+  <data name="AdminSupportReflashNote" xml:space="preserve">
+    <value>A key issued for this machine: it replaces the number, the password and the preset. The key burns the moment it is checked, so it cannot be applied during a call.</value>
+  </data>
+  <data name="SupportNeverContacted" xml:space="preserve">
+    <value>never</value>
+  </data>
+  <data name="SupportReflashed" xml:space="preserve">
+    <value>Re-flashed: number {0}, preset “{1}”</value>
+  </data>
 </root>

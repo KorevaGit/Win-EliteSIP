@@ -497,6 +497,82 @@
             </theme:SettingsSection>
           </StackPanel>
 
+          <!--
+              Раздел «Поддержка»: связь с панелью.
+
+              Единственный раздел, где кнопки действуют сразу, — см.
+              `SupportViewModel`. Поэтому у него и своя модель: «Сохранить» и
+              «Отменить» внизу окна к нему не относятся.
+          -->
+          <StackPanel DataContext="{Binding Support}"
+                      Visibility="{Binding DataContext.ShowsSupport,
+                                           RelativeSource={RelativeSource AncestorType=Window},
+                                           Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminSupportTitle}">
+
+              <theme:SettingsRow Header="{res:Loc AdminSupportMachine}">
+                <TextBlock Text="{Binding InstallationID}"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminSupportPreset}">
+                <TextBlock VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}">
+                  <Run Text="{Binding PresetName, Mode=OneWay}" />
+                  <Run Text=" · " />
+                  <Run Text="{res:Loc AdminSupportRevision}" />
+                  <Run Text=" " />
+                  <Run Text="{Binding AppliedRevision, Mode=OneWay}" />
+                </TextBlock>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminSupportLastContact}">
+                <TextBlock Text="{Binding LastContact}"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsDivider />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminSupportManaged}"
+                        IsEnabled="{Binding CanBeManaged}"
+                        IsChecked="{Binding IsManaged}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminSupportManagedNote}" />
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AdminSupportCheckNow}"
+                        Command="{Binding CheckNow}" />
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{Binding Report}"
+                                  Visibility="{Binding HasReport, Converter={StaticResource BoolToVisibility}}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc AdminSupportReflashTitle}">
+              <theme:SettingsRow Header="{res:Loc AdminSupportReflashKey}">
+                <Border Height="26" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlBackgroundBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AdminSupportReflashApply}"
+                        Command="{Binding Reflash}" />
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc AdminSupportReflashNote}" />
+            </theme:SettingsSection>
+          </StackPanel>
+
           <!-- Раздел «Клавиши». -->
           <StackPanel Visibility="{Binding ShowsMacros, Converter={StaticResource BoolToVisibility}}">
             <theme:SettingsSection Header="{res:Loc AdminMacrosTitle}">
