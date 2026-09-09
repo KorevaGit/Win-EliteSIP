@@ -1,11 +1,14 @@
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
 
 namespace EliteSIP.SipCore.Udp;
 
 /// <summary>
-/// Транспорт SIP на <c>System.Net.Sockets</c>: UDP или TCP.
+/// Транспорт SIP на <c>System.Net.Sockets</c>: UDP, TCP или TLS.
 ///
 /// Интерфейс тот же, что у стенда из тестов, — <see cref="ISipTransportChannel"/>.
 /// Ни слой транзакций, ни агент про сокеты не знают: в оригинале ту же границу
@@ -26,9 +29,11 @@ namespace EliteSIP.SipCore.Udp;
 /// транспорта, и решает это тот, кто его создавал.</item>
 /// </list>
 ///
-/// TLS здесь не поддержан намеренно: он приезжает на этапе W11 вместе со
-/// <c>SslStream</c>, пиннингом сертификата и своей диагностикой. Попытка создать
-/// TLS-канал отказывает сразу и вслух, а не притворяется работающей.
+/// <b>TLS — это тот же TCP плюс <c>SslStream</c> поверх сокета.</b> Отдельного
+/// транспорта он не потребовал: нарезка сообщений, повторы соединения и разбор
+/// отказов у потока общие, а различие ровно одно — через что читать и писать.
+/// Завести ради этого второй класс значило бы держать две копии цикла повторов,
+/// которые разойдутся на первой же правке.
 /// </summary>
 public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
 {
@@ -65,20 +70,52 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     /// <summary>Только для потокового транспорта. На UDP датаграмма и есть сообщение.</summary>
     private readonly SipMessageFramer _framer = new();
 
+    private readonly SipTlsTrust _trust;
+    private readonly string _serverName;
+
+    /// <summary>
+    /// Поток TLS поверх сокета. `null` на UDP и на голом TCP.
+    ///
+    /// Своя блокировка на запись нужна именно ему: <see cref="SslStream"/> не
+    /// терпит двух одновременных записей и отвечает на них исключением, а
+    /// сигнализация пишется из нескольких мест разом — регистрация, звонок,
+    /// keep-alive.
+    /// </summary>
+    private SslStream? _stream;
+    private readonly SemaphoreSlim _writing = new(1, 1);
+
     private Socket? _socket;
     private Task? _worker;
     private bool _isStopped;
 
-    public SocketSipTransport(SipEndpoint remote, SipTransport transport)
-    {
-        if (transport == SipTransport.Tls)
-        {
-            throw new NotSupportedException(
-                "TLS для сигнализации появится на этапе W11 вместе с пиннингом сертификата");
-        }
+    /// <summary>Чем кончилось последнее рукопожатие TLS.</summary>
+    private string? _handshakeFailure;
 
+    /// <param name="trust">
+    /// Как проверять сертификат сервера. Нужен только TLS; для UDP и TCP
+    /// не читается вовсе.
+    ///
+    /// Умолчание — системная проверка. Это единственный правильный режим для
+    /// боя, и он же обязан быть умолчанием: режим, который надо не забыть
+    /// включить, однажды забудут.
+    /// </param>
+    /// <param name="serverName">
+    /// Имя для SNI и для проверки сертификата. По умолчанию — адрес АТС.
+    ///
+    /// Отдельным параметром, потому что адрес и имя расходятся: до сервера,
+    /// прописанного по IP, сертификат всё равно выписан на имя, и проверять его
+    /// по IP значит отказывать всегда.
+    /// </param>
+    public SocketSipTransport(
+        SipEndpoint remote,
+        SipTransport transport,
+        SipTlsTrust? trust = null,
+        string? serverName = null)
+    {
         Remote = remote;
         Transport = transport;
+        _trust = trust ?? new SipTlsTrust.System();
+        _serverName = serverName ?? remote.Host;
     }
 
     public SipTransport Transport { get; }
@@ -103,9 +140,30 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     public async Task SendAsync(ReadOnlyMemory<byte> data)
     {
         Socket socket;
+        SslStream? stream;
         lock (_gate)
         {
             socket = _socket ?? throw new IOException("канал ещё не поднялся");
+            stream = _stream;
+        }
+
+        if (stream is not null)
+        {
+            await _writing.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+            try
+            {
+                await stream.WriteAsync(data, _lifetime.Token).ConfigureAwait(false);
+                await stream.FlushAsync(_lifetime.Token).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception error) when (error is IOException or ObjectDisposedException)
+            {
+                throw new IOException("канал TLS закрыт", error);
+            }
+            finally
+            {
+                _writing.Release();
+            }
         }
 
         try
@@ -162,17 +220,25 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     public void Dispose()
     {
         CloseSocket();
+        _writing.Dispose();
         _lifetime.Dispose();
     }
 
     private void CloseSocket()
     {
         Socket? socket;
+        SslStream? stream;
         lock (_gate)
         {
             socket = _socket;
+            stream = _stream;
             _socket = null;
+            _stream = null;
         }
+
+        // Поток первым: он владеет своим NetworkStream и закрывает его сам,
+        // а сокет под ним переживает это спокойно — `ownsSocket: false`.
+        stream?.Dispose();
         socket?.Dispose();
     }
 
@@ -238,15 +304,31 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             // «порт закрыт» выглядело бы как молчание сервера.
             await socket.ConnectAsync(endpoint, token).ConfigureAwait(false);
 
+            SslStream? stream = null;
+            if (Transport == SipTransport.Tls)
+            {
+                stream = await HandshakeAsync(socket, token).ConfigureAwait(false);
+                if (stream is null)
+                {
+                    // Причина уже описана внутри — там же, где известно, чем
+                    // именно кончилось рукопожатие.
+                    socket.Dispose();
+                    return _handshakeFailure;
+                }
+            }
+
             lock (_gate)
             {
                 if (_isStopped)
                 {
+                    stream?.Dispose();
                     socket.Dispose();
                     return null;
                 }
+                _stream?.Dispose();
                 _socket?.Dispose();
                 _socket = socket;
+                _stream = stream;
             }
 
             var local = socket.LocalEndPoint as IPEndPoint;
@@ -265,6 +347,100 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
         }
     }
 
+    /// <summary>
+    /// Рукопожатие TLS. <see langword="null"/> — не сошлось, причина в
+    /// <see cref="_handshakeFailure"/>.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Проверка сертификата — своя, а не системная, и это решение, а не
+    /// удобство: пиннинг по отпечатку нужен лаборатории с самоподписанным
+    /// сертификатом, и в <c>Network.framework</c> оригинала он давался
+    /// параметром. В .NET его пишут руками через
+    /// <see cref="RemoteCertificateValidationCallback"/> — то есть проверка
+    /// целиком наша, включая ту, что делает система.
+    ///
+    /// Отсюда важное: в режиме <see cref="SipTlsTrust.System"/> мы не
+    /// «пропускаем всё, что система одобрила», а просто отдаём ей решение
+    /// нетронутым — <c>errors == None</c> и ничего больше. Всякая попытка
+    /// «поправить» её вердикт кончилась бы своей, худшей проверкой.
+    /// </remarks>
+    private async Task<SslStream?> HandshakeAsync(Socket socket, CancellationToken token)
+    {
+        SslStream stream = new(
+            new NetworkStream(socket, ownsSocket: false),
+            leaveInnerStreamOpen: false,
+            userCertificateValidationCallback: ValidateCertificate);
+
+        try
+        {
+            await stream.AuthenticateAsClientAsync(
+                new SslClientAuthenticationOptions
+                {
+                    TargetHost = _serverName,
+
+                    // Ниже 1.2 не опускаемся. Asterisk 13 умеет 1.2, а 1.0 и 1.1
+                    // объявлены негодными много лет назад; оставить их значило бы
+                    // дать серверу выбрать худшее из возможного.
+                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                },
+                token).ConfigureAwait(false);
+
+            return stream;
+        }
+        catch (Exception error) when (error is AuthenticationException or IOException
+                                          or SocketException or ObjectDisposedException)
+        {
+            _handshakeFailure = SipTransportFailureText.DescribeTlsFailure(Remote, error.Message);
+            await stream.DisposeAsync().ConfigureAwait(false);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            _handshakeFailure = null;
+            await stream.DisposeAsync().ConfigureAwait(false);
+            return null;
+        }
+    }
+
+    /// <summary>Проверка сертификата сервера по выбранному режиму доверия.</summary>
+    private bool ValidateCertificate(
+        object sender,
+        X509Certificate? certificate,
+        X509Chain? chain,
+        SslPolicyErrors errors)
+    {
+        switch (_trust)
+        {
+            case SipTlsTrust.System:
+                return errors == SslPolicyErrors.None;
+
+            case SipTlsTrust.PinnedCertificateSha256 pinned:
+                // Пиннинг заменяет системную проверку целиком, а не дополняет
+                // её: самоподписанный сертификат лаборатории её не проходит по
+                // построению, и требовать оба условия сразу значило бы, что
+                // пиннинг не работает никогда.
+                //
+                // Сверяется отпечаток самого сертификата (DER), а не цепочки:
+                // цепочки у самоподписанного нет, а подменивший его подменит и
+                // её.
+                if (certificate is null)
+                {
+                    return false;
+                }
+
+                return SipTlsPinning.Matches(pinned.Fingerprints, certificate.GetRawCertData());
+
+            case SipTlsTrust.AcceptAnyCertificateInsecurely:
+                // Защиты от перехвата здесь нет вовсе — см. описание режима.
+                return true;
+
+            default:
+                return false;
+        }
+
+    }
+
     // Приём
 
     private async Task ReceiveLoopAsync(CancellationToken token)
@@ -274,9 +450,11 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
         while (!token.IsCancellationRequested)
         {
             Socket? socket;
+            SslStream? stream;
             lock (_gate)
             {
                 socket = _socket;
+                stream = _stream;
             }
             if (socket is null)
             {
@@ -286,10 +464,22 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             int read;
             try
             {
-                read = await socket.ReceiveAsync(buffer, SocketFlags.None, token).ConfigureAwait(false);
+                read = stream is null
+                    ? await socket.ReceiveAsync(buffer, SocketFlags.None, token).ConfigureAwait(false)
+                    : await stream.ReadAsync(buffer, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
+                return;
+            }
+            catch (IOException error)
+            {
+                // Отказ чтения из TLS — это конец соединения: перезаводить
+                // чтение не на чем. Тот же случай, что и отказ приёма на голом
+                // TCP, и обходится так же — Closed, а не Failed.
+                Close(error.InnerException is SocketException socketError
+                    ? SipTransportFailureText.Describe(socketError.SocketErrorCode, Remote, Transport)
+                    : $"соединение TLS оборвалось: {error.Message}");
                 return;
             }
             catch (SocketException error)

@@ -217,6 +217,35 @@
               <theme:SettingsNote Text="{res:Loc AdminPbxAddressNote}" />
             </theme:SettingsSection>
 
+            <!--
+                Проверка сертификата. Видна только при выбранном TLS: на UDP и
+                TCP она не значит ничего, а показанная всегда — приглашает
+                включить «принимать любой» там, где шифрования нет вовсе.
+            -->
+            <theme:SettingsSection Header="{res:Loc AdminPbxTlsTitle}"
+                                   Visibility="{Binding IsTls, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsRow Header="{res:Loc AdminPbxTlsFingerprint}">
+                <Border Height="26" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           IsEnabled="{Binding AcceptsAnyTlsCertificate, Converter={StaticResource NotBool}}"
+                           Text="{Binding PinnedCertificateFingerprint, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminPbxTlsFingerprintNote}" />
+
+              <theme:SettingsDivider />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminPbxTlsAcceptAny}"
+                        IsChecked="{Binding AcceptsAnyTlsCertificate}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminPbxTlsAcceptAnyNote}"
+                                  IsAlarming="True"
+                                  Visibility="{Binding AcceptsAnyTlsCertificate, Converter={StaticResource BoolToVisibility}}" />
+            </theme:SettingsSection>
+
             <theme:SettingsSection Header="{res:Loc AdminPbxFeatureTitle}">
               <theme:SettingsRow Header="{res:Loc AdminPbxTransfer}">
                 <Border Height="26" Width="120" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"

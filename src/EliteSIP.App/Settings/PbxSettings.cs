@@ -30,6 +30,8 @@ public sealed class PbxSettings : Observable
     private int _registrationExpirySeconds = 120;
     private string _transferFeatureCode = string.Empty;
     private string _conferenceFeatureCode = string.Empty;
+    private bool _acceptsAnyTlsCertificate;
+    private string _pinnedCertificateFingerprint = string.Empty;
 
     public string OfficeAddress
     {
@@ -53,6 +55,45 @@ public sealed class PbxSettings : Observable
     {
         get => _transport;
         set => Set(ref _transport, value);
+    }
+
+    /// <summary>
+    /// Принимать любой сертификат сервера.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <b>Это отключение защиты от перехвата целиком.</b> Перехватчик читает
+    /// пароль от SIP и разговор; TLS при этом показывается включённым, и
+    /// заметить подмену нечем. Годится только против лаборатории на этой же
+    /// машине.
+    ///
+    /// Полем предустановки панель управляет им ровно затем, чтобы держать его
+    /// <b>выключенным</b>: в оригинале аудит нашёл включённое ради лаборатории
+    /// значение, молча оставшееся включённым на боевом профиле после
+    /// переключения.
+    /// </remarks>
+    public bool AcceptsAnyTlsCertificate
+    {
+        get => _acceptsAnyTlsCertificate;
+        set => Set(ref _acceptsAnyTlsCertificate, value);
+    }
+
+    /// <summary>
+    /// Отпечаток SHA-256 сертификата, которому доверяем вместо системной
+    /// проверки. Пустой — проверять как обычно.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Средний путь между системной проверкой и «принимать что угодно»:
+    /// самоподписанный сертификат стенда системную проверку не проходит по
+    /// построению, а прописанный отпечаток защищает от подмены не хуже, чем
+    /// удостоверяющий центр. Несколько отпечатков через запятую — это смена
+    /// сертификата без простоя.
+    /// </remarks>
+    public string PinnedCertificateFingerprint
+    {
+        get => _pinnedCertificateFingerprint;
+        set => Set(ref _pinnedCertificateFingerprint, value);
     }
 
     /// <summary>На сколько просить регистрацию.</summary>

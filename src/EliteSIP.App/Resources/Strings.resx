@@ -903,4 +903,20 @@
   <data name="SupportReflashed" xml:space="preserve">
     <value>Re-flashed: number {0}, preset “{1}”</value>
   </data>
+
+  <data name="AdminPbxTlsTitle" xml:space="preserve">
+    <value>Certificate check</value>
+  </data>
+  <data name="AdminPbxTlsFingerprint" xml:space="preserve">
+    <value>SHA-256 fingerprint</value>
+  </data>
+  <data name="AdminPbxTlsFingerprintNote" xml:space="preserve">
+    <value>Empty means the usual system check. A fingerprint replaces it and is the way to trust a self-signed certificate without weakening anything else. Several fingerprints, comma-separated, let a certificate be replaced without downtime.</value>
+  </data>
+  <data name="AdminPbxTlsAcceptAny" xml:space="preserve">
+    <value>Accept any certificate</value>
+  </data>
+  <data name="AdminPbxTlsAcceptAnyNote" xml:space="preserve">
+    <value>This turns off protection against interception entirely: whoever sits in the middle reads the SIP password and the call itself, and TLS still shows as on. Only for a lab on this same machine.</value>
+  </data>
 </root>

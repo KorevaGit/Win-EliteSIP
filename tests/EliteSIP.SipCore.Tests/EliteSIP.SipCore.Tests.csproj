@@ -20,6 +20,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\EliteSIP.SipCore\EliteSIP.SipCore.csproj" />
+
+    <!--
+      Транспорт модульными проверками не покрыт — так решено на W2: сокеты
+      проверяются на стенде, а не в наборе. TLS — исключение: пиннинг
+      сертификата это то место, где ошибка выглядит как «шифрование работает», а
+      на деле принимается чужой сертификат, и на стенде такое не видно вовсе.
+    -->
+    <ProjectReference Include="..\..\src\EliteSIP.SipCore.Udp\EliteSIP.SipCore.Udp.csproj" />
   </ItemGroup>
 
 </Project>

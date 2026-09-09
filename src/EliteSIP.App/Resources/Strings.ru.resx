@@ -881,4 +881,20 @@
   <data name="SupportReflashed" xml:space="preserve">
     <value>Перепрошито: номер {0}, предустановка «{1}»</value>
   </data>
+
+  <data name="AdminPbxTlsTitle" xml:space="preserve">
+    <value>Проверка сертификата</value>
+  </data>
+  <data name="AdminPbxTlsFingerprint" xml:space="preserve">
+    <value>Отпечаток SHA-256</value>
+  </data>
+  <data name="AdminPbxTlsFingerprintNote" xml:space="preserve">
+    <value>Пусто — обычная системная проверка. Отпечаток заменяет её и позволяет доверять самоподписанному сертификату, ничего больше не ослабляя. Несколько отпечатков через запятую — это смена сертификата без простоя.</value>
+  </data>
+  <data name="AdminPbxTlsAcceptAny" xml:space="preserve">
+    <value>Принимать любой сертификат</value>
+  </data>
+  <data name="AdminPbxTlsAcceptAnyNote" xml:space="preserve">
+    <value>Это отключает защиту от перехвата целиком: сидящий посередине читает пароль SIP и сам разговор, а TLS при этом показывается включённым. Только для лаборатории на этой же машине.</value>
+  </data>
 </root>

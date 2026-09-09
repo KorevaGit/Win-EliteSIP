@@ -21,9 +21,8 @@ namespace EliteSIP.App.PanelLine;
 /// происходит. Правило принято в оригинале и стоит там же: предустановка,
 /// написанная ради макросов, иначе молча стёрла бы политику защиты.
 ///
-/// <b>Чего эта сборка ещё не накладывает.</b> Стук по портам и доверие к
-/// сертификату — полей под них в настройках нет вовсе, они заводятся этапом
-/// W11 вместе с TLS и стуком. Тайминги DTMF (<c>toneMilliseconds</c>,
+/// <b>Чего эта сборка ещё не накладывает.</b> Стук по портам — поля под него
+/// заводятся ниже по этому же этапу. Тайминги DTMF (<c>toneMilliseconds</c>,
 /// <c>gapMilliseconds</c>, <c>pauseMilliseconds</c>) не накладываются по другой
 /// причине: у них нет настройки, потому что до тракта они не доходят и сейчас —
 /// <c>DtmfTiming</c> берётся умолчаниями внутри <c>MediaCore</c>, и завести
@@ -46,6 +45,7 @@ internal static class PresetApply
         ApplyIncomingCall(settings, fields.IncomingCall);
         ApplyConference(settings, fields.Conference);
         ApplySiteAddresses(settings, fields.SiteAddresses);
+        ApplyTlsTrust(settings, fields.AcceptsAnyTLSCertificate);
         ApplyTransport(settings, fields.Transport);
 
         // Признак «этим управляет сервер» выводится из режима машины, а не из
@@ -84,6 +84,7 @@ internal static class PresetApply
             || !string.Equals(settings.Pbx.ConferenceFeatureCode, other.Pbx.ConferenceFeatureCode, StringComparison.Ordinal)
             || !string.Equals(settings.Pbx.OfficeAddress, other.Pbx.OfficeAddress, StringComparison.Ordinal)
             || !string.Equals(settings.Pbx.RemoteAddress, other.Pbx.RemoteAddress, StringComparison.Ordinal)
+            || settings.Pbx.AcceptsAnyTlsCertificate != other.Pbx.AcceptsAnyTlsCertificate
             || settings.Pbx.Transport != other.Pbx.Transport;
     }
 
@@ -264,6 +265,17 @@ internal static class PresetApply
     ///
     /// Порт не трогается. Свой, вписанный руками, остаётся своим.
     /// </remarks>
+    private static void ApplyTlsTrust(AppSettings settings, bool? incoming)
+    {
+        // Единственное поле, которым панель управляет затем, чтобы держать его
+        // выключенным: аудит оригинала нашёл включённое ради лаборатории
+        // значение, молча оставшееся включённым на боевом профиле.
+        if (incoming is { } accepts)
+        {
+            settings.Pbx.AcceptsAnyTlsCertificate = accepts;
+        }
+    }
+
     private static void ApplyTransport(AppSettings settings, string? incoming)
     {
         if (incoming is null)

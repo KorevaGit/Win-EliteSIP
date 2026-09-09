@@ -106,11 +106,7 @@ public sealed class PhoneService : IDisposable
         var transport = pbx.Transport switch
         {
             SettingsTransport.Tcp => SignalingTransport.Tcp,
-
-            // TLS появится на W11 вместе с пиннингом сертификата: транспорт его
-            // сегодня не поднимает, и выбранный в настройках он молча подменял
-            // бы себя на UDP — то есть обещал бы шифрование, которого нет.
-            SettingsTransport.Tls => SignalingTransport.Udp,
+            SettingsTransport.Tls => SignalingTransport.Tls,
             _ => SignalingTransport.Udp,
         };
 
@@ -124,7 +120,7 @@ public sealed class PhoneService : IDisposable
             RegistrationExpires = pbx.RegistrationExpirySeconds,
         };
 
-        _transport = new SocketSipTransport(sipAccount.SignalingEndpoint, transport);
+        _transport = new SocketSipTransport(sipAccount.SignalingEndpoint, transport, TrustOf(pbx));
         _agent = new SipUserAgent(
             sipAccount,
             new DigestAuthentication.Credentials(sipAccount.EffectiveAuthUsername, password),
@@ -143,6 +139,36 @@ public sealed class PhoneService : IDisposable
         _panel.Trouble = null;
 
         await _agent.StartAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Как проверять сертификат сервера.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Порядок разбора значим: «принимать любой» перекрывает пиннинг, а не
+    /// дополняет его. Иначе прописанный отпечаток создавал бы видимость защиты
+    /// там, где включено «принимать любой», — а это ровно та ошибка, ради
+    /// которой панель этим полем и управляет.
+    ///
+    /// Пустая настройка отпечатка даёт системную проверку. Это умолчание, и оно
+    /// же единственный правильный режим для боя: режим, который надо не забыть
+    /// включить, однажды забудут.
+    /// </remarks>
+    private static SipTlsTrust TrustOf(PbxSettings pbx)
+    {
+        if (pbx.AcceptsAnyTlsCertificate)
+        {
+            return new SipTlsTrust.AcceptAnyCertificateInsecurely();
+        }
+
+        var fingerprints = pbx.PinnedCertificateFingerprint
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return fingerprints.Count > 0
+            ? new SipTlsTrust.PinnedCertificateSha256(fingerprints)
+            : new SipTlsTrust.System();
     }
 
     /// <summary>Снимает регистрацию и отпускает всё, что держит.</summary>

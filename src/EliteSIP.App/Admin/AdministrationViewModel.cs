@@ -77,6 +77,8 @@ public sealed class AdministrationViewModel : Observable
     private int _registrationExpiry;
     private string _transferCode = string.Empty;
     private string _conferenceCode = string.Empty;
+    private string _pinnedFingerprint = string.Empty;
+    private bool _acceptsAnyCertificate;
     private bool _logToFile;
     private bool _logsSipTrace;
     private string _newPassword = string.Empty;
@@ -278,6 +280,45 @@ public sealed class AdministrationViewModel : Observable
         set
         {
             Set(ref _transport, value);
+            NotifyChanged(nameof(IsTls));
+            MarkDirty();
+        }
+    }
+
+    /// <summary>Показывать ли настройки проверки сертификата.</summary>
+    ///
+    /// <remarks>
+    /// На UDP и TCP они не значат ничего, а показанные всегда — приглашают
+    /// включить «принимать любой» там, где шифрования нет вовсе.
+    /// </remarks>
+    public bool IsTls => _transport is SipTransport.Tls;
+
+    /// <summary>Отпечаток сертификата, которому доверяем вместо системной проверки.</summary>
+    public string PinnedCertificateFingerprint
+    {
+        get => _pinnedFingerprint;
+        set
+        {
+            Set(ref _pinnedFingerprint, value);
+            MarkDirty();
+        }
+    }
+
+    /// <summary>
+    /// Принимать любой сертификат: отключение защиты от перехвата целиком.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Отпечаток при включённом признаке не читается и в окне гаснет: два
+    /// способа доверия разом означали бы, что человек считает себя защищённым
+    /// прописанным отпечатком, а на деле принимает что угодно.
+    /// </remarks>
+    public bool AcceptsAnyTlsCertificate
+    {
+        get => _acceptsAnyCertificate;
+        set
+        {
+            Set(ref _acceptsAnyCertificate, value);
             MarkDirty();
         }
     }
@@ -556,6 +597,8 @@ public sealed class AdministrationViewModel : Observable
         _settings.Pbx.RemoteAddress = RemoteAddress;
         _settings.Pbx.Port = Port;
         _settings.Pbx.Transport = Transport;
+        _settings.Pbx.PinnedCertificateFingerprint = PinnedCertificateFingerprint.Trim();
+        _settings.Pbx.AcceptsAnyTlsCertificate = AcceptsAnyTlsCertificate;
         _settings.Pbx.RegistrationExpirySeconds = RegistrationExpirySeconds;
         _settings.Pbx.TransferFeatureCode = TransferFeatureCode;
         _settings.Pbx.ConferenceFeatureCode = ConferenceFeatureCode;
@@ -624,6 +667,8 @@ public sealed class AdministrationViewModel : Observable
         _remoteAddress = _settings.Pbx.RemoteAddress;
         _port = _settings.Pbx.Port;
         _transport = _settings.Pbx.Transport;
+        _pinnedFingerprint = _settings.Pbx.PinnedCertificateFingerprint;
+        _acceptsAnyCertificate = _settings.Pbx.AcceptsAnyTlsCertificate;
         _registrationExpiry = _settings.Pbx.RegistrationExpirySeconds;
         _transferCode = _settings.Pbx.TransferFeatureCode;
         _conferenceCode = _settings.Pbx.ConferenceFeatureCode;
