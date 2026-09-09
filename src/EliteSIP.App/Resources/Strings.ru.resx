@@ -452,4 +452,100 @@
   <data name="AdminRemovePasswordBody" xml:space="preserve">
     <value>После этого «Управление» откроется всякому, кто дотянулся до машины: аккаунты, клавиши и защита от автокликеров окажутся доступны без пароля.</value>
   </data>
+  <data name="AdminSectionAccount" xml:space="preserve">
+    <value>Аккаунт</value>
+  </data>
+  <data name="AdminSectionPbx" xml:space="preserve">
+    <value>АТС</value>
+  </data>
+  <data name="AdminSectionQueues" xml:space="preserve">
+    <value>Очереди</value>
+  </data>
+  <data name="AdminSectionMaintenance" xml:space="preserve">
+    <value>Обслуживание</value>
+  </data>
+  <data name="AdminGroupCall" xml:space="preserve">
+    <value>Вызов</value>
+  </data>
+  <data name="AdminAccountTitle" xml:space="preserve">
+    <value>Учётная запись</value>
+  </data>
+  <data name="AdminAccountUsername" xml:space="preserve">
+    <value>Добавочный</value>
+  </data>
+  <data name="AdminAccountDisplayName" xml:space="preserve">
+    <value>Отображаемое имя</value>
+  </data>
+  <data name="AdminAccountPassword" xml:space="preserve">
+    <value>Пароль</value>
+  </data>
+  <data name="AdminAccountPasswordSet" xml:space="preserve">
+    <value>Пароль задан. Поле пустое намеренно: прочитать записанный пароль нельзя, а показать его через плечо администратора — можно. Пустое поле оставляет прежний.</value>
+  </data>
+  <data name="AdminAccountPasswordNone" xml:space="preserve">
+    <value>Пароля нет — регистрация не поднимется.</value>
+  </data>
+  <data name="AdminAccountPasswordNote" xml:space="preserve">
+    <value>Пароль шифруется средствами Windows и привязан к этому пользователю: файл настроек, унесённый на другую машину, пароля не отдаёт.</value>
+  </data>
+  <data name="AdminPbxTitle" xml:space="preserve">
+    <value>Адреса АТС</value>
+  </data>
+  <data name="AdminPbxOffice" xml:space="preserve">
+    <value>Из офиса</value>
+  </data>
+  <data name="AdminPbxRemote" xml:space="preserve">
+    <value>Из дома</value>
+  </data>
+  <data name="AdminPbxPort" xml:space="preserve">
+    <value>Порт</value>
+  </data>
+  <data name="AdminPbxTransport" xml:space="preserve">
+    <value>Транспорт</value>
+  </data>
+  <data name="AdminPbxExpiry" xml:space="preserve">
+    <value>Регистрация, с</value>
+  </data>
+  <data name="AdminPbxAddressNote" xml:space="preserve">
+    <value>Два адреса, между которыми переключается «Работа» в настройках: из дома внутренний адрес недостижим, а из офиса внешний ведёт на тот же сервер длинной дорогой через шлюз.</value>
+  </data>
+  <data name="AdminPbxFeatureTitle" xml:space="preserve">
+    <value>Коды АТС</value>
+  </data>
+  <data name="AdminPbxTransfer" xml:space="preserve">
+    <value>Перевод</value>
+  </data>
+  <data name="AdminPbxConference" xml:space="preserve">
+    <value>Конференция</value>
+  </data>
+  <data name="AdminPbxFeatureNote" xml:space="preserve">
+    <value>Коды свои у каждой установки Asterisk, и угадывать их приложение не берётся: пустой код означает, что кнопка не работает, а не что она сделает что-нибудь наугад.</value>
+  </data>
+  <data name="AdminQueuesTitle" xml:space="preserve">
+    <value>Очереди</value>
+  </data>
+  <data name="AdminQueueNumber" xml:space="preserve">
+    <value>Номер</value>
+  </data>
+  <data name="AdminQueueTitle" xml:space="preserve">
+    <value>Название</value>
+  </data>
+  <data name="AdminQueueAdd" xml:space="preserve">
+    <value>Добавить очередь</value>
+  </data>
+  <data name="AdminQueuesNote" xml:space="preserve">
+    <value>На раздаче из очереди номер оператору ничего не говорит. Названия отсюда показываются и в окне входящего, и в истории — вместо цифр.</value>
+  </data>
+  <data name="AdminMaintenanceTitle" xml:space="preserve">
+    <value>Обслуживание</value>
+  </data>
+  <data name="AdminMaintenanceLog" xml:space="preserve">
+    <value>Вести журнал в файл</value>
+  </data>
+  <data name="AdminMaintenanceTrace" xml:space="preserve">
+    <value>Писать трассу SIP</value>
+  </data>
+  <data name="AdminMaintenanceNote" xml:space="preserve">
+    <value>Журнал прикладывают к обращению в поддержку: выключенный означает, что собирать будет нечего. Трасса подробная и в обычной работе не нужна, но при разборе «почему не регистрируется» просят её первой.</value>
+  </data>
 </root>

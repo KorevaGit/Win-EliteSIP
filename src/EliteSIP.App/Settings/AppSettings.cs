@@ -225,6 +225,7 @@ public sealed class AccountSettings : Observable
 {
     private Guid _profileId = Guid.NewGuid();
     private string _username = string.Empty;
+    private string _displayName = string.Empty;
     private string _domain = string.Empty;
     private WorkplaceSite _site = WorkplaceSite.Office;
 
@@ -246,6 +247,13 @@ public sealed class AccountSettings : Observable
     {
         get => _username;
         set => Set(ref _username, value);
+    }
+
+    /// <summary>Отображаемое имя: то, что видит собеседник.</summary>
+    public string DisplayName
+    {
+        get => _displayName;
+        set => Set(ref _displayName, value);
     }
 
     /// <summary>Адрес АТС — на чтение: его подставляет переключатель места.</summary>
@@ -313,6 +321,15 @@ public sealed class AppSettings : Observable
 
     /// <summary>Административный доступ. Правится только из «Управления».</summary>
     public AdminSettings Admin { get; init; } = new();
+
+    public PbxSettings Pbx { get; init; } = new();
+
+    public QueueSettings Queues { get; init; } = new();
+
+    public MaintenanceSettings Maintenance { get; init; } = new();
+
+    /// <summary>Пароль учётки. Шифруется DPAPI — см. `SipCredentials`.</summary>
+    public SipCredentials Credentials { get; init; } = new();
 
     /// <summary>Читает настройки или отдаёт умолчания.</summary>
     ///
@@ -390,7 +407,7 @@ public sealed class AppSettings : Observable
 
         WatchMacros();
 
-        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin })
+        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, Maintenance, Credentials })
         {
             section.PropertyChanged += (_, _) => TrySave(onFailure);
         }

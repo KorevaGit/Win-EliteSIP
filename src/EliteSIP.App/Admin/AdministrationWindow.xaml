@@ -61,12 +61,17 @@
                         открывает: у первой группы заголовка нет намеренно, и
                         отдельного уровня в списке ради этого заводить незачем.
                     -->
-                    <TextBlock Text="{Binding Group}"
+                    <!--
+                        Привязка через `Content` шаблонной строки, а не прямая:
+                        так она не зависит от того, кому достался DataContext
+                        внутри шаблона строки.
+                    -->
+                    <TextBlock Text="{Binding Content.Group, RelativeSource={RelativeSource TemplatedParent}}"
                                Margin="8,10,0,2"
                                FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextTertiaryBrush}"
-                               Visibility="{Binding Group, Converter={StaticResource PresenceToVisibility}}" />
+                               Visibility="{Binding Content.Group, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource PresenceToVisibility}}" />
 
                     <Border x:Name="Row"
                             Background="Transparent"
@@ -115,6 +120,192 @@
                     Padding="12,12,12,0">
         <Grid HorizontalAlignment="Left"
               Width="{Binding (theme:SettingsLayout.RowMaxWidth), RelativeSource={RelativeSource Self}}">
+
+          <!-- Раздел «Аккаунт». -->
+          <StackPanel Visibility="{Binding ShowsAccount, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminAccountTitle}">
+              <theme:SettingsRow Header="{res:Loc AdminAccountUsername}">
+                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminAccountDisplayName}">
+                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminAccountPassword}">
+                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                  <PasswordBox x:Name="SipPasswordField"
+                               VerticalContentAlignment="Center"
+                               Background="Transparent"
+                               BorderThickness="0"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               CaretBrush="{DynamicResource TextPrimaryBrush}"
+                               PasswordChanged="OnSipPasswordChanged" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminAccountPasswordSet}"
+                                  Visibility="{Binding HasSipPassword, Converter={StaticResource BoolToVisibility}}" />
+              <theme:SettingsNote Text="{res:Loc AdminAccountPasswordNone}"
+                                  IsAlarming="True"
+                                  Visibility="{Binding HasSipPassword, Converter={StaticResource NotBoolToVisibility}}" />
+              <theme:SettingsNote Text="{res:Loc AdminAccountPasswordNote}" />
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «АТС». -->
+          <StackPanel Visibility="{Binding ShowsPbx, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminPbxTitle}">
+              <theme:SettingsRow Header="{res:Loc AdminPbxOffice}">
+                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding OfficeAddress, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminPbxRemote}">
+                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding RemoteAddress, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminPbxPort}">
+                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminPbxTransport}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Transport" Content="UDP"
+                               IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Udp}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Transport" Content="TCP"
+                               IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Tcp}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Transport" Content="TLS"
+                               IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Tls}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminPbxExpiry}">
+                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           Text="{Binding RegistrationExpirySeconds, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminPbxAddressNote}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc AdminPbxFeatureTitle}">
+              <theme:SettingsRow Header="{res:Loc AdminPbxTransfer}">
+                <Border Height="26" Width="120" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           FontFamily="Consolas"
+                           Text="{Binding TransferFeatureCode, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminPbxConference}">
+                <Border Height="26" Width="120" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           FontFamily="Consolas"
+                           Text="{Binding ConferenceFeatureCode, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminPbxFeatureNote}" />
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Очереди». -->
+          <StackPanel Visibility="{Binding ShowsQueues, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminQueuesTitle}">
+              <theme:SettingsNote Text="{res:Loc AdminQueuesNote}" />
+
+              <ItemsControl ItemsSource="{Binding Queues}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type settings:QueueSetting}">
+                    <Grid Margin="0,3">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+
+                      <Border Grid.Column="0" Height="26" CornerRadius="6" Padding="6,0"
+                              Background="{DynamicResource ControlHoverBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                                 FontFamily="Consolas"
+                                 Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="{res:Loc AdminQueueNumber}" />
+                      </Border>
+
+                      <Border Grid.Column="2" Height="26" CornerRadius="6" Padding="6,0"
+                              Background="{DynamicResource ControlHoverBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                                 Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="{res:Loc AdminQueueTitle}" />
+                      </Border>
+
+                      <Button Grid.Column="4"
+                              Style="{StaticResource SettingsButtonStyle}"
+                              Padding="6,2"
+                              ToolTip="{res:Loc AdminMacroRemove}"
+                              Click="OnQueueRemoveClick">
+                        <theme:Icon Glyph="trash" Size="12" />
+                      </Button>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AdminQueueAdd}"
+                        Click="OnQueueAddClick" />
+              </theme:SettingsIndented>
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Обслуживание». -->
+          <StackPanel Visibility="{Binding ShowsMaintenance, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminMaintenanceTitle}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminMaintenanceLog}"
+                        IsChecked="{Binding LogToFile}" />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminMaintenanceTrace}"
+                        IsEnabled="{Binding LogToFile}"
+                        IsChecked="{Binding LogsSipTrace}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminMaintenanceNote}" />
+
+              <theme:SettingsDivider />
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AdminDiagnosticsOpenFolder}"
+                        Click="OnOpenFolderClick" />
+              </theme:SettingsIndented>
+            </theme:SettingsSection>
+          </StackPanel>
 
           <!-- Раздел «Клавиши». -->
           <StackPanel Visibility="{Binding ShowsMacros, Converter={StaticResource BoolToVisibility}}">

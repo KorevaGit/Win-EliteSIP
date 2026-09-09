@@ -102,6 +102,19 @@ public partial class AdministrationWindow : Window
     private static MacroSetting? Macro(object sender)
         => (sender as FrameworkElement)?.DataContext as MacroSetting;
 
+    private void OnSipPasswordChanged(object sender, RoutedEventArgs e)
+        => Model.SipPassword = SipPasswordField.Password;
+
+    private void OnQueueAddClick(object sender, RoutedEventArgs e) => Model.AddQueue();
+
+    private void OnQueueRemoveClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is QueueSetting queue)
+        {
+            Model.RemoveQueue(queue);
+        }
+    }
+
     private void OnNewPasswordChanged(object sender, RoutedEventArgs e)
         => Model.NewPassword = NewPasswordField.Password;
 

@@ -472,4 +472,100 @@
   <data name="AdminRemovePasswordBody" xml:space="preserve">
     <value>After this, administration will open to anyone who reaches the machine: accounts, keys and autoclicker protection will be available without a password.</value>
   </data>
+  <data name="AdminSectionAccount" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="AdminSectionPbx" xml:space="preserve">
+    <value>PBX</value>
+  </data>
+  <data name="AdminSectionQueues" xml:space="preserve">
+    <value>Queues</value>
+  </data>
+  <data name="AdminSectionMaintenance" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="AdminGroupCall" xml:space="preserve">
+    <value>Call</value>
+  </data>
+  <data name="AdminAccountTitle" xml:space="preserve">
+    <value>SIP account</value>
+  </data>
+  <data name="AdminAccountUsername" xml:space="preserve">
+    <value>Extension</value>
+  </data>
+  <data name="AdminAccountDisplayName" xml:space="preserve">
+    <value>Display name</value>
+  </data>
+  <data name="AdminAccountPassword" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="AdminAccountPasswordSet" xml:space="preserve">
+    <value>A password is set. The field is deliberately empty: the stored password cannot be read back, but it could be read over the administrator's shoulder. Leaving it empty keeps the current one.</value>
+  </data>
+  <data name="AdminAccountPasswordNone" xml:space="preserve">
+    <value>No password — the registration will not come up.</value>
+  </data>
+  <data name="AdminAccountPasswordNote" xml:space="preserve">
+    <value>The password is encrypted by Windows and bound to this user: a settings file carried to another machine does not give it up.</value>
+  </data>
+  <data name="AdminPbxTitle" xml:space="preserve">
+    <value>PBX addresses</value>
+  </data>
+  <data name="AdminPbxOffice" xml:space="preserve">
+    <value>From the office</value>
+  </data>
+  <data name="AdminPbxRemote" xml:space="preserve">
+    <value>From home</value>
+  </data>
+  <data name="AdminPbxPort" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="AdminPbxTransport" xml:space="preserve">
+    <value>Transport</value>
+  </data>
+  <data name="AdminPbxExpiry" xml:space="preserve">
+    <value>Registration, s</value>
+  </data>
+  <data name="AdminPbxAddressNote" xml:space="preserve">
+    <value>Two addresses that the Work section switches between: the internal one is unreachable from home, and from the office the external one leads to the same server the long way round.</value>
+  </data>
+  <data name="AdminPbxFeatureTitle" xml:space="preserve">
+    <value>PBX feature codes</value>
+  </data>
+  <data name="AdminPbxTransfer" xml:space="preserve">
+    <value>Transfer</value>
+  </data>
+  <data name="AdminPbxConference" xml:space="preserve">
+    <value>Conference</value>
+  </data>
+  <data name="AdminPbxFeatureNote" xml:space="preserve">
+    <value>The codes differ between Asterisk installations and the application does not guess them: an empty code means the button does not work, not that it will do something at random.</value>
+  </data>
+  <data name="AdminQueuesTitle" xml:space="preserve">
+    <value>Queues</value>
+  </data>
+  <data name="AdminQueueNumber" xml:space="preserve">
+    <value>Number</value>
+  </data>
+  <data name="AdminQueueTitle" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="AdminQueueAdd" xml:space="preserve">
+    <value>Add a queue</value>
+  </data>
+  <data name="AdminQueuesNote" xml:space="preserve">
+    <value>On a queue distribution the number tells the operator nothing. The titles from here are shown both in the incoming call window and in the history, instead of the digits.</value>
+  </data>
+  <data name="AdminMaintenanceTitle" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="AdminMaintenanceLog" xml:space="preserve">
+    <value>Write the log to a file</value>
+  </data>
+  <data name="AdminMaintenanceTrace" xml:space="preserve">
+    <value>Write the SIP trace</value>
+  </data>
+  <data name="AdminMaintenanceNote" xml:space="preserve">
+    <value>The log is attached to support requests: with it off there will be nothing to collect. The trace is verbose and not needed in daily work, but it is the first thing asked for when working out why registration fails.</value>
+  </data>
 </root>

@@ -9,16 +9,21 @@ namespace EliteSIP.App.Admin;
 /// <summary>Разделы «Управления».</summary>
 ///
 /// <remarks>
-/// Здесь пока четыре из девяти: те, у которых уже есть что править. Аккаунт,
-/// АТС, входящие, очереди и обслуживание приедут вместе со своими настройками —
-/// пустой раздел в списке хуже отсутствующего: он обещает то, чего за ним нет.
+/// Восемь из девяти. Девятый — «Входящие», политика защиты от автокликеров, —
+/// живёт не здесь: пакет <c>CallGuard</c> переносится этапом W9 вместе с окном
+/// входящего вызова, и заводить раздел настроек раньше того, чем он управляет,
+/// значит показать выключатели, за которыми ничего нет.
 /// </remarks>
 public enum AdminSectionKind
 {
+    Account,
+    Pbx,
     Macros,
+    Queues,
     History,
     Access,
     Diagnostics,
+    Maintenance,
 }
 
 /// <summary>Пункт бокового списка. <paramref name="Group"/> — заголовок над ним.</summary>
@@ -51,6 +56,18 @@ public sealed class AdministrationViewModel : Observable
     private bool _macroHeightIsManual;
     private bool _historyIsEnabled;
     private int _historyAgeInDays;
+    private string _username = string.Empty;
+    private string _displayName = string.Empty;
+    private string _sipPassword = string.Empty;
+    private string _officeAddress = string.Empty;
+    private string _remoteAddress = string.Empty;
+    private int _port;
+    private SipTransport _transport;
+    private int _registrationExpiry;
+    private string _transferCode = string.Empty;
+    private string _conferenceCode = string.Empty;
+    private bool _logToFile;
+    private bool _logsSipTrace;
     private string _newPassword = string.Empty;
     private string _repeatedPassword = string.Empty;
     private bool _isDirty;
@@ -60,12 +77,18 @@ public sealed class AdministrationViewModel : Observable
         _settings = settings;
         _access = access;
 
+        // Порядок и группы — из оригинала. Заголовок группы несёт та строка,
+        // которая её открывает; у первой группы заголовка нет намеренно.
         Sections =
         [
-            new(AdminSectionKind.Macros, Strings.Get("AdminSectionMacros"), "square.grid.3x3", null),
+            new(AdminSectionKind.Account, Strings.Get("AdminSectionAccount"), "person.crop.circle", null),
+            new(AdminSectionKind.Pbx, Strings.Get("AdminSectionPbx"), "phone.arrow.right", null),
+            new(AdminSectionKind.Macros, Strings.Get("AdminSectionMacros"), "square.grid.3x3", Strings.Get("AdminGroupCall")),
+            new(AdminSectionKind.Queues, Strings.Get("AdminSectionQueues"), "person.3.fill", null),
             new(AdminSectionKind.History, Strings.Get("AdminSectionHistory"), "clock", Strings.Get("AdminGroupMachine")),
             new(AdminSectionKind.Access, Strings.Get("AdminSectionAccess"), "lock.shield.fill", null),
             new(AdminSectionKind.Diagnostics, Strings.Get("AdminSectionDiagnostics"), "stethoscope", null),
+            new(AdminSectionKind.Maintenance, Strings.Get("AdminSectionMaintenance"), "hammer.fill", null),
         ];
 
         Revert();
@@ -81,7 +104,8 @@ public sealed class AdministrationViewModel : Observable
             Set(ref _section, value);
             foreach (var name in new[]
             {
-                nameof(ShowsMacros), nameof(ShowsHistory), nameof(ShowsAccess), nameof(ShowsDiagnostics),
+                nameof(ShowsAccount), nameof(ShowsPbx), nameof(ShowsMacros), nameof(ShowsQueues),
+                nameof(ShowsHistory), nameof(ShowsAccess), nameof(ShowsDiagnostics), nameof(ShowsMaintenance),
             })
             {
                 NotifyChanged(name);
@@ -89,13 +113,175 @@ public sealed class AdministrationViewModel : Observable
         }
     }
 
+    public bool ShowsAccount => _section is AdminSectionKind.Account;
+
+    public bool ShowsPbx => _section is AdminSectionKind.Pbx;
+
     public bool ShowsMacros => _section is AdminSectionKind.Macros;
+
+    public bool ShowsQueues => _section is AdminSectionKind.Queues;
 
     public bool ShowsHistory => _section is AdminSectionKind.History;
 
     public bool ShowsAccess => _section is AdminSectionKind.Access;
 
     public bool ShowsDiagnostics => _section is AdminSectionKind.Diagnostics;
+
+    public bool ShowsMaintenance => _section is AdminSectionKind.Maintenance;
+
+    // --- Аккаунт ---------------------------------------------------------
+
+    public string Username
+    {
+        get => _username;
+        set
+        {
+            Set(ref _username, value);
+            MarkDirty();
+        }
+    }
+
+    public string DisplayName
+    {
+        get => _displayName;
+        set
+        {
+            Set(ref _displayName, value);
+            MarkDirty();
+        }
+    }
+
+    /// <summary>Новый пароль учётки. Пустой — оставить прежний.</summary>
+    ///
+    /// <remarks>
+    /// Прежний сюда не подставляется, и это решение: показать пароль в поле —
+    /// значит показать его всякому, кто заглянул через плечо администратора, а
+    /// прочитать его отсюда всё равно нельзя (он уходит под DPAPI). Поэтому
+    /// поле пустое, а рядом стоит строка «пароль задан».
+    /// </remarks>
+    public string SipPassword
+    {
+        get => _sipPassword;
+        set
+        {
+            Set(ref _sipPassword, value);
+            MarkDirty();
+        }
+    }
+
+    public bool HasSipPassword => _settings.Credentials.HasPassword;
+
+    // --- АТС -------------------------------------------------------------
+
+    public string OfficeAddress
+    {
+        get => _officeAddress;
+        set
+        {
+            Set(ref _officeAddress, value);
+            MarkDirty();
+        }
+    }
+
+    public string RemoteAddress
+    {
+        get => _remoteAddress;
+        set
+        {
+            Set(ref _remoteAddress, value);
+            MarkDirty();
+        }
+    }
+
+    public int Port
+    {
+        get => _port;
+        set
+        {
+            Set(ref _port, value);
+            MarkDirty();
+        }
+    }
+
+    public SipTransport Transport
+    {
+        get => _transport;
+        set
+        {
+            Set(ref _transport, value);
+            MarkDirty();
+        }
+    }
+
+    public int RegistrationExpirySeconds
+    {
+        get => _registrationExpiry;
+        set
+        {
+            Set(ref _registrationExpiry, value);
+            MarkDirty();
+        }
+    }
+
+    public string TransferFeatureCode
+    {
+        get => _transferCode;
+        set
+        {
+            Set(ref _transferCode, value);
+            MarkDirty();
+        }
+    }
+
+    public string ConferenceFeatureCode
+    {
+        get => _conferenceCode;
+        set
+        {
+            Set(ref _conferenceCode, value);
+            MarkDirty();
+        }
+    }
+
+    // --- Очереди ---------------------------------------------------------
+
+    public ObservableCollection<QueueSetting> Queues { get; } = [];
+
+    public void AddQueue()
+    {
+        var queue = new QueueSetting();
+        queue.PropertyChanged += (_, _) => MarkDirty();
+        Queues.Add(queue);
+        MarkDirty();
+    }
+
+    public void RemoveQueue(QueueSetting queue)
+    {
+        Queues.Remove(queue);
+        MarkDirty();
+    }
+
+    // --- Обслуживание ----------------------------------------------------
+
+    public bool LogToFile
+    {
+        get => _logToFile;
+        set
+        {
+            Set(ref _logToFile, value);
+            MarkDirty();
+        }
+    }
+
+    public bool LogsSipTrace
+    {
+        get => _logsSipTrace;
+        set
+        {
+            Set(ref _logsSipTrace, value);
+            MarkDirty();
+        }
+    }
 
     /// <summary>Черновик списка клавиш. Настоящий список правится по «Сохранить».</summary>
     public ObservableCollection<MacroSetting> Macros { get; } = [];
@@ -285,6 +471,47 @@ public sealed class AdministrationViewModel : Observable
         _settings.History.IsEnabled = HistoryIsEnabled;
         _settings.History.MaximumAgeInDays = HistoryAgeInDays;
 
+        _settings.Account.Username = Username;
+        _settings.Account.DisplayName = DisplayName;
+
+        // Пустое поле означает «оставить прежний», а не «стереть»: стирают
+        // паролем в одно нажатие только по ошибке.
+        if (SipPassword.Length > 0)
+        {
+            _settings.Credentials.SetPassword(SipPassword);
+            SipPassword = string.Empty;
+            NotifyChanged(nameof(HasSipPassword));
+        }
+
+        _settings.Pbx.OfficeAddress = OfficeAddress;
+        _settings.Pbx.RemoteAddress = RemoteAddress;
+        _settings.Pbx.Port = Port;
+        _settings.Pbx.Transport = Transport;
+        _settings.Pbx.RegistrationExpirySeconds = RegistrationExpirySeconds;
+        _settings.Pbx.TransferFeatureCode = TransferFeatureCode;
+        _settings.Pbx.ConferenceFeatureCode = ConferenceFeatureCode;
+
+        // Адрес, которым пользуется панель, идёт от выбранной площадки: её
+        // выбирает человек в менеджерских настройках, а пару адресов заводит
+        // администратор здесь.
+        _settings.Account.Domain = _settings.Account.Site is WorkplaceSite.Office
+            ? OfficeAddress
+            : RemoteAddress;
+
+        _settings.Queues.Queues.Clear();
+        foreach (var queue in Queues)
+        {
+            _settings.Queues.Queues.Add(new QueueSetting
+            {
+                Id = queue.Id,
+                Number = queue.Number,
+                Title = queue.Title,
+            });
+        }
+
+        _settings.Maintenance.LogToFile = LogToFile;
+        _settings.Maintenance.LogsSipTrace = LogsSipTrace;
+
         // Запись на диск делает сама настройка (AutoSave); здесь остаётся
         // только снять пометку несохранённого.
         IsDirty = false;
@@ -311,6 +538,26 @@ public sealed class AdministrationViewModel : Observable
             Macros.Add(copy);
         }
 
+        Queues.Clear();
+        foreach (var queue in _settings.Queues.Queues)
+        {
+            var copy = new QueueSetting { Id = queue.Id, Number = queue.Number, Title = queue.Title };
+            copy.PropertyChanged += (_, _) => MarkDirty();
+            Queues.Add(copy);
+        }
+
+        _username = _settings.Account.Username;
+        _displayName = _settings.Account.DisplayName;
+        _sipPassword = string.Empty;
+        _officeAddress = _settings.Pbx.OfficeAddress;
+        _remoteAddress = _settings.Pbx.RemoteAddress;
+        _port = _settings.Pbx.Port;
+        _transport = _settings.Pbx.Transport;
+        _registrationExpiry = _settings.Pbx.RegistrationExpirySeconds;
+        _transferCode = _settings.Pbx.TransferFeatureCode;
+        _conferenceCode = _settings.Pbx.ConferenceFeatureCode;
+        _logToFile = _settings.Maintenance.LogToFile;
+        _logsSipTrace = _settings.Maintenance.LogsSipTrace;
         _macroColumns = _settings.Dtmf.MacroColumns;
         _macroHeight = _settings.Dtmf.MacroHeight;
         _macroHeightIsManual = _settings.Dtmf.MacroHeightIsManual;
@@ -321,6 +568,10 @@ public sealed class AdministrationViewModel : Observable
         {
             nameof(MacroColumns), nameof(MacroHeight), nameof(MacroHeightIsManual),
             nameof(HistoryIsEnabled), nameof(HistoryAgeInDays),
+            nameof(Username), nameof(DisplayName), nameof(SipPassword), nameof(HasSipPassword),
+            nameof(OfficeAddress), nameof(RemoteAddress), nameof(Port), nameof(Transport),
+            nameof(RegistrationExpirySeconds), nameof(TransferFeatureCode), nameof(ConferenceFeatureCode),
+            nameof(LogToFile), nameof(LogsSipTrace),
         })
         {
             NotifyChanged(name);
