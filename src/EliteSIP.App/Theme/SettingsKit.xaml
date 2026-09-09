@@ -14,7 +14,7 @@
           <StackPanel>
             <TextBlock Text="{TemplateBinding Header}"
                        Margin="0,0,0,4"
-                       FontSize="13"
+                       FontSize="14"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource TextPrimaryBrush}" />
 
@@ -74,7 +74,21 @@
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource TextPrimaryBrush}" />
 
-            <ContentPresenter Grid.Column="2" VerticalAlignment="Center" />
+            <!--
+                Управление шире 360 не растёт, хотя колонка под него тянется.
+                Предел взят не с потолка: в оригинале ширину ограничивало
+                каждое поле по отдельности (110 у номера, 220 у адреса), и
+                смысл там был тот же — поле ввода во всю ширину окна читается
+                хуже короткого, потому что глазу негде остановиться, а вводят в
+                него добавочный из трёх цифр.
+
+                Одно число вместо десятка потому, что десяток чисел в разметке
+                — это десяток мест, где они разъедутся.
+            -->
+            <ContentPresenter Grid.Column="2"
+                              MaxWidth="360"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Center" />
           </Grid>
         </ControlTemplate>
       </Setter.Value>
@@ -111,7 +125,7 @@
           <theme:SettingsIndented>
             <TextBlock x:Name="Body"
                        Text="{TemplateBinding Text}"
-                       FontSize="11"
+                       FontSize="12"
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource TextSecondaryBrush}" />
           </theme:SettingsIndented>
@@ -186,7 +200,7 @@
 
           <ControlTemplate.Triggers>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Track" Property="Background" Value="{DynamicResource StatusInCallBrush}" />
+              <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}" />
               <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
               <Setter TargetName="Knob" Property="Margin" Value="0,0,3,0" />
               <Setter TargetName="Knob" Property="Fill" Value="White" />

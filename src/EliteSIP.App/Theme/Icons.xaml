@@ -33,6 +33,14 @@
     <Path Data="m6 10.3 2.7 2.7 5.5-5.5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
   </Canvas>
 
+  <Canvas x:Key="checkmark" x:Shared="False" Width="20" Height="20">
+    <Path Data="M4.2 10.6 8 14.4 15.8 5.9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+  </Canvas>
+
+  <Canvas x:Key="chevron.down" x:Shared="False" Width="20" Height="20">
+    <Path Data="M5.2 7.6 10 12.4 14.8 7.6" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+  </Canvas>
+
   <Canvas x:Key="clock" x:Shared="False" Width="20" Height="20">
     <Path Data="M 1.8,10 A 8.2,8.2 0 1 0 18.2,10 A 8.2,8.2 0 1 0 1.8,10 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.5" />
     <Path Data="M10 5.2V10l3.4 2.1" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
@@ -70,9 +78,8 @@
   </Canvas>
 
   <Canvas x:Key="gearshape" x:Shared="False" Width="20" Height="20">
-    <Path Data="M15.6 10h2.3M13.96 13.96l1.63 1.63M10 15.6v2.3M6.04 13.96l-1.63 1.63M4.4 10H2.1M6.04 6.04 4.41 4.41M10 4.4V2.1M13.96 6.04l1.63-1.63" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-    <Path Data="M 4.4,10 A 5.6,5.6 0 1 0 15.6,10 A 5.6,5.6 0 1 0 4.4,10 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.4" />
-    <Path Data="M 7.8,10 A 2.2,2.2 0 1 0 12.2,10 A 2.2,2.2 0 1 0 7.8,10 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.4" />
+    <Path Data="M16.01 7.81 18.22 8.25 18.22 11.75 16.01 12.19A6.4 6.4 0 0 1 15.80 12.70L17.04 14.57 14.57 17.04 12.70 15.80A6.4 6.4 0 0 1 12.19 16.01L11.75 18.22 8.25 18.22 7.81 16.01A6.4 6.4 0 0 1 7.30 15.80L5.43 17.04 2.96 14.57 4.20 12.70A6.4 6.4 0 0 1 3.99 12.19L1.78 11.75 1.78 8.25 3.99 7.81A6.4 6.4 0 0 1 4.20 7.30L2.96 5.43 5.43 2.96 7.30 4.20A6.4 6.4 0 0 1 7.81 3.99L8.25 1.78 11.75 1.78 12.19 3.99A6.4 6.4 0 0 1 12.70 4.20L14.57 2.96 17.04 5.43 15.80 7.30A6.4 6.4 0 0 1 16.01 7.81Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.4" StrokeLineJoin="Round" />
+    <Path Data="M 7.4,10 A 2.6,2.6 0 1 0 12.6,10 A 2.6,2.6 0 1 0 7.4,10 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.4" />
   </Canvas>
 
   <Canvas x:Key="hammer.fill" x:Shared="False" Width="20" Height="20">

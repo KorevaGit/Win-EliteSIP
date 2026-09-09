@@ -78,7 +78,7 @@
       <TextBlock DockPanel.Dock="Left"
                  Margin="6,0,0,0"
                  VerticalAlignment="Center"
-                 FontSize="11"
+                 FontSize="12"
                  Text="{Binding Caption}">
         <TextBlock.Style>
           <Style TargetType="TextBlock">
@@ -115,14 +115,14 @@
                  HorizontalAlignment="Center"
                  TextAlignment="Center"
                  TextTrimming="CharacterEllipsis"
-                 FontSize="17"
+                 FontSize="18"
                  FontWeight="SemiBold" />
 
       <TextBlock Text="{Binding SecondaryNumber}"
                  Margin="0,2,0,0"
                  HorizontalAlignment="Center"
                  TextAlignment="Center"
-                 FontSize="13"
+                 FontSize="14"
                  Foreground="{DynamicResource TextSecondaryBrush}"
                  Visibility="{Binding SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
     </StackPanel>
@@ -136,7 +136,7 @@
       -->
       <TextBlock Text="{res:Loc IncomingDealPrompt}"
                  Margin="0,0,0,8"
-                 FontSize="13"
+                 FontSize="14"
                  TextWrapping="Wrap"
                  Foreground="{DynamicResource TextSecondaryBrush}"
                  Visibility="{Binding IsSelfCall, Converter={StaticResource BoolToVisibility}}" />
@@ -150,11 +150,11 @@
         -->
         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
           <TextBlock Text="{res:Loc IncomingDigitPrompt}"
-                     FontSize="13"
+                     FontSize="14"
                      Foreground="{DynamicResource TextSecondaryBrush}" />
           <TextBlock Text="{Binding Answer}"
                      Margin="4,0,0,0"
-                     FontSize="13"
+                     FontSize="14"
                      FontWeight="SemiBold" />
         </StackPanel>
 
@@ -175,7 +175,7 @@
               <Button Style="{StaticResource SurfaceButtonStyle}"
                       Margin="4,0"
                       Height="34"
-                      FontSize="15"
+                      FontSize="16"
                       Content="{Binding}"
                       Command="{Binding DataContext.AttemptCommand,
                                         RelativeSource={RelativeSource AncestorType=Window}}"
@@ -197,7 +197,7 @@
                         VerticalAlignment="Center" />
             <TextBlock Text="{res:Loc IncomingDecline}"
                        Margin="6,0,0,0"
-                       FontSize="13"
+                       FontSize="14"
                        Foreground="{DynamicResource DeclineBrush}" />
           </StackPanel>
         </Button>
@@ -227,7 +227,7 @@
                 AutomationProperties.IsOffscreenBehavior="Offscreen">
           <StackPanel Orientation="Horizontal">
             <theme:Icon Glyph="phone.fill" Size="12" Foreground="White" VerticalAlignment="Center" />
-            <TextBlock Text="{res:Loc IncomingAnswer}" Margin="6,0,0,0" FontSize="13" Foreground="White" />
+            <TextBlock Text="{res:Loc IncomingAnswer}" Margin="6,0,0,0" FontSize="14" Foreground="White" />
           </StackPanel>
         </Button>
 
@@ -240,7 +240,7 @@
                 AutomationProperties.Name="{res:Loc IncomingDecline}">
           <StackPanel Orientation="Horizontal">
             <theme:Icon Glyph="phone.down.fill" Size="12" Foreground="White" VerticalAlignment="Center" />
-            <TextBlock Text="{res:Loc IncomingDecline}" Margin="6,0,0,0" FontSize="13" Foreground="White" />
+            <TextBlock Text="{res:Loc IncomingDecline}" Margin="6,0,0,0" FontSize="14" Foreground="White" />
           </StackPanel>
         </Button>
       </Grid>

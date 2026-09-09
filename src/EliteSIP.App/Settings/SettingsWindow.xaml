@@ -154,10 +154,22 @@
           <StackPanel Visibility="{Binding ShowsAudio, Converter={StaticResource BoolToVisibility}}">
             <theme:SettingsSection Header="{res:Loc SectionAudio}">
               <theme:SettingsRow Header="{res:Loc AudioMicrophone}">
+                <!--
+                    Шаблон строки, а не `DisplayMemberPath`: закрытый вид
+                    своего списка рисуется тем же `SelectionBoxItemTemplate`,
+                    а `DisplayMemberPath` его не заполняет — в закрытом списке
+                    оказывалось имя типа со всеми полями, что живая проверка и
+                    показала.
+                -->
                 <ComboBox ItemsSource="{Binding Inputs}"
-                          DisplayMemberPath="Name"
                           SelectedValuePath="Id"
-                          SelectedValue="{Binding Settings.Audio.InputDeviceId}" />
+                          SelectedValue="{Binding Settings.Audio.InputDeviceId}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
               </theme:SettingsRow>
 
               <!--
@@ -196,9 +208,14 @@
 
               <theme:SettingsRow Header="{res:Loc AudioHeadphones}">
                 <ComboBox ItemsSource="{Binding Outputs}"
-                          DisplayMemberPath="Name"
                           SelectedValuePath="Id"
-                          SelectedValue="{Binding Settings.Audio.OutputDeviceId}" />
+                          SelectedValue="{Binding Settings.Audio.OutputDeviceId}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
               </theme:SettingsRow>
 
               <!-- Выше единицы не идёт: микшер громче не умеет. -->
@@ -487,7 +504,7 @@
                 отказом.
             -->
             <TextBlock Text="{res:Loc AdminModeNeedsPassword}"
-                       FontSize="11"
+                       FontSize="12"
                        Foreground="{DynamicResource TextSecondaryBrush}" />
           </StackPanel>
 

@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EliteSIP.App.Panel;
 using EliteSIP.App.Resources;
+using Microsoft.Win32;
 
 namespace EliteSIP.App.Shell;
 
@@ -88,11 +89,17 @@ public sealed class TrayIcon : IDisposable
         {
             if (change.PropertyName is nameof(PanelViewModel.Registration)
                 or nameof(PanelViewModel.IsOfflineByChoice)
+                or nameof(PanelViewModel.IsInCall)
                 or nameof(PanelViewModel.StatusTitle))
             {
                 Redraw();
             }
         };
+
+        // Панель задач меняет тон вместе с системной темой, а корона на значке
+        // красится под неё. Событие приходит не в потоке интерфейса, а рисуется
+        // значок средствами WPF — отсюда переброс.
+        SystemEvents.UserPreferenceChanged += OnSystemPreferenceChanged;
     }
 
     /// <summary>Встал ли значок в области уведомлений.</summary>
@@ -238,17 +245,40 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
+    private void OnSystemPreferenceChanged(object sender, UserPreferenceChangedEventArgs change)
+    {
+        if (change.Category is not (UserPreferenceCategory.General or UserPreferenceCategory.Color))
+        {
+            return;
+        }
+
+        _ = Application.Current?.Dispatcher.BeginInvoke(Redraw);
+    }
+
     private nint CurrentIcon()
     {
-        _iconHandle = Draw(DotBrush());
+        _iconHandle = Draw(TaskbarIsLight ? Brushes.Black : Brushes.White, DotBrush());
         return _iconHandle;
     }
 
+    /// <summary>Цвет точки. Словарь тот же, что в капсуле панели, плюс разговор.</summary>
+    ///
+    /// <remarks>
+    /// Разговор перекрывает регистрацию, а не приписывается к ней: при
+    /// спрятанной панели значок — единственный признак того, что микрофон
+    /// живой, и это важнее, чем «зарегистрирован», о котором и так говорит сам
+    /// факт разговора. Порядок тот же, что в macOS-версии.
+    /// </remarks>
     private Brush DotBrush()
     {
         if (_model.IsOfflineByChoice)
         {
             return Resource("StatusOfflineBrush");
+        }
+
+        if (_model.IsInCall)
+        {
+            return Resource("StatusInCallBrush");
         }
 
         return _model.Registration switch
@@ -263,21 +293,29 @@ public sealed class TrayIcon : IDisposable
     private static Brush Resource(string key)
         => Application.Current.TryFindResource(key) as Brush ?? Brushes.Gray;
 
-    /// <summary>Золото короны — то же, что на значке приложения.</summary>
+    /// <summary>
+    /// Цвет короны: чёрная на светлой панели задач, белая на тёмной.
+    /// </summary>
     ///
     /// <remarks>
-    /// Градиент, а не плоский цвет: на значке macOS-версии корона залита
-    /// переходом от светлого золота к тёмному, и в области уведомлений она
-    /// обязана выглядеть тем же предметом, а не его перерисовкой.
+    /// Спрашивается <c>SystemUsesLightTheme</c>, а не <c>AppsUseLightTheme</c> и
+    /// не выбор оператора в настройках: значок стоит не в окне приложения, а на
+    /// панели задач, и красить его надо под неё. Эти три величины расходятся
+    /// сплошь и рядом — светлые окна при тёмной панели задач Windows предлагает
+    /// прямо в «Персонализации» как один из двух готовых наборов.
     /// </remarks>
-    private static readonly Brush CrownGold = new LinearGradientBrush(
-        Color.FromRgb(0xE8, 0xC8, 0x6A),
-        Color.FromRgb(0xB8, 0x86, 0x2F),
-        angle: 90)
+    private static bool TaskbarIsLight
     {
-        // Заморожена: кисть общая на все перерисовки, а незамороженная тянет за
-        // собой поток, в котором её создали.
-    };
+        get
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+
+            // Ключа нет — панель задач тёмная: такой она была до того, как
+            // выбор появился, и такой остаётся на системах без него.
+            return key?.GetValue("SystemUsesLightTheme") is int light && light == 1;
+        }
+    }
 
     /// <summary>Рисует корону значка приложения и точку состояния под ней.</summary>
     ///
@@ -286,23 +324,39 @@ public sealed class TrayIcon : IDisposable
     /// нужна, и на масштабе 150% просит как раз 24. Нарисованный в 16 значок
     /// там растягивается и мылится.
     ///
-    /// <b>Корона без тёмной плашки, хотя значок приложения — плашка с короной.</b>
-    /// Плашку пробовали: в области уведомлений она занимает весь квадрат, и
-    /// корона внутри неё на 16 точках сжимается до пятна — значок читается как
-    /// тёмный прямоугольник и теряется среди соседей. Предмет один и тот же,
-    /// фон у него разный: у окна и в проводнике значок стоит на своём поле, в
-    /// области уведомлений полем служит панель задач.
+    /// <b>Композиция — та же, что в строке меню macOS.</b> Корона прижата к
+    /// верху и стоит по центру, точка состояния — по центру внизу, на месте
+    /// подставки короны из фирменного знака. Это не сходство ради сходства:
+    /// знак у приложения один, и оператор, у которого на столе и Mac, и
+    /// Windows, обязан узнавать его без раздумий.
+    ///
+    /// <b>Корона одноцветная, а не золотая.</b> Золотой градиент прошлой версии
+    /// был перенесён со значка приложения — того, что в проводнике и на панели
+    /// задач, где значок стоит на своём поле. В области уведомлений поля нет:
+    /// золото там оказывается цветным пятном среди одноцветных системных
+    /// значков и на светлой панели задач вдобавок теряет контраст. Строка меню
+    /// macOS решает это ровно так же — глиф под цвет полосы, цветной остаётся
+    /// одна точка.
+    ///
+    /// <b>Точка переехала из угла в середину низа и лишилась каймы.</b> Кайма
+    /// нужна была затем, чтобы зелёное не сливалось с золотом; под короной,
+    /// стоящей отдельно, сливаться не с чем, и точка стала тем единственным
+    /// цветным, чем ей и положено быть.
     ///
     /// Фигура — из того же комплекта, что и остальные значки приложения
     /// (<c>crown.fill</c> в <c>Theme/Icons.xaml</c>), поэтому вторая правда о
     /// форме короны не заводится.
-    ///
-    /// Точка состояния остаётся: она отвечает на вопрос, которого у значка нет,
-    /// — жива ли регистрация.
     /// </remarks>
-    private static nint Draw(Brush dot)
+    private static nint Draw(Brush glyph, Brush dot)
     {
         const int size = 32;
+
+        // Доли, а не точки: они же в macOS-версии, только там сторона 18.
+        // Корона занимает верхние две трети, точка — нижнюю треть, между ними
+        // остаётся волосок воздуха.
+        const double crownWidth = size * 15.0 / 18.0;
+        const double crownHeight = size * 11.0 / 18.0;
+        const double dotDiameter = size * 5.0 / 18.0;
 
         var visual = new DrawingVisual();
         using (var canvas = visual.RenderOpen())
@@ -311,15 +365,23 @@ public sealed class TrayIcon : IDisposable
                 "M1.6 16.2V3.4c0-.5.6-.75.95-.4l3.7 3.6L9.3 1.5c.32-.5 1.06-.5 1.38 0l3.07 5.1 "
                 + "3.7-3.6c.36-.35.95-.1.95.4v12.8z");
 
-            canvas.PushTransform(new ScaleTransform(size / 20.0, size / 20.0));
-            canvas.DrawGeometry(CrownGold, pen: null, crown);
+            // Фигура вписывается в свой прямоугольник по замеренным границам, а
+            // не по сетке 20×20, на которой нарисована: поля внутри этой сетки
+            // у неё неодинаковые, и корона, растянутая по сетке, встала бы
+            // не по центру.
+            var bounds = crown.Bounds;
+            var scale = Math.Min(crownWidth / bounds.Width, crownHeight / bounds.Height);
+
+            canvas.PushTransform(new TranslateTransform(
+                (size - bounds.Width * scale) / 2 - bounds.X * scale,
+                -bounds.Y * scale));
+            canvas.PushTransform(new ScaleTransform(scale, scale));
+            canvas.DrawGeometry(glyph, pen: null, crown);
+            canvas.Pop();
             canvas.Pop();
 
-            // Точка состояния в правом нижнем углу, с тёмной каймой под ней:
-            // без каймы зелёное на золоте короны сливается в пятно.
-            var centre = new System.Windows.Point(size * 0.76, size * 0.76);
-            canvas.DrawEllipse(Brushes.Black, pen: null, centre, size * 0.24, size * 0.24);
-            canvas.DrawEllipse(dot, pen: null, centre, size * 0.17, size * 0.17);
+            var centre = new System.Windows.Point(size / 2.0, size - dotDiameter / 2);
+            canvas.DrawEllipse(dot, pen: null, centre, dotDiameter / 2, dotDiameter / 2);
         }
 
         var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
@@ -396,6 +458,11 @@ public sealed class TrayIcon : IDisposable
         {
             return;
         }
+
+        // Подписка на `SystemEvents` статическая и живёт дольше приложения:
+        // неотписанный обработчик держит значок до конца процесса и на выходе
+        // рисует уже снятый.
+        SystemEvents.UserPreferenceChanged -= OnSystemPreferenceChanged;
 
         // Значок снимается руками: неснятый остаётся в области уведомлений
         // призраком до тех пор, пока по нему не проведут мышью.

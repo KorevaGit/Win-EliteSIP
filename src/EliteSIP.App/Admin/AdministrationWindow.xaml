@@ -20,7 +20,7 @@
         Foreground="{DynamicResource TextPrimaryBrush}"
         TextOptions.TextFormattingMode="Display"
         theme:SettingsLayout.LabelColumn="132"
-        theme:SettingsLayout.RowMaxWidth="560">
+        theme:SettingsLayout.RowMaxWidth="760">
 
   <!--
       Числа окна — из макета и замеров оригинала. Колонка подписей 132, а не
@@ -68,7 +68,7 @@
                     -->
                     <TextBlock Text="{Binding Content.Group, RelativeSource={RelativeSource TemplatedParent}}"
                                Margin="8,10,0,2"
-                               FontSize="11"
+                               FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextTertiaryBrush}"
                                Visibility="{Binding Content.Group, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource PresenceToVisibility}}" />
@@ -118,8 +118,19 @@
                     VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled"
                     Padding="12,12,12,0">
-        <Grid HorizontalAlignment="Left"
-              Width="{Binding (theme:SettingsLayout.RowMaxWidth), RelativeSource={RelativeSource Self}}">
+        <!--
+            Содержимое тянется на всю ширину, а `RowMaxWidth` держит его
+            предел. Прежде здесь стояла жёсткая ширина с прижимом влево, и
+            окно, у которого под содержимое 756 точек, а содержимого на 560,
+            получало двести точек пустоты у правого края — так, будто у него
+            съехала вёрстка.
+
+            Ряд внутри карточки этим не растягивается: ширину управления в нём
+            держит собственный предел (см. `SettingsRow`), и «Отображаемое имя»
+            не превращается в поле во весь экран.
+        -->
+        <Grid HorizontalAlignment="Stretch"
+              MaxWidth="{Binding (theme:SettingsLayout.RowMaxWidth), RelativeSource={RelativeSource Self}}">
 
           <!-- Раздел «Аккаунт». -->
           <StackPanel Visibility="{Binding ShowsAccount, Converter={StaticResource BoolToVisibility}}">
@@ -712,7 +723,7 @@
                 <TextBlock Text="{Binding SettingsPath}"
                            TextWrapping="Wrap"
                            FontFamily="Consolas"
-                           FontSize="11"
+                           FontSize="12"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
 
@@ -744,7 +755,7 @@
 
           <TextBlock Grid.Column="0"
                      VerticalAlignment="Center"
-                     FontSize="11"
+                     FontSize="12"
                      Foreground="{DynamicResource UnsavedBrush}"
                      Text="●"
                      Visibility="{Binding IsDirty, Converter={StaticResource BoolToVisibility}}" />

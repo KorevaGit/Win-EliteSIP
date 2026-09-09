@@ -28,15 +28,54 @@
   <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFFFF" />
   <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#0F000000" />
   <SolidColorBrush x:Key="ControlHoverBrush" Color="#17000000" />
-  <SolidColorBrush x:Key="ControlPressedBrush" Color="#22000000" />
+  <!--
+      Нажатая поверхность светлее спокойной, а не темнее — так в
+      Windows 11: под курсором кнопка проявляется, под нажатием гаснет.
+      В тёмной палитре то же правило даёт более тёмную заливку.
+  -->
+  <SolidColorBrush x:Key="ControlPressedBrush" Color="#08000000" />
   <SolidColorBrush x:Key="SeparatorBrush" Color="#14000000" />
+
+  <!--
+      Обводка кнопки или поля. Отдельная от разделителя, хотя числа близки:
+      разделитель — линия между двумя вещами, обводка — край одной. В
+      Windows 11 край есть у каждой поверхности управления, и именно он
+      отличает кнопку от просто закрашенного прямоугольника: без него плашка
+      сливается с фоном окна, стоит фону оказаться того же тона.
+  -->
+  <SolidColorBrush x:Key="ControlBorderBrush" Color="#0F000000" />
+
+  <!--
+      Полоса прокрутки. Ползунок заметно темнее обводки: он не край
+      поверхности, а то, за что берутся мышью, и обязан быть виден на любом
+      содержимом — на белой карточке и на серой подложке одинаково.
+  -->
+  <SolidColorBrush x:Key="ScrollThumbBrush" Color="#6B000000" />
+  <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#8A000000" />
+  <SolidColorBrush x:Key="ScrollTrackBrush" Color="#0A000000" />
+
+  <!--
+      Синий приложения — тот же, что синий Windows: #0078D4, цвет оформления
+      системы по умолчанию, знакомый по выделению в проводнике и по включённым
+      переключателям.
+
+      До этого здесь стоял #005FB8 — из набора WinUI, где он служит заливкой
+      акцентной кнопки, то есть цветом под белой надписью. Под подписью он
+      выглядит как надо, а сам по себе — тускло-синим; выделенный раздел
+      настроек им и вышел бледным. Оба места, где приложение синеет — выделение
+      и «в разговоре», — красятся отсюда, поэтому расходиться им негде.
+  -->
+  <SolidColorBrush x:Key="AccentBrush" Color="#FF0078D4" />
 
   <!--
       Выделенная строка бокового списка. Своя кисть, а не поверхность: в тёмной
       палитре поверхность и фон сайдбара сходятся почти в один тон, и выбранный
       раздел переставал быть виден вовсе — что живая проверка и показала.
+
+      Пятая часть непрозрачности, а не полная заливка: под ней стоит обычный
+      тёмный текст, и синяя плашка целиком его бы съела.
   -->
-  <SolidColorBrush x:Key="SelectionBrush" Color="#26005FB8" />
+  <SolidColorBrush x:Key="SelectionBrush" Color="#330078D4" />
 
   <!--
       Состояние регистрации. Четыре цвета, и четвёртый — не оттенок третьего:
@@ -47,7 +86,7 @@
   <SolidColorBrush x:Key="StatusConnectingBrush" Color="#FFC4600C" />
   <SolidColorBrush x:Key="StatusOfflineBrush" Color="#9E000000" />
   <SolidColorBrush x:Key="StatusFailureBrush" Color="#FFC42B1C" />
-  <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF005FB8" />
+  <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF0078D4" />
 
   <!--
       Приём и отбой. Две пары ключей, и это не дубль: цвет надписи и цвет

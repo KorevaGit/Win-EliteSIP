@@ -22,11 +22,11 @@
   -->
 
   <StackPanel Margin="12">
-    <TextBlock Text="{res:Loc AdminUnlockTitle}" FontSize="15" FontWeight="SemiBold" />
+    <TextBlock Text="{res:Loc AdminUnlockTitle}" FontSize="16" FontWeight="SemiBold" />
 
     <TextBlock Text="{res:Loc AdminUnlockSubtitle}"
                Margin="0,4,0,0"
-               FontSize="11"
+               FontSize="12"
                TextWrapping="Wrap"
                Foreground="{DynamicResource TextSecondaryBrush}" />
 
@@ -54,7 +54,7 @@
     <TextBlock x:Name="WarningText"
                Text="{res:Loc AdminUnlockWarning}"
                Margin="0,12,0,0"
-               FontSize="11"
+               FontSize="12"
                TextWrapping="Wrap"
                Visibility="Collapsed"
                Foreground="{DynamicResource CautionBrush}" />
@@ -67,7 +67,7 @@
                   Foreground="{DynamicResource StatusFailureBrush}" />
       <TextBlock x:Name="ProblemText"
                  Margin="6,0,0,0"
-                 FontSize="11"
+                 FontSize="12"
                  TextWrapping="Wrap"
                  VerticalAlignment="Center"
                  Foreground="{DynamicResource StatusFailureBrush}" />

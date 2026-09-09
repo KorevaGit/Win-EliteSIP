@@ -159,14 +159,13 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var answer = MessageBox.Show(
+        var answer = Theme.Dialog.Ask(
             this,
-            Strings.Get("AppearanceLanguageQuestionBody"),
             Strings.Get("AppearanceLanguageQuestion"),
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Question);
+            Strings.Get("AppearanceLanguageQuestionBody"),
+            confirmTitle: Strings.Get("AppearanceLanguageConfirm"));
 
-        if (answer is not MessageBoxResult.OK)
+        if (answer is not DialogAnswer.Confirm)
         {
             // Вернуть сегменты к записанному: отказ не должен оставлять
             // выбранным то, чего не произошло.

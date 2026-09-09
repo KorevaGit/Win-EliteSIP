@@ -99,9 +99,6 @@ public partial class PanelWindow : Window
         }
     }
 
-    private void OnMinimizeClick(object sender, RoutedEventArgs e)
-        => WindowState = WindowState.Minimized;
-
     /// <summary>Закрытие панели прячет её в область уведомлений, а не гасит.</summary>
     ///
     /// <remarks>
@@ -109,15 +106,18 @@ public partial class PanelWindow : Window
     /// оператор закрывает панель, чтобы она не мешала, а не чтобы перестать
     /// быть на линии. Выход живёт в меню значка — единственном месте, откуда
     /// его видно при спрятанной панели.
+    ///
+    /// Своих кнопок окна у панели больше нет — полоса заголовка системная, — и
+    /// это место стало единственным, где закрытие перехватывается. Раньше их
+    /// было два: свой крестик и вот эта проверка, и совпадали они только
+    /// потому, что делали одно и то же руками.
     /// </remarks>
-    private void OnCloseClick(object sender, RoutedEventArgs e) => Hide();
-
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         base.OnClosing(e);
 
-        // Системное закрытие (Alt+F4, «Закрыть» из панели задач) — то же самое
-        // и по той же причине.
+        // Крестик в полосе заголовка, Alt+F4 и «Закрыть» из панели задач —
+        // теперь один и тот же путь.
         if (!AllowsClosing)
         {
             e.Cancel = true;
@@ -130,6 +130,37 @@ public partial class PanelWindow : Window
 
     private void OnClearNumberClick(object sender, RoutedEventArgs e)
         => Model.DialedNumber = string.Empty;
+
+    /// <summary>Раскрывает меню профиля под капсулой.</summary>
+    ///
+    /// <remarks>
+    /// Руками, а не само: меню, привязанное к кнопке через
+    /// <c>ContextMenu</c>, WPF открывает по правому щелчку — так устроено
+    /// контекстное меню. Здесь же оно не контекстное, а выпадающее: открывать
+    /// его обязан обычный щелчок, тот же, каким открываются все прочие списки
+    /// в приложении.
+    ///
+    /// Место назначается тут же: без <c>PlacementTarget</c> меню встаёт под
+    /// курсором, то есть каждый раз в новом месте, а список под кнопкой обязан
+    /// открываться под кнопкой.
+    /// </remarks>
+    private void OnProfileClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button pill || pill.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        menu.PlacementTarget = pill;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.HorizontalOffset = -8;
+        menu.VerticalOffset = -4;
+
+        // Данные меню берёт у кнопки: всплывающее живёт вне дерева окна, и
+        // `DataContext` туда сам не доходит.
+        menu.DataContext = DataContext;
+        menu.IsOpen = true;
+    }
 
     private void OnTransferClick(object sender, RoutedEventArgs e)
     {

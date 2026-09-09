@@ -46,14 +46,13 @@ public partial class FirstRunWindow : Window
             return;
         }
 
-        var answer = MessageBox.Show(
+        var answer = Theme.Dialog.Ask(
             this,
-            Strings.Get("FirstRunAbandonBody"),
             Strings.Get("FirstRunAbandonTitle"),
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning);
+            Strings.Get("FirstRunAbandonBody"),
+            confirmTitle: Strings.Get("FirstRunAbandonConfirm"));
 
-        if (answer is not MessageBoxResult.OK)
+        if (answer is not DialogAnswer.Confirm)
         {
             e.Cancel = true;
         }

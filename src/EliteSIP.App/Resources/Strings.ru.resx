@@ -50,12 +50,6 @@
   <data name="PanelWindowTitle" xml:space="preserve">
     <value>EliteSIP</value>
   </data>
-  <data name="PanelClose" xml:space="preserve">
-    <value>Закрыть</value>
-  </data>
-  <data name="PanelMinimize" xml:space="preserve">
-    <value>Свернуть</value>
-  </data>
   <data name="PanelSettings" xml:space="preserve">
     <value>Настройки</value>
   </data>
@@ -439,6 +433,27 @@
   </data>
   <data name="AdminDiagnosticsNote" xml:space="preserve">
     <value>Журнал и настройки лежат рядом. Их прикладывают к обращению в поддержку — там же собирается архив из раздела «Техподдержка».</value>
+  </data>
+  <data name="AppearanceLanguageConfirm" xml:space="preserve">
+    <value>Сменить и перезапустить</value>
+  </data>
+  <data name="AdminRemovePasswordConfirm" xml:space="preserve">
+    <value>Снять пароль</value>
+  </data>
+  <data name="FirstRunAbandonConfirm" xml:space="preserve">
+    <value>Прервать настройку</value>
+  </data>
+  <data name="DialogConfirm" xml:space="preserve">
+    <value>Продолжить</value>
+  </data>
+  <data name="DialogCancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="DialogSave" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="DialogDiscard" xml:space="preserve">
+    <value>Не сохранять</value>
   </data>
   <data name="AdminCloseDirtyTitle" xml:space="preserve">
     <value>Есть несохранённое</value>

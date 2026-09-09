@@ -134,20 +134,20 @@
               <Button Style="{StaticResource ChromeButtonStyle}"
                       HorizontalAlignment="Left"
                       Content="‹"
-                      FontSize="16"
+                      FontSize="17"
                       IsEnabled="{Binding CanShowPreviousMonth}"
                       Click="OnPreviousMonthClick" />
 
               <TextBlock Text="{Binding MonthTitle}"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center"
-                         FontSize="13"
+                         FontSize="14"
                          FontWeight="SemiBold" />
 
               <Button Style="{StaticResource ChromeButtonStyle}"
                       HorizontalAlignment="Right"
                       Content="›"
-                      FontSize="16"
+                      FontSize="17"
                       IsEnabled="{Binding CanShowNextMonth}"
                       Click="OnNextMonthClick" />
             </Grid>
@@ -162,7 +162,7 @@
                 <DataTemplate>
                   <TextBlock Text="{Binding}"
                              Width="28"
-                             FontSize="11"
+                             FontSize="12"
                              TextAlignment="Center"
                              Foreground="{DynamicResource TextSecondaryBrush}" />
                 </DataTemplate>
@@ -186,7 +186,7 @@
                                 Click="OnDayClick">
                           <StackPanel>
                             <TextBlock Text="{Binding Number}"
-                                       FontSize="12"
+                                       FontSize="13"
                                        TextAlignment="Center" />
                             <!-- Точка под числом: «в этот день были звонки». -->
                             <Ellipse Width="4"
@@ -262,7 +262,7 @@
                   -->
                   <TextBlock Text="{Binding Title}"
                              Margin="8,12,8,4"
-                             FontSize="13"
+                             FontSize="14"
                              FontWeight="SemiBold" />
 
                   <!--
@@ -295,7 +295,7 @@
                                        TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding Converter={StaticResource CallSubtitle}}"
                                        Margin="0,2,0,0"
-                                       FontSize="11"
+                                       FontSize="12"
                                        TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                           </StackPanel>
@@ -323,7 +323,7 @@
 
                             <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}}"
                                        Margin="0,2,0,0"
-                                       FontSize="11"
+                                       FontSize="12"
                                        TextAlignment="Right"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                           </StackPanel>
@@ -369,7 +369,7 @@
                 CornerRadius="14"
                 Visibility="Collapsed"
                 Background="{DynamicResource SurfaceBrush}">
-          <TextBlock x:Name="NoticeText" FontSize="11" />
+          <TextBlock x:Name="NoticeText" FontSize="12" />
         </Border>
       </Grid>
     </Border>

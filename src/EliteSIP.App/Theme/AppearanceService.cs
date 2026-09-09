@@ -83,6 +83,11 @@ public sealed class AppearanceService : IDisposable
         }
 
         _current = palette;
+
+        // Полоса заголовка живёт вне палитры: её рисует диспетчер окон, и
+        // словарь ресурсов до неё не достаёт. Переставляется она здесь же,
+        // чтобы окно не осталось тёмным под белой полосой.
+        SystemCaption.ApplyToOpenWindows(_application, IsDark);
     }
 
     private static bool SystemPrefersDark()

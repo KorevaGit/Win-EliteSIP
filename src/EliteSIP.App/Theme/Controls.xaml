@@ -49,6 +49,18 @@
   </Style>
 
   <!--
+      Радиус скругления — один на все поверхности управления, и число взято не
+      на глаз: 4 — это `ControlCornerRadius` самой Windows 11, тот же, что у
+      системной кнопки, поля и строки списка. Прежняя восьмёрка была
+      пересчётом macOS, где радиус крупнее по всей системе; на клавише в 32
+      точки высотой она заметно круглее соседних системных окон, а на капсуле
+      профиля — наоборот, недостаточно кругла. Капсула поэтому и осталась
+      единственным исключением: 11 при высоте 22 — это не скругление, а форма,
+      и означает она метку состояния, а не кнопку.
+  -->
+  <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+
+  <!--
       Кнопка-поверхность: подложка, скругление, подсветка под курсором.
       Основание для всего, что в панели нажимается, кроме звонка — у того своя
       заливка цветом действия.
@@ -62,6 +74,7 @@
   <Style x:Key="SurfaceButtonStyle" TargetType="{x:Type Button}">
     <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Focusable" Value="False" />
@@ -70,17 +83,27 @@
         <ControlTemplate TargetType="{x:Type Button}">
           <Border x:Name="Surface"
                   Background="{TemplateBinding Background}"
-                  CornerRadius="8"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
                   SnapsToDevicePixels="True">
-            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+            <ContentPresenter x:Name="Label"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
             </Trigger>
+            <!--
+                Под нажатием гаснет не только заливка, но и подпись: в
+                Windows 11 нажатие показано именно этой парой, и одной
+                заливкой оно читается вяло — светлая нажатая поверхность
+                отличается от спокойной слабее, чем тёмная.
+            -->
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+              <Setter TargetName="Label" Property="Opacity" Value="0.75" />
             </Trigger>
             <!--
                 Выключенная кнопка гаснет, но остаётся видимой: три почти
@@ -97,12 +120,62 @@
     </Setter>
   </Style>
 
-  <!-- Кнопка окна: закрыть и свернуть в полосе заголовка панели. -->
+  <!--
+      Кнопка-значок без подложки: шестерёнка в строке состояния, крестик в поле
+      набора. Полоса заголовка теперь системная, и своих кнопок окна в панели
+      не осталось — но стиль сохранил имя, потому что осталось само поведение:
+      кнопка, у которой в покое нет ни заливки, ни края, и оба появляются под
+      курсором.
+
+      Обводки нет намеренно: край вокруг значка размером 12 точек превращает
+      его в клавишу, которой он не является.
+  -->
   <Style x:Key="ChromeButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource SurfaceButtonStyle}">
     <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Width" Value="22" />
     <Setter Property="Height" Value="22" />
+  </Style>
+
+  <!--
+      Капсула профиля. Кнопка со списком, и единственное в приложении, что
+      скруглено в капсулу: при высоте 22 радиус 11 — это уже не скругление, а
+      форма, и означает она метку состояния, каковой капсула наполовину и
+      является.
+
+      Выключенная (в разговоре) не гаснет целиком, как прочие кнопки, — оттого
+      у шаблона и нет отклика на `IsEnabled`: номер и точка состояния обязаны
+      читаться в разговоре в полную силу. Пропадает один шеврон, и убирает его
+      разметка панели: капсула, которая не открывается, не должна и обещать,
+      что откроется.
+  -->
+  <Style x:Key="ProfilePillStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource SurfaceButtonStyle}">
+    <Setter Property="Height" Value="22" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Button}">
+          <Border x:Name="Surface"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="11"
+                  Padding="{TemplateBinding Padding}"
+                  SnapsToDevicePixels="True">
+            <ContentPresenter VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
   </Style>
 
   <!--
@@ -112,6 +185,7 @@
   -->
   <Style x:Key="ControlKeyStyle" TargetType="{x:Type ToggleButton}">
     <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="Height" Value="32" />
     <Setter Property="Focusable" Value="False" />
@@ -120,16 +194,27 @@
         <ControlTemplate TargetType="{x:Type ToggleButton}">
           <Border x:Name="Surface"
                   Background="{TemplateBinding Background}"
-                  CornerRadius="8"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
                   SnapsToDevicePixels="True">
-            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <ContentPresenter x:Name="Label" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
             </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+              <Setter TargetName="Label" Property="Opacity" Value="0.75" />
+            </Trigger>
+            <!--
+                Залитая клавиша обводки не носит: край на цветной заливке
+                читается как ободок вокруг цвета, а не как край кнопки.
+            -->
             <Trigger Property="IsChecked" Value="True">
               <Setter TargetName="Surface" Property="Background" Value="{DynamicResource StatusConnectingBrush}" />
+              <Setter TargetName="Surface" Property="BorderBrush" Value="Transparent" />
               <Setter Property="Foreground" Value="White" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
@@ -150,6 +235,45 @@
   <Style x:Key="MacroKeyStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource SurfaceButtonStyle}" />
 
   <!--
+      Кнопка подтверждения в вопросе: «Сменить», «Сохранить», «Снять».
+      Заливка акцентом, надпись белая — так в Windows 11 отмечена та кнопка,
+      которую нажмут в девяти случаях из десяти.
+
+      Белым по акценту, а не по правилам палитры: акцент в обеих палитрах —
+      цвет с достаточной насыщенностью, и белая надпись читается на нём и в
+      светлой, и в тёмной.
+  -->
+  <Style x:Key="AccentButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource SurfaceButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Button}">
+          <Border x:Name="Surface"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
+                  Padding="{TemplateBinding Padding}"
+                  SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.88" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.75" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
       Кнопка звонка. Заливка задана явно, а не акцентом системы: в неактивном
       окне системный акцент выцветает в серый, а панель висит поверх CRM и
       активной бывает редко.
@@ -163,13 +287,20 @@
         <ControlTemplate TargetType="{x:Type Button}">
           <Border x:Name="Surface"
                   Background="{TemplateBinding Background}"
-                  CornerRadius="8"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
                   SnapsToDevicePixels="True">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Surface" Property="Opacity" Value="0.88" />
+            </Trigger>
+            <!--
+                Нажатие гасит сильнее наведения — тем же шагом, каким это
+                сделано у поверхностей: 0.88 под курсором, 0.75 под пальцем.
+            -->
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.75" />
             </Trigger>
             <!--
                 Выключенная гаснет сильнее прочих — до 0.4, как в оригинале:
@@ -220,6 +351,437 @@
               <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
             </Trigger>
           </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      ==================== Полоса прокрутки ====================
+
+      Своя по той же причине, что кнопки и списки, но с одной добавкой: у
+      системной полосы WPF вид не Windows 11, а Windows 7 — серый жёлоб во всю
+      высоту, кнопки-стрелки на концах и ползунок с рамкой. Ни кнопок, ни жёлоба
+      в Windows 11 нет вовсе.
+
+      Устроена она там так: в покое — волосок вдоль края, под курсором —
+      полоса вчетверо шире с ползунком поверх подложки. Ширину меняет сама
+      полоса, а не её содержимое, поэтому текст под ней не перекладывается.
+  -->
+
+  <!-- Ползунок: скруглённая пилюля, темнеющая под курсором. -->
+  <Style x:Key="ScrollThumbStyle" TargetType="{x:Type Thumb}">
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Thumb}">
+          <!--
+              Прозрачная подложка во всю ширину полосы, а сам ползунок внутри
+              неё: тянуть надо за всю ширину, а видеть — только пилюлю.
+          -->
+          <Border Background="Transparent" Padding="4,0">
+            <Border x:Name="Pill"
+                    CornerRadius="3"
+                    Background="{DynamicResource ScrollThumbBrush}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Pill" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsDragging" Value="True">
+              <Setter TargetName="Pill" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Щелчок мимо ползунка листает страницу. Кнопка невидима и в покое, и под
+      курсором: в Windows 11 у жёлоба нет своего вида вовсе.
+  -->
+  <Style x:Key="ScrollPageStyle" TargetType="{x:Type RepeatButton}">
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type RepeatButton}">
+          <Border Background="Transparent" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="{x:Type ScrollBar}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="MinWidth" Value="12" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type ScrollBar}">
+          <!--
+              Подложка появляется под курсором и в покое прозрачна: полоса
+              лежит поверх содержимого, и постоянный жёлоб рисовал бы серую
+              черту вдоль каждого списка.
+          -->
+          <Border x:Name="Track"
+                  Background="Transparent"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
+                  SnapsToDevicePixels="True">
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Style="{StaticResource ScrollPageStyle}" Command="ScrollBar.PageUpCommand" />
+              </Track.DecreaseRepeatButton>
+              <Track.Thumb>
+                <Thumb Style="{StaticResource ScrollThumbStyle}" />
+              </Track.Thumb>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Style="{StaticResource ScrollPageStyle}" Command="ScrollBar.PageDownCommand" />
+              </Track.IncreaseRepeatButton>
+            </Track>
+          </Border>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Track" Property="Background" Value="{DynamicResource ScrollTrackBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+
+    <Style.Triggers>
+      <!--
+          Лежачая полоса — тот же шаблон, повёрнутый на бок. Отдельным
+          шаблоном она разошлась бы с вертикальной при первой же правке, а
+          нужна она в приложении один раз — под широкой таблицей истории.
+      -->
+      <Trigger Property="Orientation" Value="Horizontal">
+        <Setter Property="Width" Value="Auto" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Height" Value="12" />
+        <Setter Property="MinHeight" Value="12" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="{x:Type ScrollBar}">
+              <Border x:Name="Track"
+                      Background="Transparent"
+                      CornerRadius="{StaticResource ControlCornerRadius}"
+                      SnapsToDevicePixels="True">
+                <Track x:Name="PART_Track" IsDirectionReversed="False">
+                  <Track.DecreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollPageStyle}" Command="ScrollBar.PageLeftCommand" />
+                  </Track.DecreaseRepeatButton>
+                  <Track.Thumb>
+                    <Thumb Style="{StaticResource ScrollThumbStyle}">
+                      <Thumb.LayoutTransform>
+                        <RotateTransform Angle="90" />
+                      </Thumb.LayoutTransform>
+                    </Thumb>
+                  </Track.Thumb>
+                  <Track.IncreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollPageStyle}" Command="ScrollBar.PageRightCommand" />
+                  </Track.IncreaseRepeatButton>
+                </Track>
+              </Border>
+
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                  <Setter TargetName="Track" Property="Background" Value="{DynamicResource ScrollTrackBrush}" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!--
+      ==================== Выпадающие списки и меню ====================
+
+      Своё, а не системное, и по той же причине, по какой свои кнопки и поля:
+      системный список приходит со своей рамкой, своим радиусом и своей
+      подсветкой — той, что рисовал ещё Windows 7, — и рядом с нашими
+      поверхностями читается как чужой. Внутри окна, собранного по макету, это
+      видно первым.
+
+      Общего у списка и меню больше, чем различий: обе всплывающие поверхности
+      подчиняются одним правилам — восьмёрка радиуса (`OverlayCornerRadius`
+      Windows 11, а не четвёрка контролов: всплывающее крупнее и скруглено
+      сильнее), край, тень и поле в 4 точки вокруг строк.
+  -->
+
+  <!-- Радиус всплывающей поверхности: списка, меню, подсказки. -->
+  <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+
+  <!--
+      Тень под всплывающим. Слабая и глубокая: всплывающее в Windows 11 не
+      висит над окном стопкой, а лежит на нём — тень здесь отделяет край, а не
+      изображает высоту.
+  -->
+  <DropShadowEffect x:Key="OverlayShadow"
+                    BlurRadius="14"
+                    ShadowDepth="2"
+                    Direction="270"
+                    Opacity="0.22"
+                    Color="Black" />
+
+  <!--
+      Поверхность всплывающего. Один шаблон на список и на меню — иначе они
+      разъедутся, а стоят они в одном окне и открываются одним и тем же
+      движением.
+  -->
+  <ControlTemplate x:Key="OverlaySurfaceTemplate" TargetType="{x:Type ContentControl}">
+    <Border Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource ControlBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource OverlayCornerRadius}"
+            Padding="4"
+            SnapsToDevicePixels="True">
+      <ContentPresenter />
+    </Border>
+  </ControlTemplate>
+
+  <!--
+      Строки списка и меню высотой 32 — той же, что у клавиши ряда управления:
+      это одна и та же величина «строка, в которую целятся мышью».
+
+      Место под галочку в них занято всегда, и у невыбранных строк тоже. Иначе
+      выбранная строка съезжала бы вправо относительно прочих, и список
+      подрагивал бы при каждой смене выбора.
+  -->
+
+  <!--
+      Список выбора устройства. Кнопка-поверхность с шевроном справа, под ней
+      всплывающая поверхность со строками.
+  -->
+  <Style TargetType="{x:Type ComboBox}">
+    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type ComboBox}">
+          <Grid>
+            <!--
+                Раскрывает список весь прямоугольник, а не один шеврон: в
+                системном списке так же, и промах по шеврону читался бы как
+                «список сломался».
+            -->
+            <ToggleButton x:Name="Surface"
+                          Focusable="False"
+                          ClickMode="Press"
+                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+              <ToggleButton.Template>
+                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                  <Border x:Name="Fill"
+                          Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                          BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                          BorderThickness="1"
+                          CornerRadius="{StaticResource ControlCornerRadius}"
+                          SnapsToDevicePixels="True" />
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Fill" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsChecked" Value="True">
+                      <Setter TargetName="Fill" Property="Background" Value="{DynamicResource ControlPressedBrush}" />
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+
+            <Grid Margin="10,0,8,0" IsHitTestVisible="False">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <ContentPresenter Grid.Column="0"
+                                Content="{TemplateBinding SelectionBoxItem}"
+                                ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                VerticalAlignment="Center" />
+
+              <theme:Icon Grid.Column="1"
+                          Glyph="chevron.down"
+                          Size="12"
+                          Margin="6,0,0,0"
+                          VerticalAlignment="Center"
+                          Foreground="{DynamicResource TextSecondaryBrush}" />
+            </Grid>
+
+            <Popup x:Name="PART_Popup"
+                   AllowsTransparency="True"
+                   Placement="Bottom"
+                   VerticalOffset="4"
+                   PopupAnimation="Fade"
+                   IsOpen="{TemplateBinding IsDropDownOpen}">
+              <!--
+                  Поле вокруг поверхности — место под тень: тень рисуется за
+                  краем окна всплывающего, и без поля её обрезает.
+              -->
+              <ContentControl Margin="8"
+                              MinWidth="{TemplateBinding ActualWidth}"
+                              MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                              Effect="{StaticResource OverlayShadow}"
+                              Template="{StaticResource OverlaySurfaceTemplate}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <ItemsPresenter />
+                </ScrollViewer>
+              </ContentControl>
+            </Popup>
+          </Grid>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Строка списка. Галочка слева, подсветка под курсором. -->
+  <Style TargetType="{x:Type ComboBoxItem}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+          <Border x:Name="Row"
+                  Height="32"
+                  Background="Transparent"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
+                  SnapsToDevicePixels="True">
+            <Grid Margin="8,0,10,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <theme:Icon x:Name="Tick"
+                          Grid.Column="0"
+                          Glyph="checkmark"
+                          Size="13"
+                          VerticalAlignment="Center"
+                          Visibility="Hidden"
+                          Foreground="{DynamicResource TextPrimaryBrush}" />
+
+              <ContentPresenter Grid.Column="1" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Меню. Тем же шаблоном, что и список: меню профиля открывается из панели,
+      меню значка — из области уведомлений, и оба обязаны выглядеть одним
+      предметом.
+  -->
+  <Style TargetType="{x:Type ContextMenu}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type ContextMenu}">
+          <ContentControl Margin="8"
+                          Effect="{StaticResource OverlayShadow}"
+                          Template="{StaticResource OverlaySurfaceTemplate}">
+            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+          </ContentControl>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="{x:Type MenuItem}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type MenuItem}">
+          <Border x:Name="Row"
+                  Height="32"
+                  MinWidth="160"
+                  Background="Transparent"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
+                  SnapsToDevicePixels="True">
+            <Grid Margin="8,0,10,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <theme:Icon x:Name="Tick"
+                          Grid.Column="0"
+                          Glyph="checkmark"
+                          Size="13"
+                          VerticalAlignment="Center"
+                          Visibility="Hidden"
+                          Foreground="{DynamicResource TextPrimaryBrush}" />
+
+              <ContentPresenter Grid.Column="1"
+                                ContentSource="Header"
+                                VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
+            </Grid>
+          </Border>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+            </Trigger>
+            <!--
+                Погашенная строка не подсвечивается вовсе: подсветка под
+                курсором на строке, которая не нажимается, обещает то, чего
+                не будет. Первая строка меню значка — как раз такая: это
+                состояние словами, а не действие.
+            -->
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+              <Setter TargetName="Row" Property="Background" Value="Transparent" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Разделитель меню: волосок с воздухом сверху и снизу.
+
+      Ключ, а не тип: разделитель внутри меню WPF берёт стиль по
+      `MenuItem.SeparatorStyleKey`, и стиль, объявленный на `Separator`, до него
+      не доходит вовсе — меню так и осталось с системной белой чертой во всю
+      ширину, что живая проверка и показала.
+  -->
+  <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="{x:Type Separator}">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="8,4,8,4" />
+    <Setter Property="Background" Value="{DynamicResource SeparatorBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Separator}">
+          <Border Background="{TemplateBinding Background}" Height="1" SnapsToDevicePixels="True" />
         </ControlTemplate>
       </Setter.Value>
     </Setter>

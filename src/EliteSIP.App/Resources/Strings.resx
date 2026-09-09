@@ -62,14 +62,6 @@
     <value>EliteSIP</value>
     <comment>заголовок окна панели</comment>
   </data>
-  <data name="PanelClose" xml:space="preserve">
-    <value>Close</value>
-    <comment>кнопка полосы заголовка</comment>
-  </data>
-  <data name="PanelMinimize" xml:space="preserve">
-    <value>Minimize</value>
-    <comment>кнопка полосы заголовка</comment>
-  </data>
   <data name="PanelSettings" xml:space="preserve">
     <value>Settings</value>
     <comment>шестерёнка в строке состояния</comment>
@@ -459,6 +451,29 @@
   </data>
   <data name="AdminDiagnosticsNote" xml:space="preserve">
     <value>The log and the settings live side by side. They are attached to a support request — the archive is collected in the Support section.</value>
+  </data>
+  <data name="AppearanceLanguageConfirm" xml:space="preserve">
+    <value>Switch and restart</value>
+    <comment>подтверждение в вопросе о смене языка</comment>
+  </data>
+  <data name="AdminRemovePasswordConfirm" xml:space="preserve">
+    <value>Remove password</value>
+  </data>
+  <data name="FirstRunAbandonConfirm" xml:space="preserve">
+    <value>Quit setup</value>
+  </data>
+  <data name="DialogConfirm" xml:space="preserve">
+    <value>Continue</value>
+    <comment>кнопка подтверждения в вопросе приложения</comment>
+  </data>
+  <data name="DialogCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="DialogSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="DialogDiscard" xml:space="preserve">
+    <value>Don't save</value>
   </data>
   <data name="AdminCloseDirtyTitle" xml:space="preserve">
     <value>Unsaved changes</value>

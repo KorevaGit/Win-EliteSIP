@@ -1,7 +1,6 @@
 <Window x:Class="EliteSIP.App.Panel.PanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:panel="clr-namespace:EliteSIP.App.Panel"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
@@ -12,7 +11,7 @@
         Title="{res:Loc PanelWindowTitle}"
         Width="270"
         SizeToContent="Height"
-        ResizeMode="NoResize"
+        ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
@@ -35,75 +34,51 @@
   -->
 
   <!--
-      Полосу заголовка панель рисует сама, но окно остаётся системным:
-      `WindowChrome` оставляет Windows тень, привязку к краям экрана, анимацию
-      сворачивания и «Показать рабочий стол». Окно без рамки (`WindowStyle=None`
-      с `AllowsTransparency`) всё это теряет, а софтфон живёт поверх чужих окон
-      весь день — окно, которое ведёт себя не как окно, там видно сразу.
+      Полоса заголовка — системная, своей у панели больше нет.
 
-      CaptionHeight — та зона, за которую окно таскают. Ровно высота полосы:
-      ниже начинается строка состояния с капсулой профиля, и захват мышью там
-      съедал бы щелчок по капсуле.
+      Своя была попыткой повторить macOS, где заголовок панели и есть часть
+      панели. На Windows это читается наоборот: окно, которое рисует себе
+      заголовок само, выглядит окном, которое окном притворяется. Системная
+      полоса приносит с собой и то, чего своя не давала даром — значок и
+      подпись в привычном месте, меню окна по правому щелчку, «Свернуть» в том
+      же пикселе, что у всех прочих окон, и подсветку под курсором ровно такую,
+      как в остальной системе.
+
+      `CanMinimize`, а не `NoResize`: панель по-прежнему не тянется за угол — её
+      высоту задаёт содержимое, — но `NoResize` убирает из полосы заодно и
+      кнопку свёртывания, а сворачивают панель каждый день.
+
+      Тёмная полоса в тёмной теме и скруглённые по-одиннадцатому углы задаются
+      не здесь: у WPF нет ни того, ни другого свойства, оба ставятся диспетчеру
+      окон из <see cref="Theme.SystemCaption"/>.
   -->
-  <shell:WindowChrome.WindowChrome>
-    <shell:WindowChrome CaptionHeight="32"
-                        CornerRadius="0"
-                        GlassFrameThickness="0"
-                        ResizeBorderThickness="0"
-                        UseAeroCaptionButtons="False" />
-  </shell:WindowChrome.WindowChrome>
 
-  <Grid Margin="12,0,12,12">
+  <!--
+      Поля 12 со всех сторон и шаг сетки, кратный четырём: это тот же ритм, по
+      которому набраны системные окна Windows 11. Прежние 5 и 15 между рядами
+      были пересчётом macOS-овских отступов и в общий шаг не ложились.
+  -->
+  <Grid Margin="12">
     <Grid.RowDefinitions>
-      <!-- Полоса заголовка. Поля 12 её не касаются — она во всю ширину окна. -->
-      <RowDefinition Height="32" />
-      <RowDefinition Height="4" />
       <!-- Строка состояния. -->
       <RowDefinition Height="22" />
-      <RowDefinition Height="5" />
+      <RowDefinition Height="4" />
       <!--
           Изменчивая середина. Всё, что может поменять высоту — вторая линия,
           поле перевода, число макросов, — живёт здесь.
       -->
       <RowDefinition Height="Auto" />
-      <RowDefinition Height="15" />
+      <RowDefinition Height="16" />
       <!-- Неподвижный низ: звонок и история. -->
       <RowDefinition Height="46" />
     </Grid.RowDefinitions>
-
-    <!-- Полоса заголовка: имя окна по центру, кнопки справа. -->
-    <Grid Grid.Row="0" Margin="-12,0,-12,0">
-      <TextBlock Text="{res:Loc PanelWindowTitle}"
-                 HorizontalAlignment="Center"
-                 VerticalAlignment="Center"
-                 FontSize="13"
-                 FontWeight="SemiBold"
-                 Foreground="{DynamicResource TextPrimaryBrush}" />
-
-      <StackPanel Orientation="Horizontal"
-                  HorizontalAlignment="Right"
-                  VerticalAlignment="Center"
-                  Margin="0,0,6,0"
-                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
-        <Button Style="{StaticResource ChromeButtonStyle}"
-                ToolTip="{res:Loc PanelMinimize}"
-                Click="OnMinimizeClick">
-          <theme:Icon Glyph="pause.fill" Size="10" />
-        </Button>
-        <Button Style="{StaticResource ChromeButtonStyle}"
-                ToolTip="{res:Loc PanelClose}"
-                Click="OnCloseClick">
-          <theme:Icon Glyph="xmark.circle.fill" Size="12" />
-        </Button>
-      </StackPanel>
-    </Grid>
 
     <!--
         Строка состояния: капсула профиля слева, слот беды посередине,
         шестерёнка справа. Крайние слоты не меняют размер никогда, средний
         тянется и обрезается — иначе капсула ездила бы от длины чужой надписи.
     -->
-    <Grid Grid.Row="2">
+    <Grid Grid.Row="0">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" MinWidth="72" />
@@ -111,15 +86,42 @@
       </Grid.ColumnDefinitions>
 
       <!--
-          Капсула профиля: точка состояния, номер, пометка.
+          Капсула профиля: точка состояния, номер, пометка, шеврон.
           Состояние и профиль в одном месте намеренно — это один вопрос,
           «кто я и на линии ли я», а не два.
+
+          И это кнопка со списком, а не подпись. В оригинале так и было, а
+          порт до этого оставил от неё одну плашку — из-за чего уйти с линии
+          можно было только из меню значка в области уведомлений, то есть
+          свернув панель, которая для этого и открыта.
+
+          В разговоре не нажимается: смена профиля и отключение снимают
+          регистрацию и оборвали бы разговор. Гаснет при этом один шеврон —
+          номер и точка обязаны читаться и в разговоре.
       -->
-      <Border Grid.Column="0"
-              Height="22"
-              CornerRadius="11"
-              Padding="8,0"
-              Background="{DynamicResource ControlBackgroundBrush}">
+      <Button Grid.Column="0"
+              Style="{StaticResource ProfilePillStyle}"
+              IsEnabled="{Binding CanOpenProfileMenu}"
+              Click="OnProfileClick"
+              AutomationProperties.Name="{Binding StatusTitle, StringFormat=Профиль {0}}">
+        <Button.ContextMenu>
+          <ContextMenu>
+            <!--
+                Профиль пока один — их список приедет с «Управлением», и
+                тогда здесь встанет `ItemsSource`. Одна строка в меню не
+                лишняя и сейчас: она отвечает на вопрос «под кем я», а
+                галочка рядом с ней — на вопрос «на линии ли».
+            -->
+            <MenuItem Header="{Binding ProfileMenuTitle}"
+                      IsChecked="{Binding IsOnline, Mode=OneWay}"
+                      Command="{Binding GoOnline}" />
+            <Separator />
+            <MenuItem Header="{res:Loc PanelOffline}"
+                      IsChecked="{Binding IsOfflineByChoice, Mode=OneWay}"
+                      Command="{Binding GoOffline}" />
+          </ContextMenu>
+        </Button.ContextMenu>
+
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
           <!--
               Точка состояния. Единственное, чем показано обычное положение
@@ -153,7 +155,7 @@
           </Ellipse>
           <TextBlock Text="{Binding StatusTitle}"
                      Margin="4,0,0,0"
-                     FontSize="11"
+                     FontSize="12"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center"
                      Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -165,13 +167,24 @@
           -->
           <TextBlock Text="{Binding StatusLabel}"
                      Margin="4,0,0,0"
-                     FontSize="11"
+                     FontSize="12"
                      VerticalAlignment="Center"
                      TextTrimming="CharacterEllipsis"
                      Foreground="{DynamicResource TextTertiaryBrush}"
                      Visibility="{Binding StatusLabel, Converter={StaticResource PresenceToVisibility}}" />
+
+          <!--
+              Шеврон — единственное, чем капсула сообщает, что она кнопка со
+              списком, а не подпись.
+          -->
+          <theme:Icon Glyph="chevron.down"
+                      Size="10"
+                      Margin="5,1,0,0"
+                      VerticalAlignment="Center"
+                      Foreground="{DynamicResource TextTertiaryBrush}"
+                      Visibility="{Binding CanOpenProfileMenu, Converter={StaticResource BoolToVisibility}}" />
         </StackPanel>
-      </Border>
+      </Button>
 
       <!--
           Слот беды. Пустует почти весь день, и это правильно: место здесь
@@ -191,7 +204,7 @@
                     Visibility="{Binding Trouble.Glyph, Converter={StaticResource PresenceToVisibility}}" />
         <TextBlock Text="{Binding Trouble.Text}"
                    Margin="4,0,0,0"
-                   FontSize="11"
+                   FontSize="12"
                    VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource CautionBrush}" />
@@ -207,7 +220,7 @@
 
     <!-- ==================== Изменчивая середина ==================== -->
 
-    <StackPanel Grid.Row="4">
+    <StackPanel Grid.Row="2">
 
       <!--
           Шапка: поле набора в покое, собеседник с таймером в разговоре, два
@@ -217,7 +230,7 @@
       <Grid Height="52">
 
         <!-- Одна линия или покой: одна поверхность на весь слот. -->
-        <Border CornerRadius="8"
+        <Border CornerRadius="4"
                 Padding="12,0"
                 Background="{DynamicResource ControlBackgroundBrush}"
                 Visibility="{Binding HasSecondLine, Converter={StaticResource NotBoolToVisibility}}">
@@ -239,7 +252,7 @@
                        Style="{StaticResource PanelTextBoxStyle}"
                        Text="{Binding DialedNumber, UpdateSourceTrigger=PropertyChanged}"
                        Tag="{res:Loc PanelNumberPlaceholder}"
-                       FontSize="18"
+                       FontSize="20"
                        IsEnabled="{Binding CanPlaceCall}" />
 
               <Button Grid.Column="1"
@@ -258,7 +271,7 @@
             <StackPanel VerticalAlignment="Center"
                         Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
               <TextBlock Text="{Binding ActiveLine.Title}"
-                         FontSize="17"
+                         FontSize="18"
                          FontWeight="Medium"
                          TextTrimming="CharacterEllipsis"
                          Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -270,23 +283,23 @@
                     решает это разбор вызова, тот же, что и в окне входящего.
                 -->
                 <TextBlock Text="{Binding ActiveLine.SecondaryNumber}"
-                           FontSize="11"
+                           FontSize="12"
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
                 <TextBlock Text=" · "
-                           FontSize="11"
+                           FontSize="12"
                            Foreground="{DynamicResource TextTertiaryBrush}"
                            Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
 
                 <TextBlock Text="{Binding ActiveLine.Duration}"
-                           FontSize="11"
+                           FontSize="12"
                            FontWeight="Medium"
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            Visibility="{Binding ActiveLine.Duration, Converter={StaticResource PresenceToVisibility}}" />
 
                 <TextBlock Text="{Binding CallStatus}"
                            Margin="4,0,0,0"
-                           FontSize="11"
+                           FontSize="12"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
               </StackPanel>
             </StackPanel>
@@ -305,7 +318,7 @@
             <DataTemplate DataType="{x:Type panel:CallLineViewModel}">
               <Border Height="22"
                       Margin="0,0,0,4"
-                      CornerRadius="8"
+                      CornerRadius="4"
                       Padding="8,0"
                       Background="{DynamicResource ControlBackgroundBrush}">
                 <Grid>
@@ -341,14 +354,14 @@
                   <TextBlock Grid.Column="1"
                              Text="{Binding Title}"
                              Margin="6,0,4,0"
-                             FontSize="12"
+                             FontSize="13"
                              FontWeight="Medium"
                              VerticalAlignment="Center"
                              TextTrimming="CharacterEllipsis" />
 
                   <TextBlock Grid.Column="2"
                              Text="{Binding Status}"
-                             FontSize="11"
+                             FontSize="12"
                              VerticalAlignment="Center"
                              Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Grid>
@@ -359,7 +372,7 @@
       </Grid>
 
       <!-- Шапка → ряд управления. -->
-      <Border Height="5" />
+      <Border Height="4" />
 
       <!--
           Ряд управления. Четыре кнопки в два ряда, а не четыре в один: панель
@@ -400,7 +413,7 @@
                 </Style>
               </theme:Icon.Style>
             </theme:Icon>
-            <TextBlock Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center">
+            <TextBlock Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center">
               <TextBlock.Style>
                 <Style TargetType="TextBlock">
                   <Setter Property="Text" Value="{res:Loc PanelHold}" />
@@ -434,7 +447,7 @@
                 </Style>
               </theme:Icon.Style>
             </theme:Icon>
-            <TextBlock Text="{res:Loc PanelMicrophone}" Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Text="{res:Loc PanelMicrophone}" Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center" />
           </StackPanel>
         </ToggleButton>
 
@@ -454,7 +467,7 @@
           <StackPanel Orientation="Horizontal">
             <theme:Icon Glyph="phone.arrow.right" Size="10" VerticalAlignment="Center"
                         Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-            <TextBlock Text="{res:Loc PanelTransfer}" Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Text="{res:Loc PanelTransfer}" Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center" />
           </StackPanel>
         </ToggleButton>
 
@@ -472,7 +485,7 @@
           <StackPanel Orientation="Horizontal">
             <theme:Icon Glyph="person.3.fill" Size="10" VerticalAlignment="Center"
                         Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-            <TextBlock Text="{res:Loc PanelConference}" Margin="4,0,0,0" FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Text="{res:Loc PanelConference}" Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center" />
           </StackPanel>
         </ToggleButton>
       </Grid>
@@ -481,7 +494,7 @@
           Ряд управления → то, что под ним. Единственная граница между ними —
           воздух; когда снизу пусто, нет и его.
       -->
-      <Border Height="15">
+      <Border Height="16">
         <Border.Style>
           <Style TargetType="Border">
             <Setter Property="Visibility" Value="Collapsed" />
@@ -559,7 +572,7 @@
                   хвост здесь нельзя: «Бухгалтер» вместо «Бухгалтерии» читается
                   как другое слово, а не как обрезанное.
               -->
-              <theme:ShrinkBox BaseFontSize="15" Margin="4,0" MaxHeight="54">
+              <theme:ShrinkBox BaseFontSize="16" Margin="4,0" MaxHeight="54">
                 <TextBlock Text="{Binding Title}"
                            FontWeight="Medium"
                            TextAlignment="Center"
@@ -577,14 +590,14 @@
       -->
       <StackPanel Visibility="{Binding IsTransferEntryVisible, Converter={StaticResource BoolToVisibility}}">
         <Border Height="34"
-                CornerRadius="8"
+                CornerRadius="4"
                 Padding="12,0"
                 Background="{DynamicResource ControlBackgroundBrush}">
           <TextBox x:Name="TransferField"
                    Style="{StaticResource PanelTextBoxStyle}"
                    Text="{Binding TransferNumber, UpdateSourceTrigger=PropertyChanged}"
                    Tag="{res:Loc PanelTransferNumber}"
-                   FontSize="17"
+                   FontSize="18"
                    IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}" />
         </Border>
 
@@ -599,14 +612,14 @@
                   Style="{StaticResource SurfaceButtonStyle}"
                   Height="30"
                   Content="{res:Loc PanelCancel}"
-                  FontSize="13"
+                  FontSize="14"
                   Click="OnCancelTransferClick" />
 
           <Button Grid.Column="2"
                   Style="{StaticResource CallButtonStyle}"
                   Height="30"
                   Content="{res:Loc PanelTransfer}"
-                  FontSize="13"
+                  FontSize="14"
                   IsEnabled="{Binding HasTransferNumber}"
                   Command="{Binding Transfer}" />
         </Grid>
@@ -621,7 +634,7 @@
         пропущенному — основной способ исходящего звонка. Её ширина задана
         жёстко, чтобы кнопка звонка не меняла размер от длины подписи.
     -->
-    <Grid Grid.Row="6">
+    <Grid Grid.Row="4">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="6" />
@@ -655,7 +668,7 @@
             </theme:Icon.Style>
           </theme:Icon>
 
-          <TextBlock Margin="6,0,0,0" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" Foreground="White">
+          <TextBlock Margin="6,0,0,0" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" Foreground="White">
             <TextBlock.Style>
               <Style TargetType="TextBlock">
                 <Setter Property="Text" Value="{res:Loc PanelCall}" />
@@ -678,7 +691,7 @@
                       Foreground="{DynamicResource TextPrimaryBrush}" />
           <TextBlock Text="{res:Loc PanelHistory}"
                      Margin="0,2,0,0"
-                     FontSize="10"
+                     FontSize="11"
                      HorizontalAlignment="Center" />
         </StackPanel>
       </Button>

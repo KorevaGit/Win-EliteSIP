@@ -160,6 +160,8 @@ public sealed class PanelViewModel : Observable
     private bool _canSendDtmf;
     private int _macroColumns = Theme.Metrics.MacroColumns;
     private double _macroHeight = Theme.Metrics.MacroMinHeight;
+    private RelayCommand? _goOnline;
+    private RelayCommand? _goOffline;
 
     public PanelViewModel()
     {
@@ -197,21 +199,33 @@ public sealed class PanelViewModel : Observable
     public bool IsOfflineByChoice
     {
         get => _isOfflineByChoice;
-        set => Set(ref _isOfflineByChoice, value);
+        set
+        {
+            Set(ref _isOfflineByChoice, value);
+            NotifyChanged(nameof(IsOnline));
+        }
     }
 
     /// <summary>Номер в капсуле профиля.</summary>
     public string StatusTitle
     {
         get => _statusTitle;
-        set => Set(ref _statusTitle, value);
+        set
+        {
+            Set(ref _statusTitle, value);
+            NotifyChanged(nameof(ProfileMenuTitle));
+        }
     }
 
     /// <summary>Пометка профиля. Ужимается первой: её оператор и так знает.</summary>
     public string? StatusLabel
     {
         get => _statusLabel;
-        set => Set(ref _statusLabel, value);
+        set
+        {
+            Set(ref _statusLabel, value);
+            NotifyChanged(nameof(ProfileMenuTitle));
+        }
     }
 
     public Trouble? Trouble
@@ -222,6 +236,40 @@ public sealed class PanelViewModel : Observable
 
     /// <summary>В разговоре капсула не нажимается: смена профиля снимает регистрацию.</summary>
     public bool CanOpenProfileMenu => !IsInCall;
+
+    /// <summary>Строка профиля в меню: номер и пометка вместе.</summary>
+    ///
+    /// <remarks>
+    /// Одной строкой, а не двумя: пометка — единственное, чем два профиля
+    /// одного добавочного различаются, и в списке она обязана стоять рядом с
+    /// номером, а не под ним.
+    /// </remarks>
+    public string ProfileMenuTitle => string.IsNullOrEmpty(StatusLabel)
+        ? StatusTitle
+        : StatusTitle + " · " + StatusLabel;
+
+    /// <summary>На линии ли профиль. Обратное <see cref="IsOfflineByChoice"/>.</summary>
+    ///
+    /// <remarks>
+    /// Заведено ради галочки в меню профиля: там два пункта, «на линии» и
+    /// «отключён», и второй уже есть свойством. Отрицание в разметке WPF не
+    /// пишется, а заводить ради него преобразователь — больше кода, чем эта
+    /// строка.
+    /// </remarks>
+    public bool IsOnline => !IsOfflineByChoice;
+
+    /// <summary>Вернуться на линию. Пункт меню профиля.</summary>
+    ///
+    /// <remarks>
+    /// Команды здесь, а не в слое приложения, потому что делать им нечего
+    /// сверх того, что уже написано: снятие и подъём регистрации подвешены к
+    /// <see cref="IsOfflineByChoice"/>, и слову «отключись» достаточно этого
+    /// свойства.
+    /// </remarks>
+    public ICommand GoOnline => _goOnline ??= new RelayCommand(_ => IsOfflineByChoice = false);
+
+    /// <summary>Уйти с линии до конца сеанса.</summary>
+    public ICommand GoOffline => _goOffline ??= new RelayCommand(_ => IsOfflineByChoice = true);
 
     // --- Шапка ------------------------------------------------------------
 

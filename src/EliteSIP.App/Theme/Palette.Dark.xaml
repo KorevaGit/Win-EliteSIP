@@ -19,13 +19,28 @@
   <SolidColorBrush x:Key="ControlHoverBrush" Color="#21FFFFFF" />
   <SolidColorBrush x:Key="ControlPressedBrush" Color="#0AFFFFFF" />
   <SolidColorBrush x:Key="SeparatorBrush" Color="#18FFFFFF" />
-  <SolidColorBrush x:Key="SelectionBrush" Color="#4460CDFF" />
+
+  <!-- Обводка кнопки или поля. Зачем она — сказано в светлой палитре. -->
+  <SolidColorBrush x:Key="ControlBorderBrush" Color="#12FFFFFF" />
+
+  <!-- Полоса прокрутки. Зачем ползунок так заметен — в светлой палитре. -->
+  <SolidColorBrush x:Key="ScrollThumbBrush" Color="#8AFFFFFF" />
+  <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#B3FFFFFF" />
+  <SolidColorBrush x:Key="ScrollTrackBrush" Color="#0FFFFFFF" />
+  <!--
+      Синий приложения. Тот же цвет Windows, что и в светлой палитре, но её
+      осветлённый вариант: #4CC2FF — это и есть системный #0078D4, каким его
+      показывает тёмная тема. Прежний #60CDFF был на ступень светлее и на
+      тёмном фоне читался бледно-голубым, а не синим.
+  -->
+  <SolidColorBrush x:Key="AccentBrush" Color="#FF4CC2FF" />
+  <SolidColorBrush x:Key="SelectionBrush" Color="#4C4CC2FF" />
 
   <SolidColorBrush x:Key="StatusRegisteredBrush" Color="#FF6CCB5F" />
   <SolidColorBrush x:Key="StatusConnectingBrush" Color="#FFFCA02E" />
   <SolidColorBrush x:Key="StatusOfflineBrush" Color="#C5FFFFFF" />
   <SolidColorBrush x:Key="StatusFailureBrush" Color="#FFFF99A4" />
-  <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF60CDFF" />
+  <SolidColorBrush x:Key="StatusInCallBrush" Color="#FF4CC2FF" />
 
   <!--
       Заливка кнопок звонка одна на обе палитры и не осветляется: под ней

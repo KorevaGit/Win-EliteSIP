@@ -46,20 +46,19 @@ public partial class AdministrationWindow : Window
             return;
         }
 
-        var answer = MessageBox.Show(
+        var answer = Theme.Dialog.Ask(
             this,
-            Strings.Get("AdminCloseDirtyBody"),
             Strings.Get("AdminCloseDirtyTitle"),
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Warning);
+            Strings.Get("AdminCloseDirtyBody"),
+            DialogButtons.SaveDiscardCancel);
 
         switch (answer)
         {
-            case MessageBoxResult.Yes:
+            case DialogAnswer.Confirm:
                 Model.Save();
                 break;
 
-            case MessageBoxResult.No:
+            case DialogAnswer.Discard:
                 Model.Revert();
                 break;
 
@@ -134,14 +133,13 @@ public partial class AdministrationWindow : Window
 
     private void OnRemovePasswordClick(object sender, RoutedEventArgs e)
     {
-        var answer = MessageBox.Show(
+        var answer = Theme.Dialog.Ask(
             this,
-            Strings.Get("AdminRemovePasswordBody"),
             Strings.Get("AdminRemovePasswordTitle"),
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning);
+            Strings.Get("AdminRemovePasswordBody"),
+            confirmTitle: Strings.Get("AdminRemovePasswordConfirm"));
 
-        if (answer is MessageBoxResult.OK)
+        if (answer is DialogAnswer.Confirm)
         {
             Model.RemovePassword();
         }

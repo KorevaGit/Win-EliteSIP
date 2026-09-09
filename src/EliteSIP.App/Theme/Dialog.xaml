@@ -1,0 +1,58 @@
+<Window x:Class="EliteSIP.App.Theme.Dialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Width="420"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display">
+
+  <!--
+      Вопрос, на который приложение обязано получить ответ прежде, чем что-то
+      сделать: сменить язык, снять пароль, закрыть окно с несохранённым.
+
+      Своё окно, а не `MessageBox`. Системное приходит с чужой типографикой,
+      чужими полями и чужой полосой заголовка, и на фоне окна, собранного по
+      макету, читается как окно другого приложения. Плюс подписи кнопок там не
+      наши: `MessageBoxButton.YesNoCancel` даёт «Да», «Нет» и «Отмена», а на
+      вопрос «сохранить правки перед закрытием?» отвечать надо «Сохранить» и
+      «Не сохранять» — тем же глаголом, каким вопрос задан.
+
+      Ширина 420, высота по содержимому: длина текста у трёх вопросов разная, а
+      ширина, подобранная под самый длинный, оставила бы у коротких пустое
+      поле.
+  -->
+
+  <StackPanel Margin="16">
+    <TextBlock x:Name="TitleText"
+               FontSize="17"
+               FontWeight="SemiBold"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource TextPrimaryBrush}" />
+
+    <TextBlock x:Name="BodyText"
+               Margin="0,8,0,0"
+               FontSize="13"
+               TextWrapping="Wrap"
+               LineHeight="19"
+               Foreground="{DynamicResource TextSecondaryBrush}" />
+
+    <!--
+        Кнопки справа и в том порядке, в каком их читают на Windows: сначала
+        то, что подтверждает, потом отказ. На macOS порядок обратный, и это
+        одно из немногих мест, где паритет с оригиналом уступает привычке
+        системы — кнопку отмены ищут глазами там, где она стоит везде.
+    -->
+    <StackPanel x:Name="Buttons"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Margin="0,20,0,0" />
+  </StackPanel>
+</Window>
