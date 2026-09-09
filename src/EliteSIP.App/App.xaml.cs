@@ -331,7 +331,11 @@ public partial class App : Application, IDisposable
         var model = new CallHistoryViewModel(
             _history!,
             _settings!.Account.ProfileId,
-            _settings.Account.Username);
+            _settings.Account.Username,
+
+            // Срок хранения спрашивается у настроек каждый раз, а не берётся
+            // копией: администратор мог сменить его, пока окно было закрыто.
+            () => _settings.History.MaximumAgeInDays);
 
         _historyWindow = new CallHistoryWindow(model, _appearance!);
 

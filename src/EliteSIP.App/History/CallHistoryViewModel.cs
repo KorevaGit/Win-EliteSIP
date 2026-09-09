@@ -57,11 +57,29 @@ public sealed class CallHistoryViewModel : Observable
     private int _loaded;
     private bool _hasMore;
 
-    public CallHistoryViewModel(CallHistoryStore store, Guid profileId, string profileTitle)
+    public CallHistoryViewModel(
+        CallHistoryStore store,
+        Guid profileId,
+        string profileTitle,
+        Func<int> retentionDays)
     {
         _store = store;
         _profileId = profileId;
         ProfileTitle = profileTitle;
+
+        Calendar = new HistoryCalendar(
+            () => _store.DaysWithCalls(new HistoryScope(_profileId)),
+            retentionDays);
+
+        // Выбор дня — такой же отбор, как фильтр: список читается заново и
+        // начинается сверху.
+        Calendar.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName is nameof(HistoryCalendar.SelectedDay))
+            {
+                Reload();
+            }
+        };
 
         Filters =
         [
@@ -121,7 +139,11 @@ public sealed class CallHistoryViewModel : Observable
     /// <summary>Записи есть — значит, снимок делать с чего.</summary>
     public bool HasRecords => !IsEmpty;
 
-    private HistoryScope Scope => new(_profileId);
+    public HistoryCalendar Calendar { get; }
+
+    private HistoryScope Scope => new(
+        _profileId,
+        Calendar.SelectedDay is { } day ? new DateTimeOffset(day) : null);
 
     /// <summary>Читает первую страницу заново.</summary>
     public void Reload()

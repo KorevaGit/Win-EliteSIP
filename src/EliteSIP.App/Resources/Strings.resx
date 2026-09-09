@@ -646,4 +646,10 @@
   <data name="FirstRunAbandonBody" xml:space="preserve">
     <value>What you entered will not be saved and the application will close: an unconfigured machine does not make calls and does not open Administration. The wizard will open again next time.</value>
   </data>
+  <data name="HistoryPickDay" xml:space="preserve">
+    <value>Show the calls of one day</value>
+  </data>
+  <data name="HistoryAllDays" xml:space="preserve">
+    <value>Show all days</value>
+  </data>
 </root>

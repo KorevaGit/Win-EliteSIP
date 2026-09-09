@@ -96,6 +96,30 @@ public partial class CallHistoryWindow : Window
         }
     }
 
+    private void OnCalendarClick(object sender, RoutedEventArgs e) => CalendarPopup.IsOpen = true;
+
+    private void OnCalendarOpened(object sender, EventArgs e) => Model.Calendar.Reset();
+
+    private void OnPreviousMonthClick(object sender, RoutedEventArgs e) => Model.Calendar.ShiftMonth(-1);
+
+    private void OnNextMonthClick(object sender, RoutedEventArgs e) => Model.Calendar.ShiftMonth(1);
+
+    private void OnClearDayClick(object sender, RoutedEventArgs e) => Model.Calendar.SelectedDay = null;
+
+    private void OnDayClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is CalendarDay day)
+        {
+            Model.Calendar.SelectedDay = day.Date;
+
+            // Календарь закрывается сам: выбор дня — законченное действие, и
+            // оставлять сетку открытой поверх списка, ради которого её
+            // открывали, незачем.
+            CalendarPopup.IsOpen = false;
+            Scroller.ScrollToTop();
+        }
+    }
+
     private void OnRedialClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string number } && !string.IsNullOrEmpty(number))

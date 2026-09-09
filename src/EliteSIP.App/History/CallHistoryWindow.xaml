@@ -76,6 +76,147 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
+      <!--
+          Кнопка дня и календарь под ней. Стоят в том же ряду, что фильтры:
+          день — такой же отбор, как направление звонка, и разводить их по
+          разным местам окна значило бы делить один вопрос надвое.
+      -->
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,34,0">
+        <Button x:Name="CalendarButton"
+                AutomationProperties.AutomationId="CalendarButton"
+                AutomationProperties.Name="{res:Loc HistoryPickDay}"
+                ToolTip="{res:Loc HistoryPickDay}"
+                Click="OnCalendarClick">
+          <Button.Style>
+            <Style TargetType="Button" BasedOn="{StaticResource ChipButtonStyle}">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Calendar.HasSelectedDay}" Value="True">
+                  <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Button.Style>
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Glyph="clock" Size="12" VerticalAlignment="Center" />
+            <!-- Дата не ужимается: «04.08.20…» — это дата, по которой нельзя
+                 сказать, какой год выбран. -->
+            <TextBlock Text="{Binding Calendar.SelectedDayTitle}"
+                       Margin="4,0,0,0"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding Calendar.HasSelectedDay, Converter={StaticResource BoolToVisibility}}" />
+          </StackPanel>
+        </Button>
+
+        <!-- Крестик снимает отбор, не открывая того, что его поставило. -->
+        <Button Style="{StaticResource ChromeButtonStyle}"
+                Margin="2,0,0,0"
+                ToolTip="{res:Loc HistoryAllDays}"
+                Click="OnClearDayClick"
+                Visibility="{Binding Calendar.HasSelectedDay, Converter={StaticResource BoolToVisibility}}">
+          <theme:Icon Glyph="xmark.circle.fill" Size="12" />
+        </Button>
+      </StackPanel>
+
+      <Popup x:Name="CalendarPopup"
+             PlacementTarget="{Binding ElementName=CalendarButton}"
+             Placement="Bottom"
+             StaysOpen="False"
+             AllowsTransparency="True"
+             Opened="OnCalendarOpened">
+        <Border Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource SeparatorBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="12"
+                DataContext="{Binding Calendar}">
+          <StackPanel>
+            <Grid>
+              <Button Style="{StaticResource ChromeButtonStyle}"
+                      HorizontalAlignment="Left"
+                      Content="‹"
+                      FontSize="16"
+                      IsEnabled="{Binding CanShowPreviousMonth}"
+                      Click="OnPreviousMonthClick" />
+
+              <TextBlock Text="{Binding MonthTitle}"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
+                         FontSize="13"
+                         FontWeight="SemiBold" />
+
+              <Button Style="{StaticResource ChromeButtonStyle}"
+                      HorizontalAlignment="Right"
+                      Content="›"
+                      FontSize="16"
+                      IsEnabled="{Binding CanShowNextMonth}"
+                      Click="OnNextMonthClick" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding WeekdayTitles}" Margin="0,6,0,2">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Columns="7" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding}"
+                             Width="28"
+                             FontSize="11"
+                             TextAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ItemsControl ItemsSource="{Binding Weeks}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type history:CalendarWeek}">
+                  <ItemsControl ItemsSource="{Binding Days}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Columns="7" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type history:CalendarDay}">
+                        <Button Width="28"
+                                Height="28"
+                                IsEnabled="{Binding IsAvailable}"
+                                Click="OnDayClick">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Number}"
+                                       FontSize="12"
+                                       TextAlignment="Center" />
+                            <!-- Точка под числом: «в этот день были звонки». -->
+                            <Ellipse Width="4"
+                                     Height="4"
+                                     Margin="0,1,0,0"
+                                     HorizontalAlignment="Center"
+                                     Fill="{DynamicResource TextSecondaryBrush}"
+                                     Visibility="{Binding HasCalls, Converter={StaticResource BoolToVisibility}}" />
+                          </StackPanel>
+                          <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SurfaceButtonStyle}">
+                              <Setter Property="Background" Value="Transparent" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                  <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Button.Style>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </Popup>
+
       <Button HorizontalAlignment="Right"
               Style="{StaticResource SettingsButtonStyle}"
               Padding="8,2"

@@ -106,6 +106,34 @@
   </Style>
 
   <!--
+      Кнопка дня: та же капсула, что у фильтров, но обычной кнопкой — она не
+      выбирает один из набора, а открывает календарь. Стиль отдельный, потому
+      что стиль применяется к типу элемента, а не к его виду.
+  -->
+  <Style x:Key="ChipButtonStyle" TargetType="{x:Type Button}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Button}">
+          <Border x:Name="Chip"
+                  Background="{DynamicResource ControlBackgroundBrush}"
+                  CornerRadius="8"
+                  Padding="{TemplateBinding Padding}"
+                  MinHeight="24">
+            <ContentPresenter VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Chip" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
       Кнопка фильтра: своя капсула вместо системной рамки.
 
       В оригинале системный бордюр рисовался по своим метрикам, а подпись внутри
