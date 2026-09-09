@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using EliteSIP.App.Incoming;
 using EliteSIP.App.Panel;
 using EliteSIP.App.Resources;
 using EliteSIP.App.Settings;
@@ -28,18 +29,20 @@ namespace EliteSIP.App.Shell;
 /// у одного из них порознь: когда поднимать медиа, что писать в историю и что
 /// показать оператору вместо кода ответа.
 ///
-/// <b>Входящие пока отклоняются.</b> Принять вызов может только живой человек,
-/// а окно, в котором он это делает, — вместе с защитой от автокликеров —
-/// переносится этапом W9. До него отвечать некому и нечем: автоответ отдал бы
-/// лид пустому месту, то есть ровно то, от чего приложение и защищает. Вызов
-/// отклоняется с 486, чтобы вернуться в очередь следующему оператору, а не
-/// висеть до таймаута сервера.
+/// <b>Входящий принимает человек, и только он.</b> Просьбе сервера снять трубку
+/// самому (<c>X-Autoanswer</c>) приложение не подчиняется намеренно: автоответ
+/// отдал бы лид пустому месту — ровно то, от чего приложение и защищает. Окно и
+/// разбор попытки живут в <see cref="Incoming.IncomingCallPresenter"/>, здесь
+/// остаётся то, что происходит после решения: 200 OK с нашим SDP и подъём
+/// медиа — или 486, чтобы вызов вернулся в очередь следующему оператору, а не
+/// висел до таймаута сервера.
 /// </remarks>
 public sealed class PhoneService : IDisposable
 {
     private readonly AppSettings _settings;
     private readonly PanelViewModel _panel;
     private readonly CallHistoryStore _history;
+    private readonly IncomingCallPresenter _incoming;
     private readonly Dispatcher _dispatcher;
     private readonly Action<string> _log;
 
@@ -57,12 +60,14 @@ public sealed class PhoneService : IDisposable
         AppSettings settings,
         PanelViewModel panel,
         CallHistoryStore history,
+        IncomingCallPresenter incoming,
         Dispatcher dispatcher,
         Action<string> log)
     {
         _settings = settings;
         _panel = panel;
         _history = history;
+        _incoming = incoming;
         _dispatcher = dispatcher;
         _log = log;
     }
@@ -225,6 +230,226 @@ public sealed class PhoneService : IDisposable
         _ = Task.Run(() => FollowCallAsync(call, offer, reservation, number));
     }
 
+    /// <summary>Показывает входящий вызов оператору.</summary>
+    ///
+    /// <remarks>
+    /// Запись истории заводится здесь, до всякого решения: непринятый вызов —
+    /// это тоже событие смены, и пропущенный лид обязан остаться в истории,
+    /// даже если приложение до конца разговора не дожило.
+    ///
+    /// Второй вызов, пришедший поверх показанного окна, отклоняется с 486:
+    /// два окна входящего на экране — это выбор, которого оператор не делал, и
+    /// оба лида в нём теряются одинаково.
+    /// </remarks>
+    private void Offer(SipIncomingCall call)
+    {
+        if (_agent is null || _bus is null || _lines is null || _incoming.IsVisible)
+        {
+            _ = _agent?.RejectIncomingCallAsync(call.CallId);
+            _log($"входящий от {call.DisplayNumber} отклонён: показывать его некуда");
+            return;
+        }
+
+        var subject = IncomingCallSubject.Classify(
+            call.CallerNumber,
+            call.CallerName,
+            call.RequestsAutoAnswer,
+            _settings.Account.Username,
+            QueueTitle(call.CallerNumber));
+
+        var record = new CallRecord
+        {
+            CallId = call.CallId,
+            Direction = CallDirection.Incoming,
+            Number = call.CallerNumber,
+            DisplayName = call.CallerName,
+            ProfileId = _settings.Account.ProfileId,
+            SipLogin = _settings.Account.Username,
+            WasDistribution = subject.Kind is IncomingCallKind.Queue,
+        };
+
+        _history.Begin(record);
+        _records[call.CallId] = record;
+
+        _incoming.Show(
+            subject,
+            _settings.IncomingCall.ToPolicy(),
+            onAnswer: () => _ = AnswerAsync(call),
+            onDecline: () => _ = DeclineAsync(call));
+
+        // Звонящий вправе передумать, пока оператор тянется к кнопке. Окно в
+        // этом случае надо убрать самим: нажимать в нём уже некуда, а лид,
+        // отменённый секунду назад, оператор всё равно засчитает себе в отказ.
+        _ = Task.Run(() => FollowIncomingAsync(call));
+    }
+
+    /// <summary>Название очереди из словаря администратора, если номер там есть.</summary>
+    ///
+    /// <remarks>
+    /// Словарь остаётся уточнением поверх общего заголовка: на боевом диалплане
+    /// он не срабатывает вовсе (номер очереди в CallerID не приезжает), но
+    /// заказчик, поправивший диалплан, не должен из-за этого чинить ещё и клиент.
+    /// </remarks>
+    private string? QueueTitle(string callerNumber)
+        => _settings.Queues.Queues
+            .FirstOrDefault(queue => queue.Number.Length > 0 && queue.Number == callerNumber)?
+            .Title;
+
+    /// <summary>Принимает вызов: 200 OK с нашим SDP и подъём медиа.</summary>
+    ///
+    /// <remarks>
+    /// Порядок из оригинала и обязателен: порт занимается и слушает <b>до</b>
+    /// 200 OK — Asterisk начинает слать RTP сразу по ответу, не дожидаясь ACK.
+    /// </remarks>
+    private async Task AnswerAsync(SipIncomingCall call)
+    {
+        if (_agent is not SipUserAgent agent || _bus is null || _lines is null)
+        {
+            return;
+        }
+
+        if (agent.MediaAddress is not string mediaAddress)
+        {
+            // Тот же случай, что на исходящем: локальный адрес за NAT даёт
+            // установленный звонок без звука — самую дорогую в разборе
+            // неисправность из всех возможных. Лучше вернуть лид в очередь.
+            Trouble("TroubleNoMediaAddress", opensSettings: false);
+            await agent.RejectIncomingCallAsync(call.CallId).ConfigureAwait(true);
+            return;
+        }
+
+        SessionDescription answer;
+        NegotiatedMedia negotiated;
+        RtpPortReservation reservation;
+
+        try
+        {
+            (answer, negotiated, reservation) = MediaSession.MakeAnswer(
+                SdpParser.Parse(call.Offer.Span),
+                mediaAddress);
+        }
+        catch (Exception failure) when (failure is SdpParseException or SdpNegotiationException)
+        {
+            // 488 «предложение не подходит» — ровно наш случай, и это не то же
+            // самое, что 486: сервер по нему видит, что вызов не подошёл нам, а
+            // не что оператор занят.
+            _log($"не договорились о медиа на входящем: {failure.Message}");
+            await agent.RejectIncomingCallAsync(call.CallId, status: 488).ConfigureAwait(true);
+            return;
+        }
+
+        if (!await agent.AnswerIncomingCallAsync(call.CallId, answer.EncodedData()).ConfigureAwait(true))
+        {
+            reservation.Release();
+            _log("ответить на входящий не удалось: звонка уже нет");
+            return;
+        }
+
+        try
+        {
+            var session = new MediaSession(negotiated, reservation, _bus)
+            {
+                OnDiagnostic = message => _log($"медиа: {message}"),
+                OnTransportFailure = reason => _log($"транспорт медиа: {reason}"),
+            };
+
+            await session.StartAsync(CancellationToken.None).ConfigureAwait(true);
+            await _lines.AttachAsync(call.CallId, new MediaSessionLine(session, answer), call.DisplayNumber)
+                .ConfigureAwait(true);
+
+            if (_records.TryGetValue(call.CallId, out var record))
+            {
+                _history.MarkAnswered(record.Id);
+            }
+
+            SyncLines();
+        }
+        catch (VoiceAudioException failure)
+        {
+            // Звонок уже принят, а тракта нет: молчать в линию хуже, чем
+            // положить трубку и сказать словами, что чинить.
+            _log($"тракт не поднялся на входящем: {failure.Message}");
+            Trouble("TroubleNoAudio", opensSettings: true);
+            await agent.HangUpAsync(call.CallId).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>Отклоняет вызов по кнопке оператора.</summary>
+    private async Task DeclineAsync(SipIncomingCall call)
+    {
+        if (_agent is not SipUserAgent agent)
+        {
+            return;
+        }
+
+        // 486, а не 603: при раздаче лидов первое возвращает вызов в очередь
+        // следующему агенту, второе завершает его совсем.
+        await agent.RejectIncomingCallAsync(call.CallId).ConfigureAwait(true);
+
+        if (_records.TryGetValue(call.CallId, out var record))
+        {
+            _history.Finish(record.Id, "отклонён оператором", CallOutcome.Declined);
+            _records.Remove(call.CallId);
+        }
+    }
+
+    /// <summary>Ведёт входящий до конца: отмена звонящим, отбой, завершение.</summary>
+    private async Task FollowIncomingAsync(SipIncomingCall call)
+    {
+        try
+        {
+            await foreach (var value in call.Events.ConfigureAwait(false))
+            {
+                switch (value)
+                {
+                    case SipCallEvent.Failed failure:
+                        await CloseIncoming(
+                            call.CallId,
+                            SipCallErrors.DescribeCallFailure(failure.Status, failure.Reason),
+                            CallOutcomes.ForFailure(failure.Status));
+                        break;
+
+                    case SipCallEvent.Ended ended:
+                        // Пропущенным считается только тот вызов, на который не
+                        // успели ответить: у отвеченного исход — сам разговор.
+                        await CloseIncoming(
+                            call.CallId,
+                            ended.Reason,
+                            _records.TryGetValue(call.CallId, out var record) && !record.IsAnswered
+                                ? CallOutcome.Missed
+                                : null);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            if (_lines is not null)
+            {
+                await _lines.DetachAsync(call.CallId).ConfigureAwait(false);
+            }
+
+            await _dispatcher.InvokeAsync(SyncLines);
+        }
+    }
+
+    /// <summary>Убирает окно входящего и закрывает запись истории.</summary>
+    private Task CloseIncoming(string callId, string reason, CallOutcome? outcome)
+        => _dispatcher.InvokeAsync(() =>
+        {
+            _incoming.Hide();
+
+            if (_records.Remove(callId, out var record))
+            {
+                _history.Finish(record.Id, reason, outcome);
+            }
+
+            SyncLines();
+        }).Task;
+
     /// <summary>Кладёт трубку на активной линии.</summary>
     public async Task HangUpAsync()
     {
@@ -350,9 +575,7 @@ public sealed class PhoneService : IDisposable
                         break;
 
                     case SipUserAgentEvent.IncomingCall incoming:
-                        // Окно приёма приезжает на W9; до него отвечать некому.
-                        _log($"входящий от {incoming.Call.DisplayNumber} отклонён: окно приёма приедет на W9");
-                        await agent.RejectIncomingCallAsync(incoming.Call.CallId).ConfigureAwait(false);
+                        await _dispatcher.InvokeAsync(() => Offer(incoming.Call));
                         break;
 
                     case SipUserAgentEvent.ChannelClosed closed:

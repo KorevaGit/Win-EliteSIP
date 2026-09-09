@@ -282,6 +282,185 @@
             </theme:SettingsSection>
           </StackPanel>
 
+
+          <!-- Раздел «Входящие»: защита приёма вызова (W9). -->
+          <StackPanel Visibility="{Binding ShowsIncoming, Converter={StaticResource BoolToVisibility}}">
+
+            <theme:SettingsSection Header="{res:Loc AdminGuardTitle}">
+              <!--
+                  Выключатель не запирается, даже когда значение приезжает из
+                  панели, — решение оригинала. Замок защищал ничего: правка
+                  любого управляемого поля живёт до следующей выкладки
+                  предустановки, а «Управление» затем и существует, чтобы
+                  перенастроить место руками. Сказать правду про судьбу правки
+                  при этом надо — её говорит подпись под переключателем.
+              -->
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminGuardEnabled}"
+                        IsChecked="{Binding Guard.IsEnabled}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardManagedNote}"
+                                  Visibility="{Binding Guard.IsServerManaged, Converter={StaticResource BoolToVisibility}}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardOffNote}"
+                                  IsAlarming="True"
+                                  Visibility="{Binding Guard.IsGuardOff, Converter={StaticResource BoolToVisibility}}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardWhyNote}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc AdminGuardRandomTitle}"
+                                   IsEnabled="{Binding Guard.IsEnabled}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminGuardRandomPosition}"
+                        IsChecked="{Binding Guard.IsRandomPositionEnabled}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminGuardTuning}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="RandomTuning"
+                               Content="{res:Loc AdminGuardTuningAuto}"
+                               IsChecked="{Binding Guard.TunesRandomnessAutomatically}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="RandomTuning"
+                               Content="{res:Loc AdminGuardTuningManual}"
+                               IsChecked="{Binding Guard.TunesRandomnessByHand}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminGuardMinimumTravel}"
+                                 IsEnabled="{Binding Guard.RandomnessSlidersAreEditable}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0" Minimum="0" Maximum="600"
+                          IsSnapToTickEnabled="True" TickFrequency="25"
+                          VerticalAlignment="Center"
+                          Value="{Binding Guard.MinimumTravel}" />
+                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
+                             TextAlignment="Right" VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding Guard.MinimumTravel, StringFormat={}{0:F0}}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminGuardScreenMargin}"
+                                 IsEnabled="{Binding Guard.RandomnessSlidersAreEditable}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0" Minimum="0" Maximum="200"
+                          IsSnapToTickEnabled="True" TickFrequency="8"
+                          VerticalAlignment="Center"
+                          Value="{Binding Guard.ScreenMargin}" />
+                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
+                             TextAlignment="Right" VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding Guard.ScreenMargin, StringFormat={}{0:F0}}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardRandomNote}" />
+              <theme:SettingsNote Text="{res:Loc AdminGuardTuningNote}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc AdminGuardDigitTitle}"
+                                   IsEnabled="{Binding Guard.IsEnabled}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminGuardDigitEnabled}"
+                        IsChecked="{Binding Guard.AsksForDigit}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminGuardTargets}"
+                                 IsEnabled="{Binding Guard.AsksForDigit}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0" Minimum="2" Maximum="5"
+                          IsSnapToTickEnabled="True" TickFrequency="1"
+                          VerticalAlignment="Center"
+                          Value="{Binding Guard.TargetCount}" />
+                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
+                             TextAlignment="Right" VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding Guard.TargetCount}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardDigitNote}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc AdminGuardLivenessTitle}"
+                                   IsEnabled="{Binding Guard.IsEnabled}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminGuardCursor}"
+                        IsChecked="{Binding Guard.RequiresCursorMovement}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminGuardTuning}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="LivenessTuning"
+                               Content="{res:Loc AdminGuardTuningAuto}"
+                               IsChecked="{Binding Guard.TunesLivenessAutomatically}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="LivenessTuning"
+                               Content="{res:Loc AdminGuardTuningManual}"
+                               IsChecked="{Binding Guard.TunesLivenessByHand}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminGuardCursorTravel}"
+                                 IsEnabled="{Binding Guard.LivenessSlidersAreEditable}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0" Minimum="0" Maximum="200"
+                          IsSnapToTickEnabled="True" TickFrequency="10"
+                          VerticalAlignment="Center"
+                          Value="{Binding Guard.RequiredCursorTravel}" />
+                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
+                             TextAlignment="Right" VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding Guard.RequiredCursorTravel, StringFormat={}{0:F0}}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardCursorNote}" />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminGuardSynthetic}"
+                        IsChecked="{Binding Guard.RejectsSyntheticEvents}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardSyntheticNote}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc AdminGuardCheckTitle}">
+              <theme:SettingsIndented>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Content="{res:Loc AdminGuardCheckShow}"
+                          Command="{Binding PreviewDistribution}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Margin="6,0,0,0"
+                          Content="{res:Loc AdminGuardCheckDeal}"
+                          Command="{Binding PreviewDeal}" />
+                </StackPanel>
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardCheckNote}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminGuardLastCall}"
+                                 Visibility="{Binding LastGuardReport, Converter={StaticResource PresenceToVisibility}}">
+                <TextBlock Text="{Binding LastGuardReport}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+            </theme:SettingsSection>
+          </StackPanel>
           <!-- Раздел «Обслуживание». -->
           <StackPanel Visibility="{Binding ShowsMaintenance, Converter={StaticResource BoolToVisibility}}">
             <theme:SettingsSection Header="{res:Loc AdminMaintenanceTitle}">

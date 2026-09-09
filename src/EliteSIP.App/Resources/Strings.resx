@@ -670,4 +670,125 @@
   <data name="CallStatusTalking" xml:space="preserve">
     <value>talking</value>
   </data>
+
+  <!-- Окно входящего вызова: этап W9. -->
+  <data name="IncomingWindowTitle" xml:space="preserve">
+    <value>Incoming call</value>
+  </data>
+  <data name="IncomingCaption" xml:space="preserve">
+    <value>Incoming call</value>
+  </data>
+  <data name="IncomingGuardOn" xml:space="preserve">
+    <value>Autoclicker protection is on</value>
+  </data>
+  <data name="IncomingAnswer" xml:space="preserve">
+    <value>Answer</value>
+  </data>
+  <data name="IncomingDecline" xml:space="preserve">
+    <value>Decline</value>
+  </data>
+  <data name="IncomingDigitPrompt" xml:space="preserve">
+    <value>To answer, press</value>
+  </data>
+  <data name="IncomingDealPrompt" xml:space="preserve">
+    <value>This is your own deal call — answer it to start dialling the client.</value>
+  </data>
+  <data name="IncomingDeal" xml:space="preserve">
+    <value>Deal call</value>
+  </data>
+  <data name="IncomingDistribution" xml:space="preserve">
+    <value>🔥Hot lead🔥</value>
+  </data>
+
+  <!-- Раздел «Входящие» в «Управлении»: политика защиты. -->
+  <data name="AdminSectionIncoming" xml:space="preserve">
+    <value>Incoming</value>
+  </data>
+  <data name="AdminGuardTitle" xml:space="preserve">
+    <value>Protection</value>
+  </data>
+  <data name="AdminGuardEnabled" xml:space="preserve">
+    <value>Autoclicker protection</value>
+  </data>
+  <data name="AdminGuardManagedNote" xml:space="preserve">
+    <value>The value comes from the panel as a preset. A change here applies at once and holds until that preset is deployed again — after which the panel value returns.</value>
+  </data>
+  <data name="AdminGuardOffNote" xml:space="preserve">
+    <value>Turning it off is recorded in the log: every call is marked as answered without protection.</value>
+  </data>
+  <data name="AdminGuardWhyNote" xml:space="preserve">
+    <value>An autoclicker takes the lead faster than colleagues without being at the desk, and the lead goes to silence.</value>
+  </data>
+  <data name="AdminGuardRandomTitle" xml:space="preserve">
+    <value>Randomness</value>
+  </data>
+  <data name="AdminGuardRandomPosition" xml:space="preserve">
+    <value>Random window position</value>
+  </data>
+  <data name="AdminGuardTuning" xml:space="preserve">
+    <value>Distances</value>
+  </data>
+  <data name="AdminGuardTuningAuto" xml:space="preserve">
+    <value>Auto</value>
+  </data>
+  <data name="AdminGuardTuningManual" xml:space="preserve">
+    <value>By hand</value>
+  </data>
+  <data name="AdminGuardMinimumTravel" xml:space="preserve">
+    <value>Minimum travel</value>
+  </data>
+  <data name="AdminGuardScreenMargin" xml:space="preserve">
+    <value>Screen margin</value>
+  </data>
+  <data name="AdminGuardRandomNote" xml:space="preserve">
+    <value>Breaks clickers that hit fixed coordinates.</value>
+  </data>
+  <data name="AdminGuardTuningNote" xml:space="preserve">
+    <value>On «Auto» the values are the tested ones and the sliders are locked: a mouse wheel over an unlocked slider changes protection silently, and nothing shows it later. «By hand» unlocks them and hands the numbers to whoever set them.</value>
+  </data>
+  <data name="AdminGuardDigitTitle" xml:space="preserve">
+    <value>Digit confirmation</value>
+  </data>
+  <data name="AdminGuardDigitEnabled" xml:space="preserve">
+    <value>Confirm with a digit</value>
+  </data>
+  <data name="AdminGuardTargets" xml:space="preserve">
+    <value>Targets to choose from</value>
+  </data>
+  <data name="AdminGuardDigitNote" xml:space="preserve">
+    <value>Instead of an Answer button a row of digits is shown, and only the one named in the caption takes the call. Breaks a clicker that looks for the button by its picture. Off by default: it costs the operator attention on every call, while a random window position costs nothing.</value>
+  </data>
+  <data name="AdminGuardLivenessTitle" xml:space="preserve">
+    <value>Signs of a live person</value>
+  </data>
+  <data name="AdminGuardCursor" xml:space="preserve">
+    <value>Require pointer movement</value>
+  </data>
+  <data name="AdminGuardCursorTravel" xml:space="preserve">
+    <value>Required pointer travel</value>
+  </data>
+  <data name="AdminGuardCursorNote" xml:space="preserve">
+    <value>SendInput puts the pointer at a point in a single event — such movement has no path at all.</value>
+  </data>
+  <data name="AdminGuardSynthetic" xml:space="preserve">
+    <value>Reject synthetic clicks</value>
+  </data>
+  <data name="AdminGuardSyntheticNote" xml:space="preserve">
+    <value>Windows marks clicks made by software itself, and only a driver can forge that mark. By default it is still only written to the report.</value>
+  </data>
+  <data name="AdminGuardCheckTitle" xml:space="preserve">
+    <value>Check</value>
+  </data>
+  <data name="AdminGuardCheckShow" xml:space="preserve">
+    <value>Show the window</value>
+  </data>
+  <data name="AdminGuardCheckDeal" xml:space="preserve">
+    <value>Show a deal call</value>
+  </data>
+  <data name="AdminGuardCheckNote" xml:space="preserve">
+    <value>A deal call arrives from the manager's own number: the CRM picks them up first and only then dials the client. No settings are needed for that — the number comes from the active profile.</value>
+  </data>
+  <data name="AdminGuardLastCall" xml:space="preserve">
+    <value>Last call</value>
+  </data>
 </root>

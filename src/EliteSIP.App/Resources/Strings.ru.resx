@@ -650,4 +650,123 @@
   <data name="CallStatusTalking" xml:space="preserve">
     <value>разговор</value>
   </data>
+
+  <data name="IncomingWindowTitle" xml:space="preserve">
+    <value>Входящий вызов</value>
+  </data>
+  <data name="IncomingCaption" xml:space="preserve">
+    <value>Входящий вызов</value>
+  </data>
+  <data name="IncomingGuardOn" xml:space="preserve">
+    <value>Защита от автокликеров включена</value>
+  </data>
+  <data name="IncomingAnswer" xml:space="preserve">
+    <value>Ответить</value>
+  </data>
+  <data name="IncomingDecline" xml:space="preserve">
+    <value>Отклонить</value>
+  </data>
+  <data name="IncomingDigitPrompt" xml:space="preserve">
+    <value>Чтобы ответить, нажмите</value>
+  </data>
+  <data name="IncomingDealPrompt" xml:space="preserve">
+    <value>Вы звоните по сделке — примите звонок для начала вызова клиенту.</value>
+  </data>
+  <data name="IncomingDeal" xml:space="preserve">
+    <value>Вызов по сделке</value>
+  </data>
+  <data name="IncomingDistribution" xml:space="preserve">
+    <value>🔥Горячая раздача🔥</value>
+  </data>
+
+  <data name="AdminSectionIncoming" xml:space="preserve">
+    <value>Входящие</value>
+  </data>
+  <data name="AdminGuardTitle" xml:space="preserve">
+    <value>Защита</value>
+  </data>
+  <data name="AdminGuardEnabled" xml:space="preserve">
+    <value>Защита от автокликеров</value>
+  </data>
+  <data name="AdminGuardManagedNote" xml:space="preserve">
+    <value>Значение приезжает из панели предустановкой. Правка здесь действует сразу и держится до следующей выкладки этой предустановки — потом вернётся то, что задано в панели.</value>
+  </data>
+  <data name="AdminGuardOffNote" xml:space="preserve">
+    <value>Выключение фиксируется в журнале: каждый вызов помечается как принятый без защиты.</value>
+  </data>
+  <data name="AdminGuardWhyNote" xml:space="preserve">
+    <value>Автокликер принимает лид быстрее коллег, не находясь за рабочим местом, и лид уходит в тишину.</value>
+  </data>
+  <data name="AdminGuardRandomTitle" xml:space="preserve">
+    <value>Случайность</value>
+  </data>
+  <data name="AdminGuardRandomPosition" xml:space="preserve">
+    <value>Случайная позиция окна</value>
+  </data>
+  <data name="AdminGuardTuning" xml:space="preserve">
+    <value>Расстояния</value>
+  </data>
+  <data name="AdminGuardTuningAuto" xml:space="preserve">
+    <value>Авто</value>
+  </data>
+  <data name="AdminGuardTuningManual" xml:space="preserve">
+    <value>Вручную</value>
+  </data>
+  <data name="AdminGuardMinimumTravel" xml:space="preserve">
+    <value>Минимальное смещение</value>
+  </data>
+  <data name="AdminGuardScreenMargin" xml:space="preserve">
+    <value>Отступ от краёв</value>
+  </data>
+  <data name="AdminGuardRandomNote" xml:space="preserve">
+    <value>Ломает кликеры, которые бьют по постоянным координатам.</value>
+  </data>
+  <data name="AdminGuardTuningNote" xml:space="preserve">
+    <value>На «Авто» стоят проверенные значения, а ползунки заперты: колесо мыши над незапертым ползунком меняет защиту молча, и заметить это потом не по чему. «Вручную» отпирает их и отдаёт числа тому, кто их выставил.</value>
+  </data>
+  <data name="AdminGuardDigitTitle" xml:space="preserve">
+    <value>Подтверждение цифрой</value>
+  </data>
+  <data name="AdminGuardDigitEnabled" xml:space="preserve">
+    <value>Цифровое подтверждение</value>
+  </data>
+  <data name="AdminGuardTargets" xml:space="preserve">
+    <value>Целей на выбор</value>
+  </data>
+  <data name="AdminGuardDigitNote" xml:space="preserve">
+    <value>Вместо кнопки «Ответить» показывается ряд цифр, и вызов принимает только одна из них — названная в подписи. Ломает кликер, который ищет кнопку по картинке. Выключено по умолчанию: это внимание оператора на каждом вызове, а случайная позиция окна обходится ему бесплатно.</value>
+  </data>
+  <data name="AdminGuardLivenessTitle" xml:space="preserve">
+    <value>Признаки живого человека</value>
+  </data>
+  <data name="AdminGuardCursor" xml:space="preserve">
+    <value>Требовать движения курсора</value>
+  </data>
+  <data name="AdminGuardCursorTravel" xml:space="preserve">
+    <value>Нужный путь курсора</value>
+  </data>
+  <data name="AdminGuardCursorNote" xml:space="preserve">
+    <value>SendInput ставит курсор в точку одним событием — пути у такого движения нет.</value>
+  </data>
+  <data name="AdminGuardSynthetic" xml:space="preserve">
+    <value>Отклонять синтетические нажатия</value>
+  </data>
+  <data name="AdminGuardSyntheticNote" xml:space="preserve">
+    <value>Нажатия, сделанные программой, Windows помечает сама, и подделать эту пометку можно только драйвером. По умолчанию она всё равно только пишется в отчёт.</value>
+  </data>
+  <data name="AdminGuardCheckTitle" xml:space="preserve">
+    <value>Проверка</value>
+  </data>
+  <data name="AdminGuardCheckShow" xml:space="preserve">
+    <value>Показать окно для проверки</value>
+  </data>
+  <data name="AdminGuardCheckDeal" xml:space="preserve">
+    <value>Показать вызов по сделке</value>
+  </data>
+  <data name="AdminGuardCheckNote" xml:space="preserve">
+    <value>Вызов по сделке приходит с номера самого менеджера: CRM поднимает его и только потом набирает клиента. Настройки для этого не нужны — номер берётся из активного профиля.</value>
+  </data>
+  <data name="AdminGuardLastCall" xml:space="preserve">
+    <value>Последний вызов</value>
+  </data>
 </root>

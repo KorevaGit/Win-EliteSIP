@@ -1,0 +1,249 @@
+<Window x:Class="EliteSIP.App.Incoming.IncomingCallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:history="clr-namespace:EliteSIP.App.History"
+        xmlns:incoming="clr-namespace:EliteSIP.App.Incoming"
+        xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=incoming:IncomingCallViewModel}"
+        Title="{res:Loc IncomingWindowTitle}"
+        Width="320"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        WindowStartupLocation="Manual"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display">
+
+  <!--
+      Полосы заголовка у окна нет вовсе: это карточка вызова, а не окно
+      документа. `WindowChrome` с нулевой полосой оставляет системную тень и
+      скруглённый угол Windows 11, но не рисует ни заголовка, ни кнопок.
+
+      `AllowsTransparency` при этом не включается: он выключает ClearType, а в
+      окне, которое читают за долю секунды, шрифт важнее полупрозрачных углов.
+      В оригинале окно было стеклянным потому, что стекло на macOS даёт система;
+      здесь платить за него пришлось бы резкостью текста.
+  -->
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="0"
+                        CornerRadius="0"
+                        GlassFrameThickness="0"
+                        ResizeBorderThickness="0"
+                        UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+
+  <!--
+      Промежутки заданы поимённо, а не общим шагом: ярусы здесь неравные по
+      смыслу — шапка и карточка отвечают на «что это за вызов» и стоят близко,
+      кнопки отделены, потому что это уже действие.
+
+      Высоты у окна нет: её считает содержимое. Растянутый по фиксированной
+      высоте столбец оставлял пустую полосу между именем звонящего и кнопками.
+  -->
+  <StackPanel Margin="12">
+
+    <!-- Шапка: цветной якорь, подпись, щит. -->
+    <DockPanel LastChildFill="False">
+
+      <!--
+          Якорь — то, чем окно набирает заметность. Оно встаёт в случайную точку
+          поверх произвольной CRM, и найти его глазами оператор обязан за доли
+          секунды.
+
+          Цена названа прямо в docs/anti-autoclicker.md: постоянный узнаваемый
+          якорь обесценивает случайную позицию против кликера по шаблону
+          изображения. Принято потому, что позицией мы от шаблонного кликера и
+          так не защищались — от него защищает цифровая цель.
+
+          Фигура — та же, что в истории: оператор видит эти два окна каждый
+          день, и входящий вызов в них должен выглядеть одинаково.
+      -->
+      <history:OutcomeBadge DockPanel.Dock="Left"
+                            IsIncoming="True"
+                            IsCompleted="True"
+                            Size="14"
+                            VerticalAlignment="Center"
+                            Foreground="{DynamicResource OutcomeAnsweredBrush}" />
+
+      <TextBlock DockPanel.Dock="Left"
+                 Margin="6,0,0,0"
+                 VerticalAlignment="Center"
+                 FontSize="11"
+                 Text="{Binding Caption}">
+        <TextBlock.Style>
+          <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsRefused}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource DeclineBrush}" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </TextBlock.Style>
+      </TextBlock>
+
+      <theme:Icon DockPanel.Dock="Right"
+                  Glyph="lock.shield.fill"
+                  Size="12"
+                  VerticalAlignment="Center"
+                  Foreground="{DynamicResource TextTertiaryBrush}"
+                  AutomationProperties.Name="{res:Loc IncomingGuardOn}"
+                  Visibility="{Binding IsGuarded, Converter={StaticResource BoolToVisibility}}" />
+    </DockPanel>
+
+    <!--
+        Карточка вызова. По центру окна, а не по левому краю: этот ярус —
+        единственное в окне, что читают с расстояния и в спешке. У прижатого к
+        краю имени точка старта чтения гуляет вместе с длиной соседних ярусов;
+        по центру она стоит там же, где середина окна, которую глаз и нашёл.
+
+        Главная строка — одна, с ужатием и без переноса: длина чужого названия
+        не имеет права двигать высоту окна.
+    -->
+    <StackPanel Margin="0,8,0,0" HorizontalAlignment="Stretch">
+      <TextBlock Text="{Binding Headline}"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 TextTrimming="CharacterEllipsis"
+                 FontSize="17"
+                 FontWeight="SemiBold" />
+
+      <TextBlock Text="{Binding SecondaryNumber}"
+                 Margin="0,2,0,0"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 FontSize="13"
+                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Visibility="{Binding SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
+    </StackPanel>
+
+    <StackPanel Margin="0,14,0,0">
+
+      <!--
+          Подсказка на звонке по сделке. Текст один на оба режима окна и
+          намеренно не называет кнопку: в режиме подтверждения цифрой кнопки
+          «Ответить» на экране нет вовсе, и подсказка, отсылающая к ней, врала бы.
+      -->
+      <TextBlock Text="{res:Loc IncomingDealPrompt}"
+                 Margin="0,0,0,8"
+                 FontSize="13"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Visibility="{Binding IsSelfCall, Converter={StaticResource BoolToVisibility}}" />
+
+      <!-- Режим подтверждения цифрой. -->
+      <StackPanel Visibility="{Binding HasChoice, Converter={StaticResource BoolToVisibility}}">
+
+        <!--
+            Подсказка набрана одним кеглем целиком: два кегля в одной строке
+            ради одного символа — разнобой, а не иерархия. Цифру выделяет цвет.
+        -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+          <TextBlock Text="{res:Loc IncomingDigitPrompt}"
+                     FontSize="13"
+                     Foreground="{DynamicResource TextSecondaryBrush}" />
+          <TextBlock Text="{Binding Answer}"
+                     Margin="4,0,0,0"
+                     FontSize="13"
+                     FontWeight="SemiBold" />
+        </StackPanel>
+
+        <!--
+            Цели нажимаются только мышью: цифра на клавиатуре вызов не
+            принимает. Клавиатурное нажатие не оставляет защите ни одного
+            признака живого человека, и отдельного пути для него здесь нет.
+            Отсюда же Focusable=False и скрытие от средств доступности.
+        -->
+        <ItemsControl ItemsSource="{Binding Targets}" Margin="0,0,0,8">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <UniformGrid Rows="1" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Style="{StaticResource SurfaceButtonStyle}"
+                      Margin="4,0"
+                      Height="34"
+                      FontSize="15"
+                      Content="{Binding}"
+                      Command="{Binding DataContext.AttemptCommand,
+                                        RelativeSource={RelativeSource AncestorType=Window}}"
+                      CommandParameter="{Binding}"
+                      Focusable="False"
+                      AutomationProperties.IsOffscreenBehavior="Offscreen" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button Style="{StaticResource SurfaceButtonStyle}"
+                Height="34"
+                Command="{Binding DeclineCommand}"
+                IsCancel="True"
+                AutomationProperties.Name="{res:Loc IncomingDecline}">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Glyph="phone.down.fill" Size="12"
+                        Foreground="{DynamicResource DeclineBrush}"
+                        VerticalAlignment="Center" />
+            <TextBlock Text="{res:Loc IncomingDecline}"
+                       Margin="6,0,0,0"
+                       FontSize="13"
+                       Foreground="{DynamicResource DeclineBrush}" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
+      <!-- Обычная пара кнопок, когда подтверждение цифрой выключено. -->
+      <Grid Visibility="{Binding HasChoice, Converter={StaticResource NotBoolToVisibility}}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="8" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!--
+            Кнопка активна с первого кадра: локальной задержки активации нет.
+            У цели приёма намеренно нет имени для средств доступности: нажать её
+            через UI Automation значило бы принять вызов вообще без событий
+            мыши, то есть не выполнив ни одной проверки живого человека.
+        -->
+        <Button Grid.Column="0"
+                Style="{StaticResource CallButtonStyle}"
+                Height="34"
+                Background="{DynamicResource AnswerFillBrush}"
+                Command="{Binding AttemptCommand}"
+                CommandParameter="{Binding Answer}"
+                Focusable="False"
+                AutomationProperties.IsOffscreenBehavior="Offscreen">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Glyph="phone.fill" Size="12" Foreground="White" VerticalAlignment="Center" />
+            <TextBlock Text="{res:Loc IncomingAnswer}" Margin="6,0,0,0" FontSize="13" Foreground="White" />
+          </StackPanel>
+        </Button>
+
+        <Button Grid.Column="2"
+                Style="{StaticResource CallButtonStyle}"
+                Height="34"
+                Background="{DynamicResource DeclineFillBrush}"
+                Command="{Binding DeclineCommand}"
+                IsCancel="True"
+                AutomationProperties.Name="{res:Loc IncomingDecline}">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Glyph="phone.down.fill" Size="12" Foreground="White" VerticalAlignment="Center" />
+            <TextBlock Text="{res:Loc IncomingDecline}" Margin="6,0,0,0" FontSize="13" Foreground="White" />
+          </StackPanel>
+        </Button>
+      </Grid>
+    </StackPanel>
+  </StackPanel>
+</Window>

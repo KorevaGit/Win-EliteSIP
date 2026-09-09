@@ -9,10 +9,9 @@ namespace EliteSIP.App.Admin;
 /// <summary>Разделы «Управления».</summary>
 ///
 /// <remarks>
-/// Восемь из девяти. Девятый — «Входящие», политика защиты от автокликеров, —
-/// живёт не здесь: пакет <c>CallGuard</c> переносится этапом W9 вместе с окном
-/// входящего вызова, и заводить раздел настроек раньше того, чем он управляет,
-/// значит показать выключатели, за которыми ничего нет.
+/// Девять. Девятый — «Входящие», политика защиты от автокликеров, — приехал с
+/// W9 вместе с окном входящего вызова: заводить раздел настроек раньше того,
+/// чем он управляет, значило бы показать выключатели, за которыми ничего нет.
 /// </remarks>
 public enum AdminSectionKind
 {
@@ -24,6 +23,9 @@ public enum AdminSectionKind
     Access,
     Diagnostics,
     Maintenance,
+
+    /// <summary>Защита приёма вызова: девятый раздел, приехал с W9.</summary>
+    Incoming,
 }
 
 /// <summary>Пункт бокового списка. <paramref name="Group"/> — заголовок над ним.</summary>
@@ -71,11 +73,25 @@ public sealed class AdministrationViewModel : Observable
     private string _newPassword = string.Empty;
     private string _repeatedPassword = string.Empty;
     private bool _isDirty;
+    private string? _lastGuardReport;
 
-    public AdministrationViewModel(AppSettings settings, AdminAccessState access)
+    /// <param name="preview">
+    /// Показ окна входящего для проверки: <c>true</c> — вызов по сделке,
+    /// <c>false</c> — раздача. Приходит снаружи, потому что окном владеет
+    /// приложение, а не «Управление»: проверка обязана показывать ровно то, что
+    /// оператор увидит на живом вызове, — ради этого её и открывают.
+    /// </param>
+    public AdministrationViewModel(
+        AppSettings settings,
+        AdminAccessState access,
+        Action<bool>? preview = null)
     {
         _settings = settings;
         _access = access;
+
+        Guard.PropertyChanged += (_, _) => MarkDirty();
+        PreviewDistribution = new RelayCommand(_ => preview?.Invoke(false));
+        PreviewDeal = new RelayCommand(_ => preview?.Invoke(true), _ => Username.Length > 0);
 
         // Порядок и группы — из оригинала. Заголовок группы несёт та строка,
         // которая её открывает; у первой группы заголовка нет намеренно.
@@ -85,6 +101,7 @@ public sealed class AdministrationViewModel : Observable
             new(AdminSectionKind.Pbx, Strings.Get("AdminSectionPbx"), "phone.arrow.right", null),
             new(AdminSectionKind.Macros, Strings.Get("AdminSectionMacros"), "square.grid.3x3", Strings.Get("AdminGroupCall")),
             new(AdminSectionKind.Queues, Strings.Get("AdminSectionQueues"), "person.3.fill", null),
+            new(AdminSectionKind.Incoming, Strings.Get("AdminSectionIncoming"), "bell.badge", null),
             new(AdminSectionKind.History, Strings.Get("AdminSectionHistory"), "clock", Strings.Get("AdminGroupMachine")),
             new(AdminSectionKind.Access, Strings.Get("AdminSectionAccess"), "lock.shield.fill", null),
             new(AdminSectionKind.Diagnostics, Strings.Get("AdminSectionDiagnostics"), "stethoscope", null),
@@ -96,6 +113,34 @@ public sealed class AdministrationViewModel : Observable
 
     public IReadOnlyList<AdminSectionItem> Sections { get; }
 
+    /// <summary>Черновик защиты приёма вызова.</summary>
+    ///
+    /// <remarks>
+    /// Отдельный набор, а не сами настройки: правки администратора придержаны
+    /// «Сохранить», а половина применённой политики защиты — это защита, о
+    /// которой никто не знает, какая она.
+    /// </remarks>
+    public IncomingCallSettings Guard { get; } = new();
+
+    /// <summary>Показать окно входящего для проверки: раздача.</summary>
+    public RelayCommand PreviewDistribution { get; }
+
+    /// <summary>То же для вызова по сделке. Отдельной кнопкой, а не переключателем.</summary>
+    ///
+    /// <remarks>
+    /// У звонка по сделке другой заголовок и своя подсказка, и увидеть их иначе
+    /// нельзя — случай приходит из CRM, а не из настроек. Номер подставляется
+    /// свой: так проверка заодно показывает, что добавочный вообще опознаётся.
+    /// </remarks>
+    public RelayCommand PreviewDeal { get; }
+
+    /// <summary>Отчёт защиты по последнему вызову. <c>null</c> — вызовов не было.</summary>
+    public string? LastGuardReport
+    {
+        get => _lastGuardReport;
+        set => Set(ref _lastGuardReport, value);
+    }
+
     public AdminSectionKind Section
     {
         get => _section;
@@ -106,6 +151,7 @@ public sealed class AdministrationViewModel : Observable
             {
                 nameof(ShowsAccount), nameof(ShowsPbx), nameof(ShowsMacros), nameof(ShowsQueues),
                 nameof(ShowsHistory), nameof(ShowsAccess), nameof(ShowsDiagnostics), nameof(ShowsMaintenance),
+                nameof(ShowsIncoming),
             })
             {
                 NotifyChanged(name);
@@ -129,6 +175,8 @@ public sealed class AdministrationViewModel : Observable
 
     public bool ShowsMaintenance => _section is AdminSectionKind.Maintenance;
 
+    public bool ShowsIncoming => _section is AdminSectionKind.Incoming;
+
     // --- Аккаунт ---------------------------------------------------------
 
     public string Username
@@ -138,6 +186,7 @@ public sealed class AdministrationViewModel : Observable
         {
             Set(ref _username, value);
             MarkDirty();
+            PreviewDeal.RaiseCanExecuteChanged();
         }
     }
 
@@ -509,6 +558,8 @@ public sealed class AdministrationViewModel : Observable
             });
         }
 
+        _settings.IncomingCall.CopyFrom(Guard);
+
         _settings.Maintenance.LogToFile = LogToFile;
         _settings.Maintenance.LogsSipTrace = LogsSipTrace;
 
@@ -561,6 +612,8 @@ public sealed class AdministrationViewModel : Observable
         _macroColumns = _settings.Dtmf.MacroColumns;
         _macroHeight = _settings.Dtmf.MacroHeight;
         _macroHeightIsManual = _settings.Dtmf.MacroHeightIsManual;
+        Guard.CopyFrom(_settings.IncomingCall);
+
         _historyIsEnabled = _settings.History.IsEnabled;
         _historyAgeInDays = _settings.History.MaximumAgeInDays;
 

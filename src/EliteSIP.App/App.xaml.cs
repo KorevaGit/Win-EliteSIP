@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Interop;
 using EliteSIP.App.Panel;
 using EliteSIP.App.Resources;
 using EliteSIP.App.Settings;
@@ -11,6 +12,7 @@ using EliteSIP.App.Admin;
 using EliteSIP.AdminAccess;
 using EliteSIP.App.Shell;
 using EliteSIP.App.FirstRun;
+using EliteSIP.App.Incoming;
 
 namespace EliteSIP.App;
 
@@ -30,6 +32,7 @@ public partial class App : Application, IDisposable
     private PanelWindow? _panelWindow;
     private TrayIcon? _tray;
     private PhoneService? _phone;
+    private IncomingCallPresenter? _incoming;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -82,8 +85,14 @@ public partial class App : Application, IDisposable
             ShowHistory = new RelayCommand(_ => ShowHistory()),
         };
 
+        // Окно входящего вызова вместе с защитой от автокликеров (W9). Мигает
+        // при этом кнопка панели в панели задач — своей у карточки вызова нет.
+        _incoming = new IncomingCallPresenter(
+            Log,
+            () => _panelWindow is null ? 0 : new WindowInteropHelper(_panelWindow).Handle);
+
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
-        _phone = new PhoneService(_settings, _panel, _history, Dispatcher, Log);
+        _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
 
         _panel.CallOrHangUp = new RelayCommand(async _ =>
         {
@@ -255,9 +264,15 @@ public partial class App : Application, IDisposable
             }
         }
 
-        _administrationWindow = new AdministrationWindow(
-            new AdministrationViewModel(_settings!, _access),
-            _appearance!);
+        var administration = new AdministrationViewModel(_settings!, _access, PreviewIncomingCall)
+        {
+            // Отчёт последнего вызова — то немногое в «Управлении», что не
+            // настройка, а факт: по нему видно, сработала ли защита на живом
+            // звонке, не открывая журнал.
+            LastGuardReport = _incoming?.LastReport?.Summary(),
+        };
+
+        _administrationWindow = new AdministrationWindow(administration, _appearance!);
 
         _administrationWindow.Closed += (_, _) =>
         {
@@ -273,6 +288,40 @@ public partial class App : Application, IDisposable
         // «Управление» заменяет собой настройки, а не встаёт рядом: два окна об
         // одной машине означали бы две правды о ней.
         _settingsWindow?.Close();
+    }
+
+    /// <summary>Показывает окно входящего для проверки из «Управления».</summary>
+    ///
+    /// <param name="asDealCall">
+    /// <c>true</c> — вызов по сделке, <c>false</c> — раздача.
+    /// </param>
+    ///
+    /// <remarks>
+    /// Тем же путём, что и боевой вызов: разбор случая, политика из настроек,
+    /// то же окно. Иначе проверка показывала бы не то, что увидит оператор на
+    /// живом вызове, — а ради этого её и открывают.
+    ///
+    /// Номер раздачи — боевой формы, а не выдуманный: добавочный колл-центра и
+    /// просьба автоответа. Кнопки при этом не делают ничего: проверка кончается
+    /// закрытием окна, а не звонком.
+    /// </remarks>
+    private void PreviewIncomingCall(bool asDealCall)
+    {
+        if (_incoming is null || _settings is null)
+        {
+            return;
+        }
+
+        var own = _settings.Account.Username;
+        var subject = asDealCall
+            ? IncomingCallSubject.Classify(own, callerName: null, requestsAutoAnswer: false, ownNumber: own)
+            : IncomingCallSubject.Classify("712", "Call_Center", requestsAutoAnswer: true, ownNumber: own);
+
+        _incoming.Show(
+            subject,
+            _settings.IncomingCall.ToPolicy(),
+            onAnswer: () => { },
+            onDecline: () => { });
     }
 
     /// <summary>Проводит мастер. <c>false</c> — человек отказался.</summary>
@@ -465,6 +514,7 @@ public partial class App : Application, IDisposable
         _tray = null;
 
         _phone?.Dispose();
+        _incoming?.Dispose();
         _phone = null;
         GC.SuppressFinalize(this);
     }
