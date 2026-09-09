@@ -568,4 +568,37 @@
   <data name="AdminMaintenanceNote" xml:space="preserve">
     <value>The log is attached to support requests: with it off there will be nothing to collect. The trace is verbose and not needed in daily work, but it is the first thing asked for when working out why registration fails.</value>
   </data>
+  <data name="TrayShowPanel" xml:space="preserve">
+    <value>Show the panel</value>
+  </data>
+  <data name="TrayHidePanel" xml:space="preserve">
+    <value>Hide the panel</value>
+  </data>
+  <data name="TrayHistory" xml:space="preserve">
+    <value>Call history</value>
+  </data>
+  <data name="TraySettings" xml:space="preserve">
+    <value>Settings…</value>
+  </data>
+  <data name="TrayDoNotDisturb" xml:space="preserve">
+    <value>Do not disturb</value>
+  </data>
+  <data name="TrayQuit" xml:space="preserve">
+    <value>Quit EliteSIP</value>
+  </data>
+  <data name="TrayOffline" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="TrayRegistered" xml:space="preserve">
+    <value>On line</value>
+  </data>
+  <data name="TrayRegistering" xml:space="preserve">
+    <value>Connecting…</value>
+  </data>
+  <data name="TrayFailed" xml:space="preserve">
+    <value>No connection</value>
+  </data>
+  <data name="TrayIdle" xml:space="preserve">
+    <value>Not connected</value>
+  </data>
 </root>

@@ -548,4 +548,37 @@
   <data name="AdminMaintenanceNote" xml:space="preserve">
     <value>Журнал прикладывают к обращению в поддержку: выключенный означает, что собирать будет нечего. Трасса подробная и в обычной работе не нужна, но при разборе «почему не регистрируется» просят её первой.</value>
   </data>
+  <data name="TrayShowPanel" xml:space="preserve">
+    <value>Показать панель</value>
+  </data>
+  <data name="TrayHidePanel" xml:space="preserve">
+    <value>Скрыть панель</value>
+  </data>
+  <data name="TrayHistory" xml:space="preserve">
+    <value>История звонков</value>
+  </data>
+  <data name="TraySettings" xml:space="preserve">
+    <value>Настройки…</value>
+  </data>
+  <data name="TrayDoNotDisturb" xml:space="preserve">
+    <value>Не беспокоить</value>
+  </data>
+  <data name="TrayQuit" xml:space="preserve">
+    <value>Завершить EliteSIP</value>
+  </data>
+  <data name="TrayOffline" xml:space="preserve">
+    <value>Отключён</value>
+  </data>
+  <data name="TrayRegistered" xml:space="preserve">
+    <value>На линии</value>
+  </data>
+  <data name="TrayRegistering" xml:space="preserve">
+    <value>Подключение…</value>
+  </data>
+  <data name="TrayFailed" xml:space="preserve">
+    <value>Нет связи</value>
+  </data>
+  <data name="TrayIdle" xml:space="preserve">
+    <value>Не подключён</value>
+  </data>
 </root>

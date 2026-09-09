@@ -9,6 +9,7 @@ using EliteSIP.CallHistory;
 using EliteSIP.App.History;
 using EliteSIP.App.Admin;
 using EliteSIP.AdminAccess;
+using EliteSIP.App.Shell;
 
 namespace EliteSIP.App;
 
@@ -25,6 +26,8 @@ public partial class App : Application, IDisposable
     private PanelViewModel? _panel;
     private AdministrationWindow? _administrationWindow;
     private AdminAccessState? _access;
+    private PanelWindow? _panelWindow;
+    private TrayIcon? _tray;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -77,7 +80,22 @@ public partial class App : Application, IDisposable
             HistoryDemo.Seed(_history, _settings.Account.ProfileId);
         }
 
-        new PanelWindow(model).Show();
+        _panelWindow = new PanelWindow(model);
+        _panelWindow.Show();
+
+        // Значок в области уведомлений — второй вход к панели и единственный
+        // выход из приложения при спрятанной панели.
+        _tray = new TrayIcon(model, new TrayIcon.TrayActions(
+            IsPanelVisible: () => _panelWindow?.IsVisible is true,
+            TogglePanel: TogglePanel,
+            ShowHistory: ShowHistory,
+            ShowSettings: ShowSettings,
+            ToggleOffline: () => model.IsOfflineByChoice = !model.IsOfflineByChoice,
+            Quit: Quit));
+
+        // Прятать панель за значок можно только если значок встал: иначе
+        // приложение окажется запущенным, невидимым и без выхода.
+        _panelWindow.AllowsClosing = !_tray.IsAdded;
 
         // Тот же ключ, что в оригинале: снимок окна настроек нужен для сверки
         // раскладки, а дотянуться до него скриптом иначе нечем — окно
@@ -194,6 +212,39 @@ public partial class App : Application, IDisposable
         _settingsWindow?.Close();
     }
 
+    /// <summary>Показывает панель или прячет её.</summary>
+    private void TogglePanel()
+    {
+        if (_panelWindow is null)
+        {
+            return;
+        }
+
+        if (_panelWindow.IsVisible)
+        {
+            _panelWindow.Hide();
+            return;
+        }
+
+        _panelWindow.Show();
+
+        // Показанная из области уведомлений панель обязана оказаться сверху:
+        // без этого она поднимается за тем окном, из которого её позвали, и
+        // выглядит не открывшейся.
+        _panelWindow.Activate();
+    }
+
+    /// <summary>Выход. Единственное место, откуда приложение завершают.</summary>
+    private void Quit()
+    {
+        if (_panelWindow is not null)
+        {
+            _panelWindow.AllowsClosing = true;
+        }
+
+        Shutdown();
+    }
+
     /// <summary>Переносит клавиши из настроек в панель.</summary>
     private void SyncMacros()
     {
@@ -272,6 +323,9 @@ public partial class App : Application, IDisposable
         // держит файл после выхода — следующий запуск встречает занятый.
         _history?.Dispose();
         _history = null;
+
+        _tray?.Dispose();
+        _tray = null;
         GC.SuppressFinalize(this);
     }
 }

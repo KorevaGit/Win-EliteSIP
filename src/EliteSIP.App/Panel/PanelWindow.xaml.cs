@@ -102,11 +102,31 @@ public partial class PanelWindow : Window
     private void OnMinimizeClick(object sender, RoutedEventArgs e)
         => WindowState = WindowState.Minimized;
 
-    // Закрытие панели — выход из приложения, а не сворачивание в значок.
-    // Форма приложения решается вместе со значком в области уведомлений, и до
-    // тех пор кнопка делает то, что на ней написано: скрытая панель без значка
-    // означала бы работающий софтфон, которого нигде не видно.
-    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+    /// <summary>Закрытие панели прячет её в область уведомлений, а не гасит.</summary>
+    ///
+    /// <remarks>
+    /// Софтфон, закрытый крестиком, обязан продолжать принимать звонки:
+    /// оператор закрывает панель, чтобы она не мешала, а не чтобы перестать
+    /// быть на линии. Выход живёт в меню значка — единственном месте, откуда
+    /// его видно при спрятанной панели.
+    /// </remarks>
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Hide();
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        base.OnClosing(e);
+
+        // Системное закрытие (Alt+F4, «Закрыть» из панели задач) — то же самое
+        // и по той же причине.
+        if (!AllowsClosing)
+        {
+            e.Cancel = true;
+            Hide();
+        }
+    }
+
+    /// <summary>Разрешено ли окну закрыться по-настоящему. Ставит выход.</summary>
+    public bool AllowsClosing { get; set; }
 
     private void OnClearNumberClick(object sender, RoutedEventArgs e)
         => Model.DialedNumber = string.Empty;
