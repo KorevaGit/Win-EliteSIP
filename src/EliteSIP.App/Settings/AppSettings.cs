@@ -307,6 +307,13 @@ public sealed class AppSettings : Observable
 
     public AppearanceSettings Appearance { get; init; } = new();
 
+    public DtmfSettings Dtmf { get; init; } = new();
+
+    public HistorySettings History { get; init; } = new();
+
+    /// <summary>Административный доступ. Правится только из «Управления».</summary>
+    public AdminSettings Admin { get; init; } = new();
+
     /// <summary>Читает настройки или отдаёт умолчания.</summary>
     ///
     /// <remarks>
@@ -360,21 +367,45 @@ public sealed class AppSettings : Observable
     /// </remarks>
     public void AutoSave(Action<Exception>? onFailure = null)
     {
-        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance })
+        // Список клавиш — коллекция, и её правки уведомлением о свойстве не
+        // приходят: подписываться надо и на сам список, и на каждую клавишу в
+        // нём. Без этого переименованная клавиша применяется и не переживает
+        // перезапуск.
+        void WatchMacros()
         {
-            section.PropertyChanged += (_, _) =>
+            foreach (var macro in Dtmf.Macros)
             {
-                try
-                {
-                    Save();
-                }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    // Не упасть: диск может быть полон или занят, а настройка
-                    // уже применена. Сообщить об этом — дело слоя выше.
-                    onFailure?.Invoke(exception);
-                }
-            };
+                macro.PropertyChanged -= OnMacroChanged;
+                macro.PropertyChanged += OnMacroChanged;
+            }
+        }
+
+        void OnMacroChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs change) => TrySave(onFailure);
+
+        Dtmf.Macros.CollectionChanged += (_, _) =>
+        {
+            WatchMacros();
+            TrySave(onFailure);
+        };
+
+        WatchMacros();
+
+        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin })
+        {
+            section.PropertyChanged += (_, _) => TrySave(onFailure);
+        }
+    }
+    private void TrySave(Action<Exception>? onFailure)
+    {
+        try
+        {
+            Save();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Не упасть: диск может быть полон или занят, а настройка уже
+            // применена. Сообщить об этом — дело слоя выше.
+            onFailure?.Invoke(exception);
         }
     }
 }

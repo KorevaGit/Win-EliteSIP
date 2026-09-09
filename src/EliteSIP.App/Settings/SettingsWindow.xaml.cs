@@ -181,6 +181,17 @@ public partial class SettingsWindow : Window
         Restart();
     }
 
+    /// <summary>Кто открывает «Управление». Ставит приложение.</summary>
+    ///
+    /// <remarks>
+    /// Событием, а не вызовом отсюда: за дверью пароль и другое окно, и решать,
+    /// пускать ли, — не дело окна настроек.
+    /// </remarks>
+    public event Action? AdministrationRequested;
+
+    private void OnAdministrationClick(object sender, RoutedEventArgs e)
+        => AdministrationRequested?.Invoke();
+
     /// <summary>Перезапуск: новый процесс поднимается, этот закрывается.</summary>
     ///
     /// <remarks>

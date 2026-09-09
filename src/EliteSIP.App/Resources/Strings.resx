@@ -328,4 +328,148 @@
   <data name="HistorySnapshotDone" xml:space="preserve">
     <value>Picture copied</value>
   </data>
+  <data name="AdminUnlockTitle" xml:space="preserve">
+    <value>Administration</value>
+  </data>
+  <data name="AdminUnlockSubtitle" xml:space="preserve">
+    <value>Accounts, keys, autoclicker protection and diagnostics.</value>
+  </data>
+  <data name="AdminUnlockEnter" xml:space="preserve">
+    <value>Enter</value>
+  </data>
+  <data name="AdminUnlockWarning" xml:space="preserve">
+    <value>No password is set on this machine — administration is open to anyone who reaches it. Changes here alter the whole workplace.</value>
+  </data>
+  <data name="AdminUnlockWrongPassword" xml:space="preserve">
+    <value>Wrong password.</value>
+  </data>
+  <data name="AdminWindowTitle" xml:space="preserve">
+    <value>Administration</value>
+  </data>
+  <data name="AdminGroupMachine" xml:space="preserve">
+    <value>Machine</value>
+  </data>
+  <data name="AdminSectionMacros" xml:space="preserve">
+    <value>Keys</value>
+  </data>
+  <data name="AdminSectionHistory" xml:space="preserve">
+    <value>History</value>
+  </data>
+  <data name="AdminSectionAccess" xml:space="preserve">
+    <value>Access</value>
+  </data>
+  <data name="AdminSectionDiagnostics" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="AdminSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="AdminRevert" xml:space="preserve">
+    <value>Revert</value>
+  </data>
+  <data name="AdminMacrosTitle" xml:space="preserve">
+    <value>Macro keys</value>
+  </data>
+  <data name="AdminMacroTitle" xml:space="preserve">
+    <value>Label</value>
+  </data>
+  <data name="AdminMacroSequence" xml:space="preserve">
+    <value>Sequence</value>
+  </data>
+  <data name="AdminMacroTransfers" xml:space="preserve">
+    <value>Transfers the call</value>
+  </data>
+  <data name="AdminMacroAdd" xml:space="preserve">
+    <value>Add a key</value>
+  </data>
+  <data name="AdminMacroRemove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="AdminMacroUp" xml:space="preserve">
+    <value>Up</value>
+  </data>
+  <data name="AdminMacroDown" xml:space="preserve">
+    <value>Down</value>
+  </data>
+  <data name="AdminMacrosNote" xml:space="preserve">
+    <value>The label and the sequence are yours: the codes belong to this company's PBX, and the application does not try to guess them. The order matters — the operator aims at a position rather than reading the labels each time.</value>
+  </data>
+  <data name="AdminMacroTransfersNote" xml:space="preserve">
+    <value>“Transfers the call” marks the call as transferred in the history. This cannot be guessed from the sequence: every PBX has its own codes, and the mark goes into the history, which is read as evidence.</value>
+  </data>
+  <data name="AdminMacroLayout" xml:space="preserve">
+    <value>Layout</value>
+  </data>
+  <data name="AdminMacroColumns" xml:space="preserve">
+    <value>Per row</value>
+  </data>
+  <data name="AdminMacroHeightAuto" xml:space="preserve">
+    <value>Height from the labels</value>
+  </data>
+  <data name="AdminMacroHeight" xml:space="preserve">
+    <value>Height</value>
+  </data>
+  <data name="AdminHistoryTitle" xml:space="preserve">
+    <value>Call history</value>
+  </data>
+  <data name="AdminHistoryEnabled" xml:space="preserve">
+    <value>Keep the history</value>
+  </data>
+  <data name="AdminHistoryAge" xml:space="preserve">
+    <value>Keep, days</value>
+  </data>
+  <data name="AdminHistoryNote" xml:space="preserve">
+    <value>The switch is administrative, not managerial: the history is evidence when a complaint is reviewed, and the person whose calls it records must not decide whether to keep it.</value>
+  </data>
+  <data name="AdminAccessTitle" xml:space="preserve">
+    <value>Administrator password</value>
+  </data>
+  <data name="AdminAccessNewPassword" xml:space="preserve">
+    <value>New password</value>
+  </data>
+  <data name="AdminAccessRepeatPassword" xml:space="preserve">
+    <value>Repeat</value>
+  </data>
+  <data name="AdminAccessSet" xml:space="preserve">
+    <value>Set the password</value>
+  </data>
+  <data name="AdminAccessRemove" xml:space="preserve">
+    <value>Remove the password</value>
+  </data>
+  <data name="AdminAccessMismatch" xml:space="preserve">
+    <value>The passwords do not match.</value>
+  </data>
+  <data name="AdminAccessProtected" xml:space="preserve">
+    <value>A password is set. If it is forgotten, look it up in the panel — that is where it comes from.</value>
+  </data>
+  <data name="AdminAccessOpen" xml:space="preserve">
+    <value>No password: administration is open to anyone who reaches the machine.</value>
+  </data>
+  <data name="AdminAccessApplied" xml:space="preserve">
+    <value>The password applies at once rather than on “Save”: it is the key to the settings, not a setting.</value>
+  </data>
+  <data name="AdminDiagnosticsTitle" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="AdminDiagnosticsSettingsPath" xml:space="preserve">
+    <value>Settings file</value>
+  </data>
+  <data name="AdminDiagnosticsOpenFolder" xml:space="preserve">
+    <value>Show the folder</value>
+  </data>
+  <data name="AdminDiagnosticsNote" xml:space="preserve">
+    <value>The log and the settings live side by side. They are attached to a support request — the archive is collected in the Support section.</value>
+  </data>
+  <data name="AdminCloseDirtyTitle" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="AdminCloseDirtyBody" xml:space="preserve">
+    <value>This window has unsaved changes. Save them before closing?</value>
+  </data>
+  <data name="AdminRemovePasswordTitle" xml:space="preserve">
+    <value>Remove the password?</value>
+  </data>
+  <data name="AdminRemovePasswordBody" xml:space="preserve">
+    <value>After this, administration will open to anyone who reaches the machine: accounts, keys and autoclicker protection will be available without a password.</value>
+  </data>
 </root>

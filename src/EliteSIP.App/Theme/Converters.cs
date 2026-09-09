@@ -83,7 +83,17 @@ public sealed class EnumToBoolConverter : IValueConverter
             && string.Equals(value.ToString(), parameter.ToString(), StringComparison.Ordinal);
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true && parameter is not null
-            ? Enum.Parse(Nullable.GetUnderlyingType(targetType) ?? targetType, parameter.ToString()!)
-            : Binding.DoNothing;
+    {
+        if (value is not true || parameter is null)
+        {
+            return Binding.DoNothing;
+        }
+
+        var target = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        var text = parameter.ToString()!;
+
+        // Сегментами выбирают не только перечисления: число колонок в сетке
+        // макросов — обычный `int`, и `Enum.Parse` на нём падает.
+        return target.IsEnum ? Enum.Parse(target, text) : System.Convert.ChangeType(text, target, culture);
+    }
 }

@@ -7,6 +7,8 @@ using EliteSIP.App.Settings;
 using EliteSIP.App.Theme;
 using EliteSIP.CallHistory;
 using EliteSIP.App.History;
+using EliteSIP.App.Admin;
+using EliteSIP.AdminAccess;
 
 namespace EliteSIP.App;
 
@@ -21,6 +23,8 @@ public partial class App : Application, IDisposable
     private CallHistoryWindow? _historyWindow;
     private CallHistoryStore? _history;
     private PanelViewModel? _panel;
+    private AdministrationWindow? _administrationWindow;
+    private AdminAccessState? _access;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -39,6 +43,10 @@ public partial class App : Application, IDisposable
         _settings.AutoSave();
 
         Strings.Apply(Chosen(_settings.Appearance.Language));
+
+        // Замок на «Управление» один на приложение и восстанавливается из
+        // настроек: пароль там лежит солью с хэшем, а не текстом.
+        _access = new AdminAccessState(_settings.Admin.ToCredential());
 
         _appearance = new AppearanceService(this) { Appearance = _settings.Appearance.Theme };
         _appearance.Apply();
@@ -61,6 +69,7 @@ public partial class App : Application, IDisposable
 
         var model = _panel;
 
+        SyncMacros();
         PanelDemo.Apply(model, _settings, e.Args);
 
         if (e.Args.Contains("--demo"))
@@ -76,6 +85,11 @@ public partial class App : Application, IDisposable
         if (e.Args.Contains("--open-history"))
         {
             ShowHistory();
+        }
+
+        if (e.Args.Contains("--open-admin"))
+        {
+            ShowAdministration();
         }
 
         var opened = Array.IndexOf(e.Args, "--open-settings");
@@ -123,8 +137,81 @@ public partial class App : Application, IDisposable
         }
 
         _settingsWindow = new SettingsWindow(new SettingsViewModel(_settings!), _appearance!);
+        _settingsWindow.AdministrationRequested += ShowAdministration;
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    /// <summary>Спрашивает пароль и открывает «Управление».</summary>
+    ///
+    /// <remarks>
+    /// Замок один на приложение (<c>AdminAccessState</c>), и открытым он
+    /// остаётся до конца сеанса: администратор, закрывший окно, чтобы посмотреть
+    /// панель, не должен вводить пароль второй раз. Запирает его выход.
+    /// </remarks>
+    private void ShowAdministration()
+    {
+        if (_administrationWindow is { IsLoaded: true })
+        {
+            _administrationWindow.Activate();
+            return;
+        }
+
+        // Спрашивается один раз за сеанс — но спрашивается всегда, даже когда
+        // пароля нет: на незащищённой машине окно не просит ничего, а
+        // предупреждает. Открытые настройки не делают правку менее
+        // последствийной, и знать об этом надо до, а не после.
+        if (!_access!.IsUnlocked)
+        {
+            var unlock = new AdminUnlockWindow(_settings!, _access, _appearance!)
+            {
+                Owner = _settingsWindow,
+            };
+
+            if (unlock.ShowDialog() is not true)
+            {
+                return;
+            }
+        }
+
+        _administrationWindow = new AdministrationWindow(
+            new AdministrationViewModel(_settings!, _access),
+            _appearance!);
+
+        _administrationWindow.Closed += (_, _) =>
+        {
+            _administrationWindow = null;
+
+            // Клавиши могли перемениться — панель обязана показать те, что
+            // сохранили, а не те, с которыми её открыли.
+            SyncMacros();
+        };
+
+        _administrationWindow.Show();
+
+        // «Управление» заменяет собой настройки, а не встаёт рядом: два окна об
+        // одной машине означали бы две правды о ней.
+        _settingsWindow?.Close();
+    }
+
+    /// <summary>Переносит клавиши из настроек в панель.</summary>
+    private void SyncMacros()
+    {
+        if (_panel is null || _settings is null)
+        {
+            return;
+        }
+
+        _panel.Macros.Clear();
+        foreach (var macro in _settings.Dtmf.Macros)
+        {
+            _panel.Macros.Add(new MacroViewModel(macro.Title, macro.Sequence));
+        }
+
+        _panel.MacroColumns = _settings.Dtmf.MacroColumns;
+        _panel.MacroHeight = _settings.Dtmf.MacroHeightIsManual
+            ? _settings.Dtmf.MacroHeight
+            : DtmfSettings.DefaultMacroHeight;
     }
 
     /// <summary>Открывает историю — или поднимает уже открытую.</summary>

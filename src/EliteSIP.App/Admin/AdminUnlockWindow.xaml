@@ -1,0 +1,90 @@
+<Window x:Class="EliteSIP.App.Admin.AdminUnlockWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        Title="{res:Loc AdminUnlockTitle}"
+        Width="380"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display">
+
+  <!--
+      Вход в административный режим. Кнопки «Ввести код восстановления» здесь
+      нет: код лежал в бандле открытым текстом, то есть открывал «Управление»
+      всякому, кто вскрыл приложение. Забывший пароль администратор смотрит его
+      в панели, откуда пароль и приезжает на машину.
+  -->
+
+  <StackPanel Margin="12">
+    <TextBlock Text="{res:Loc AdminUnlockTitle}" FontSize="15" FontWeight="SemiBold" />
+
+    <TextBlock Text="{res:Loc AdminUnlockSubtitle}"
+               Margin="0,4,0,0"
+               FontSize="11"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource TextSecondaryBrush}" />
+
+    <!-- Ввод пароля. -->
+    <StackPanel x:Name="PasswordStep" Margin="0,12,0,0">
+      <Border Height="30"
+              CornerRadius="8"
+              Padding="8,0"
+              Background="{DynamicResource ControlBackgroundBrush}">
+        <PasswordBox x:Name="PasswordField"
+                     VerticalContentAlignment="Center"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     CaretBrush="{DynamicResource TextPrimaryBrush}"
+                     PasswordChanged="OnPasswordChanged"
+                     KeyDown="OnPasswordKeyDown" />
+      </Border>
+    </StackPanel>
+
+    <!--
+        Предупреждение до того, как окно откроется, а не после правки: за
+        дверью настройки рабочего места, и знать об этом надо до, а не после.
+    -->
+    <TextBlock x:Name="WarningText"
+               Text="{res:Loc AdminUnlockWarning}"
+               Margin="0,12,0,0"
+               FontSize="11"
+               TextWrapping="Wrap"
+               Visibility="Collapsed"
+               Foreground="{DynamicResource CautionBrush}" />
+
+    <StackPanel x:Name="ProblemRow"
+                Orientation="Horizontal"
+                Margin="0,10,0,0"
+                Visibility="Collapsed">
+      <theme:Icon Glyph="exclamationmark.triangle" Size="12" VerticalAlignment="Center"
+                  Foreground="{DynamicResource StatusFailureBrush}" />
+      <TextBlock x:Name="ProblemText"
+                 Margin="6,0,0,0"
+                 FontSize="11"
+                 TextWrapping="Wrap"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource StatusFailureBrush}" />
+    </StackPanel>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+      <Button Style="{StaticResource SettingsButtonStyle}"
+              Content="{res:Loc PanelCancel}"
+              IsCancel="True"
+              Click="OnCancelClick" />
+      <Button x:Name="EnterButton"
+              Style="{StaticResource SettingsButtonStyle}"
+              Margin="6,0,0,0"
+              Content="{res:Loc AdminUnlockEnter}"
+              IsDefault="True"
+              IsEnabled="False"
+              Click="OnEnterClick" />
+    </StackPanel>
+  </StackPanel>
+</Window>

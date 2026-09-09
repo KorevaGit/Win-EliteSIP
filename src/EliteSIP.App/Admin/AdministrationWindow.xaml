@@ -1,0 +1,397 @@
+<Window x:Class="EliteSIP.App.Admin.AdministrationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
+        xmlns:admin="clr-namespace:EliteSIP.App.Admin"
+        xmlns:settings="clr-namespace:EliteSIP.App.Settings"
+        xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=admin:AdministrationViewModel}"
+        Title="{res:Loc AdminWindowTitle}"
+        Width="940"
+        Height="457"
+        MinWidth="780"
+        MinHeight="457"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display"
+        theme:SettingsLayout.LabelColumn="132"
+        theme:SettingsLayout.RowMaxWidth="560">
+
+  <!--
+      Числа окна — из макета и замеров оригинала. Колонка подписей 132, а не
+      менеджерские 72: здесь «Отображаемое имя» и «Время регистрации», а не
+      «Громкость», и на 72 каждая вторая подпись переносилась бы в две строки.
+
+      Высота 457 — и минимальная, и та, с которой окно открывается: её задаёт
+      сайдбар, все пункты которого обязаны быть видны сразу. Ширина 940 — с
+      запасом от порога, за которым списки перестраиваются в два столбца.
+  -->
+
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="160" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <!-- Боковой список разделов. -->
+    <Border Grid.Column="0" Background="{DynamicResource ControlBackgroundBrush}">
+      <ListBox ItemsSource="{Binding Sections}"
+               SelectedValue="{Binding Section}"
+               SelectedValuePath="Kind"
+               Background="Transparent"
+               BorderThickness="0"
+               Margin="6,8,6,8"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <StackPanel>
+                    <!--
+                        Заголовок группы рисует сама строка, которая группу
+                        открывает: у первой группы заголовка нет намеренно, и
+                        отдельного уровня в списке ради этого заводить незачем.
+                    -->
+                    <TextBlock Text="{Binding Group}"
+                               Margin="8,10,0,2"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextTertiaryBrush}"
+                               Visibility="{Binding Group, Converter={StaticResource PresenceToVisibility}}" />
+
+                    <Border x:Name="Row"
+                            Background="Transparent"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                      <ContentPresenter />
+                    </Border>
+                  </StackPanel>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelectionBrush}" />
+                      <Setter Property="FontWeight" Value="SemiBold" />
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </ListBox.ItemContainerStyle>
+
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type admin:AdminSectionItem}">
+            <StackPanel Orientation="Horizontal">
+              <theme:Icon Glyph="{Binding Glyph}" Size="15" VerticalAlignment="Center"
+                          Foreground="{DynamicResource TextSecondaryBrush}" />
+              <TextBlock Text="{Binding Title}" Margin="6,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!-- Открытый раздел и полоса низа. -->
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <ScrollViewer Grid.Row="0"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    Padding="12,12,12,0">
+        <Grid HorizontalAlignment="Left"
+              Width="{Binding (theme:SettingsLayout.RowMaxWidth), RelativeSource={RelativeSource Self}}">
+
+          <!-- Раздел «Клавиши». -->
+          <StackPanel Visibility="{Binding ShowsMacros, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminMacrosTitle}">
+              <theme:SettingsNote Text="{res:Loc AdminMacrosNote}" />
+
+              <ItemsControl ItemsSource="{Binding Macros}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type settings:MacroSetting}">
+                    <Border Margin="0,3"
+                            Padding="8"
+                            CornerRadius="8"
+                            Background="{DynamicResource ControlHoverBrush}">
+                      <StackPanel>
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="6" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="6" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+
+                          <Border Grid.Column="0"
+                                  Height="26"
+                                  CornerRadius="6"
+                                  Padding="6,0"
+                                  Background="{DynamicResource SurfaceBrush}">
+                            <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                                     Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                                     Tag="{res:Loc AdminMacroTitle}" />
+                          </Border>
+
+                          <Border Grid.Column="2"
+                                  Height="26"
+                                  CornerRadius="6"
+                                  Padding="6,0"
+                                  Background="{DynamicResource SurfaceBrush}">
+                            <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                                     FontFamily="Consolas"
+                                     Text="{Binding Sequence, UpdateSourceTrigger=PropertyChanged}"
+                                     Tag="{res:Loc AdminMacroSequence}" />
+                          </Border>
+
+                          <StackPanel Grid.Column="4" Orientation="Horizontal">
+                            <Button Style="{StaticResource SettingsButtonStyle}"
+                                    Padding="6,2"
+                                    Content="↑"
+                                    ToolTip="{res:Loc AdminMacroUp}"
+                                    Click="OnMacroUpClick" />
+                            <Button Style="{StaticResource SettingsButtonStyle}"
+                                    Margin="4,0,0,0"
+                                    Padding="6,2"
+                                    Content="↓"
+                                    ToolTip="{res:Loc AdminMacroDown}"
+                                    Click="OnMacroDownClick" />
+                            <Button Style="{StaticResource SettingsButtonStyle}"
+                                    Margin="4,0,0,0"
+                                    Padding="6,2"
+                                    ToolTip="{res:Loc AdminMacroRemove}"
+                                    Click="OnMacroRemoveClick">
+                              <theme:Icon Glyph="trash" Size="12" />
+                            </Button>
+                          </StackPanel>
+                        </Grid>
+
+                        <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                                  Margin="0,6,0,0"
+                                  Content="{res:Loc AdminMacroTransfers}"
+                                  IsChecked="{Binding TransfersCall}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AdminMacroAdd}"
+                        Click="OnMacroAddClick" />
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc AdminMacroTransfersNote}" />
+            </theme:SettingsSection>
+
+            <theme:SettingsSection Header="{res:Loc AdminMacroLayout}">
+              <theme:SettingsRow Header="{res:Loc AdminMacroColumns}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Columns" Content="2"
+                               IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=2}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Columns" Content="3"
+                               IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=3}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Columns" Content="4"
+                               IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=4}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminMacroHeightAuto}"
+                        IsChecked="{Binding MacroHeightIsManual, Converter={StaticResource NotBool}}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminMacroHeight}"
+                                 IsEnabled="{Binding MacroHeightIsManual}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0"
+                          Minimum="44" Maximum="96"
+                          IsSnapToTickEnabled="True" TickFrequency="2"
+                          VerticalAlignment="Center"
+                          Value="{Binding MacroHeight}" />
+                  <TextBlock Grid.Column="1"
+                             Margin="6,0,0,0"
+                             MinWidth="34"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding MacroHeight}" />
+                </Grid>
+              </theme:SettingsRow>
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «История». -->
+          <StackPanel Visibility="{Binding ShowsHistory, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminHistoryTitle}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminHistoryEnabled}"
+                        IsChecked="{Binding HistoryIsEnabled}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminHistoryAge}"
+                                 IsEnabled="{Binding HistoryIsEnabled}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0"
+                          Minimum="1" Maximum="365"
+                          IsSnapToTickEnabled="True" TickFrequency="1"
+                          VerticalAlignment="Center"
+                          Value="{Binding HistoryAgeInDays}" />
+                  <TextBlock Grid.Column="1"
+                             Margin="6,0,0,0"
+                             MinWidth="34"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
+                             Text="{Binding HistoryAgeInDays}" />
+                </Grid>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminHistoryNote}" />
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Доступ». -->
+          <StackPanel Visibility="{Binding ShowsAccess, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminAccessTitle}">
+              <theme:SettingsNote Text="{res:Loc AdminAccessProtected}"
+                                  Visibility="{Binding IsProtected, Converter={StaticResource BoolToVisibility}}" />
+              <theme:SettingsNote Text="{res:Loc AdminAccessOpen}"
+                                  IsAlarming="True"
+                                  Visibility="{Binding IsProtected, Converter={StaticResource NotBoolToVisibility}}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminAccessNewPassword}">
+                <Border Height="26" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <PasswordBox x:Name="NewPasswordField"
+                               VerticalContentAlignment="Center"
+                               Background="Transparent"
+                               BorderThickness="0"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               CaretBrush="{DynamicResource TextPrimaryBrush}"
+                               PasswordChanged="OnNewPasswordChanged" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminAccessRepeatPassword}">
+                <Border Height="26" CornerRadius="6" Padding="6,0"
+                        Background="{DynamicResource ControlHoverBrush}">
+                  <PasswordBox x:Name="RepeatedPasswordField"
+                               VerticalContentAlignment="Center"
+                               Background="Transparent"
+                               BorderThickness="0"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               CaretBrush="{DynamicResource TextPrimaryBrush}"
+                               PasswordChanged="OnRepeatedPasswordChanged" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminAccessMismatch}"
+                                  IsAlarming="True"
+                                  Visibility="{Binding PasswordsDiffer, Converter={StaticResource BoolToVisibility}}" />
+
+              <theme:SettingsIndented>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Content="{res:Loc AdminAccessSet}"
+                          IsEnabled="{Binding CanSetPassword}"
+                          Click="OnSetPasswordClick" />
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Margin="6,0,0,0"
+                          Content="{res:Loc AdminAccessRemove}"
+                          IsEnabled="{Binding IsProtected}"
+                          Click="OnRemovePasswordClick" />
+                </StackPanel>
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc AdminAccessApplied}" />
+            </theme:SettingsSection>
+          </StackPanel>
+
+          <!-- Раздел «Диагностика». -->
+          <StackPanel Visibility="{Binding ShowsDiagnostics, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminDiagnosticsTitle}">
+              <theme:SettingsRow Header="{res:Loc SupportVersion}">
+                <TextBlock Text="{Binding Version}" Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminDiagnosticsSettingsPath}">
+                <TextBlock Text="{Binding SettingsPath}"
+                           TextWrapping="Wrap"
+                           FontFamily="Consolas"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsIndented>
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AdminDiagnosticsOpenFolder}"
+                        Click="OnOpenFolderClick" />
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc AdminDiagnosticsNote}" />
+            </theme:SettingsSection>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
+
+      <!--
+          Полоса низа: «Сохранить» и «Отменить». Здесь они есть, а в
+          менеджерских настройках их нет и быть не может — там правка
+          применяется сразу. Разница по существу: менеджер меняет громкость
+          себе, администратор — рабочее место целиком.
+      -->
+      <Border Grid.Row="1" Padding="12,8">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <TextBlock Grid.Column="0"
+                     VerticalAlignment="Center"
+                     FontSize="11"
+                     Foreground="{DynamicResource UnsavedBrush}"
+                     Text="●"
+                     Visibility="{Binding IsDirty, Converter={StaticResource BoolToVisibility}}" />
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <Button Style="{StaticResource SettingsButtonStyle}"
+                    Content="{res:Loc AdminRevert}"
+                    IsEnabled="{Binding IsDirty}"
+                    Click="OnRevertClick" />
+            <Button Style="{StaticResource SettingsButtonStyle}"
+                    Margin="6,0,0,0"
+                    Content="{res:Loc AdminSave}"
+                    IsEnabled="{Binding IsDirty}"
+                    Click="OnSaveClick" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

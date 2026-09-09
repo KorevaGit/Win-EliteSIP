@@ -308,4 +308,148 @@
   <data name="HistorySnapshotDone" xml:space="preserve">
     <value>Снимок в буфере обмена</value>
   </data>
+  <data name="AdminUnlockTitle" xml:space="preserve">
+    <value>Управление настройками</value>
+  </data>
+  <data name="AdminUnlockSubtitle" xml:space="preserve">
+    <value>Аккаунты, клавиши, защита от автокликеров и диагностика.</value>
+  </data>
+  <data name="AdminUnlockEnter" xml:space="preserve">
+    <value>Войти</value>
+  </data>
+  <data name="AdminUnlockWarning" xml:space="preserve">
+    <value>Пароль на этой машине не заведён — «Управление» открыто всякому, кто до неё дотянулся. Правки здесь меняют рабочее место целиком.</value>
+  </data>
+  <data name="AdminUnlockWrongPassword" xml:space="preserve">
+    <value>Неверный пароль.</value>
+  </data>
+  <data name="AdminWindowTitle" xml:space="preserve">
+    <value>Управление</value>
+  </data>
+  <data name="AdminGroupMachine" xml:space="preserve">
+    <value>Машина</value>
+  </data>
+  <data name="AdminSectionMacros" xml:space="preserve">
+    <value>Клавиши</value>
+  </data>
+  <data name="AdminSectionHistory" xml:space="preserve">
+    <value>История</value>
+  </data>
+  <data name="AdminSectionAccess" xml:space="preserve">
+    <value>Доступ</value>
+  </data>
+  <data name="AdminSectionDiagnostics" xml:space="preserve">
+    <value>Диагностика</value>
+  </data>
+  <data name="AdminSave" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="AdminRevert" xml:space="preserve">
+    <value>Отменить</value>
+  </data>
+  <data name="AdminMacrosTitle" xml:space="preserve">
+    <value>Клавиши макросов</value>
+  </data>
+  <data name="AdminMacroTitle" xml:space="preserve">
+    <value>Подпись</value>
+  </data>
+  <data name="AdminMacroSequence" xml:space="preserve">
+    <value>Набор</value>
+  </data>
+  <data name="AdminMacroTransfers" xml:space="preserve">
+    <value>Уводит звонок</value>
+  </data>
+  <data name="AdminMacroAdd" xml:space="preserve">
+    <value>Добавить клавишу</value>
+  </data>
+  <data name="AdminMacroRemove" xml:space="preserve">
+    <value>Убрать</value>
+  </data>
+  <data name="AdminMacroUp" xml:space="preserve">
+    <value>Выше</value>
+  </data>
+  <data name="AdminMacroDown" xml:space="preserve">
+    <value>Ниже</value>
+  </data>
+  <data name="AdminMacrosNote" xml:space="preserve">
+    <value>Подпись и набор — ваши: коды набирает АТС этой конторы, и угадывать их приложение не берётся. Порядок клавиш значим — оператор целится в место, а не читает подписи каждый раз.</value>
+  </data>
+  <data name="AdminMacroTransfersNote" xml:space="preserve">
+    <value>«Уводит звонок» помечает разговор переводом в истории. Определять это по началу набора нельзя: у каждой АТС свои коды, а пометка идёт в историю, которую читают как свидетельство.</value>
+  </data>
+  <data name="AdminMacroLayout" xml:space="preserve">
+    <value>Раскладка</value>
+  </data>
+  <data name="AdminMacroColumns" xml:space="preserve">
+    <value>В ряду</value>
+  </data>
+  <data name="AdminMacroHeightAuto" xml:space="preserve">
+    <value>Высота по подписям</value>
+  </data>
+  <data name="AdminMacroHeight" xml:space="preserve">
+    <value>Высота</value>
+  </data>
+  <data name="AdminHistoryTitle" xml:space="preserve">
+    <value>История звонков</value>
+  </data>
+  <data name="AdminHistoryEnabled" xml:space="preserve">
+    <value>Вести историю</value>
+  </data>
+  <data name="AdminHistoryAge" xml:space="preserve">
+    <value>Хранить, дней</value>
+  </data>
+  <data name="AdminHistoryNote" xml:space="preserve">
+    <value>Выключатель административный, а не менеджерский: история — свидетельство при разборе жалобы, и решать, вести ли её, тому, чьи звонки в ней записаны, нельзя.</value>
+  </data>
+  <data name="AdminAccessTitle" xml:space="preserve">
+    <value>Пароль администратора</value>
+  </data>
+  <data name="AdminAccessNewPassword" xml:space="preserve">
+    <value>Новый пароль</value>
+  </data>
+  <data name="AdminAccessRepeatPassword" xml:space="preserve">
+    <value>Ещё раз</value>
+  </data>
+  <data name="AdminAccessSet" xml:space="preserve">
+    <value>Задать пароль</value>
+  </data>
+  <data name="AdminAccessRemove" xml:space="preserve">
+    <value>Снять пароль</value>
+  </data>
+  <data name="AdminAccessMismatch" xml:space="preserve">
+    <value>Пароли не совпадают.</value>
+  </data>
+  <data name="AdminAccessProtected" xml:space="preserve">
+    <value>Пароль заведён. Забывшему смотреть в панель — оттуда пароль и приезжает на машину.</value>
+  </data>
+  <data name="AdminAccessOpen" xml:space="preserve">
+    <value>Пароля нет: «Управление» открыто всякому, кто дотянулся до машины.</value>
+  </data>
+  <data name="AdminAccessApplied" xml:space="preserve">
+    <value>Пароль применяется сразу, а не по «Сохранить»: это ключ от настроек, а не настройка.</value>
+  </data>
+  <data name="AdminDiagnosticsTitle" xml:space="preserve">
+    <value>Диагностика</value>
+  </data>
+  <data name="AdminDiagnosticsSettingsPath" xml:space="preserve">
+    <value>Файл настроек</value>
+  </data>
+  <data name="AdminDiagnosticsOpenFolder" xml:space="preserve">
+    <value>Показать папку</value>
+  </data>
+  <data name="AdminDiagnosticsNote" xml:space="preserve">
+    <value>Журнал и настройки лежат рядом. Их прикладывают к обращению в поддержку — там же собирается архив из раздела «Техподдержка».</value>
+  </data>
+  <data name="AdminCloseDirtyTitle" xml:space="preserve">
+    <value>Есть несохранённое</value>
+  </data>
+  <data name="AdminCloseDirtyBody" xml:space="preserve">
+    <value>В этом окне есть несохранённые правки. Сохранить их перед закрытием?</value>
+  </data>
+  <data name="AdminRemovePasswordTitle" xml:space="preserve">
+    <value>Снять пароль?</value>
+  </data>
+  <data name="AdminRemovePasswordBody" xml:space="preserve">
+    <value>После этого «Управление» откроется всякому, кто дотянулся до машины: аккаунты, клавиши и защита от автокликеров окажутся доступны без пароля.</value>
+  </data>
 </root>

@@ -496,7 +496,7 @@
           <Button Grid.Column="2"
                   Style="{StaticResource SettingsButtonStyle}"
                   Content="{res:Loc AdminModeOpen}"
-                  IsEnabled="False" />
+                  Click="OnAdministrationClick" />
         </Grid>
       </Border>
     </Grid>
