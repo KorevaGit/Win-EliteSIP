@@ -652,4 +652,22 @@
   <data name="HistoryAllDays" xml:space="preserve">
     <value>Show all days</value>
   </data>
+  <data name="TroubleNoAccount" xml:space="preserve">
+    <value>The profile is not set up</value>
+  </data>
+  <data name="TroubleNoPassword" xml:space="preserve">
+    <value>The password cannot be read</value>
+  </data>
+  <data name="TroubleNoMediaAddress" xml:space="preserve">
+    <value>The server did not report our address</value>
+  </data>
+  <data name="TroubleChannelClosed" xml:space="preserve">
+    <value>No connection to the PBX</value>
+  </data>
+  <data name="TroubleNoAudio" xml:space="preserve">
+    <value>No audio device</value>
+  </data>
+  <data name="CallStatusTalking" xml:space="preserve">
+    <value>talking</value>
+  </data>
 </root>

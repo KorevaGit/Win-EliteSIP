@@ -29,6 +29,7 @@ public partial class App : Application, IDisposable
     private AdminAccessState? _access;
     private PanelWindow? _panelWindow;
     private TrayIcon? _tray;
+    private PhoneService? _phone;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -67,11 +68,9 @@ public partial class App : Application, IDisposable
             }
         }
 
-        // Слоя приложения ещё нет: панель поднимается со своим состоянием, а
-        // звонить ей пока нечем. Настоящая модель подпишется на те же команды.
-        // История открывается сразу с настоящим хранилищем: оно готово с W7 и
-        // ничего от слоя приложения не ждёт. Показательные записи, если их
-        // просили, ложатся в отдельный файл — чужую историю ими не портим.
+        // История: настоящее хранилище с W7. Показательные записи, если их
+        // просили ключом, ложатся в отдельный файл — чужую историю ими не
+        // портим.
         _history = new CallHistoryStore(new CallHistoryStore.Settings(
             Path.Combine(
                 Path.GetDirectoryName(AppSettings.DefaultPath)!,
@@ -81,6 +80,52 @@ public partial class App : Application, IDisposable
         {
             ShowSettings = new RelayCommand(_ => ShowSettings()),
             ShowHistory = new RelayCommand(_ => ShowHistory()),
+        };
+
+        // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
+        _phone = new PhoneService(_settings, _panel, _history, Dispatcher, Log);
+
+        _panel.CallOrHangUp = new RelayCommand(async _ =>
+        {
+            if (_panel.IsInCall)
+            {
+                await _phone.HangUpAsync();
+            }
+            else
+            {
+                await _phone.PlaceCallAsync(_panel.DialedNumber);
+            }
+        });
+
+        _panel.ToggleHold = new RelayCommand(async _ => await _phone.ToggleHoldAsync());
+        _panel.ToggleMicrophone = new RelayCommand(_ => _phone.ToggleMicrophone());
+        _panel.StartConference = new RelayCommand(async _ => await _phone.StartConferenceAsync());
+        _panel.Transfer = new RelayCommand(async _ => await _phone.TransferAsync(_panel.TransferNumber));
+
+        _panel.SendMacro = new RelayCommand(async parameter =>
+        {
+            if (parameter is MacroViewModel macro)
+            {
+                await _phone.SendMacroAsync(macro);
+            }
+        });
+
+        // «Не беспокоить» снимает регистрацию до конца сеанса и в настройки не
+        // пишется: «выключил в пятницу, в понедельник не понял, почему тихо» —
+        // не то состояние, в котором софтфон должен встречать рабочий день.
+        _panel.PropertyChanged += async (_, change) =>
+        {
+            if (change.PropertyName is nameof(PanelViewModel.IsOfflineByChoice))
+            {
+                if (_panel.IsOfflineByChoice)
+                {
+                    await _phone.DisconnectAsync();
+                }
+                else
+                {
+                    await _phone.ConnectAsync();
+                }
+            }
         };
 
         var model = _panel;
@@ -109,6 +154,11 @@ public partial class App : Application, IDisposable
         // Прятать панель за значок можно только если значок встал: иначе
         // приложение окажется запущенным, невидимым и без выхода.
         _panelWindow.AllowsClosing = !_tray.IsAdded;
+
+        // Регистрация поднимается сама при запуске — как в оригинале
+        // (автоподключение). Ждать нажатия оператора нельзя: софтфон, который
+        // после включения машины молчит, пропускает первые звонки смены.
+        _ = _phone.ConnectAsync();
 
         // Тот же ключ, что в оригинале: снимок окна настроек нужен для сверки
         // раскладки, а дотянуться до него скриптом иначе нечем — окно
@@ -352,6 +402,37 @@ public partial class App : Application, IDisposable
         base.OnExit(e);
     }
 
+    /// <summary>Пишет строку в журнал рядом с настройками.</summary>
+    ///
+    /// <remarks>
+    /// Журнал технический и не переводится: его сравнивают между машинами и
+    /// прикладывают к обращению в поддержку. Полноценная ротация с маскированием
+    /// секретов лежит в `EliteSIP.Diagnostics` с W1 и подключается вместе с
+    /// разделом «Обслуживание»; пока сюда пишется то, без чего разбирать звонок
+    /// нечем.
+    /// </remarks>
+    private void Log(string message)
+    {
+        if (_settings?.Maintenance.LogToFile is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            var directory = System.IO.Path.GetDirectoryName(AppSettings.DefaultPath)!;
+            System.IO.Directory.CreateDirectory(directory);
+            System.IO.File.AppendAllText(
+                System.IO.Path.Combine(directory, "elitesip.log"),
+                DateTimeOffset.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture)
+                    + " " + message + Environment.NewLine);
+        }
+        catch (System.IO.IOException)
+        {
+            // Журнал не пишется — звонить это не мешает.
+        }
+    }
+
     /// <summary>Кладёт падение рядом с настройками — там же, где журнал.</summary>
     private static void Record(Exception failure)
     {
@@ -382,6 +463,9 @@ public partial class App : Application, IDisposable
 
         _tray?.Dispose();
         _tray = null;
+
+        _phone?.Dispose();
+        _phone = null;
         GC.SuppressFinalize(this);
     }
 }

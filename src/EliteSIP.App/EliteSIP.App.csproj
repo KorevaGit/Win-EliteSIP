@@ -6,6 +6,9 @@
     <ProjectReference Include="..\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
     <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
     <ProjectReference Include="..\EliteSIP.CallGuard\EliteSIP.CallGuard.csproj" />
+
+    <!-- Слой линий: до трёх разговоров и один тракт на них. Готов с W6. -->
+    <ProjectReference Include="..\EliteSIP.Lines\EliteSIP.Lines.csproj" />
     <ProjectReference Include="..\EliteSIP.CallHistory\EliteSIP.CallHistory.csproj" />
     <ProjectReference Include="..\EliteSIP.AdminAccess\EliteSIP.AdminAccess.csproj" />
     <ProjectReference Include="..\EliteSIP.PanelLink\EliteSIP.PanelLink.csproj" />

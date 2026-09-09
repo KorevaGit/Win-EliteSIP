@@ -632,4 +632,22 @@
   <data name="HistoryAllDays" xml:space="preserve">
     <value>Показать все дни</value>
   </data>
+  <data name="TroubleNoAccount" xml:space="preserve">
+    <value>Профиль не настроен</value>
+  </data>
+  <data name="TroubleNoPassword" xml:space="preserve">
+    <value>Пароль не читается</value>
+  </data>
+  <data name="TroubleNoMediaAddress" xml:space="preserve">
+    <value>Сервер не сообщил адрес</value>
+  </data>
+  <data name="TroubleChannelClosed" xml:space="preserve">
+    <value>Нет связи с АТС</value>
+  </data>
+  <data name="TroubleNoAudio" xml:space="preserve">
+    <value>Нет звукового устройства</value>
+  </data>
+  <data name="CallStatusTalking" xml:space="preserve">
+    <value>разговор</value>
+  </data>
 </root>
