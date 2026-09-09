@@ -982,4 +982,11 @@
   <data name="UpdatesChecking" xml:space="preserve">
     <value>Checking…</value>
   </data>
+
+  <data name="AdminMaintenanceAutoStart" xml:space="preserve">
+    <value>Start with Windows</value>
+  </data>
+  <data name="AdminMaintenanceAutoStartNote" xml:space="preserve">
+    <value>A softphone that did not come back after a night-time restart misses the first calls of the shift. This switch acts at once, not on Save: Windows keeps the truth about startup itself and shows it in Task Manager.</value>
+  </data>
 </root>

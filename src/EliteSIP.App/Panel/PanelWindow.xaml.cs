@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Threading;
 
 namespace EliteSIP.App.Panel;
@@ -38,18 +39,117 @@ public partial class PanelWindow : Window
 
     public PanelViewModel Model { get; }
 
+    /// <summary>
+    /// Где панель стояла в прошлый раз и куда её вернуть.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Ставится приложением, потому что настройки — его дело, а не окна. Пустое
+    /// значение означает первый запуск: тогда окно встаёт посреди экрана, как и
+    /// было.
+    /// </remarks>
+    public Func<(double Left, double Top)?>? RestorePlacement { get; init; }
+
+    /// <summary>Куда панель переехала. Зовётся при закрытии.</summary>
+    public Action<double, double>? SavePlacement { get; init; }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+
+        Restore();
+
+        // Место запоминается по концу перетаскивания, а не по каждому шагу
+        // мыши: настройки пишутся на каждую правку, и запись на каждый пиксель
+        // означала бы сотню записей на один перенос окна.
+        //
+        // Закрытие тоже сохраняет — но одного его мало: машину выключают, не
+        // закрывая софтфон, и тогда OnClosed не случается вовсе.
+        if (PresentationSource.FromVisual(this) is HwndSource source)
+        {
+            source.AddHook(OnMessage);
+        }
 
         _bottomEdge = Top + ActualHeight;
         _clock.Start();
     }
 
+    private nint OnMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+    {
+        const int WM_EXITSIZEMOVE = 0x0232;
+
+        if (message == WM_EXITSIZEMOVE && WindowState is WindowState.Normal)
+        {
+            SavePlacement?.Invoke(Left, Top);
+        }
+
+        return 0;
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         _clock.Stop();
+
+        if (WindowState is WindowState.Normal)
+        {
+            SavePlacement?.Invoke(Left, Top);
+        }
+
         base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// Возвращает панель туда, где её оставили.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <b>С проверкой, что это место ещё существует.</b> Панель, оставленная на
+    /// втором мониторе, после его отключения оказалась бы за краем рабочего
+    /// стола — то есть невидимой, притом что приложение считает её показанной.
+    /// Не поместилась — встаёт посреди основного экрана, как при первом запуске.
+    /// </remarks>
+    private void Restore()
+    {
+        if (RestorePlacement?.Invoke() is not { } placement)
+        {
+            return;
+        }
+
+        var visible = new Rect(
+            SystemParameters.VirtualScreenLeft,
+            SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth,
+            SystemParameters.VirtualScreenHeight);
+
+        // Требуется, чтобы на экране оказался весь заголовок с кнопками, а не
+        // уголок окна: панель, у которой видны две точки, не перетащить мышью.
+        var wanted = new Rect(placement.Left, placement.Top, ActualWidth, ActualHeight);
+
+        if (!visible.Contains(wanted))
+        {
+            return;
+        }
+
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = placement.Left;
+        Top = placement.Top;
+    }
+
+    /// <summary>Enter в поле номера звонит.</summary>
+    private void OnDialedNumberKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is not System.Windows.Input.Key.Enter)
+        {
+            return;
+        }
+
+        // Через ту же команду, что и кнопка: у неё уже есть все проверки —
+        // пустой номер, отсутствие регистрации, идущий разговор.
+        if (Model.CallOrHangUp?.CanExecute(null) is true)
+        {
+            Model.CallOrHangUp.Execute(null);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Держит нижний край окна на месте, когда середина меняет высоту.</summary>

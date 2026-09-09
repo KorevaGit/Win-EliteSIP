@@ -33,6 +33,13 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <ApplicationIcon>Assets\AppIcon\EliteSIP.ico</ApplicationIcon>
+
+    <!--
+      Свой манифест ради помониторной осведомлённости о DPI: без него
+      приложение остаётся системно-осведомлённым и мылится на втором мониторе
+      с другим масштабом. Разбор — в самом файле.
+    -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

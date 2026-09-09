@@ -591,6 +591,14 @@
           <StackPanel Visibility="{Binding ShowsMaintenance, Converter={StaticResource BoolToVisibility}}">
             <theme:SettingsSection Header="{res:Loc AdminMaintenanceTitle}">
               <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminMaintenanceAutoStart}"
+                        IsChecked="{Binding StartsWithWindows}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminMaintenanceAutoStartNote}" />
+
+              <theme:SettingsDivider />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
                         Content="{res:Loc AdminMaintenanceLog}"
                         IsChecked="{Binding LogToFile}" />
 

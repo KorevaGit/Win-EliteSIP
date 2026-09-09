@@ -189,7 +189,20 @@ public partial class App : Application, IDisposable
             HistoryDemo.Seed(_history, _settings.Account.ProfileId);
         }
 
-        _panelWindow = new PanelWindow(model);
+        _panelWindow = new PanelWindow(model)
+        {
+            // Панель, поставленную в угол над CRM, каждый запуск выбрасывало на
+            // середину экрана. Это то, что на Windows замечают в первый же день.
+            RestorePlacement = () => _settings.Placement is { Left: { } left, Top: { } top }
+                ? (left, top)
+                : null,
+            SavePlacement = (left, top) =>
+            {
+                _settings.Placement.Left = left;
+                _settings.Placement.Top = top;
+            },
+        };
+
         _panelWindow.Show();
 
         // Значок в области уведомлений — второй вход к панели и единственный

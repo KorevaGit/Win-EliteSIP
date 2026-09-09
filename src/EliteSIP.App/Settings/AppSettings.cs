@@ -195,6 +195,30 @@ public sealed class RingtoneSettings : Observable
 }
 
 /// <summary>Оформление и язык.</summary>
+/// <summary>Где стояла панель в прошлый раз.</summary>
+///
+/// <remarks>
+/// Отдельным разделом, а не полем оформления: это не настройка, а память окна.
+/// Пустые значения означают первый запуск — тогда панель встаёт посреди экрана.
+/// </remarks>
+public sealed class PanelPlacementSettings : Observable
+{
+    private double? _left;
+    private double? _top;
+
+    public double? Left
+    {
+        get => _left;
+        set => Set(ref _left, value);
+    }
+
+    public double? Top
+    {
+        get => _top;
+        set => Set(ref _top, value);
+    }
+}
+
 public sealed class AppearanceSettings : Observable
 {
     private AppearanceMode _theme = AppearanceMode.System;
@@ -339,6 +363,9 @@ public sealed class AppSettings : Observable
     /// <summary>Стук по портам: этап W11. Правится только из «Управления».</summary>
     public PortKnockSettings PortKnock { get; init; } = new();
 
+    /// <summary>Где стояла панель. Пишется при закрытии, читается при открытии.</summary>
+    public PanelPlacementSettings Placement { get; init; } = new();
+
     /// <summary>Пароль учётки. Шифруется DPAPI — см. `SipCredentials`.</summary>
     public SipCredentials Credentials { get; init; } = new();
 
@@ -418,7 +445,7 @@ public sealed class AppSettings : Observable
 
         WatchMacros();
 
-        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel, PortKnock })
+        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel, PortKnock, Placement })
         {
             section.PropertyChanged += (_, _) => TrySave(onFailure);
         }

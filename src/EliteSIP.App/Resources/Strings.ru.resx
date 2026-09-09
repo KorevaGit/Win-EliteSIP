@@ -960,4 +960,11 @@
   <data name="UpdatesChecking" xml:space="preserve">
     <value>Проверяем…</value>
   </data>
+
+  <data name="AdminMaintenanceAutoStart" xml:space="preserve">
+    <value>Запускать вместе с Windows</value>
+  </data>
+  <data name="AdminMaintenanceAutoStartNote" xml:space="preserve">
+    <value>Софтфон, не поднявшийся после ночной перезагрузки, пропускает первые звонки смены. Переключатель действует сразу, а не по «Сохранить»: правду об автозапуске держит сама Windows и показывает её в диспетчере задач.</value>
+  </data>
 </root>

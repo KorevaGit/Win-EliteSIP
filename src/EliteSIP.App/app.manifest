@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+
+  <!--
+      Манифест заведён ради одной строки — помониторной осведомлённости о DPI.
+
+      Без него приложение осведомлено о DPI системно: проверено на живой машине,
+      `GetProcessDpiAwareness` отвечал 1 (System). На одном мониторе это
+      незаметно, а на ноутбуке с внешним монитором (150 % и 100 % — самая
+      обычная пара) панель после переноса становится мыльной, и её 270 точек
+      ширины перестают быть 270 точками.
+
+      Прав администратора приложение не просит и просить не должно: софтфон
+      живёт в профиле пользователя, а установка — дело установщика.
+  -->
+
+  <assemblyIdentity version="1.0.0.0" name="EliteSIP.App" />
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!--
+          Список версий не украшение: без него система считает приложение
+          написанным до Windows 8 и включает ему совместимость — в том числе по
+          части DPI, ради которой манифест и заведён.
+      -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}" />
+      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}" />
+      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}" />
+      <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}" />
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!--
+          Две записи на одно свойство — так и надо: старая читается Windows 8.1
+          и ранними сборками 10, новая — всеми, кто умеет PerMonitorV2. Система
+          берёт ту, которую понимает, и «PerMonitorV2, PerMonitor» означает
+          «вторую, если первую не осилила».
+      -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
+
+      <!--
+          Длинные пути. Каталог настроек лежит в профиле пользователя, а он у
+          доменного пользователя с длинным именем плюс перенаправленный
+          OneDrive легко переваливает за 260 знаков.
+      -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+
+</assembly>
