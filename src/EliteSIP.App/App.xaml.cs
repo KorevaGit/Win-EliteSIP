@@ -13,6 +13,7 @@ using EliteSIP.AdminAccess;
 using EliteSIP.App.Shell;
 using EliteSIP.App.FirstRun;
 using EliteSIP.App.Incoming;
+using EliteSIP.App.PanelLine;
 
 namespace EliteSIP.App;
 
@@ -33,6 +34,7 @@ public partial class App : Application, IDisposable
     private TrayIcon? _tray;
     private PhoneService? _phone;
     private IncomingCallPresenter? _incoming;
+    private PanelLineHost? _panelLine;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -167,6 +169,32 @@ public partial class App : Application, IDisposable
         // Прятать панель за значок можно только если значок встал: иначе
         // приложение окажется запущенным, невидимым и без выхода.
         _panelWindow.AllowsClosing = !_tray.IsAdded;
+
+        // Линия панели (W10): предустановки раз в два часа, отзыв раз в
+        // пятнадцать минут. Заводится после панели и телефона, потому что
+        // применение приехавшего трогает и то, и другое.
+        _panelLine = new PanelLineHost(
+            _settings,
+            _access,
+            // Помеха ровно двух видов: разговор и открытое «Управление». Второе
+            // потому, что правки там копятся в памяти и пишутся разом по
+            // «Сохранить»: применить предустановку в этот момент значит либо
+            // потерять её по «Отменить», либо затереть ею несохранённое.
+            isBlocked: () => model.IsInCall || _administrationWindow is { IsLoaded: true },
+            reset: ResetMachine,
+            log: Log);
+
+        _panelLine.Start();
+
+        // Помеха ушла — доложить отложенное. Разговор кончился виден по той же
+        // отметке, по которой линия его и ждала.
+        model.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName is nameof(PanelViewModel.IsInCall) && !model.IsInCall)
+            {
+                _panelLine?.HostBecameIdle();
+            }
+        };
 
         // Регистрация поднимается сама при запуске — как в оригинале
         // (автоподключение). Ждать нажатия оператора нельзя: софтфон, который
@@ -406,6 +434,58 @@ public partial class App : Application, IDisposable
         _panelWindow.Activate();
     }
 
+    /// <summary>
+    /// Полная чистка машины по подписанному отзыву.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Порядок здесь значим целиком, и каждый шаг стоит там, где стоит:
+    ///
+    /// <list type="number">
+    ///   <item><description>снимаем регистрацию и закрываем базу истории —
+    ///   иначе стирать придётся занятые файлы;</description></item>
+    ///   <item><description>стираем файлы;</description></item>
+    ///   <item><description>запускаем себя заново и выходим.</description></item>
+    /// </list>
+    ///
+    /// Перезапуск, а не просто выход: машина обязана вернуться в состояние сразу
+    /// после установки, а это состояние встречает человека мастером. Оставшееся
+    /// закрытым приложение выглядело бы как падение, и первое, что сделал бы
+    /// сотрудник, — запустил бы его снова, ничего не поняв.
+    ///
+    /// Чистка идёт <b>после</b> того, как всё закрылось, ещё и потому, что
+    /// настройки пишутся на каждую правку: стёртый до отключения телефона файл
+    /// успел бы возродиться от первого же изменения состояния линии.
+    /// </remarks>
+    private void ResetMachine()
+    {
+        _panelLine?.Dispose();
+        _panelLine = null;
+
+        _phone?.Dispose();
+        _phone = null;
+
+        _history?.Dispose();
+        _history = null;
+
+        var failures = MachineReset.Wipe();
+        if (failures.Count > 0)
+        {
+            // Записать это в журнал нельзя — его только что стёрли, и он же в
+            // списке несдавшихся. Остаётся системный журнал: он переживает
+            // чистку по построению.
+            Record(new IOException(
+                "чистка по отзыву не убрала: " + string.Join(", ", failures)));
+        }
+
+        if (Environment.ProcessPath is { } executable)
+        {
+            using var restarted = System.Diagnostics.Process.Start(executable);
+        }
+
+        Quit();
+    }
+
     /// <summary>Выход. Единственное место, откуда приложение завершают.</summary>
     private void Quit()
     {
@@ -533,6 +613,9 @@ public partial class App : Application, IDisposable
 
         _tray?.Dispose();
         _tray = null;
+
+        _panelLine?.Dispose();
+        _panelLine = null;
 
         _phone?.Dispose();
         _incoming?.Dispose();

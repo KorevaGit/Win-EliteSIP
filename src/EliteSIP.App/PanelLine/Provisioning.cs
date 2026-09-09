@@ -1,0 +1,247 @@
+using System.IO;
+using System.Net.Http;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace EliteSIP.App.PanelLine;
+
+/// <summary>
+/// Заводская настройка: единственное, что приложение знает о конторе до того,
+/// как в него ввели ключ.
+/// </summary>
+///
+/// <remarks>
+/// <b>Заводских предустановок нет.</b> Ни макросов, ни очередей, ни адреса АТС:
+/// всё это приезжает после активации и только после неё. До ввода ключа
+/// бинарник знает о конторе ровно две вещи — адрес канала раздачи и открытый
+/// ключ, которым канал подписывает. Первое не секрет, второе тем более.
+///
+/// Пара авторизации канала — секрет, и в Git ей нельзя, поэтому файл лежит
+/// рядом с приложением и кладётся туда сборкой выпуска. Что она даёт, сказано
+/// прямо: защиту от случайного обхода и индексации, но не от того, у кого уже
+/// есть копия приложения. Настоящую защиту канала даёт подпись Ed25519.
+///
+/// <b>Нет файла — линия панели выключена целиком, а приложение работает.</b>
+/// Так и задумано: софтфон нужен для звонков, а не для того, чтобы
+/// синхронизироваться. Ключ вписывается перед первой выкладкой, и до тех пор
+/// машина живёт своим умом.
+///
+/// В оригинале то же самое лежало двумя частями — пара в <c>provisioning.json</c>
+/// внутри бандла, открытый ключ линии в <c>Info.plist</c>. Здесь оба в одном
+/// файле: разносить их было следствием того, что в <c>Info.plist</c> секретам
+/// нельзя, а ключ подписи не секрет. Двух мест это стоило, а давало только
+/// второй способ однажды перепутать, какой ключ чей.
+/// </remarks>
+internal static class Provisioning
+{
+    private static readonly JsonSerializerOptions Format = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
+    private static readonly Lazy<Secrets?> Loaded = new(Read);
+
+    /// <summary>Секреты этой сборки. <c>null</c> — файла рядом нет.</summary>
+    internal static Secrets? Current => Loaded.Value;
+
+    /// <summary>Что лежит в файле.</summary>
+    internal sealed class Secrets
+    {
+        /// <summary>Канал раздачи. Необязателен: без него линия просто молчит.</summary>
+        public UpdateChannel? Updates { get; init; }
+
+        /// <summary>
+        /// Открытый ключ линии предустановок, base64.
+        ///
+        /// Один на всё подписанное: файл предустановок, помашинный доступ,
+        /// отзыв. Второй ключ означал бы второй способ однажды перепутать, какой
+        /// из них чей.
+        /// </summary>
+        public string? PresetsPublicKey { get; init; }
+    }
+
+    /// <summary>Откуда рабочее место берёт настройки и обновления.</summary>
+    internal sealed class UpdateChannel
+    {
+        /// <summary>Корень канала, без имени фида: <c>https://get.elitesip.vip</c>.</summary>
+        public string BaseUrl { get; init; } = string.Empty;
+
+        public string User { get; init; } = string.Empty;
+
+        public string Password { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Адрес пакета активации.
+        ///
+        /// Приставка <c>activations/</c> принадлежит раскладке бакета, а не
+        /// расчёту адреса: ключ даёт только шестнадцатеричное имя.
+        /// </summary>
+        public Uri? ActivationUrl(string objectName)
+            => objectName.Length == 0 ? null : Address("activations/" + objectName);
+
+        /// <summary>
+        /// Адрес файла предустановок.
+        ///
+        /// Файл один на контору: машина ищет в нём себя по идентификатору
+        /// предустановки.
+        /// </summary>
+        public Uri? PresetsUrl() => Address("presets/current.json");
+
+        /// <summary>
+        /// Адрес помашинного объекта: <c>access/&lt;id&gt;</c> или
+        /// <c>revoked/&lt;id&gt;</c>.
+        ///
+        /// Приставка приходит сюда строкой, а не перечислением: их две, обе живут
+        /// в контракте с панелью, и заводить ради них тип значило бы держать
+        /// третье место, где это же написано.
+        /// </summary>
+        public Uri? MachineUrl(string prefix, string installationID)
+            => installationID.Length == 0 ? null : Address($"{prefix}/{installationID}");
+
+        private Uri? Address(string path)
+        {
+            var root = BaseUrl.EndsWith('/') ? BaseUrl : BaseUrl + "/";
+
+            return Uri.TryCreate(root + path, UriKind.Absolute, out var url) ? url : null;
+        }
+    }
+
+    /// <summary>Заголовок Basic для общей пары канала.</summary>
+    ///
+    /// <remarks>
+    /// Общей парой берётся только пакет активации: машины в этот момент ещё нет,
+    /// и помашинного ключа тоже. Всё, что после активации, ходит помашинной
+    /// парой — см. <see cref="ChannelRequest"/>.
+    /// </remarks>
+    internal static string BasicHeader(string user, string password)
+        => "Basic " + Convert.ToBase64String(
+            System.Text.Encoding.UTF8.GetBytes($"{user}:{password}"));
+
+    private static Secrets? Read()
+    {
+        foreach (var path in Places())
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                var secrets = JsonSerializer.Deserialize<Secrets>(File.ReadAllText(path), Format);
+                if (secrets is not null)
+                {
+                    return secrets;
+                }
+            }
+            catch (Exception error) when (error is IOException or JsonException or UnauthorizedAccessException)
+            {
+                // Испорченный файл — то же, что его отсутствие: линия молчит, а
+                // приложение работает. Ронять из-за него запуск нельзя.
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Где искать файл. Порядок значим: рядом с приложением — то, что положила
+    /// сборка выпуска; в каталоге настроек — то, что положил администратор
+    /// руками на отдельно взятой машине.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Второго места в оригинале не было — там отладочная сборка читала конфиг
+    /// из дерева проекта по <c>#filePath</c>. В .NET такого приёма нет, а путь
+    /// машины сборщика в выпуск уезжать не должен, поэтому вместо него обычный
+    /// каталог настроек: он один и тот же у отладочной сборки и у выпуска.
+    /// </remarks>
+    private static IEnumerable<string> Places()
+    {
+        yield return Path.Combine(AppContext.BaseDirectory, "provisioning.json");
+        yield return Path.Combine(
+            Path.GetDirectoryName(Settings.AppSettings.DefaultPath)!, "provisioning.json");
+    }
+}
+
+/// <summary>Общее для всех трёх заходов на канал.</summary>
+internal static class ChannelRequest
+{
+    /// <summary>
+    /// Сколько ждать ответа.
+    ///
+    /// Двадцать секунд у помашинных объектов и предустановок, тридцать у пакета
+    /// активации: тот заход человек ждёт у экрана и повторить его не может —
+    /// ключ одноразовый.
+    /// </summary>
+    internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+
+    internal static readonly TimeSpan ActivationTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Общий клиент на все линии.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Один на приложение, а не по одному на запрос: <see cref="HttpClient"/>
+    /// держит пул соединений, и создание его на каждый заход кончается
+    /// исчерпанием портов. Здесь заходов немного, но правило дешевле соблюдать
+    /// всегда, чем вспоминать, где оно действительно нужно.
+    ///
+    /// <b>Кэш запрещён явно</b> — тем же заголовком, каким в оригинале
+    /// запрещался <c>URLCache</c>. Без него ответ канала с кэширующими
+    /// заголовками оседает в процессе, и новая ревизия не доезжает до истечения
+    /// его срока: канал при этом отвечает, отметка связи обновляется, и выглядит
+    /// всё исправным.
+    /// </remarks>
+    internal static readonly HttpClient Client = new(new SocketsHttpHandler
+    {
+        AutomaticDecompression = System.Net.DecompressionMethods.All,
+    })
+    {
+        DefaultRequestHeaders =
+        {
+            CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true,
+            },
+        },
+    };
+
+    /// <summary>
+    /// Помашинная пара: имя пользователя — идентификатор машины, пароль — ключ
+    /// канала.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <b>Не общая пара из файла заводской настройки.</b> Общая лежит открытым
+    /// текстом в каждом приложении и открывает теперь только выпуски: иначе
+    /// уволенный с копией приложения тянул бы настройки конторы бесконечно, а
+    /// отрезать его было бы нечем — сменить пару значит переустановить
+    /// приложение на всех тридцати машинах.
+    /// </remarks>
+    internal static void Authorize(HttpRequestMessage request, string installationID, string channelKey)
+        => request.Headers.TryAddWithoutValidation(
+            "Authorization", Provisioning.BasicHeader(installationID, channelKey));
+
+    /// <summary>
+    /// По этим заголовкам панель показывает, кто отстал настолько, что новые
+    /// поля до него не доезжают. Больше она о машинах не узнаёт ничего.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Идентификатора машины среди них нет: он приезжает именем пользователя в
+    /// Basic и <b>проверен</b>, а не объявлен. Два места для одного факта
+    /// однажды разошлись бы.
+    /// </remarks>
+    internal static void Describe(HttpRequestMessage request, int appliedRevision)
+    {
+        request.Headers.TryAddWithoutValidation("X-EliteSIP-App", AppVersion);
+        request.Headers.TryAddWithoutValidation(
+            "X-EliteSIP-Revision", appliedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    internal static string AppVersion { get; } =
+        typeof(ChannelRequest).Assembly.GetName().Version?.ToString(3) ?? string.Empty;
+}

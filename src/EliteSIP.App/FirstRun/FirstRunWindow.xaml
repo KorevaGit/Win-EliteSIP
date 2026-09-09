@@ -71,7 +71,92 @@
                    Foreground="{DynamicResource TextSecondaryBrush}" />
       </StackPanel>
 
-      <!-- 2. Первый пользователь. -->
+      <!--
+          2. Ключ активации.
+
+          Поле здесь одно, и это главное свойство экрана: всё остальное о
+          рабочем месте знает панель. Пока ключ не проверен, показывать нечего —
+          «Далее» неактивно, и уводит отсюда только «Настроить вручную».
+      -->
+      <StackPanel VerticalAlignment="Center"
+                  Visibility="{Binding ShowsKey, Converter={StaticResource BoolToVisibility}}">
+        <theme:Icon Glyph="lock.shield.fill" Size="32" HorizontalAlignment="Center"
+                    Foreground="{DynamicResource TextPrimaryBrush}" />
+
+        <TextBlock Text="{res:Loc FirstRunKeyTitle}"
+                   Margin="0,10,0,0"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   TextAlignment="Center" />
+
+        <TextBlock Text="{res:Loc FirstRunKeySubtitle}"
+                   Margin="0,4,0,12"
+                   FontSize="12"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <Border Width="220"
+                Height="32"
+                CornerRadius="6"
+                Padding="8,0"
+                Background="{DynamicResource ControlBackgroundBrush}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource ControlBorderBrush}">
+          <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                   FontSize="15"
+                   TextAlignment="Center"
+                   IsEnabled="{Binding IsCheckingKey, Converter={StaticResource NotBool}}"
+                   Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
+        </Border>
+
+        <Button Margin="0,10,0,0"
+                HorizontalAlignment="Center"
+                MinWidth="150"
+                Style="{StaticResource SettingsButtonStyle}"
+                Content="{res:Loc FirstRunKeyCheck}"
+                IsEnabled="{Binding CanCheckKey}"
+                Click="OnCheckKeyClick" />
+
+        <TextBlock Text="{res:Loc FirstRunKeyChecking}"
+                   Margin="0,8,0,0"
+                   FontSize="12"
+                   TextAlignment="Center"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Visibility="{Binding IsCheckingKey, Converter={StaticResource BoolToVisibility}}" />
+
+        <theme:SettingsNote Text="{Binding KeyFailure}"
+                            IsAlarming="True"
+                            Visibility="{Binding HasKeyFailure, Converter={StaticResource BoolToVisibility}}" />
+
+        <!--
+            Что приехало — показывается до «Далее», а не после: человек обязан
+            увидеть, чьё это рабочее место, прежде чем оно станет его.
+        -->
+        <StackPanel Margin="0,10,0,0"
+                    Visibility="{Binding IsActivated, Converter={StaticResource BoolToVisibility}}">
+          <TextBlock Text="{Binding ActivatedEmployee}"
+                     FontSize="14"
+                     FontWeight="SemiBold"
+                     TextAlignment="Center" />
+          <TextBlock Margin="0,2,0,0"
+                     FontSize="12"
+                     TextAlignment="Center"
+                     Foreground="{DynamicResource TextSecondaryBrush}">
+            <Run Text="{Binding ActivatedNumber, Mode=OneWay}" />
+            <Run Text=" · " />
+            <Run Text="{Binding ActivatedPreset, Mode=OneWay}" />
+          </TextBlock>
+        </StackPanel>
+
+        <Button Margin="0,14,0,0"
+                HorizontalAlignment="Center"
+                Style="{StaticResource SettingsButtonStyle}"
+                Content="{res:Loc FirstRunKeyManual}"
+                Click="OnManualSetupClick" />
+      </StackPanel>
+
+      <!-- 3. Первый пользователь. -->
       <StackPanel VerticalAlignment="Center"
                   Visibility="{Binding ShowsUser, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{res:Loc FirstRunUserTitle}" FontSize="16" FontWeight="SemiBold" TextAlignment="Center" />

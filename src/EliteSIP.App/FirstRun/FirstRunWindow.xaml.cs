@@ -60,6 +60,13 @@ public partial class FirstRunWindow : Window
 
     private void OnBackClick(object sender, RoutedEventArgs e) => Model.Back();
 
+    // Заход на канал — единственное в мастере, что ждёт сети. Окно при этом не
+    // блокируется: «Назад» и крестик обязаны работать, пока человек ждёт ответа.
+    private async void OnCheckKeyClick(object sender, RoutedEventArgs e)
+        => await Model.CheckKeyAsync();
+
+    private void OnManualSetupClick(object sender, RoutedEventArgs e) => Model.UseManualSetup();
+
     private void OnForwardClick(object sender, RoutedEventArgs e)
     {
         if (!Model.IsLastStep)

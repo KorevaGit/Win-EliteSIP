@@ -784,4 +784,55 @@
   <data name="AdminGuardLastCall" xml:space="preserve">
     <value>Последний вызов</value>
   </data>
+
+  <!-- Линия панели: этап W10. -->
+  <data name="ActivationNoChannel" xml:space="preserve">
+    <value>Не удалось связаться с сервером: {0}. Проверьте сеть и попробуйте снова.</value>
+  </data>
+  <data name="PresetsLineOff" xml:space="preserve">
+    <value>линия выключена: нет ключа</value>
+  </data>
+  <data name="PresetsManualMode" xml:space="preserve">
+    <value>машина в ручном режиме</value>
+  </data>
+  <data name="PresetsNoChannelKey" xml:space="preserve">
+    <value>у машины нет ключа канала</value>
+  </data>
+  <data name="PresetsChannelDown" xml:space="preserve">
+    <value>канал недоступен</value>
+  </data>
+  <data name="PresetsChannelSaid" xml:space="preserve">
+    <value>канал ответил {0}</value>
+  </data>
+  <data name="PresetsSignatureFailed" xml:space="preserve">
+    <value>файл отброшен: подпись не сошлась</value>
+  </data>
+  <data name="PresetsNoEntry" xml:space="preserve">
+    <value>своей записи в файле нет</value>
+  </data>
+  <data name="PresetsAlreadyFresh" xml:space="preserve">
+    <value>настройки уже свежие</value>
+  </data>
+  <data name="PresetsWaiting" xml:space="preserve">
+    <value>ревизия {0} ждёт конца разговора</value>
+  </data>
+  <data name="PresetsApplied" xml:space="preserve">
+    <value>применена ревизия {0}</value>
+  </data>
+
+  <data name="FirstRunKeyTitle" xml:space="preserve">
+    <value>Ключ активации</value>
+  </data>
+  <data name="FirstRunKeySubtitle" xml:space="preserve">
+    <value>Двенадцать знаков от администратора. Всё остальное — номер, пароль и адрес АТС — приедет вместе с ними.</value>
+  </data>
+  <data name="FirstRunKeyCheck" xml:space="preserve">
+    <value>Проверить ключ</value>
+  </data>
+  <data name="FirstRunKeyChecking" xml:space="preserve">
+    <value>Проверяем…</value>
+  </data>
+  <data name="FirstRunKeyManual" xml:space="preserve">
+    <value>Настроить вручную</value>
+  </data>
 </root>

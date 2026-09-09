@@ -806,4 +806,55 @@
   <data name="AdminGuardLastCall" xml:space="preserve">
     <value>Last call</value>
   </data>
+
+  <!-- Линия панели: этап W10. -->
+  <data name="ActivationNoChannel" xml:space="preserve">
+    <value>Could not reach the server: {0}. Check the network and try again.</value>
+  </data>
+  <data name="PresetsLineOff" xml:space="preserve">
+    <value>the line is off: no key</value>
+  </data>
+  <data name="PresetsManualMode" xml:space="preserve">
+    <value>the machine is in manual mode</value>
+  </data>
+  <data name="PresetsNoChannelKey" xml:space="preserve">
+    <value>the machine has no channel key</value>
+  </data>
+  <data name="PresetsChannelDown" xml:space="preserve">
+    <value>the channel is unreachable</value>
+  </data>
+  <data name="PresetsChannelSaid" xml:space="preserve">
+    <value>the channel answered {0}</value>
+  </data>
+  <data name="PresetsSignatureFailed" xml:space="preserve">
+    <value>file discarded: the signature did not match</value>
+  </data>
+  <data name="PresetsNoEntry" xml:space="preserve">
+    <value>no entry of our own in the file</value>
+  </data>
+  <data name="PresetsAlreadyFresh" xml:space="preserve">
+    <value>the settings are already up to date</value>
+  </data>
+  <data name="PresetsWaiting" xml:space="preserve">
+    <value>revision {0} is waiting for the call to end</value>
+  </data>
+  <data name="PresetsApplied" xml:space="preserve">
+    <value>revision {0} applied</value>
+  </data>
+
+  <data name="FirstRunKeyTitle" xml:space="preserve">
+    <value>Activation key</value>
+  </data>
+  <data name="FirstRunKeySubtitle" xml:space="preserve">
+    <value>Twelve characters from your administrator. Everything else — number, password and PBX address — comes with them.</value>
+  </data>
+  <data name="FirstRunKeyCheck" xml:space="preserve">
+    <value>Check the key</value>
+  </data>
+  <data name="FirstRunKeyChecking" xml:space="preserve">
+    <value>Checking…</value>
+  </data>
+  <data name="FirstRunKeyManual" xml:space="preserve">
+    <value>Set up by hand</value>
+  </data>
 </root>

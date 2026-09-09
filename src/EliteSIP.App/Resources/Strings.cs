@@ -23,6 +23,16 @@ public static class Strings
         return value ?? key;
     }
 
+    /// <summary>Подпись с подстановкой.</summary>
+    ///
+    /// <remarks>
+    /// Строка выбирается по языку интерфейса, а число внутри неё записывается
+    /// культурой текущей — той же, что форматирует даты в истории. Правило то же,
+    /// что в `Apply` ниже: интерфейс переключается, форматы остаются системными.
+    /// </remarks>
+    public static string Format(string key, params object?[] arguments)
+        => string.Format(CultureInfo.CurrentCulture, Get(key), arguments);
+
     /// <summary>
     /// Выбирает язык интерфейса по правилу оригинала: русский там, где в
     /// системе есть русский, английский во всех остальных случаях.
