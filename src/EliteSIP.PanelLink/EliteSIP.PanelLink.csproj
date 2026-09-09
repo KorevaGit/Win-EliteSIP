@@ -1,9 +1,23 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Ed25519. В .NET его нет: `System.Security.Cryptography` умеет ECDSA и
+      RSA, а кривой 25519 в нём не появилось и в десятой версии. Панель
+      подписывает всё именно ей, так что выбор не наш.
+
+      BouncyCastle, а не NSec: NSec быстрее, но это обёртка над нативной
+      libsodium, которую пришлось бы класть рядом с приложением и подписывать
+      вместе с ним. Здесь считается одна проверка подписи на цикл опроса —
+      разница в скорости не стоит второго бинарника в установщике.
+    -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
+  </ItemGroup>
 
 </Project>
