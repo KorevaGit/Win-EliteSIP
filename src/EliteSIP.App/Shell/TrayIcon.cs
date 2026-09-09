@@ -263,15 +263,42 @@ public sealed class TrayIcon : IDisposable
     private static Brush Resource(string key)
         => Application.Current.TryFindResource(key) as Brush ?? Brushes.Gray;
 
-    /// <summary>Рисует трубку и точку состояния под ней.</summary>
+    /// <summary>Золото короны — то же, что на значке приложения.</summary>
+    ///
+    /// <remarks>
+    /// Градиент, а не плоский цвет: на значке macOS-версии корона залита
+    /// переходом от светлого золота к тёмному, и в области уведомлений она
+    /// обязана выглядеть тем же предметом, а не его перерисовкой.
+    /// </remarks>
+    private static readonly Brush CrownGold = new LinearGradientBrush(
+        Color.FromRgb(0xE8, 0xC8, 0x6A),
+        Color.FromRgb(0xB8, 0x86, 0x2F),
+        angle: 90)
+    {
+        // Заморожена: кисть общая на все перерисовки, а незамороженная тянет за
+        // собой поток, в котором её создали.
+    };
+
+    /// <summary>Рисует корону значка приложения и точку состояния под ней.</summary>
     ///
     /// <remarks>
     /// Размер 32, а не 16: Windows берёт из значка ту величину, которая ей
     /// нужна, и на масштабе 150% просит как раз 24. Нарисованный в 16 значок
     /// там растягивается и мылится.
     ///
-    /// Трубка белая, а не цвета темы: область уведомлений тёмная при любой теме
-    /// окон — она берёт цвет у панели задач, а не у приложения.
+    /// <b>Корона без тёмной плашки, хотя значок приложения — плашка с короной.</b>
+    /// Плашку пробовали: в области уведомлений она занимает весь квадрат, и
+    /// корона внутри неё на 16 точках сжимается до пятна — значок читается как
+    /// тёмный прямоугольник и теряется среди соседей. Предмет один и тот же,
+    /// фон у него разный: у окна и в проводнике значок стоит на своём поле, в
+    /// области уведомлений полем служит панель задач.
+    ///
+    /// Фигура — из того же комплекта, что и остальные значки приложения
+    /// (<c>crown.fill</c> в <c>Theme/Icons.xaml</c>), поэтому вторая правда о
+    /// форме короны не заводится.
+    ///
+    /// Точка состояния остаётся: она отвечает на вопрос, которого у значка нет,
+    /// — жива ли регистрация.
     /// </remarks>
     private static nint Draw(Brush dot)
     {
@@ -280,22 +307,19 @@ public sealed class TrayIcon : IDisposable
         var visual = new DrawingVisual();
         using (var canvas = visual.RenderOpen())
         {
-            // Та же фигура, что у кнопки звонка в панели: значок приложения
-            // обязан совпадать с тем, чем приложение пользуется.
-            var handset = Geometry.Parse(
-                "M5.52 8.99c1.2 2.36 3.13 4.28 5.49 5.49l1.83-1.83c.23-.23.56-.3.85-.2.93.31 "
-                + "1.94.47 2.98.47.46 0 .83.38.83.83v2.9c0 .46-.38.83-.83.83-7.83 0-14.17-6.34-14.17-14.17 "
-                + "0-.46.38-.83.83-.83h2.92c.46 0 .83.38.83.83 0 1.04.17 2.04.47 2.98.09.29.02.62-.21.85z");
+            var crown = Geometry.Parse(
+                "M1.6 16.2V3.4c0-.5.6-.75.95-.4l3.7 3.6L9.3 1.5c.32-.5 1.06-.5 1.38 0l3.07 5.1 "
+                + "3.7-3.6c.36-.35.95-.1.95.4v12.8z");
 
             canvas.PushTransform(new ScaleTransform(size / 20.0, size / 20.0));
-            canvas.DrawGeometry(Brushes.White, pen: null, handset);
+            canvas.DrawGeometry(CrownGold, pen: null, crown);
             canvas.Pop();
 
             // Точка состояния в правом нижнем углу, с тёмной каймой под ней:
-            // без каймы зелёное на белой трубке сливается в пятно.
-            var centre = new System.Windows.Point(size * 0.72, size * 0.72);
-            canvas.DrawEllipse(Brushes.Black, pen: null, centre, size * 0.30, size * 0.30);
-            canvas.DrawEllipse(dot, pen: null, centre, size * 0.22, size * 0.22);
+            // без каймы зелёное на золоте короны сливается в пятно.
+            var centre = new System.Windows.Point(size * 0.76, size * 0.76);
+            canvas.DrawEllipse(Brushes.Black, pen: null, centre, size * 0.24, size * 0.24);
+            canvas.DrawEllipse(dot, pen: null, centre, size * 0.17, size * 0.17);
         }
 
         var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);

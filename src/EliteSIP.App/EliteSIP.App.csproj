@@ -15,8 +15,24 @@
     <ProjectReference Include="..\EliteSIP.Diagnostics\EliteSIP.Diagnostics.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+        Значок приложения — тот же, что у macOS-версии: он лежит в
+        `Assets.xcassets/AppIcon.appiconset` оригинала и переиспользуется как
+        есть. Рисовать второй значок значило бы завести вторую правду о том,
+        как приложение выглядит; собран он в один `.ico` со всеми размерами,
+        потому что Windows берёт из файла тот, который ей нужен, — от 16 в
+        заголовке окна до 256 в проводнике.
+
+        PNG комплекта лежат рядом не ради сборки, а ради человека: из них
+        значок собран, и из них же его пересоберут, когда рисунок сменится.
+    -->
+    <None Include="Assets\AppIcon\*.png" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Assets\AppIcon\EliteSIP.ico</ApplicationIcon>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
