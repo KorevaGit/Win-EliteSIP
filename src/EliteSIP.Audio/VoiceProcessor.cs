@@ -60,7 +60,22 @@ internal sealed class VoiceProcessor : IDisposable
     private readonly float[][] _far;
     private bool _disposed;
 
-    public VoiceProcessor(int sampleRate, bool automaticGainControl, bool noiseSuppression = true)
+    /// <param name="sampleRate">Частота обработки: 8, 16, 32 или 48 кГц.</param>
+    /// <param name="automaticGainControl">Своя АРУ после обработки.</param>
+    /// <param name="noiseSuppression">Шумодав.</param>
+    /// <param name="echoCancellation">
+    /// Эхоподавление. Выключается, когда вывод — наушники или гарнитура: пути
+    /// от динамика до микрофона там нет, вычитать нечего, а подавитель эха на
+    /// одновременной речи всё равно приседает голос оператора — это то самое
+    /// «падение громкости» из жалобы 11 сентября 2026. Вместе с ним смягчается
+    /// и шумодав: высокий уровень был нужен, чтобы добирать остаток эха
+    /// (замеры W0 в описании типа), а без эха он только съедает тихие слоги.
+    /// </param>
+    public VoiceProcessor(
+        int sampleRate,
+        bool automaticGainControl,
+        bool noiseSuppression = true,
+        bool echoCancellation = true)
     {
         if (Array.IndexOf(SupportedRates, sampleRate) < 0)
         {
@@ -84,9 +99,11 @@ internal sealed class VoiceProcessor : IDisposable
             config.SetPipeline(sampleRate, false, false, DownmixMethod.AverageChannels);
 
             // mobileMode = false: это AEC3, полноценный.
-            config.SetEchoCanceller(true, false);
+            config.SetEchoCanceller(echoCancellation, false);
 
-            config.SetNoiseSuppression(noiseSuppression, NoiseSuppressionLevel.High);
+            config.SetNoiseSuppression(
+                noiseSuppression,
+                echoCancellation ? NoiseSuppressionLevel.High : NoiseSuppressionLevel.Moderate);
             config.SetHighPassFilter(true);
             // Регуляторы усиления WebRTC выключены: АРУ своя, после обработки
             // (см. SpeechGainControl — там и замеры, почему).

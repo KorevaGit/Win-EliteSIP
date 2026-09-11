@@ -84,6 +84,39 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private const int RingHeadroomFactor = 4;
 
     /// <summary>
+    /// Затухание последнего отсчёта при недоборе, на отсчёт: около 4 мс до
+    /// тишины на 48 кГц. Короче — снова ступенька, длиннее — гул.
+    /// </summary>
+    private const float TailDecay = 0.995f;
+
+    /// <summary>
+    /// Через сколько после подъёма тракта молчащий микрофон признаётся
+    /// молчащим. Две с половиной секунды — устройство успевает разогнаться, а
+    /// оператор ещё не начал говорить «алло, вы меня слышите?».
+    /// </summary>
+    private static readonly TimeSpan SilenceWatch = TimeSpan.FromSeconds(2.5);
+
+    /// <summary>Ниже этого пика (−100 дБ) микрофон считается цифровым нулём.</summary>
+    private const float SilentPeak = 1e-5f;
+
+    /// <summary>
+    /// Микрофоны, замолчавшие за время работы программы. Общие на все тракты:
+    /// следующий звонок идёт сразу на рабочий микрофон, а не молчит заново
+    /// две с половиной секунды.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> SilentInputs = new();
+
+    /// <summary>
+    /// Микрофон, на который тракт переключился сам. Держится, пока жив этот
+    /// тракт, — пересборка после смены устройств его не забывает.
+    /// </summary>
+    private string? _inputOverrideId;
+
+    private string? _inputDeviceId;
+    private string? _inputDeviceName;
+    private string? _outputDeviceName;
+
+    /// <summary>
     /// Сколько остановка ждёт замок, прежде чем оставить разбор пересборке.
     ///
     /// Две секунды — с запасом на исправное устройство, где вся сборка стоит
@@ -195,6 +228,14 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// только по каналам.
     /// </summary>
     private float[] _captureChannelPeaks = [];
+
+    /// <summary>
+    /// Сколько отсчётов микрофон отдал у самого потолка. Перегруз случается
+    /// ещё в устройстве — громкость входа на 100 % у LifeChat, — и после него
+    /// голос хрипит, что бы ни делал тракт. Лечится ручкой входа в Windows, и
+    /// журнал обязан на это указать.
+    /// </summary>
+    private int _captureOverloads;
 
     /// <summary>
     /// Чем тракт связан с устройствами: что просили в настройках и что
@@ -605,9 +646,28 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 ? $" (каналы {string.Join(" / ", channels.Select(Decibels))})"
                 : string.Empty;
 
+            int overloads = Volatile.Read(ref _captureOverloads);
+            string overload = overloads > 0
+                ? $", микрофон у потолка {overloads} отсч. — убавьте громкость входа в Windows"
+                : string.Empty;
+
             return $"пики: микрофон {Decibels(_capturePeak)}{perChannel}, в линию {Decibels(_sentPeak)}, "
-                + $"в наушники {Decibels(_playedPeak)}";
+                + $"в наушники {Decibels(_playedPeak)}{overload}";
         }
+    }
+
+    private static int CountOverloads(ReadOnlySpan<float> samples)
+    {
+        int count = 0;
+        foreach (float sample in samples)
+        {
+            if (Math.Abs(sample) >= 0.999f)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static string Decibels(float peak) => peak <= 1e-5f
@@ -634,8 +694,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
     private void Build()
     {
-        _inputDevice = OpenDevice(_configuration.InputDeviceId, AudioDeviceDirection.Capture);
+        // Вывод первым: по нему выбирается запасной микрофон — той же карты.
         _outputDevice = OpenDevice(_configuration.OutputDeviceId, AudioDeviceDirection.Render);
+        _inputDevice = OpenInput(_outputDevice?.FriendlyName);
 
         if (_inputDevice is null || _outputDevice is null)
         {
@@ -644,6 +705,10 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     ? "в системе нет ни микрофона, ни выхода"
                     : _inputDevice is null ? "нет микрофона" : "нет устройства воспроизведения");
         }
+
+        _inputDeviceId = _inputDevice.ID;
+        _inputDeviceName = _inputDevice.FriendlyName;
+        _outputDeviceName = _outputDevice.FriendlyName;
 
         // Привязка запоминается до открытия потоков: по ней фильтруются
         // уведомления, а прийти они могут уже в следующую миллисекунду.
@@ -675,10 +740,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int processingRate = VoiceProcessor.NearestSupportedRate(_captureFormat.SampleRate);
         int codecRate = (int)_configuration.Codec.SampleRate();
 
+        bool echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
         _processor = new VoiceProcessor(
             processingRate,
             _configuration.AutomaticGainControl,
-            _configuration.NoiseSuppression);
+            _configuration.NoiseSuppression,
+            echoCancellation: !echoFree);
 
         _captureToProcessing = new Resampler(_captureFormat.SampleRate, processingRate);
         _processingToCodec = new Resampler(processingRate, codecRate);
@@ -751,6 +818,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _lastClockSample = 0;
         _capturePeak = _sentPeak = _playedPeak = 0;
         _captureChannelPeaks = new float[_captureFormat.Channels];
+        _captureOverloads = 0;
         _uptime.Restart();
         _captureClient.Start();
         _renderClient.Start();
@@ -771,6 +839,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             + (_configuration.InputDeviceId is null || _configuration.OutputDeviceId is null
                 ? " (системные для связи)"
                 : string.Empty));
+
+        Diagnostic(
+            "обработка: "
+            + (echoFree ? "эхоподавление выкл. (вывод в наушники), " : "эхоподавление вкл., ")
+            + (_configuration.NoiseSuppression ? (echoFree ? "шумодав умеренный, " : "шумодав сильный, ") : "шумодав выкл., ")
+            + (_configuration.AutomaticGainControl ? "АРУ вкл." : "АРУ выкл."));
 
         Diagnostic(
             $"форматы: захват {_captureFormat.SampleRate} Гц {_captureFormat.Channels} кан. "
@@ -857,6 +931,91 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         }
     }
 
+    /// <summary>
+    /// Открывает микрофон с поправкой на виртуальные и молчащие устройства.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Поправка — только когда микрофон в настройках не выбран. Выбор человека
+    /// не перебивается: он мог выбрать вход с аппаратным выключателем, и
+    /// молча уехать на встроенный микрофон ноутбука было бы хуже тишины. Для
+    /// «системного» же подмена — единственный способ заговорить на машине, где
+    /// системным для связи назначен виртуальный Oculus.
+    /// </remarks>
+    private MMDevice? OpenInput(string? renderName)
+    {
+        if (_inputOverrideId is string forced && AudioDeviceCatalog.Open(forced) is MMDevice overridden)
+        {
+            return overridden;
+        }
+
+        MMDevice? chosen = OpenDevice(_configuration.InputDeviceId, AudioDeviceDirection.Capture);
+        if (_configuration.InputDeviceId is not null || chosen is null)
+        {
+            return chosen;
+        }
+
+        bool isSilent = SilentInputs.ContainsKey(chosen.ID);
+        bool isVirtual = AudioDeviceCatalog.Describe(chosen, AudioDeviceDirection.Capture)?.Transport
+            is AudioTransport.Virtual;
+        if (!isSilent && !isVirtual)
+        {
+            return chosen;
+        }
+
+        string[] excluding = [.. SilentInputs.Keys, chosen.ID];
+        if (AudioDeviceCatalog.SpareCapture(excluding, renderName) is not AudioDevice spare
+            || AudioDeviceCatalog.Open(spare.Id) is not MMDevice replacement)
+        {
+            return chosen;
+        }
+
+        Diagnostic(
+            $"системный микрофон «{chosen.FriendlyName}» "
+            + (isSilent ? "молчал на прошлом звонке" : "виртуальный")
+            + $" — берём «{replacement.FriendlyName}»");
+        chosen.Dispose();
+        return replacement;
+    }
+
+    /// <summary>
+    /// Микрофон молчит — ни одного ненулевого отсчёта с подъёма тракта.
+    ///
+    /// Настоящий микрофон так не умеет: даже в тихой комнате у него шум на
+    /// −90…−60 дБ. Цифровой ноль отдают виртуальные устройства, незанятый вход
+    /// звуковой карты и закрытый в Windows доступ к микрофону. Зовётся один
+    /// раз на подъём тракта, с потока подачи.
+    /// </summary>
+    private void CheckSilentInput()
+    {
+        if (_capturePeak >= SilentPeak || _inputDeviceId is not string current)
+        {
+            return;
+        }
+
+        SilentInputs[current] = 0;
+
+        if (_configuration.InputDeviceId is not null)
+        {
+            Diagnostic(
+                $"микрофон «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта"
+                + " — проверьте, тот ли вход выбран в настройках");
+            return;
+        }
+
+        if (AudioDeviceCatalog.SpareCapture([.. SilentInputs.Keys], _outputDeviceName) is not AudioDevice spare)
+        {
+            Diagnostic(
+                $"микрофон «{_inputDeviceName}» молчит, а другого живого нет"
+                + " — проверьте доступ к микрофону в параметрах Windows");
+            return;
+        }
+
+        _inputOverrideId = spare.Id;
+        Diagnostic($"микрофон «{_inputDeviceName}» молчит — переключаемся на «{spare.Name}»");
+        _supervisor?.Notify($"микрофон молчал, переход на «{spare.Name}»");
+    }
+
     private MMDevice? OpenDevice(string? id, AudioDeviceDirection direction)
     {
         // Сохранённое устройство могло исчезнуть — гарнитуру выдернули. Тогда
@@ -927,6 +1086,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                         {
                             _capturePeak = PeakOf(mono.AsSpan(0, frames), _capturePeak);
                             ChannelPeaks(buffer, frames, channels, layout, channelPeaks);
+                            _captureOverloads += CountOverloads(mono.AsSpan(0, frames));
                         }
 
                         activity.NoteDelivered(frames);
@@ -1003,7 +1163,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 // что в них попало, поэтому и ограничено вдвое.
                 float sample = pending[offset + i] * gain;
                 peak = Math.Max(peak, Math.Abs(sample));
-                frame[i] = ToPcm(sample);
+
+                // Мягко, а не срезом: эхоподавитель и шумодав отдают выбросы
+                // за шкалу, и жёсткий срез в кодеке собеседник слышит хрипом.
+                // Пик в журнал идёт до ограничения — «в линию +4 дБ» и есть
+                // признак того, что ограничивать было что.
+                frame[i] = ToPcm(SpeechGainControl.Limit(sample));
             }
 
             offset += size;
@@ -1073,6 +1238,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         float[] reversePending = new float[format.SampleRate];
         int reverseCount = 0;
 
+        // Сглаживание краёв звука: вход — 5 мс, спад — около 4 мс.
+        int fadeLength = Math.Max(1, format.SampleRate / 200);
+        int fadePosition = fadeLength;
+        bool starving = false;
+        float tail = 0;
+
         while (!token.IsCancellationRequested)
         {
             try
@@ -1097,17 +1268,45 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     taken = ring.Read(scratch.AsSpan(0, free));
                 }
 
-                // Недобор добивается тишиной, а не ожиданием: вернуться к
-                // устройству надо в этот такт. Тишина здесь честнее пропуска —
-                // пропуск это щелчок.
-                if (taken < free)
+                // Звук возвращается после тишины — плавно, а не ступенькой.
+                if (taken > 0 && starving)
                 {
-                    Array.Clear(scratch, taken, free - taken);
+                    fadePosition = 0;
+                    starving = false;
                 }
 
+                for (int i = 0; i < taken && fadePosition < fadeLength; i++, fadePosition++)
+                {
+                    scratch[i] *= (float)fadePosition / fadeLength;
+                }
+
+                // Недобор добивается затуханием последнего отсчёта, а не
+                // нулём: вернуться к устройству надо в этот такт, но обрыв
+                // волны в ноль — это ступенька, а ступенька слышна щелчком.
+                // Именно так звучали вход в удержание и выход из него, смена
+                // источника на музыку ожидания и каждый недобор: звук
+                // обрывался на полуслове в ноль одним отсчётом.
+                if (taken < free)
+                {
+                    float last = taken > 0 ? scratch[taken - 1] : tail;
+                    for (int i = taken; i < free; i++)
+                    {
+                        last *= TailDecay;
+                        scratch[i] = last;
+                    }
+
+                    starving = true;
+                }
+
+                tail = scratch[free - 1];
+
+                // Мягкое ограничение после громкости: декодированный G.711
+                // стоит у самой шкалы, пересчёт частоты даёт выбросы за неё, и
+                // микшер Windows срезал их жёстко — пики «в наушники +2 дБ» в
+                // журнале, треск в ухе.
                 for (int i = 0; i < free; i++)
                 {
-                    scratch[i] *= volume;
+                    scratch[i] = SpeechGainControl.Limit(scratch[i] * volume);
                 }
 
                 _playedPeak = PeakOf(scratch.AsSpan(0, free), _playedPeak);
@@ -1320,11 +1519,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         SampleRing ring = _playbackRing!;
         PlaybackRateController controller = _rateController!;
         AudioFrameDecoder decoder = _decoder!;
+        PacketLossConcealer concealer = new(_configuration.Codec);
 
         int renderRate = _renderFormat!.SampleRate;
         float[] decoded = new float[renderRate];
         float[] converted = new float[renderRate];
         double lastObserved = _uptime.Elapsed.TotalSeconds;
+        bool silenceChecked = false;
 
         while (!token.IsCancellationRequested)
         {
@@ -1339,6 +1540,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             lastObserved = now;
 
             SampleClocks(now);
+
+            if (!silenceChecked && now >= SilenceWatch.TotalSeconds)
+            {
+                silenceChecked = true;
+                CheckSilentInput();
+            }
 
             bool fed = false;
             // Запас — из настройки, а не числом на месте: на нём сходятся
@@ -1356,24 +1563,24 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     break;
                 }
 
-                short[] samples = decoder.Decode(playback.Payload.Span);
+                // Потерянный кадр синтезируется по периоду основного тона
+                // (G.711 Appendix I), настоящий — сшивается с хвостом синтеза.
+                //
+                // До 11 сентября 2026 здесь стоял повтор прежнего кадра с
+                // затуханием 0,6, хотя сокрытие было написано и проверено ещё
+                // на W3 и просто не подключено. Повтор двадцати миллисекунд
+                // режет голос на случайной фазе тона — на слух это
+                // «бульканье» и щелчок на каждом шве, а оператор назвал это
+                // «непонятными тресками».
+                short[] samples = playback.IsConcealment
+                    ? concealer.Conceal(_configuration.SamplesPerFrame)
+                    : concealer.Receive(decoder.Decode(playback.Payload.Span));
                 Handlers.DecodedSamples?.Invoke(samples);
 
                 int length = Math.Min(samples.Length, decoded.Length);
                 for (int i = 0; i < length; i++)
                 {
                     decoded[i] = samples[i] / 32768f;
-                }
-
-                // Спрятанный кадр приглушается: повтор в полную громкость
-                // звучит заевшей пластинкой, и это слышно отчётливее самой
-                // потери.
-                if (playback.IsConcealment)
-                {
-                    for (int i = 0; i < length; i++)
-                    {
-                        decoded[i] *= 0.6f;
-                    }
                 }
 
                 int produced = toRender.Process(decoded.AsSpan(0, length), converted);

@@ -257,6 +257,93 @@ public static class AudioDeviceCatalog
         return string.Empty;
     }
 
+    /// <summary>
+    /// Физический микрофон взамен системного — когда тот виртуальный или молчит.
+    /// </summary>
+    /// <param name="excluding">Устройства, которые не годятся: текущее и уже замолчавшие.</param>
+    /// <param name="renderName">Имя устройства вывода: микрофон той же карты — первый кандидат.</param>
+    public static AudioDevice? SpareCapture(IReadOnlyCollection<string> excluding, string? renderName)
+        => PickSpareCapture(Devices(AudioDeviceDirection.Capture), excluding, renderName);
+
+    /// <summary>
+    /// Выбор запасного микрофона — чистой функцией, чтобы проверять тестом.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Поймано 11 сентября 2026: на машине оператора системным микрофоном для
+    /// связи стоял «Headset Microphone (Oculus Virtual Audio Device)», он отдаёт
+    /// цифровой ноль, а гарнитура была воткнута в Realtek. Наушники при этом
+    /// системными были «Наушники (Realtek(R) Audio)» — то есть подсказка, где
+    /// настоящий микрофон, лежала рядом. Отсюда порядок: сначала та же карта,
+    /// что и вывод, потом любая проводная или USB, последним — Bluetooth в
+    /// режиме гарнитуры (он переводит наушники в моно 8 кГц). Виртуальные и
+    /// HDMI не берутся вовсе.
+    /// </remarks>
+    internal static AudioDevice? PickSpareCapture(
+        IReadOnlyList<AudioDevice> candidates,
+        IReadOnlyCollection<string> excluding,
+        string? renderName)
+    {
+        string? renderAdapter = AdapterOf(renderName);
+
+        return candidates
+            .Where(device => device.Availability == AudioDeviceAvailability.Active
+                && !excluding.Contains(device.Id)
+                && device.Transport is not (AudioTransport.Virtual or AudioTransport.Hdmi))
+            .Select((device, order) => (device, order, score:
+                (renderAdapter is not null && AdapterOf(device.Name) == renderAdapter ? 4 : 0)
+                + (device.Transport is AudioTransport.Usb or AudioTransport.BuiltIn ? 2 : 0)
+                + (device.Transport is AudioTransport.BluetoothHandsFree ? 0 : 1)))
+            .OrderByDescending(entry => entry.score)
+            .ThenBy(entry => entry.order)
+            .Select(entry => entry.device)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Имя карты из имени конечной точки: то, что в последних скобках.
+    /// «Наушники (Realtek(R) Audio)» → «Realtek(R) Audio». Скобки внутри имени
+    /// карты учитываются — поэтому разбор с конца по глубине, а не по
+    /// последней открывающей.
+    /// </summary>
+    internal static string? AdapterOf(string? endpointName)
+    {
+        if (string.IsNullOrEmpty(endpointName) || endpointName[^1] != ')')
+        {
+            return null;
+        }
+
+        int depth = 0;
+        for (int i = endpointName.Length - 1; i >= 0; i--)
+        {
+            depth += endpointName[i] switch
+            {
+                ')' => 1,
+                '(' => -1,
+                _ => 0,
+            };
+
+            if (depth == 0)
+            {
+                return endpointName[(i + 1)..^1];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Устройство, у которого нет пути от динамика до микрофона: наушники,
+    /// гарнитура, трубка. Эхоподавителю на нём вычитать нечего.
+    /// </summary>
+    internal static bool IsEchoFree(MMDevice render) =>
+        ReadFormFactor(render) is FormFactorHeadphones or FormFactorHeadset or FormFactorHandset;
+
+    // Форм-факторы из `EndpointFormFactor` (mmdeviceapi.h).
+    private const int FormFactorHeadphones = 3;
+    private const int FormFactorHeadset = 5;
+    private const int FormFactorHandset = 6;
+
     private static int ReadFormFactor(MMDevice endpoint)
     {
         try

@@ -75,6 +75,64 @@ public sealed class VoiceProcessorTests
         Assert.Equal(0, control.GainDb, precision: 1);
     }
 
+    /// <summary>
+    /// Шумодав работает, и его уровень доходит до библиотеки.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Проверка второй половины не лишняя: у регуляторов усиления та же
+    /// обёртка молча выбрасывала все числа, кроме «включено». Здесь уровень
+    /// переключается вместе с эхоподавлением (наушники — умеренный, динамики —
+    /// сильный), и если бы он не доходил, умеренный и сильный совпали бы.
+    /// </remarks>
+    [Fact]
+    public void Шумодав_убирает_ровный_шум_и_сильный_сильнее_умеренного()
+    {
+        double off = NoiseLevel(noiseSuppression: false, echoCancellation: true);
+        double strong = NoiseLevel(noiseSuppression: true, echoCancellation: true);
+        double gentle = NoiseLevel(noiseSuppression: true, echoCancellation: false);
+
+        Assert.True(off - strong >= 10, $"шумодав не работает: без него {off:F1} дБ, с ним {strong:F1} дБ");
+        Assert.True(
+            gentle - strong >= 1,
+            $"уровень шумодава не доходит: умеренный {gentle:F1} дБ, сильный {strong:F1} дБ");
+    }
+
+    private static double NoiseLevel(bool noiseSuppression, bool echoCancellation)
+    {
+        using VoiceProcessor processor = new(Rate, automaticGainControl: false, noiseSuppression, echoCancellation);
+
+        float[] near = new float[processor.FrameSamples];
+        float[] far = new float[processor.FrameSamples];
+        float[] output = new float[processor.FrameSamples];
+        Random random = new(11);
+
+        double energy = 0;
+        long counted = 0;
+        for (int f = 0; f < 600; f++)
+        {
+            for (int i = 0; i < near.Length; i++)
+            {
+                near[i] = (float)((random.NextDouble() - 0.5) * 0.02);
+            }
+
+            processor.AnalyzeReverse(far);
+            processor.Process(near, output, delayMilliseconds: 0);
+
+            if (f >= 400)
+            {
+                foreach (float sample in output)
+                {
+                    energy += sample * sample;
+                }
+
+                counted += output.Length;
+            }
+        }
+
+        return 10 * Math.Log10(energy / counted);
+    }
+
     [Theory]
     [InlineData(0.5f)]
     [InlineData(-0.9f)]
