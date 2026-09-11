@@ -1,3 +1,4 @@
+using EliteSIP.Diagnostics;
 using System.Windows.Threading;
 using EliteSIP.App.Incoming;
 using EliteSIP.App.Panel;
@@ -48,6 +49,9 @@ public sealed class PhoneService : IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly Action<string> _log;
 
+    /// <summary>Гудки и рингтон. Живёт всё время работы: устройство берётся на звук.</summary>
+    private readonly SignalSoundPlayer _sounds;
+
     private SocketSipTransport? _transport;
     private PortKnocker? _knocker;
     private SipUserAgent? _agent;
@@ -58,6 +62,21 @@ public sealed class PhoneService : IDisposable
 
     /// <summary>Записи истории по Call-ID: их дописывают по ходу разговора.</summary>
     private readonly Dictionary<string, CallRecord> _records = [];
+
+    /// <summary>Исходящий, на который ещё не ответили. <c>null</c> — такого нет.</summary>
+    private string? _pendingCallId;
+
+    /// <summary>
+    /// Медиа разговоров по Call-ID — и исходящих, и входящих.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// До 11 сентября 2026 сессию входящего не держал никто: по отбою линия
+    /// только отпускала звуковую карту, а сокет RTP, порт и приём оставались
+    /// жить до выхода из программы. Потокобезопасный словарь — потому что
+    /// принимают вызов на потоке окна, а кончается он на потоке сигнализации.
+    /// </remarks>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, MediaSession> _sessions = new();
 
     public PhoneService(
         AppSettings settings,
@@ -73,7 +92,11 @@ public sealed class PhoneService : IDisposable
         _incoming = incoming;
         _dispatcher = dispatcher;
         _log = log;
+        _sounds = new SignalSoundPlayer(log);
     }
+
+    /// <summary>Служебные звуки: их же берёт окно входящего под рингтон.</summary>
+    public SignalSoundPlayer Sounds => _sounds;
 
     /// <summary>Поднимает регистрацию по записанным настройкам.</summary>
     ///
@@ -125,6 +148,22 @@ public sealed class PhoneService : IDisposable
 
         _transport = new SocketSipTransport(sipAccount.SignalingEndpoint, transport, TrustOf(pbx));
 
+        // Трасса SIP — по переключателю в «Обслуживании».
+        //
+        // Он существовал с самого начала и не был подключён ни к чему: его
+        // читали только настройки, чтобы сохранить. Разбирать по журналу, что
+        // именно мы ответили на INVITE, было нечем.
+        //
+        // Пароль в `Authorization` и `Proxy-Authorization` затирается: трасса
+        // уезжает в поддержку архивом, а пароль SIP — тот же, которым машина
+        // регистрируется.
+        if (_settings.Maintenance.LogsSipTrace)
+        {
+            _transport.Trace = (outgoing, data) => _log(
+                (outgoing ? "-> " : "<- ")
+                + LogRedaction.Redact(System.Text.Encoding.UTF8.GetString(data.Span)));
+        }
+
         // Стук по портам (W11): открыть себе дорогу до АТС перед регистрацией.
         // `null` означает «стучать не надо» — офисное место или выключенный
         // стук; агент в этом случае просто не делает лишнего шага.
@@ -147,8 +186,20 @@ public sealed class PhoneService : IDisposable
             _transport,
             pathOpener: _knocker);
 
+        // Тракт поднимается на настройках оператора, а не на значениях по
+        // умолчанию.
+        //
+        // Здесь стоял `new VoiceAudioConfiguration()` — пустая конфигурация, —
+        // и это означало, что выбранные в настройках микрофон и динамик не
+        // доезжали до звука вовсе: тракт всегда открывал системные устройства
+        // «для связи». На машине, где системный микрофон — веб-камера или
+        // отключённый вход, оператора не слышал никто, а в настройках при этом
+        // была выбрана правильная гарнитура. Туда же уходили и переключатели
+        // обработки голоса: они сохранялись и ни на что не влияли.
+        var audio = AudioConfiguration();
+
         _bus = new VoiceAudioBus(
-            new WasapiVoiceAudioEngine(new VoiceAudioConfiguration()),
+            new WasapiVoiceAudioEngine(audio),
             settings => new WasapiVoiceAudioEngine(settings));
 
         _lines = new LineController(new SipUserAgentSignaling(_agent), _log);
@@ -258,7 +309,12 @@ public sealed class PhoneService : IDisposable
             return;
         }
 
-        (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(mediaAddress);
+        // Порт — на том же локальном адресе, что и SIP: иначе маршрут для RTP
+        // Windows выбирает заново, и VPN с маршрутом до АТС уводит звук мимо
+        // адреса, объявленного в SDP.
+        (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(
+            mediaAddress,
+            bindAddress: _agent.LocalSignalingAddress);
         SipOutgoingCall call = _agent.PlaceCall(number, offer.EncodedData());
 
         var record = new CallRecord
@@ -275,6 +331,13 @@ public sealed class PhoneService : IDisposable
         // разговора вполне реально.
         _history.Begin(record);
         _records[call.CallId] = record;
+
+        // Панель узнаёт о вызове сейчас, а не по «ответили»: до этой строки она
+        // выглядела свободной всё время гудков, и «Позвонить» нажималась
+        // повторно, заводя второй вызов поверх первого.
+        _pendingCallId = call.CallId;
+        _panel.PendingNumber = number;
+        _panel.CallStatus = Strings.Get("CallStatusDialing");
 
         _ = Task.Run(() => FollowCallAsync(call, offer, reservation, number));
     }
@@ -375,7 +438,8 @@ public sealed class PhoneService : IDisposable
         {
             (answer, negotiated, reservation) = MediaSession.MakeAnswer(
                 SdpParser.Parse(call.Offer.Span),
-                mediaAddress);
+                mediaAddress,
+                bindAddress: agent.LocalSignalingAddress);
         }
         catch (Exception failure) when (failure is SdpParseException or SdpNegotiationException)
         {
@@ -396,15 +460,12 @@ public sealed class PhoneService : IDisposable
 
         try
         {
-            var session = new MediaSession(negotiated, reservation, _bus)
-            {
-                OnDiagnostic = message => _log($"медиа: {message}"),
-                OnTransportFailure = reason => _log($"транспорт медиа: {reason}"),
-            };
+            var session = OpenSession(call.CallId, negotiated, reservation);
 
             await session.StartAsync(CancellationToken.None).ConfigureAwait(true);
             await _lines.AttachAsync(call.CallId, new MediaSessionLine(session, answer), call.DisplayNumber)
                 .ConfigureAwait(true);
+            WatchMedia(call.CallId, session);
 
             if (_records.TryGetValue(call.CallId, out var record))
             {
@@ -418,6 +479,7 @@ public sealed class PhoneService : IDisposable
             // Звонок уже принят, а тракта нет: молчать в линию хуже, чем
             // положить трубку и сказать словами, что чинить.
             _log($"тракт не поднялся на входящем: {failure.Message}");
+            await CloseMediaAsync(call.CallId).ConfigureAwait(true);
             Trouble("TroubleNoAudio", opensSettings: true);
             await agent.HangUpAsync(call.CallId).ConfigureAwait(true);
         }
@@ -476,9 +538,15 @@ public sealed class PhoneService : IDisposable
         }
         finally
         {
-            if (_lines is not null)
+            // Отбой звучит только у состоявшегося разговора: непринятый
+            // входящий кончается вместе со звонком, и второй звук поверх
+            // смолкшего рингтона был бы лишним.
+            var hadMedia = _sessions.ContainsKey(call.CallId);
+
+            await CloseMediaAsync(call.CallId).ConfigureAwait(false);
+            if (hadMedia)
             {
-                await _lines.DetachAsync(call.CallId).ConfigureAwait(false);
+                _sounds.PlayHangUp(_settings.Audio.OutputDeviceId);
             }
 
             await _dispatcher.InvokeAsync(SyncLines);
@@ -502,7 +570,21 @@ public sealed class PhoneService : IDisposable
     /// <summary>Кладёт трубку на активной линии.</summary>
     public async Task HangUpAsync()
     {
-        if (_lines?.ActiveCallId is string callId && _agent is not null)
+        if (_agent is null)
+        {
+            return;
+        }
+
+        // Сперва неотвеченный исходящий: линии у него ещё нет, и по
+        // `ActiveCallId` его не найти — а «Завершить» во время гудков нажимают
+        // чаще, чем в разговоре.
+        if (_pendingCallId is string pending)
+        {
+            await _agent.HangUpAsync(pending).ConfigureAwait(true);
+            return;
+        }
+
+        if (_lines?.ActiveCallId is string callId)
         {
             await _agent.HangUpAsync(callId).ConfigureAwait(true);
         }
@@ -518,6 +600,24 @@ public sealed class PhoneService : IDisposable
         await _lines.HoldAsync(callId, !_panel.IsOnHold).ConfigureAwait(true);
         SyncLines();
     }
+
+    /// <summary>Настройки звука оператора в том виде, в каком их понимает тракт.</summary>
+    ///
+    /// <remarks>
+    /// Читается заново на каждый подъём тракта: устройства меняют между
+    /// звонками, и запомненная конфигурация означала бы, что выбор гарнитуры
+    /// вступает в силу только после перезапуска программы.
+    /// </remarks>
+    public VoiceAudioConfiguration AudioConfiguration() => new()
+    {
+        InputDeviceId = _settings.Audio.InputDeviceId,
+        OutputDeviceId = _settings.Audio.OutputDeviceId,
+        AutomaticGainControl = _settings.Audio.AutomaticGainControl,
+        NoiseSuppression = _settings.Audio.NoiseSuppression,
+        ReleasesDeviceWhenIdle = _settings.Audio.ReleasesDeviceWhenIdle,
+        MicrophoneGain = (float)_settings.Audio.MicrophoneGain,
+        PlaybackVolume = (float)_settings.Audio.PlaybackVolume,
+    };
 
     public void ToggleMicrophone()
     {
@@ -660,6 +760,12 @@ public sealed class PhoneService : IDisposable
                 switch (value)
                 {
                     case SipCallEvent.Answered response:
+                        // Гудки снимаются здесь, а не в `finally`: тракт
+                        // разговора поднимается следующей строкой, и гудок,
+                        // доигрывающий поверх первого «алло», слышен как
+                        // сбой связи.
+                        _sounds.Stop();
+
                         session = await OpenMediaAsync(response, offer, reservation, call.CallId, number)
                             .ConfigureAwait(false);
 
@@ -677,9 +783,26 @@ public sealed class PhoneService : IDisposable
                                 _history.MarkAnswered(record.Id);
                             }
 
+                            // Ответили — вызов перестал быть ожидаемым и стал
+                            // линией; дальше состояние держит `SyncLines`.
+                            ClearPending(call.CallId);
                             SyncLines();
                         });
 
+                        break;
+
+                    // Гудки. Прежде это событие попадало в `default` и
+                    // терялось, а оно единственное, по которому видно, что
+                    // вызов пошёл.
+                    case SipCallEvent.State { Value: SipCallState.Ringing }:
+                        // И гудки в трубку: до 200 OK медиасессии нет, а
+                        // значит, нет и звука. Тишина после «Позвонить»
+                        // читается как несостоявшийся звонок, и оператор
+                        // кладёт трубку раньше, чем на той стороне подойдут.
+                        _sounds.StartRingback();
+
+                        await _dispatcher.InvokeAsync(
+                            () => _panel.CallStatus = Strings.Get("CallStatusRinging"));
                         break;
 
                     case SipCallEvent.Failed failure:
@@ -700,20 +823,23 @@ public sealed class PhoneService : IDisposable
         }
         finally
         {
+            // Второй раз за тот же вызов — намеренно: сюда приходят и отбой, и
+            // отказ, и обрыв потока событий, и после любого из них гудки
+            // обязаны замолчать. Снятие тишины ничего не стоит.
+            _sounds.Stop();
+
             if (session is not null)
             {
-                if (_lines is not null)
-                {
-                    await _lines.DetachAsync(call.CallId).ConfigureAwait(false);
-                }
-
-                await session.StopAsync().ConfigureAwait(false);
-                session.Dispose();
+                await CloseMediaAsync(call.CallId).ConfigureAwait(false);
             }
             else if (!answered)
             {
                 reservation.Release();
             }
+
+            // Звук отбоя — после снятия тракта, а не до: иначе он лёг бы
+            // поверх последнего слова собеседника.
+            _sounds.PlayHangUp(_settings.Audio.OutputDeviceId);
 
             await _dispatcher.InvokeAsync(SyncLines);
         }
@@ -732,14 +858,11 @@ public sealed class PhoneService : IDisposable
             var answer = SdpParser.Parse(response.Body.Span);
             var negotiated = SdpNegotiator.ResolveAnswer(answer, offer);
 
-            var session = new MediaSession(negotiated, reservation, _bus!)
-            {
-                OnDiagnostic = message => _log($"медиа: {message}"),
-                OnTransportFailure = reason => _log($"транспорт медиа: {reason}"),
-            };
+            var session = OpenSession(callId, negotiated, reservation);
 
             await session.StartAsync(CancellationToken.None).ConfigureAwait(false);
             await _lines!.AttachAsync(callId, new MediaSessionLine(session, offer), number).ConfigureAwait(false);
+            WatchMedia(callId, session);
             return session;
         }
         catch (Exception failure) when (failure is SdpParseException or SdpNegotiationException)
@@ -752,10 +875,85 @@ public sealed class PhoneService : IDisposable
             // Сигнализация при этом жива, поэтому звонок надо положить, а не
             // бросить: иначе линия останется занятой до таймаута сервера.
             _log($"тракт не поднялся: {failure.Message}");
+            await CloseMediaAsync(callId).ConfigureAwait(false);
             await _dispatcher.InvokeAsync(() => Trouble("TroubleNoAudio", opensSettings: true));
         }
 
         return null;
+    }
+
+    /// <summary>Заводит медиа разговора на настройках оператора.</summary>
+    ///
+    /// <remarks>
+    /// Настройки звука передаются сессии, а не только тракту при подъёме
+    /// регистрации. До 11 сентября 2026 сессия получала пустую конфигурацию:
+    /// шина при каждом захвате перестраивает тракт под конфигурацию
+    /// захватившего, и выбранные гарнитура, АРУ, усиление и громкость
+    /// затирались умолчаниями на первом же звонке.
+    /// </remarks>
+    private MediaSession OpenSession(string callId, NegotiatedMedia negotiated, RtpPortReservation reservation)
+    {
+        var session = new MediaSession(negotiated, reservation, _bus!, AudioConfiguration())
+        {
+            OnDiagnostic = message => _log($"медиа: {message}"),
+            OnTransportFailure = reason => _log($"транспорт медиа: {reason}"),
+
+            // События тракта: подъём, перезапуск, поломка.
+            //
+            // Не были подписаны ни к чему, и это стоило выпуска 0.1.1: тракт
+            // падал на каждом звонке, докладывал о поломке — и доклад уходил в
+            // пустоту. В журнале оставался разговор без единой строки о звуке,
+            // а у собеседника тишина без объяснения.
+            OnAudioEvent = value => _log($"звук: {value}"),
+        };
+
+        _sessions[callId] = session;
+        return session;
+    }
+
+    /// <summary>Срез звука через пять секунд разговора.</summary>
+    ///
+    /// <remarks>
+    /// Итог при отбое есть и так, но жалоба «не слышно собеседника» приходит
+    /// посреди разговора, и оператор кладёт трубку по-разному. Пять секунд —
+    /// достаточно, чтобы пакеты пошли и тракт разогрелся; «принято 0» в этой
+    /// строке значит, что звук собеседника до машины не дошёл вовсе.
+    /// </remarks>
+    private void WatchMedia(string callId, MediaSession session)
+        => _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            if (_sessions.TryGetValue(callId, out var current) && ReferenceEquals(current, session))
+            {
+                _log($"медиа через 5 с: {session.Summary()}");
+            }
+        });
+
+    /// <summary>Снимает медиа разговора: итог в журнал, линия, сокет, порт.</summary>
+    ///
+    /// <remarks>
+    /// Итог пишется до снятия линии: сняв её, сессия отпускает тракт, и уровни
+    /// звука спросить уже не у кого.
+    /// </remarks>
+    private async Task CloseMediaAsync(string callId)
+    {
+        _sessions.TryRemove(callId, out var session);
+
+        if (session is not null)
+        {
+            _log($"медиа, итог разговора: {session.Summary()}");
+        }
+
+        if (_lines is not null)
+        {
+            await _lines.DetachAsync(callId).ConfigureAwait(false);
+        }
+
+        if (session is not null)
+        {
+            await session.StopAsync().ConfigureAwait(false);
+            session.Dispose();
+        }
     }
 
     private Task Finish(string callId, string reason, CallOutcome? outcome)
@@ -766,8 +964,25 @@ public sealed class PhoneService : IDisposable
                 _history.Finish(record.Id, reason, outcome);
             }
 
+            ClearPending(callId);
             SyncLines();
         }).Task;
+
+    /// <summary>Снимает отметку о неотвеченном исходящем, если она про этот вызов.</summary>
+    ///
+    /// <remarks>
+    /// Со сверкой по номеру вызова, а не безусловно: пока идут гудки одного,
+    /// завершиться может другой — например, тот, что оператор только что
+    /// положил, — и безусловная очистка стёрла бы состояние живого вызова.
+    /// </remarks>
+    private void ClearPending(string callId)
+    {
+        if (_pendingCallId == callId)
+        {
+            _pendingCallId = null;
+            _panel.PendingNumber = null;
+        }
+    }
 
     /// <summary>Переводит состояние регистрации в то, что видно на панели.</summary>
     private void Apply(SipRegistrationState state)
@@ -808,6 +1023,22 @@ public sealed class PhoneService : IDisposable
         _panel.StatusTitle = _settings.Account.Username.Length > 0
             ? _settings.Account.Username
             : "—";
+
+        _panel.StatusLabel = ProfileLabel(_settings);
+    }
+
+    /// <summary>Подпись профиля рядом с добавочным.</summary>
+    ///
+    /// <remarks>
+    /// Подпись из ключа — поле «сотрудник» пакета активации, которое ложится в
+    /// <c>Account.DisplayName</c>, — а не название предустановки. В 0.1.42–0.1.49
+    /// здесь стояло имя предустановки («Менеджер»): оно одно на весь отдел и
+    /// не отвечает на вопрос «чей это телефон».
+    /// </remarks>
+    internal static string? ProfileLabel(AppSettings settings)
+    {
+        var name = settings.Account.DisplayName.Trim();
+        return name.Length > 0 && name != settings.Account.Username ? name : null;
     }
 
     /// <summary>Переносит линии из слоя линий в панель.</summary>
@@ -869,6 +1100,7 @@ public sealed class PhoneService : IDisposable
         _agent?.Dispose();
         _transport?.Dispose();
         _bus?.Dispose();
+        _sounds.Dispose();
         _running?.Dispose();
     }
 }

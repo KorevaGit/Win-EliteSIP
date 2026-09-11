@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -54,6 +56,7 @@ public sealed class AudioSettings : Observable
     private double _microphoneGain = 1.0;
     private double _playbackVolume = 1.0;
     private bool _automaticGainControl = true;
+    private bool _noiseSuppression = true;
     private bool _releasesDeviceWhenIdle = true;
 
     /// <summary>Постоянный идентификатор конечной точки. <c>null</c> — системное.</summary>
@@ -129,6 +132,13 @@ public sealed class AudioSettings : Observable
     /// </remarks>
     [JsonIgnore]
     public bool GainIsAdjustable => !_automaticGainControl;
+
+    /// <summary>Шумодав. Выключать — только на гарнитуре: он же добирает эхо.</summary>
+    public bool NoiseSuppression
+    {
+        get => _noiseSuppression;
+        set => Set(ref _noiseSuppression, value);
+    }
 
     /// <summary>Отпускать ли устройство между звонками.</summary>
     public bool ReleasesDeviceWhenIdle
@@ -216,6 +226,23 @@ public sealed class PanelPlacementSettings : Observable
     {
         get => _top;
         set => Set(ref _top, value);
+    }
+
+    private double? _width;
+    private double? _height;
+
+    /// <summary>Ширина, до которой панель растянули. <c>null</c> — исходная.</summary>
+    public double? Width
+    {
+        get => _width;
+        set => Set(ref _width, value);
+    }
+
+    /// <summary>Высота, до которой панель растянули. <c>null</c> — по содержимому.</summary>
+    public double? Height
+    {
+        get => _height;
+        set => Set(ref _height, value);
     }
 }
 
@@ -422,28 +449,41 @@ public sealed class AppSettings : Observable
     /// </remarks>
     public void AutoSave(Action<Exception>? onFailure = null)
     {
-        // Список клавиш — коллекция, и её правки уведомлением о свойстве не
-        // приходят: подписываться надо и на сам список, и на каждую клавишу в
-        // нём. Без этого переименованная клавиша применяется и не переживает
-        // перезапуск.
-        void WatchMacros()
+        // Список — коллекция, и её правки уведомлением о свойстве не приходят:
+        // подписываться надо и на сам список, и на каждый пункт в нём. Без
+        // этого переименованная клавиша применяется и не переживает перезапуск.
+        //
+        // Списков три, и каждый — со своим окном правки. Клавиши здесь были с
+        // самого начала, очереди и шаги стука — нет: их правка применялась в
+        // памяти, точка «несохранённого» гасла, а на диск не уходило ничего.
+        void Watch<T>(ObservableCollection<T> items)
+            where T : Observable
         {
-            foreach (var macro in Dtmf.Macros)
+            // Переменной, а не локальной функцией: отписка сверяет делегаты по
+            // ссылке, и она обязана быть той же, что и при подписке.
+            PropertyChangedEventHandler onItemChanged = (_, _) => TrySave(onFailure);
+
+            void WatchItems()
             {
-                macro.PropertyChanged -= OnMacroChanged;
-                macro.PropertyChanged += OnMacroChanged;
+                foreach (var item in items)
+                {
+                    item.PropertyChanged -= onItemChanged;
+                    item.PropertyChanged += onItemChanged;
+                }
             }
+
+            items.CollectionChanged += (_, _) =>
+            {
+                WatchItems();
+                TrySave(onFailure);
+            };
+
+            WatchItems();
         }
 
-        void OnMacroChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs change) => TrySave(onFailure);
-
-        Dtmf.Macros.CollectionChanged += (_, _) =>
-        {
-            WatchMacros();
-            TrySave(onFailure);
-        };
-
-        WatchMacros();
+        Watch(Dtmf.Macros);
+        Watch(Queues.Queues);
+        Watch(PortKnock.Steps);
 
         foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel, PortKnock, Placement })
         {

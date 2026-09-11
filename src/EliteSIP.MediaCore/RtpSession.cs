@@ -540,9 +540,10 @@ public sealed class RtpPortReservation : IDisposable
     private List<Socket> _sockets;
     private bool _isReleased;
 
-    private RtpPortReservation(ushort rtpPort, List<Socket> sockets)
+    private RtpPortReservation(ushort rtpPort, IPAddress localAddress, List<Socket> sockets)
     {
         RtpPort = rtpPort;
+        LocalAddress = localAddress;
         _sockets = sockets;
     }
 
@@ -550,10 +551,46 @@ public sealed class RtpPortReservation : IDisposable
 
     public ushort RtcpPort => (ushort)(RtpPort + 1);
 
+    /// <summary>
+    /// Адрес, к которому привязаны сокеты. <see cref="IPAddress.Any"/> — ко
+    /// всем сразу, маршрут выбирает система на каждом пакете.
+    /// </summary>
+    public IPAddress LocalAddress { get; }
+
     /// <summary>Занимает сразу RTP и следующий за ним RTCP-порт.</summary>
+    /// <param name="lower">Нижняя граница диапазона.</param>
+    /// <param name="upper">Верхняя граница диапазона.</param>
+    /// <param name="localAddress">
+    /// Локальный адрес сигнализации. Медиа привязывается к нему, чтобы уходить
+    /// тем же интерфейсом, что и SIP: сокет «к любому» получает маршрут на
+    /// каждом пакете заново, и появившийся маршрут VPN уводит RTP под чужим
+    /// адресом, пока SDP объявляет прежний. Неизвестный, пустой или не IPv4
+    /// адрес — привязка «к любому», как раньше: лучше звонок по системному
+    /// маршруту, чем отказ от звонка.
+    /// </param>
     public static RtpPortReservation Reserve(
         ushort lower = DefaultPortRangeLower,
-        ushort upper = DefaultPortRangeUpper)
+        ushort upper = DefaultPortRangeUpper,
+        string? localAddress = null)
+    {
+        IPAddress bindAddress = BindAddress(localAddress);
+
+        // Адрес сигнализации мог пропасть между подключением и звонком: кабель
+        // выдернули, адаптер пересобрался. Тогда привязка к нему не проходит ни
+        // на одном порту, и без второго круга оператор получил бы «нет
+        // свободного порта» — неправду, по которой чинят не то.
+        if (bindAddress.Equals(IPAddress.Any))
+        {
+            return ReserveOn(IPAddress.Any, lower, upper)
+                ?? throw new NoFreeRtpPortException(lower, upper);
+        }
+
+        return ReserveOn(bindAddress, lower, upper)
+            ?? ReserveOn(IPAddress.Any, lower, upper)
+            ?? throw new NoFreeRtpPortException(lower, upper);
+    }
+
+    private static RtpPortReservation? ReserveOn(IPAddress bindAddress, ushort lower, ushort upper)
     {
         lock (RegistryLock)
         {
@@ -568,12 +605,12 @@ public sealed class RtpPortReservation : IDisposable
             while (candidate + 1 <= upper)
             {
                 if (!ClaimedPorts.Contains((ushort)candidate)
-                    && BoundDatagramSocket((ushort)candidate) is Socket rtp)
+                    && BoundDatagramSocket(bindAddress, (ushort)candidate) is Socket rtp)
                 {
-                    if (BoundDatagramSocket((ushort)(candidate + 1)) is Socket rtcp)
+                    if (BoundDatagramSocket(bindAddress, (ushort)(candidate + 1)) is Socket rtcp)
                     {
                         ClaimedPorts.Add((ushort)candidate);
-                        return new RtpPortReservation((ushort)candidate, [rtp, rtcp]);
+                        return new RtpPortReservation((ushort)candidate, bindAddress, [rtp, rtcp]);
                     }
 
                     rtp.Dispose();
@@ -583,7 +620,7 @@ public sealed class RtpPortReservation : IDisposable
             }
         }
 
-        throw new NoFreeRtpPortException(lower, upper);
+        return null;
     }
 
     /// <summary>
@@ -682,7 +719,20 @@ public sealed class RtpPortReservation : IDisposable
 
     public void Dispose() => Release();
 
-    private static Socket? BoundDatagramSocket(ushort port)
+    /// <summary>
+    /// К чему привязывать сокеты. Всё, что не конкретный IPv4-адрес, —
+    /// «к любому»: сокеты резервации только IPv4, а «0.0.0.0» — то, что
+    /// транспорт сообщает, когда своего адреса не узнал.
+    /// </summary>
+    internal static IPAddress BindAddress(string? localAddress) =>
+        IPAddress.TryParse(localAddress, out IPAddress? parsed)
+            && parsed.AddressFamily == AddressFamily.InterNetwork
+            && !parsed.Equals(IPAddress.Any)
+            && !parsed.Equals(IPAddress.Broadcast)
+            ? parsed
+            : IPAddress.Any;
+
+    private static Socket? BoundDatagramSocket(IPAddress address, ushort port)
     {
         Socket socket = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
         {
@@ -693,7 +743,7 @@ public sealed class RtpPortReservation : IDisposable
         };
         try
         {
-            socket.Bind(new IPEndPoint(IPAddress.Any, port));
+            socket.Bind(new IPEndPoint(address, port));
             return socket;
         }
         catch (SocketException)

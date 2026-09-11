@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!--
+      Проверка подписи берётся у клиента, а не пишется здесь заново. Довод тот
+      же, что и у `ReleaseKit`, но цена ошибки выше: этот код работает от
+      SYSTEM, и своя копия проверки означала бы второе место, где решается,
+      чему на этой машине позволено установиться.
+    -->
+    <ProjectReference Include="..\..\src\EliteSIP.PanelLink\EliteSIP.PanelLink.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>EliteSIP.Updater</AssemblyName>
+
+    <!-- Маркер активного сеанса берётся через P/Invoke — см. `UserSession`. -->
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+</Project>

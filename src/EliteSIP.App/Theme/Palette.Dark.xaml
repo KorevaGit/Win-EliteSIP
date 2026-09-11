@@ -13,15 +13,19 @@
   <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C5FFFFFF" />
   <SolidColorBrush x:Key="TextTertiaryBrush" Color="#87FFFFFF" />
 
-  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF202020" />
-  <SolidColorBrush x:Key="SurfaceBrush" Color="#FF2C2C2C" />
-  <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#15FFFFFF" />
-  <SolidColorBrush x:Key="ControlHoverBrush" Color="#21FFFFFF" />
-  <SolidColorBrush x:Key="ControlPressedBrush" Color="#0AFFFFFF" />
+  <!-- Фон и боковая полоса — числа Параметров Windows 10: чёрный контент и
+       тёмно-серый список разделов. Прежние #202020/#2C2C2C — Windows 11. -->
+  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF000000" />
+  <SolidColorBrush x:Key="SidebarBrush" Color="#FF1F1F1F" />
+  <SolidColorBrush x:Key="SurfaceBrush" Color="#FF1F1F1F" />
+  <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FF333333" />
+  <SolidColorBrush x:Key="ControlHoverBrush" Color="#FF454545" />
+  <SolidColorBrush x:Key="ControlPressedBrush" Color="#FF666666" />
   <SolidColorBrush x:Key="SeparatorBrush" Color="#18FFFFFF" />
 
   <!-- Обводка кнопки или поля. Зачем она — сказано в светлой палитре. -->
-  <SolidColorBrush x:Key="ControlBorderBrush" Color="#12FFFFFF" />
+  <SolidColorBrush x:Key="ControlBorderBrush" Color="#00000000" />
+  <SolidColorBrush x:Key="ControlBorderHoverBrush" Color="#FF858585" />
 
   <!-- Полоса прокрутки. Зачем ползунок так заметен — в светлой палитре. -->
   <SolidColorBrush x:Key="ScrollThumbBrush" Color="#8AFFFFFF" />
@@ -35,6 +39,8 @@
   -->
   <SolidColorBrush x:Key="AccentBrush" Color="#FF4CC2FF" />
   <SolidColorBrush x:Key="SelectionBrush" Color="#4C4CC2FF" />
+  <SolidColorBrush x:Key="AccentFillBrush" Color="#FF0078D7" />
+  <SolidColorBrush x:Key="NavHoverBrush" Color="#FF2B2B2B" />
 
   <SolidColorBrush x:Key="StatusRegisteredBrush" Color="#FF6CCB5F" />
   <SolidColorBrush x:Key="StatusConnectingBrush" Color="#FFFCA02E" />

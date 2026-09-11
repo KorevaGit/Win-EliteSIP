@@ -90,10 +90,13 @@ internal static class CallProbe
             return false;
         }
 
-        (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(mediaAddress);
+        (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(
+            mediaAddress,
+            bindAddress: agent.LocalSignalingAddress);
         Console.WriteLine(
             $"-> звоним на {target}, RTP на {mediaAddress}:"
-                + reservation.RtpPort.ToString(CultureInfo.InvariantCulture));
+                + reservation.RtpPort.ToString(CultureInfo.InvariantCulture)
+                + $" (сокет на {reservation.LocalAddress})");
 
         MediaSession? session = null;
         LatencyProbe? latency = null;

@@ -55,6 +55,21 @@ public sealed class IncomingCallPresenter : IDisposable
     public bool IsVisible => _window is not null;
 
     /// <summary>
+    /// Звонить и замолчать. Ставит приложение.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Не поле окна и не поле этого класса: устройство и файл звонка выбраны в
+    /// настройках, а знать про настройки показу карточки незачем. Здесь только
+    /// два момента — карточка появилась и карточка ушла, — и рингтон обязан
+    /// совпадать с ними ровно, иначе он звонит в пустом кабинете после отбоя.
+    /// </remarks>
+    public Action? StartRingtone { get; set; }
+
+    /// <inheritdoc cref="StartRingtone"/>
+    public Action? StopRingtone { get; set; }
+
+    /// <summary>
     /// Отчёт защиты по последнему вызову. После <see cref="Hide"/> остаётся
     /// последним, чтобы его успел прочитать тот, кто разбирает завершение звонка.
     /// </summary>
@@ -115,12 +130,29 @@ public sealed class IncomingCallPresenter : IDisposable
         }
 
         IncomingCallWindow.FlashTaskbar(_taskbarWindow());
+
+        // Звонок — после показа: устройство открывается десятки миллисекунд, и
+        // делать это до `window.Show()` значит задержать саму карточку.
+        StartRingtone?.Invoke();
+
         _log(PlacementSummary(window.PhysicalFrame));
     }
 
     /// <summary>Убирает окно и закрывает отчёт.</summary>
     public void Hide()
     {
+        // Первым делом, до всего остального: `Hide` зовут и с начала `Show`,
+        // и по отбою, и по ответу, и звонок обязан замолчать в тот же миг, а
+        // не после закрытия окна.
+        StopRingtone?.Invoke();
+
+        // И мигание кнопки — только если оно было заказано этой карточкой:
+        // `Hide` зовут и в начале `Show`, до всякого мигания.
+        if (_window is not null)
+        {
+            IncomingCallWindow.StopFlashingTaskbar(_taskbarWindow());
+        }
+
         _pointer?.Dispose();
         _pointer = null;
 

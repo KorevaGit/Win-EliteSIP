@@ -33,7 +33,7 @@
     <!-- Ввод пароля. -->
     <StackPanel x:Name="PasswordStep" Margin="0,12,0,0">
       <Border Height="30"
-              CornerRadius="8"
+              CornerRadius="{StaticResource ControlCornerRadius}"
               Padding="8,0"
               Background="{DynamicResource ControlBackgroundBrush}">
         <PasswordBox x:Name="PasswordField"
@@ -43,8 +43,27 @@
                      Foreground="{DynamicResource TextPrimaryBrush}"
                      CaretBrush="{DynamicResource TextPrimaryBrush}"
                      PasswordChanged="OnPasswordChanged"
-                     KeyDown="OnPasswordKeyDown" />
+                     KeyDown="OnPasswordKeyDown"
+                     KeyUp="OnPasswordKeyUp"
+                     GotKeyboardFocus="OnPasswordFocus" />
       </Border>
+
+      <!--
+          Caps Lock — до ввода, а не после отказа: пароль не виден, и
+          «неверный пароль» при включённом регистре выглядит как забытый.
+      -->
+      <StackPanel x:Name="CapsRow"
+                  Orientation="Horizontal"
+                  Margin="0,6,0,0"
+                  Visibility="Collapsed">
+        <theme:Icon Glyph="exclamationmark.triangle" Size="12" VerticalAlignment="Center"
+                    Foreground="{DynamicResource CautionBrush}" />
+        <TextBlock Text="{res:Loc AdminUnlockCapsLock}"
+                   Margin="6,0,0,0"
+                   FontSize="12"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource CautionBrush}" />
+      </StackPanel>
     </StackPanel>
 
     <!--

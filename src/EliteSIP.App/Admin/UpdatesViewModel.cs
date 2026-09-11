@@ -17,16 +17,30 @@ namespace EliteSIP.App.Admin;
 /// Действует сразу, а не по «Сохранить», — как и раздел «Поддержка»: это не
 /// правка машины, а обращение к каналу.
 /// </remarks>
-internal sealed class UpdatesViewModel : Observable
+public sealed class UpdatesViewModel : Observable
 {
     private readonly UpdateService _updates;
 
-    public UpdatesViewModel(UpdateService updates)
+    // Конструктор внутренний, а класс открытый: наружу этот тип нужен только
+    // привязке разметки, которая внутренних свойств не видит, а создаёт его
+    // одно приложение.
+    internal UpdatesViewModel(UpdateService updates)
     {
         _updates = updates;
 
         CheckNow = new RelayCommand(async _ => await CheckAsync(), _ => !_updates.IsChecking);
         Install = new RelayCommand(_ => _updates.Offer(), _ => _updates.ReadyVersion is not null);
+
+        // Ход проверки — по мере того как он идёт: «проверяем», «скачиваем
+        // 23 из 54 МБ», итог. В том числе у проверки, начатой не кнопкой, а
+        // тактом: окно, открытое посреди фоновой закачки, видит её сразу.
+        _updates.StatusChanged += () =>
+        {
+            Status = _updates.LastResult;
+            Refresh();
+        };
+
+        Status = _updates.LastResult;
     }
 
     public RelayCommand CheckNow { get; }
@@ -46,9 +60,6 @@ internal sealed class UpdatesViewModel : Observable
 
     private async Task CheckAsync()
     {
-        Status = Strings.Get("UpdatesChecking");
-        Refresh();
-
         await _updates.CheckNowAsync().ConfigureAwait(true);
 
         Status = _updates.LastResult;

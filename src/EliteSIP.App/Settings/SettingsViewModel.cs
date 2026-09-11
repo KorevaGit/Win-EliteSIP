@@ -59,9 +59,185 @@ public sealed class SettingsViewModel : Observable
         ];
 
         ReloadDevices();
+
+        // Без условия «замыкание подставлено».
+        //
+        // Команды заводятся в конструкторе, а замыкания приходят инициализатором
+        // объекта — то есть позже. Условие успевало посчитаться на пустом
+        // значении, и «Исправить сеть» оставалась серой навсегда: пересчитать
+        // его было некому. Проверка вернулась внутрь самого действия.
+        RepairNetwork = new RelayCommand(_ => OnRepairNetwork?.Invoke());
+        CheckPresets = new RelayCommand(_ => OnCheckPresets?.Invoke());
+        CollectLogs = new RelayCommand(_ => OnCollectLogs?.Invoke());
+        RunSelfTest = new RelayCommand(_ => OnRunSelfTest?.Invoke());
+
+        ApplyKey = new RelayCommand(
+            async _ => await ApplyKeyAsync(),
+            _ => !_isApplyingKey && _newKey.Trim().Length > 0);
     }
 
     public AppSettings Settings { get; }
+
+    // --- Кнопки, которые прежде были нарисованы и никуда не вели --------------
+    //
+    // Раздел настроек собирали макетом: у «Исправить сеть», «Собрать логи»,
+    // «Применить ключ» и самопроверки звука стояло `IsEnabled="False"`, и ни
+    // одна не была подключена. Заводим их через замыкания от приложения — оно
+    // владеет и телефоном, и линией панели, а окно настроек о них не знает.
+
+    /// <summary>Стук по портам прямо сейчас.</summary>
+    public RelayCommand RepairNetwork { get; }
+
+    /// <summary>Спросить панель о предустановках, не дожидаясь такта.</summary>
+    public RelayCommand CheckPresets { get; }
+
+    /// <summary>Собрать архив с журналом для поддержки.</summary>
+    public RelayCommand CollectLogs { get; }
+
+    internal Action? OnRepairNetwork { get; init; }
+
+    internal Action? OnCheckPresets { get; init; }
+
+    internal Action? OnCollectLogs { get; init; }
+
+    /// <summary>Запустить самопроверку звука. Ставит приложение — тракт его.</summary>
+    internal Action? OnRunSelfTest { get; init; }
+
+    private string? _supportResult;
+    private string _newKey = string.Empty;
+    private string? _newKeyResult;
+    private bool _newKeyFailed;
+    private bool _isApplyingKey;
+
+    /// <summary>Чем кончилось последнее нажатие в «Техподдержке».</summary>
+    public string? SupportResult => _supportResult;
+
+    public bool HasSupportResult => _supportResult is not null;
+
+    /// <summary>Показать человеку, чем кончилось нажатие.</summary>
+    ///
+    /// <remarks>
+    /// Строка результата — своя у каждой кнопки и стоит под ней.
+    ///
+    /// Прежде строка была одна на три кнопки из двух разных страниц, и стояла
+    /// на «Техподдержке». Итог «Исправить сеть», которая живёт на «Работе»,
+    /// оператор не видел вовсе: нажатие выглядело ничем.
+    /// </remarks>
+    internal void ReportSupport(string message, SupportArea area)
+    {
+        _supportResult = message;
+        _supportArea = area;
+        NotifyChanged(nameof(SupportResult));
+        NotifyChanged(nameof(HasSupportResult));
+        NotifyChanged(nameof(HasLogsResult));
+        NotifyChanged(nameof(HasPresetsResult));
+        NotifyChanged(nameof(HasNetworkResult));
+    }
+
+    private SupportArea _supportArea;
+
+    public bool HasLogsResult => _supportResult is not null && _supportArea is SupportArea.Logs;
+
+    public bool HasPresetsResult => _supportResult is not null && _supportArea is SupportArea.Presets;
+
+    public bool HasNetworkResult => _supportResult is not null && _supportArea is SupportArea.Network;
+
+    // --- Самопроверка звука --------------------------------------------------
+
+    private string? _selfTestResult;
+
+    /// <summary>Запустить запись и воспроизведение.</summary>
+    public RelayCommand RunSelfTest { get; private set; } = null!;
+
+    /// <summary>Что вышло: и «говорите» по ходу, и итог.</summary>
+    public string? SelfTestResult => _selfTestResult;
+
+    public bool HasSelfTestResult => _selfTestResult is not null;
+
+    /// <summary>Строка о ходе или итоге проверки. Зовётся из потока интерфейса.</summary>
+    internal void ReportSelfTest(string message)
+    {
+        _selfTestResult = message;
+        NotifyChanged(nameof(SelfTestResult));
+        NotifyChanged(nameof(HasSelfTestResult));
+    }
+
+    // --- Новый ключ ----------------------------------------------------------
+
+    /// <summary>Ключ, который вводит человек. Нигде не сохраняется.</summary>
+    public string NewKey
+    {
+        get => _newKey;
+        set
+        {
+            Set(ref _newKey, value);
+            ApplyKey.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool CanTypeNewKey => !_isApplyingKey;
+
+    public string? NewKeyResult => _newKeyResult;
+
+    public bool HasNewKeyResult => _newKeyResult is not null;
+
+    /// <summary>Тревожная ли приписка. Отказ красный, успех обычный.</summary>
+    public bool NewKeyFailed => _newKeyFailed;
+
+    /// <summary>Применить ключ смены рабочего места.</summary>
+    public RelayCommand ApplyKey { get; private set; } = null!;
+
+    /// <summary>
+    /// Что делает приложение с введённым ключом.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Замыканием: заход на канал, распечатывание пакета и наложение на
+    /// настройки — дело приложения, а окно настроек про панель не знает.
+    /// Возвращает строку для человека; исключений наружу не выпускает.
+    /// </remarks>
+    internal Func<string, Task<(bool Ok, string Message)>>? OnApplyKey { get; init; }
+
+    private async Task ApplyKeyAsync()
+    {
+        if (OnApplyKey is null || _isApplyingKey)
+        {
+            return;
+        }
+
+        _isApplyingKey = true;
+        _newKeyResult = Strings.Get("SupportKeyChecking");
+        _newKeyFailed = false;
+        NotifyKeyState();
+
+        var (ok, message) = await OnApplyKey(_newKey).ConfigureAwait(true);
+
+        _isApplyingKey = false;
+        _newKeyResult = message;
+        _newKeyFailed = !ok;
+
+        // Удачный ключ сгорел — поле чистится, чтобы его не нажали второй раз.
+        if (ok)
+        {
+            _newKey = string.Empty;
+            NotifyChanged(nameof(NewKey));
+        }
+
+        NotifyKeyState();
+    }
+
+    private void NotifyKeyState()
+    {
+        foreach (var name in new[]
+        {
+            nameof(NewKeyResult), nameof(HasNewKeyResult), nameof(NewKeyFailed), nameof(CanTypeNewKey),
+        })
+        {
+            NotifyChanged(name);
+        }
+
+        ApplyKey.RaiseCanExecuteChanged();
+    }
 
     public IReadOnlyList<SettingsSectionItem> Sections { get; }
 
@@ -117,10 +293,41 @@ public sealed class SettingsViewModel : Observable
     /// оригинале эта строка сперва стояла только за административным паролем, и
     /// менеджеру было нечего ответить.
     /// </remarks>
+    /// <remarks>
+    /// Хвост после «+» отрезается. Сборка кладёт в осведомительную версию
+    /// отпечаток последнего коммита, и человек по телефону читал бы поддержке
+    /// сорок знаков шестнадцатеричного мусора вместо «ноль один один».
+    /// </remarks>
     public static string Version
-        => Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? "—";
+    {
+        get
+        {
+            var full = Assembly.GetExecutingAssembly()
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+            if (string.IsNullOrEmpty(full))
+            {
+                return "—";
+            }
+
+            var plus = full.IndexOf('+', StringComparison.Ordinal);
+
+            return plus < 0 ? full : full[..plus];
+        }
+    }
+
+    /// <summary>
+    /// Линия обновлений. <c>null</c> — не заведена.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Открытое свойство, а не внутреннее, и это не формальность: привязка WPF
+    /// ищет свойство отражением и до внутреннего не дотягивается — молча, без
+    /// ошибки. Из-за этого в 0.1.2 и 0.1.4 «Проверить обновления» не нажималась,
+    /// а «Установить обновление» висела всегда: обе привязки просто не
+    /// разрешались.
+    /// </remarks>
+    public Admin.UpdatesViewModel? Updates { get; init; }
 
     /// <summary>Имя выбранного рингтона — или «Стандартный».</summary>
     public string RingtoneName
@@ -183,4 +390,12 @@ public sealed class SettingsViewModel : Observable
             target.Add(new AudioDeviceOption(device.Id, device.Name));
         }
     }
+}
+
+/// <summary>Под какой кнопкой показать итог нажатия.</summary>
+public enum SupportArea
+{
+    Logs,
+    Presets,
+    Network,
 }

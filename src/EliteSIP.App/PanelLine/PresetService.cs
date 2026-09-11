@@ -92,9 +92,20 @@ internal sealed class PresetService
     /// Пустой — линия выключена целиком. Так и задумано: ключ вписывается перед
     /// первой выкладкой, и до тех пор приложение обязано работать, а не падать.
     /// </remarks>
-    internal static PanelPublicKey? ChannelPublicKey()
+    internal static PanelPublicKey? ChannelPublicKey() => Parse(Provisioning.Current?.PresetsPublicKey);
+
+    /// <summary>
+    /// Открытый ключ линии выпусков — им проверяется манифест обновления.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Отдельно от ключа панели: в бою это разные ключи, см.
+    /// <see cref="Provisioning.Secrets.ReleasesPublicKey"/>.
+    /// </remarks>
+    internal static PanelPublicKey? ReleasesPublicKey() => Parse(Provisioning.Current?.ReleasesPublicKey);
+
+    private static PanelPublicKey? Parse(string? raw)
     {
-        var raw = Provisioning.Current?.PresetsPublicKey;
         if (string.IsNullOrEmpty(raw))
         {
             return null;

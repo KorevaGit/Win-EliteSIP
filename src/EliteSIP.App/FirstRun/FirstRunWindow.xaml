@@ -10,7 +10,7 @@
         d:DataContext="{d:DesignInstance Type=firstrun:FirstRunViewModel}"
         Title="{res:Loc FirstRunTitle}"
         Width="460"
-        Height="420"
+        Height="500"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
@@ -24,6 +24,11 @@
       Размер один на все экраны и фиксированный. По «Далее» щёлкают четыре раза
       подряд, и кнопка, переезжающая между шагами, ловит четвёртый щелчок мимо.
       Тот же закон, по которому не двигается «Завершить» на панели.
+
+      Высота 500, а не прежние 420: на 420 шаг ручной настройки не помещался —
+      шесть строк, разделитель и две сноски, — и нижние поля просто срезались.
+      Заметить это по разметке нельзя: `Grid` молча отдаёт содержимому меньше
+      места, чем оно просит, и ничего не сообщает.
   -->
 
   <Grid Margin="16">
@@ -32,7 +37,22 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <Grid Grid.Row="0">
+    <!--
+        Прокрутка — не про сегодняшний шаг, а про то, чтобы срезать перестало
+        когда-либо. Высоты хватает всем шагам с запасом, и полосы прокрутки в
+        обычной жизни не видно; появится она у того, у кого текст окажется
+        длиннее нашего — на другом языке или на будущем шаге.
+
+        `MinHeight` по высоте окна прокрутки — ради центрирования: внутри
+        прокрутки содержимое получает бесконечную высоту, и `VerticalAlignment`
+        у коротких шагов перестал бы работать, прижав приветствие к верху.
+    -->
+    <ScrollViewer Grid.Row="0"
+                  x:Name="StepScroll"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Focusable="False">
+      <Grid MinHeight="{Binding ViewportHeight, ElementName=StepScroll}">
 
       <!-- 1. Приветствие и язык. -->
       <StackPanel VerticalAlignment="Center"
@@ -98,7 +118,7 @@
 
         <Border Width="220"
                 Height="32"
-                CornerRadius="6"
+                CornerRadius="{StaticResource ControlCornerRadius}"
                 Padding="8,0"
                 Background="{DynamicResource ControlBackgroundBrush}"
                 BorderThickness="1"
@@ -106,7 +126,7 @@
           <TextBox Style="{StaticResource PanelTextBoxStyle}"
                    FontSize="15"
                    TextAlignment="Center"
-                   IsEnabled="{Binding IsCheckingKey, Converter={StaticResource NotBool}}"
+                   IsEnabled="{Binding CanTypeKey}"
                    Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
         </Border>
 
@@ -128,6 +148,15 @@
         <theme:SettingsNote Text="{Binding KeyFailure}"
                             IsAlarming="True"
                             Visibility="{Binding HasKeyFailure, Converter={StaticResource BoolToVisibility}}" />
+
+        <!--
+            Заводской настройки нет — говорим об этом здесь, а не пропускаем
+            экран. Пропуск был молчаливым, и машина, навсегда отрезанная от
+            панели, выглядела бы просто заведённой вручную.
+        -->
+        <theme:SettingsNote Text="{res:Loc FirstRunKeyNoChannel}"
+                            IsAlarming="True"
+                            Visibility="{Binding HasNoChannel, Converter={StaticResource BoolToVisibility}}" />
 
         <!--
             Что приехало — показывается до «Далее», а не после: человек обязан
@@ -167,14 +196,14 @@
                    Foreground="{DynamicResource TextSecondaryBrush}" />
 
         <theme:SettingsRow Header="{res:Loc AdminAccountUsername}">
-          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+          <Border Height="26" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
             <TextBox Style="{StaticResource PanelTextBoxStyle}"
                      Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
           </Border>
         </theme:SettingsRow>
 
         <theme:SettingsRow Header="{res:Loc AdminAccountPassword}">
-          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+          <Border Height="26" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
             <PasswordBox x:Name="SipPasswordField"
                          VerticalContentAlignment="Center"
                          Background="Transparent"
@@ -186,14 +215,14 @@
         </theme:SettingsRow>
 
         <theme:SettingsRow Header="{res:Loc AdminAccountDisplayName}">
-          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+          <Border Height="26" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
             <TextBox Style="{StaticResource PanelTextBoxStyle}"
                      Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
           </Border>
         </theme:SettingsRow>
 
         <theme:SettingsRow Header="{res:Loc WorkPbxAddress}">
-          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+          <Border Height="26" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
             <TextBox Style="{StaticResource PanelTextBoxStyle}"
                      Text="{Binding OfficeAddress, UpdateSourceTrigger=PropertyChanged}" />
           </Border>
@@ -202,7 +231,7 @@
         <theme:SettingsDivider />
 
         <theme:SettingsRow Header="{res:Loc AdminAccessNewPassword}">
-          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+          <Border Height="26" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
             <PasswordBox x:Name="AdminPasswordField"
                          VerticalContentAlignment="Center"
                          Background="Transparent"
@@ -214,7 +243,7 @@
         </theme:SettingsRow>
 
         <theme:SettingsRow Header="{res:Loc AdminAccessRepeatPassword}">
-          <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
+          <Border Height="26" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlBackgroundBrush}">
             <PasswordBox x:Name="RepeatedAdminPasswordField"
                          VerticalContentAlignment="Center"
                          Background="Transparent"
@@ -285,8 +314,9 @@
                    TextAlignment="Center"
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource TextSecondaryBrush}" />
-      </StackPanel>
-    </Grid>
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
 
     <!-- Полоса шагов. -->
     <Grid Grid.Row="1" Margin="0,12,0,0">

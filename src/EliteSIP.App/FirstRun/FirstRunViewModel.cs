@@ -145,6 +145,7 @@ public sealed class FirstRunViewModel : Observable
         {
             Set(ref _isCheckingKey, value);
             NotifyChanged(nameof(CanCheckKey));
+            NotifyChanged(nameof(CanTypeKey));
             NotifyChanged(nameof(CanGoForward));
         }
     }
@@ -177,13 +178,48 @@ public sealed class FirstRunViewModel : Observable
     /// </summary>
     ///
     /// <remarks>
-    /// Без заводской настройки экран ключа не показывается вовсе: поле, которое
-    /// на любой ключ отвечает «не удалось связаться», хуже отсутствующего.
-    /// Машина тогда заводится вручную — так же, как заводилась до этого этапа.
+    /// Прежде отсутствие канала пропускало экран ключа целиком, и машина
+    /// заводилась вручную. Отменено 10 сентября 2026: пропуск был молчаливым, а
+    /// молчать тут нельзя. Заводская настройка отсутствует ровно в двух случаях
+    /// — её забыли положить в выпуск или потеряли при установке, — и оба
+    /// означают рабочее место, навсегда отрезанное от панели: без канала не
+    /// будет ни предустановок, ни обновлений, ни отзыва. Тридцать машин,
+    /// заведённых «вручную», выглядели бы при этом совершенно исправными.
+    ///
+    /// Теперь экран ключа показывается всегда. Нет канала — он говорит об этом
+    /// прямо и не пускает дальше: уйти можно только «Настроить вручную», то
+    /// есть решением человека, а не молча за него.
     /// </remarks>
     public static bool HasChannel => PanelLine.Provisioning.Current?.Updates is not null;
 
-    public bool CanCheckKey => !_isCheckingKey && _key.Trim().Length > 0;
+    /// <summary>
+    /// Ключ вводить некуда: в приложение не положена заводская настройка.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Свойством экземпляра, хотя отвечает за него статический
+    /// <see cref="HasChannel"/>: привязка разметки ищет свойство у объекта, а
+    /// статическое по обычному пути не находится вовсе — молча, с пустой
+    /// строкой вместо предупреждения.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1822:Пометьте члены как статические",
+        Justification = "Статическое свойство разметка не находит: привязка ищет его у объекта.")]
+    public bool HasNoChannel => !HasChannel;
+
+    /// <summary>Можно ли вообще набирать ключ.</summary>
+    public bool CanTypeKey => HasChannel && !_isCheckingKey;
+
+    /// <summary>Куда писать о ходе активации. <c>null</c> — некуда.</summary>
+    ///
+    /// <remarks>
+    /// Замыканием, а не своим журналом: журнал заводит приложение, и второе
+    /// место, пишущее в тот же файл, однажды разошлось бы с первым.
+    /// </remarks>
+    internal Action<string>? Log { get; init; }
+
+    public bool CanCheckKey => HasChannel && !_isCheckingKey && _key.Trim().Length > 0;
 
     /// <summary>
     /// Проверяет ключ и забирает всё, что к нему полагается.
@@ -227,7 +263,25 @@ public sealed class FirstRunViewModel : Observable
             catch (Exception error) when (error is PanelLinkException or HttpRequestException
                                               or TaskCanceledException)
             {
-                // Молча: см. выше. Пароль приедет тактом линии.
+                // Наружу — молча: см. выше, ключ уже сгорел, и ронять из-за
+                // пароля активацию нельзя. Пароль приедет тактом линии.
+                //
+                // Но в журнал — обязательно. Прежде этот отказ не оставлял
+                // следов вовсе, и «пароль от управления не приехал» разбирать
+                // было нечем: неизвестно даже, спрашивали ли объект и что
+                // ответил канал.
+                Log?.Invoke($"пароль от управления не приехал с ключом: {error.Message}");
+            }
+
+            if (access is null)
+            {
+                Log?.Invoke("пароль от управления приедет следующим тактом линии");
+            }
+            else if (access.AdminPassword.Length == 0)
+            {
+                // Объект приехал и подпись сошлась, а пароля в нём нет. Это не
+                // отказ канала, это решение панели — и различать их надо.
+                Log?.Invoke("панель прислала доступ без административного пароля");
             }
 
             _package = package;
@@ -406,9 +460,6 @@ public sealed class FirstRunViewModel : Observable
             // приехали пакетом, и показать их можно разве что для любования.
             FirstRunStep.Key => FirstRunStep.Appearance,
 
-            // Канала нет — экран ключа не показывается вовсе.
-            FirstRunStep.Welcome when !HasChannel => FirstRunStep.User,
-
             _ => _step + 1,
         };
     }
@@ -423,10 +474,11 @@ public sealed class FirstRunViewModel : Observable
         Step = _step switch
         {
             FirstRunStep.Appearance when IsActivated => FirstRunStep.Key,
-            FirstRunStep.User when !HasChannel => FirstRunStep.Welcome,
 
             // С экрана учётки назад — на ключ: человек мог уйти сюда
-            // «настроить вручную» и передумать.
+            // «настроить вручную» и передумать. Так и когда канала нет: экран
+            // ключа объяснит, почему проверять нечем, — а это ровно то, что
+            // человеку в такой машине надо увидеть.
             FirstRunStep.User => FirstRunStep.Key,
 
             _ => _step - 1,

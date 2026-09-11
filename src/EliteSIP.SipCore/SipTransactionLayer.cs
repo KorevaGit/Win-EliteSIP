@@ -272,6 +272,21 @@ public sealed class SipTransactionLayer : IDisposable
         pump?.Dispose();
     }
 
+    /// <summary>
+    /// Локальный адрес канала, если он уже известен. Не ждёт: для ожидания —
+    /// <see cref="WaitUntilReadyAsync"/>.
+    /// </summary>
+    public SipEndpoint? LocalEndpoint
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _localEndpoint;
+            }
+        }
+    }
+
     /// <summary>Ждёт готовности канала и возвращает локальный адрес.</summary>
     public async Task<SipEndpoint> WaitUntilReadyAsync(TimeSpan? timeout = null)
     {

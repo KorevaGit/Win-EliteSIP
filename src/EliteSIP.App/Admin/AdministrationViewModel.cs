@@ -151,7 +151,36 @@ public sealed class AdministrationViewModel : Observable
     /// не чужого кода, и открывать её наружу незачем. Разметка это не смущает —
     /// привязки идут по имени.
     /// </remarks>
-    internal UpdatesViewModel? Updates { get; init; }
+    /// <remarks>
+    /// Открытое, а не внутреннее: привязка WPF внутренних свойств не видит и
+    /// молчит об этом. Здесь та же беда, что и в окне настроек, — раздел
+    /// обновлений в «Диагностике» не работал ровно по этой причине.
+    /// </remarks>
+    public UpdatesViewModel? Updates { get; init; }
+
+    /// <summary>Чем стирать машину. <c>null</c> — кнопка сброса не работает.</summary>
+    ///
+    /// <remarks>
+    /// Замыкание, а не вызов отсюда, — по той же причине, что и у отзыва
+    /// панели: чистка закрывает окна и перезапускает приложение, а это дело
+    /// композиции, не «Управления». Дорога у ручного сброса и у отзыва одна и
+    /// та же: машина обязана прийти в одно и то же состояние, кто бы её ни
+    /// стёр.
+    /// </remarks>
+    internal Action? ResetMachine { get; init; }
+
+    /// <summary>Идёт ли разговор. <c>null</c> — спросить не у кого.</summary>
+    internal Func<bool>? IsInCall { get; init; }
+
+    /// <summary>
+    /// Можно ли стирать машину прямо сейчас.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// В разговоре нельзя: сброс снимает регистрацию и закрывает диалоги, то
+    /// есть кладёт трубку за оператора.
+    /// </remarks>
+    public bool CanResetMachine => ResetMachine is not null && IsInCall?.Invoke() is not true;
 
     /// <summary>Показать окно входящего для проверки: раздача.</summary>
     public RelayCommand PreviewDistribution { get; }
@@ -183,6 +212,10 @@ public sealed class AdministrationViewModel : Observable
                 nameof(ShowsAccount), nameof(ShowsPbx), nameof(ShowsMacros), nameof(ShowsQueues),
                 nameof(ShowsHistory), nameof(ShowsAccess), nameof(ShowsDiagnostics), nameof(ShowsMaintenance),
                 nameof(ShowsIncoming), nameof(ShowsSupport),
+
+                // Разговор мог начаться, пока открыт был другой раздел: без
+                // этого кнопка сброса осталась бы нажимаемой на живом вызове.
+                nameof(CanResetMachine),
             })
             {
                 NotifyChanged(name);
@@ -589,8 +622,29 @@ public sealed class AdministrationViewModel : Observable
     public bool IsDirty
     {
         get => _isDirty;
-        private set => Set(ref _isDirty, value);
+        private set
+        {
+            Set(ref _isDirty, value);
+            NotifyChanged(nameof(SaveStateTitle));
+            NotifyChanged(nameof(SaveStateBody));
+        }
     }
+
+    /// <summary>Состояние черновика словами — заголовок полосы низа.</summary>
+    ///
+    /// <remarks>
+    /// Словами, а не одной точкой. Точка сообщает, что что-то не так, но не
+    /// говорит, что именно: после «Сохранить» она гаснет, окно остаётся, и
+    /// нажатие читается как не сделавшее ничего. В оригинале здесь две строки,
+    /// и они же здесь.
+    /// </remarks>
+    public string SaveStateTitle
+        => Strings.Get(IsDirty ? "AdminDirtyTitle" : "AdminCleanTitle");
+
+    /// <summary>Что это состояние означает.</summary>
+    public string SaveStateBody => IsDirty
+        ? Strings.Get("AdminDirtyBody")
+        : Strings.Get(_settings.Panel.IsManaged ? "AdminCleanBodyManaged" : "AdminCleanBody");
 
     /// <summary>Куда лежит файл настроек — для «Диагностики».</summary>
     public static string SettingsPath => AppSettings.DefaultPath;
@@ -664,6 +718,9 @@ public sealed class AdministrationViewModel : Observable
     /// <summary>Пишет черновик в настройки.</summary>
     public void Save()
     {
+        var connectionBefore = ConnectionKey();
+        var passwordChanged = SipPassword.Length > 0;
+
         _settings.Dtmf.Macros.Clear();
         foreach (var macro in Macros)
         {
@@ -745,7 +802,34 @@ public sealed class AdministrationViewModel : Observable
         // Запись на диск делает сама настройка (AutoSave); здесь остаётся
         // только снять пометку несохранённого.
         IsDirty = false;
+
+        // Сменилось то, с чем телефон регистрируется, — регистрацию поднять
+        // заново сейчас же.
+        //
+        // Прежде «Сохранить» только писало настройки: новый добавочный лежал
+        // в файле, а панель и регистрация оставались на старом, пока оператор
+        // не отключится и не подключится руками. Трассу SIP это тоже касается:
+        // её подключает транспорт при подъёме.
+        if (ConnectionKey() != connectionBefore || passwordChanged)
+        {
+            OnConnectionChanged?.Invoke();
+        }
     }
+
+    /// <summary>Поднять регистрацию заново. Ставит приложение.</summary>
+    public Action? OnConnectionChanged { get; init; }
+
+    /// <summary>Всё, от чего зависит регистрация, одной строкой — чтобы сравнить до и после.</summary>
+    private string ConnectionKey() => string.Join('|',
+        _settings.Account.Username,
+        _settings.Account.Domain,
+        _settings.Pbx.Port,
+        _settings.Pbx.Transport,
+        _settings.Pbx.PinnedCertificateFingerprint,
+        _settings.Pbx.AcceptsAnyTlsCertificate,
+        _settings.Pbx.RegistrationExpirySeconds,
+        _settings.Maintenance.LogsSipTrace,
+        _settings.PortKnock.Steps.Count);
 
     /// <summary>Возвращает черновик к тому, что записано.</summary>
     public void Revert()

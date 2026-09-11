@@ -9,9 +9,9 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=settings:SettingsViewModel}"
         Title="{res:Loc SettingsWindowTitle}"
-        Width="620"
+        Width="660"
         Height="480"
-        MinWidth="620"
+        MinWidth="660"
         MinHeight="420"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
@@ -42,35 +42,36 @@
 
     <!-- Боковой список разделов. -->
 
-    <Border Grid.Column="0" Background="{DynamicResource ControlBackgroundBrush}">
+    <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
       <ListBox ItemsSource="{Binding Sections}"
                SelectedValue="{Binding Section}"
                SelectedValuePath="Kind"
                Background="Transparent"
                BorderThickness="0"
-               Margin="6,8,6,8"
+               Margin="0,8,0,8"
                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
         <ListBox.ItemContainerStyle>
           <Style TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="8,5" />
-            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Margin" Value="0" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Template">
               <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                  <Border x:Name="Row"
-                          Background="Transparent"
-                          CornerRadius="6"
-                          Padding="{TemplateBinding Padding}">
-                    <ContentPresenter />
-                  </Border>
+                  <!--
+                      Выбранный раздел — текст и значок акцентным цветом, без
+                      заливки: так отмечает выбранное список Параметров
+                      Windows 10. Под курсором строка чуть светлеет.
+                  -->
+                  <Grid x:Name="Row" Background="Transparent">
+                    <ContentPresenter Margin="{TemplateBinding Padding}" />
+                  </Grid>
                   <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
-                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource NavHoverBrush}" />
                     </Trigger>
                     <Trigger Property="IsSelected" Value="True">
-                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelectionBrush}" />
-                      <Setter Property="FontWeight" Value="SemiBold" />
+                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                     </Trigger>
                   </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -84,9 +85,10 @@
             <StackPanel Orientation="Horizontal">
               <!-- Значок 15, а не системные 16: наши нарисованы на сетке 20×20
                    обводкой 1.5 и на шестнадцати читаются грубее соседей. -->
-              <theme:Icon Glyph="{Binding Glyph}" Size="15" VerticalAlignment="Center"
-                          Foreground="{DynamicResource TextSecondaryBrush}" />
-              <TextBlock Text="{Binding Title}" Margin="6,0,0,0" VerticalAlignment="Center" />
+              <!-- Цвет значка — цвет строки: у выбранной он акцентный. -->
+              <theme:Icon Glyph="{Binding Glyph}" Size="16" VerticalAlignment="Center"
+                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+              <TextBlock Text="{Binding Title}" Margin="12,0,0,0" VerticalAlignment="Center" />
             </StackPanel>
           </DataTemplate>
         </ListBox.ItemTemplate>
@@ -104,7 +106,7 @@
       <ScrollViewer Grid.Row="0"
                     VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled"
-                    Padding="12,12,12,0">
+                    Padding="24,16,24,0">
         <!--
             Потолок ширины строк задан здесь, столбцу разделов, а не каждой
             строке порознь. Порознь не выходит: строке с ползунком нужно
@@ -141,19 +143,36 @@
 
             <theme:SettingsSection Header="{res:Loc WorkTroubleSection}">
               <theme:SettingsIndented>
+                <TextBlock Text="{res:Loc WorkRepairNote}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsIndented>
+
+              <theme:SettingsIndented>
                 <Button Style="{StaticResource SettingsButtonStyle}"
                         HorizontalAlignment="Left"
                         Content="{res:Loc WorkRepairNetwork}"
-                        IsEnabled="False" />
+                        Command="{Binding RepairNetwork}" />
               </theme:SettingsIndented>
-              <theme:SettingsNote Text="{res:Loc WorkRepairNote}" />
+
+              <!-- Итог — здесь, под своей кнопкой: прежде он уходил на страницу
+                   «Техподдержка», и нажатие на этой странице выглядело ничем. -->
+              <theme:SettingsNote Text="{Binding SupportResult}"
+                                  Visibility="{Binding HasNetworkResult,
+                                                       Converter={StaticResource BoolToVisibility}}" />
             </theme:SettingsSection>
           </StackPanel>
 
           <!-- Раздел «Звук». -->
           <StackPanel Visibility="{Binding ShowsAudio, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc SectionAudio}">
-              <theme:SettingsRow Header="{res:Loc AudioMicrophone}">
+            <!--
+                Четыре группы вместо одной сплошной: микрофон, наушники,
+                обработка и проверка — разные вопросы, и одной стопкой они
+                читались как список без начала и конца.
+            -->
+            <theme:SettingsSection Header="{res:Loc AudioInputSection}">
+              <theme:SettingsRow Header="{res:Loc AudioDevice}">
                 <!--
                     Шаблон строки, а не `DisplayMemberPath`: закрытый вид
                     своего списка рисуется тем же `SelectionBoxItemTemplate`,
@@ -205,8 +224,10 @@
               -->
               <theme:SettingsNote Text="{res:Loc AudioGainAutoNote}"
                                   Visibility="{Binding Settings.Audio.AutomaticGainControl, Converter={StaticResource BoolToVisibility}}" />
+            </theme:SettingsSection>
 
-              <theme:SettingsRow Header="{res:Loc AudioHeadphones}">
+            <theme:SettingsSection Header="{res:Loc AudioOutputSection}">
+              <theme:SettingsRow Header="{res:Loc AudioDevice}">
                 <ComboBox ItemsSource="{Binding Outputs}"
                           SelectedValuePath="Id"
                           SelectedValue="{Binding Settings.Audio.OutputDeviceId}">
@@ -244,25 +265,46 @@
 
               <theme:SettingsNote Text="{res:Loc AudioAggregateNote}"
                                   Visibility="{Binding NeedsAggregate, Converter={StaticResource BoolToVisibility}}" />
+            </theme:SettingsSection>
 
+            <theme:SettingsSection Header="{res:Loc AudioProcessingSection}">
               <CheckBox Style="{StaticResource SettingsSwitchStyle}"
                         Content="{res:Loc AudioAgc}"
                         IsChecked="{Binding Settings.Audio.AutomaticGainControl}" />
 
               <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AudioNoiseSuppression}"
+                        IsChecked="{Binding Settings.Audio.NoiseSuppression}" />
+
+              <theme:SettingsNote Text="{res:Loc AudioNoiseSuppressionNote}" />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
                         Content="{res:Loc AudioRelease}"
                         IsChecked="{Binding Settings.Audio.ReleasesDeviceWhenIdle}" />
+            </theme:SettingsSection>
 
-              <theme:SettingsDivider />
-
-              <theme:SettingsNote Text="{res:Loc AudioSelfTestNote}" />
+            <!--
+                Самопроверка звука — см. `AudioSelfTest`. Пояснение над кнопкой
+                (что будет), итог — под ней (что вышло).
+            -->
+            <theme:SettingsSection Header="{res:Loc AudioSelfTestSection}">
+              <theme:SettingsIndented>
+                <TextBlock Text="{res:Loc AudioSelfTestNote}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsIndented>
 
               <theme:SettingsIndented>
                 <Button Style="{StaticResource SettingsButtonStyle}"
                         HorizontalAlignment="Left"
                         Content="{res:Loc AudioSelfTestStart}"
-                        IsEnabled="False" />
+                        Command="{Binding RunSelfTest}" />
               </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{Binding SelfTestResult}"
+                                  Visibility="{Binding HasSelfTestResult,
+                                                       Converter={StaticResource BoolToVisibility}}" />
             </theme:SettingsSection>
           </StackPanel>
 
@@ -328,12 +370,12 @@
                           Content="{res:Loc RingtoneChooseFile}"
                           Click="OnChooseRingtoneClick" />
                   <Button Style="{StaticResource SettingsButtonStyle}"
-                          Margin="6,0,0,0"
+                          Margin="12,0,0,0"
                           Content="{res:Loc RingtoneDefault}"
                           Click="OnDefaultRingtoneClick"
                           IsEnabled="{Binding Settings.Ringtone.HasCustomSound}" />
                   <Button Style="{StaticResource SettingsButtonStyle}"
-                          Margin="6,0,0,0"
+                          Margin="12,0,0,0"
                           Content="{res:Loc RingtonePreview}"
                           Click="OnPreviewRingtoneClick" />
                 </StackPanel>
@@ -420,32 +462,85 @@
 
           <!-- Раздел «Техподдержка». -->
           <StackPanel Visibility="{Binding ShowsSupport, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc SectionSupport}">
-              <theme:SettingsNote Text="{res:Loc SupportArchiveNote}" />
+            <!--
+                Три группы вместо одной с чертой посередине: журнал, версия с
+                обновлениями и предустановки — три разных разговора с
+                поддержкой, и у каждой кнопки свой итог прямо под ней.
+            -->
+            <theme:SettingsSection Header="{res:Loc SupportLogsSection}">
+              <theme:SettingsIndented>
+                <TextBlock Text="{res:Loc SupportArchiveNote}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsIndented>
 
               <theme:SettingsIndented>
                 <Button Style="{StaticResource SettingsButtonStyle}"
                         HorizontalAlignment="Left"
                         Content="{res:Loc SupportCollectLogs}"
-                        IsEnabled="False" />
+                        Command="{Binding CollectLogs}" />
               </theme:SettingsIndented>
 
-              <!--
-                  Версия — прямо над проверкой обновлений. Первое, что просит
-                  поддержка по телефону, — «какая у вас версия», и человек тут
-                  же может выяснить, не устарела ли она.
-              -->
+              <theme:SettingsNote Text="{Binding SupportResult}"
+                                  Visibility="{Binding HasLogsResult,
+                                                       Converter={StaticResource BoolToVisibility}}" />
+            </theme:SettingsSection>
+
+            <!--
+                Версия — прямо над проверкой обновлений: первое, что просит
+                поддержка по телефону, — «какая у вас версия».
+            -->
+            <theme:SettingsSection Header="{res:Loc SupportUpdatesSection}">
               <theme:SettingsRow Header="{res:Loc SupportVersion}">
                 <TextBlock Text="{Binding Version}"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
 
+              <!--
+                  Весь блок висит на самом `Updates`, а не на его свойствах:
+                  без заводской настройки линии нет, и привязки к её свойствам
+                  не разрешались бы — «Установить обновление» висело бы всегда.
+              -->
+              <StackPanel DataContext="{Binding Updates}"
+                          Visibility="{Binding Converter={StaticResource PresenceToVisibility}}">
+                <theme:SettingsIndented>
+                  <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource SettingsButtonStyle}"
+                            Content="{res:Loc SupportCheckUpdates}"
+                            Command="{Binding CheckNow}" />
+
+                    <!-- Только когда выпуск скачан и проверен. -->
+                    <Button Style="{StaticResource SettingsButtonStyle}"
+                            Margin="12,0,0,0"
+                            Content="{res:Loc AdminDiagnosticsInstallUpdate}"
+                            Command="{Binding Install}"
+                            Visibility="{Binding IsReady,
+                                                 Converter={StaticResource BoolToVisibility}}" />
+                  </StackPanel>
+                </theme:SettingsIndented>
+
+                <theme:SettingsNote Text="{Binding Status}"
+                                    Visibility="{Binding HasStatus,
+                                                         Converter={StaticResource BoolToVisibility}}" />
+              </StackPanel>
+            </theme:SettingsSection>
+
+            <!--
+                Предустановки — своя группа: «почему у меня старые клавиши» и
+                «почему у меня старая версия» — два разных вопроса.
+            -->
+            <theme:SettingsSection Header="{res:Loc SupportPresetsSection}">
               <theme:SettingsIndented>
                 <Button Style="{StaticResource SettingsButtonStyle}"
                         HorizontalAlignment="Left"
-                        Content="{res:Loc SupportCheckUpdates}"
-                        IsEnabled="False" />
+                        Content="{res:Loc SupportCheckPresets}"
+                        Command="{Binding CheckPresets}" />
               </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{Binding SupportResult}"
+                                  Visibility="{Binding HasPresetsResult,
+                                                       Converter={StaticResource BoolToVisibility}}" />
             </theme:SettingsSection>
 
             <!--
@@ -456,20 +551,39 @@
                 панель.
             -->
             <theme:SettingsSection Header="{res:Loc SupportNewKeySection}">
-              <theme:SettingsNote Text="{res:Loc SupportNewKeyNote}" />
+              <theme:SettingsIndented>
+                <TextBlock Text="{res:Loc SupportNewKeyNote}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsIndented>
 
+              <!--
+                  Прежде здесь стоял вписанный в разметку образец ключа с
+                  `IsEnabled="False"` — не привязка, а рисунок. Отсюда и
+                  впечатление, что поле «недоступно»: оно и было картинкой.
+              -->
               <theme:SettingsRow Header="{res:Loc SupportKey}">
-                <TextBox Text="K7M2-9XQP-4TFB"
-                         FontFamily="Consolas"
-                         IsEnabled="False" />
+                <Border Height="32" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8,0"
+                        Background="{DynamicResource ControlBackgroundBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           FontFamily="Consolas"
+                           IsEnabled="{Binding CanTypeNewKey}"
+                           Text="{Binding NewKey, UpdateSourceTrigger=PropertyChanged}" />
+                </Border>
               </theme:SettingsRow>
 
               <theme:SettingsIndented>
                 <Button Style="{StaticResource SettingsButtonStyle}"
                         HorizontalAlignment="Left"
                         Content="{res:Loc SupportApplyKey}"
-                        IsEnabled="False" />
+                        Command="{Binding ApplyKey}" />
               </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{Binding NewKeyResult}"
+                                  IsAlarming="{Binding NewKeyFailed}"
+                                  Visibility="{Binding HasNewKeyResult,
+                                                       Converter={StaticResource BoolToVisibility}}" />
             </theme:SettingsSection>
           </StackPanel>
         </Grid>

@@ -100,6 +100,15 @@ public sealed record VoiceAudioConfiguration
     public bool AutomaticGainControl { get; init; }
 
     /// <summary>
+    /// Шумодав в обработке голоса. По умолчанию включён.
+    ///
+    /// Он не только убирает фон комнаты, но и добирает то, что оставил
+    /// эхоподавитель, — см. замеры в <see cref="VoiceProcessor"/>. Поэтому
+    /// выключать его стоит только на гарнитуре.
+    /// </summary>
+    public bool NoiseSuppression { get; init; } = true;
+
+    /// <summary>
     /// Открывать захват в сыром режиме, без обработки системы.
     ///
     /// По умолчанию выключено, и это решение по замеру W0, а не по умолчанию

@@ -118,7 +118,7 @@
         <ControlTemplate TargetType="{x:Type Button}">
           <Border x:Name="Chip"
                   Background="{DynamicResource ControlBackgroundBrush}"
-                  CornerRadius="8"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
                   Padding="{TemplateBinding Padding}"
                   MinHeight="24">
             <ContentPresenter VerticalAlignment="Center" />
@@ -126,6 +126,10 @@
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Chip" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+            </Trigger>
+            <!-- Снимок пустой истории недоступен — и выглядеть должен так же. -->
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -150,7 +154,7 @@
         <ControlTemplate TargetType="{x:Type RadioButton}">
           <Border x:Name="Chip"
                   Background="{DynamicResource ControlBackgroundBrush}"
-                  CornerRadius="8"
+                  CornerRadius="{StaticResource ControlCornerRadius}"
                   Padding="{TemplateBinding Padding}"
                   MinHeight="24">
             <ContentPresenter VerticalAlignment="Center" />

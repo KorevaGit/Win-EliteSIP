@@ -9,9 +9,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="{res:Loc PanelWindowTitle}"
-        Width="270"
+        Width="324"
+        MinWidth="270"
         SizeToContent="Height"
-        ResizeMode="CanMinimize"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
@@ -58,7 +59,23 @@
       которому набраны системные окна Windows 11. Прежние 5 и 15 между рядами
       были пересчётом macOS-овских отступов и в общий шаг не ложились.
   -->
-  <Grid Margin="12">
+  <!--
+      Панель тянется за край (11 сентября 2026).
+
+      Ширина масштабирует всё окно равномерно: содержимое раскладывается на
+      исходных 270 точках и увеличивается целиком, вместе с кеглем, — см.
+      `Zoom` в code-behind. Иначе растянутая панель давала бы длинные узкие
+      клавиши с мелкими подписями.
+
+      Высота, оставшаяся сверх нужной, раздаётся рядам со звёздочкой: макросам,
+      кнопкам управления и нижнему ряду «Позвонить / История». Поле набора и
+      строка состояния от высоты не растут — в них нечему расти.
+  -->
+  <Border x:Name="Frame">
+  <Grid x:Name="Root" Margin="12">
+    <Grid.LayoutTransform>
+      <ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1" />
+    </Grid.LayoutTransform>
     <Grid.RowDefinitions>
       <!-- Строка состояния. -->
       <RowDefinition Height="22" />
@@ -67,10 +84,12 @@
           Изменчивая середина. Всё, что может поменять высоту — вторая линия,
           поле перевода, число макросов, — живёт здесь.
       -->
-      <RowDefinition Height="Auto" />
+      <RowDefinition Height="5*" />
       <RowDefinition Height="16" />
-      <!-- Неподвижный низ: звонок и история. -->
-      <RowDefinition Height="46" />
+      <!-- Неподвижный низ: звонок и история. Растёт вместе с окном, но
+           впятеро медленнее середины: крупнее всего должны становиться
+           макросы и кнопки управления. -->
+      <RowDefinition Height="*" MinHeight="46" />
     </Grid.RowDefinitions>
 
     <!--
@@ -220,17 +239,49 @@
 
     <!-- ==================== Изменчивая середина ==================== -->
 
-    <StackPanel Grid.Row="2">
+    <Grid Grid.Row="2">
+      <!--
+          Середина — сетка, а не стопка: стопка отдаёт детям ровно их
+          высоту, и растянутое окно оставляло бы под макросами пустоту.
+          Растут два ряда — кнопки управления и макросы; остальные по
+          содержимому.
+      -->
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="2*" MinHeight="70" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition>
+          <!-- Макросы растут, только когда видны: пустой ряд со звёздочкой
+               забирал бы свою долю высоты и под полем перевода. -->
+          <RowDefinition.Style>
+            <Style TargetType="RowDefinition">
+              <Setter Property="Height" Value="Auto" />
+              <Style.Triggers>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding HasMacros}" Value="True" />
+                    <Condition Binding="{Binding ShowsMacros}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Height" Value="3*" />
+                </MultiDataTrigger>
+              </Style.Triggers>
+            </Style>
+          </RowDefinition.Style>
+        </RowDefinition>
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
 
       <!--
           Шапка: поле набора в покое, собеседник с таймером в разговоре, два
           поля при двух линиях. Высота у всех трёх одна и та же — иначе при
           ответе на вызов шапка вырастала бы и сдвигала вниз всё, что под ней.
       -->
-      <Grid Height="52">
+      <Grid Grid.Row="0" Height="52">
 
         <!-- Одна линия или покой: одна поверхность на весь слот. -->
-        <Border CornerRadius="4"
+        <Border CornerRadius="{StaticResource ControlCornerRadius}"
                 Padding="12,0"
                 Background="{DynamicResource ControlBackgroundBrush}"
                 Visibility="{Binding HasSecondLine, Converter={StaticResource NotBoolToVisibility}}">
@@ -259,7 +310,8 @@
                        Tag="{res:Loc PanelNumberPlaceholder}"
                        FontSize="20"
                        IsEnabled="{Binding CanPlaceCall}"
-                       KeyDown="OnDialedNumberKeyDown" />
+                       KeyDown="OnDialedNumberKeyDown"
+                       PreviewTextInput="OnDialedNumberTextInput" />
 
               <Button Grid.Column="1"
                       Style="{StaticResource ChromeButtonStyle}"
@@ -276,7 +328,12 @@
             -->
             <StackPanel VerticalAlignment="Center"
                         Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
-              <TextBlock Text="{Binding ActiveLine.Title}"
+              <!--
+                  `CallTitle`, а не `ActiveLine.Title`: во время гудков линии
+                  ещё нет, и шапка оставалась пустой — панель показывала, что
+                  идёт разговор, и не говорила с кем.
+              -->
+              <TextBlock Text="{Binding CallTitle}"
                          FontSize="18"
                          FontWeight="Medium"
                          TextTrimming="CharacterEllipsis"
@@ -324,7 +381,7 @@
             <DataTemplate DataType="{x:Type panel:CallLineViewModel}">
               <Border Height="22"
                       Margin="0,0,0,4"
-                      CornerRadius="4"
+                      CornerRadius="{StaticResource ControlCornerRadius}"
                       Padding="8,0"
                       Background="{DynamicResource ControlBackgroundBrush}">
                 <Grid>
@@ -378,7 +435,7 @@
       </Grid>
 
       <!-- Шапка → ряд управления. -->
-      <Border Height="4" />
+      <Border Grid.Row="1" Height="4" />
 
       <!--
           Ряд управления. Четыре кнопки в два ряда, а не четыре в один: панель
@@ -388,11 +445,11 @@
           менять геометрию панели ровно в момент ответа на вызов: макросы и всё
           под ними подскакивали бы на его высоту.
       -->
-      <Grid>
+      <Grid Grid.Row="2">
         <Grid.RowDefinitions>
-          <RowDefinition Height="32" />
+          <RowDefinition Height="*" MinHeight="32" />
           <RowDefinition Height="6" />
-          <RowDefinition Height="32" />
+          <RowDefinition Height="*" MinHeight="32" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
@@ -500,7 +557,7 @@
           Ряд управления → то, что под ним. Единственная граница между ними —
           воздух; когда снизу пусто, нет и его.
       -->
-      <Border Height="16">
+      <Border Grid.Row="3" Height="16">
         <Border.Style>
           <Style TargetType="Border">
             <Setter Property="Visibility" Value="Collapsed" />
@@ -529,7 +586,7 @@
           Вне разговора клавиши видны, но выключены — раскладка должна
           запоминаться глазами до того, как начнётся звонок.
       -->
-      <ItemsControl ItemsSource="{Binding Macros}">
+      <ItemsControl Grid.Row="4" ItemsSource="{Binding Macros}">
         <ItemsControl.Style>
           <Style TargetType="ItemsControl">
             <Setter Property="Visibility" Value="Collapsed" />
@@ -561,7 +618,7 @@
           <DataTemplate DataType="{x:Type panel:MacroViewModel}">
             <Button Style="{StaticResource MacroKeyStyle}"
                     Margin="0,0,6,6"
-                    Height="{Binding DataContext.MacroHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                    MinHeight="{Binding DataContext.MacroHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     IsEnabled="{Binding DataContext.CanSendDtmf, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     Command="{Binding DataContext.SendMacro, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     CommandParameter="{Binding}">
@@ -594,9 +651,9 @@
           оператор набирает номер перевода, макросы всё равно не нужны, а лишний
           ярус пришлось бы отнять у чего-то другого.
       -->
-      <StackPanel Visibility="{Binding IsTransferEntryVisible, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel Grid.Row="5" Visibility="{Binding IsTransferEntryVisible, Converter={StaticResource BoolToVisibility}}">
         <Border Height="34"
-                CornerRadius="4"
+                CornerRadius="{StaticResource ControlCornerRadius}"
                 Padding="12,0"
                 Background="{DynamicResource ControlBackgroundBrush}">
           <TextBox x:Name="TransferField"
@@ -630,7 +687,7 @@
                   Command="{Binding Transfer}" />
         </Grid>
       </StackPanel>
-    </StackPanel>
+    </Grid>
 
     <!-- ==================== Неподвижный низ ==================== -->
 
@@ -703,4 +760,5 @@
       </Button>
     </Grid>
   </Grid>
+  </Border>
 </Window>

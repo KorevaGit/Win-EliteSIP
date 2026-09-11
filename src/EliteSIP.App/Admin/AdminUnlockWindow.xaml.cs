@@ -51,8 +51,25 @@ public partial class AdminUnlockWindow : Window
     private void OnPasswordChanged(object sender, RoutedEventArgs e)
     {
         EnterButton.IsEnabled = PasswordField.Password.Length > 0;
-        ProblemRow.Visibility = Visibility.Collapsed;
+
+        // Отказ прячется, когда человек начал набирать заново, — но не когда
+        // поле очистили мы сами после отказа. Прежде `Clear()` здесь же и
+        // прятал только что показанное «Неверный пароль»: окно выглядело
+        // молча перезапущенным.
+        if (PasswordField.Password.Length > 0)
+        {
+            ProblemRow.Visibility = Visibility.Collapsed;
+        }
     }
+
+    private void OnPasswordFocus(object sender, KeyboardFocusChangedEventArgs e) => ShowCapsLock();
+
+    private void OnPasswordKeyUp(object sender, KeyEventArgs e) => ShowCapsLock();
+
+    private void ShowCapsLock()
+        => CapsRow.Visibility = Keyboard.IsKeyToggled(Key.CapsLock)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
     private void OnPasswordKeyDown(object sender, KeyEventArgs e)
     {
@@ -76,16 +93,27 @@ public partial class AdminUnlockWindow : Window
             return;
         }
 
-        if (_access.Unlock(PasswordField.Password))
+        // Отказ приходит исключением, а не ложью в возвращаемом значении:
+        // `Unlock` возвращает `true` либо не возвращается вовсе.
+        try
         {
-            DialogResult = true;
+            _access.Unlock(PasswordField.Password);
+        }
+        catch (AdminAccessException)
+        {
+            // Один отказ на все случаи — испорченные данные и неудачный вывод
+            // ключа выглядят снаружи так же, как неверный пароль.
+            // Сначала очистить, потом показать: очистка сама прячет строку
+            // отказа (см. `OnPasswordChanged`).
+            PasswordField.Clear();
+            ProblemText.Text = Strings.Get("AdminUnlockWrongPassword");
+            ProblemRow.Visibility = Visibility.Visible;
+            PasswordField.Focus();
+            ShowCapsLock();
             return;
         }
 
-        ProblemText.Text = Strings.Get("AdminUnlockWrongPassword");
-        ProblemRow.Visibility = Visibility.Visible;
-        PasswordField.Clear();
-        PasswordField.Focus();
+        DialogResult = true;
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e) => DialogResult = false;

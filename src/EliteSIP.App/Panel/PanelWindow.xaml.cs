@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -53,11 +54,152 @@ public partial class PanelWindow : Window
     /// <summary>Куда панель переехала. Зовётся при закрытии.</summary>
     public Action<double, double>? SavePlacement { get; init; }
 
+    /// <summary>До какого размера панель растянули в прошлый раз.</summary>
+    public Func<(double Width, double Height)?>? RestoreSize { get; init; }
+
+    /// <summary>Новый размер после растягивания мышью.</summary>
+    public Action<double, double>? SaveSize { get; init; }
+
+    /// <summary>Ширина содержимого, на которой панель свёрстана. Всё шире — масштаб.</summary>
+    private double _baseFrameWidth;
+
+    /// <summary>Идёт ли растягивание мышью прямо сейчас.</summary>
+    private bool _isUserSizing;
+
+    /// <summary>Самый крупный масштаб: дальше клавиши становятся плакатом.</summary>
+    private const double MaximumZoom = 2.5;
+
+    /// <summary>Высота содержимого без масштаба и растяжения.</summary>
+    private double _baseContentHeight;
+
+    /// <summary>Рабочая область монитора, на котором стоит панель, в точках WPF.</summary>
+    ///
+    /// <remarks>
+    /// Своего монитора, а не основного: панель часто стоит на втором экране,
+    /// рядом с CRM, и мерить её по основному значит уводить её за чужой край.
+    /// </remarks>
+    private Rect WorkArea()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        var monitor = NativeMethods.MonitorFromWindow(handle, NativeMethods.MonitorDefaultToNearest);
+        var info = new NativeMethods.MonitorInfo { Size = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MonitorInfo>() };
+
+        if (monitor == 0 || !NativeMethods.GetMonitorInfo(monitor, ref info)
+            || PresentationSource.FromVisual(this)?.CompositionTarget is not { } target)
+        {
+            return SystemParameters.WorkArea;
+        }
+
+        // Пиксели монитора — в точки WPF: на экране со 150 % это разные числа.
+        var fromDevice = target.TransformFromDevice;
+        var topLeft = fromDevice.Transform(new Point(info.Work.Left, info.Work.Top));
+        var bottomRight = fromDevice.Transform(new Point(info.Work.Right, info.Work.Bottom));
+
+        return new Rect(topLeft, bottomRight);
+    }
+
+    /// <summary>Возвращает панель в пределы монитора, если растягивание вывело её за край.</summary>
+    private void KeepOnScreen()
+    {
+        var work = WorkArea();
+
+        if (Top + ActualHeight > work.Bottom)
+        {
+            Top = Math.Max(work.Top, work.Bottom - ActualHeight);
+        }
+
+        if (Top < work.Top)
+        {
+            Top = work.Top;
+        }
+
+        _bottomEdge = Top + ActualHeight;
+    }
+
+    private static class NativeMethods
+    {
+        internal const uint MonitorDefaultToNearest = 2;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        internal struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        internal struct MonitorInfo
+        {
+            public int Size;
+            public NativeRect Monitor;
+            public NativeRect Work;
+            public uint Flags;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern nint MonitorFromWindow(nint window, uint flags);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        internal static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
+    }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
 
+        // Исходная ширина содержимого — та, что была бы при 270 точках окна:
+        // на ней панель свёрстана. Считается от настоящей ширины за вычетом
+        // рамок, а не задаётся числом: рамки у Windows 10 и 11 разные.
+        //
+        // Окно при этом открывается шире — 324, на пятую часть крупнее
+        // (11 сентября 2026: «стандартный размер чуть больше»). Разница
+        // уходит в масштаб, а не в раскладку: крупнее становится всё сразу,
+        // а не одни растянутые клавиши.
+        _baseFrameWidth = Frame.ActualWidth > 0
+            ? Frame.ActualWidth - (ActualWidth - MinWidth)
+            : 254;
+        ApplyZoom();
+        UpdateMinimumHeight();
+
+        if (RestoreSize?.Invoke() is { } size && size.Width >= MinWidth)
+        {
+            SizeToContent = SizeToContent.Manual;
+            Width = size.Width;
+            Height = Math.Max(size.Height, MinHeight);
+        }
+
+        // Содержимое меняет высоту само — вторая линия, поле перевода, число
+        // макросов. Растянутому окну нельзя стать меньше того, что в нём
+        // лежит, иначе нижняя кнопка уедет за край.
+        //
+        // Только по тем свойствам, что меняют раскладку: таймер разговора
+        // трогает модель каждую секунду, и перемер на каждый такт — это
+        // пересборка разметки панели весь рабочий день.
+        Model.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName is nameof(PanelViewModel.IsTransferEntryVisible)
+                or nameof(PanelViewModel.HasMacros)
+                or nameof(PanelViewModel.ShowsMacros)
+                or nameof(PanelViewModel.MacroColumns)
+                or nameof(PanelViewModel.MacroHeight)
+                or nameof(PanelViewModel.IsInCall)
+                or nameof(PanelViewModel.Trouble))
+            {
+                Dispatcher.BeginInvoke(UpdateMinimumHeight, DispatcherPriority.Loaded);
+            }
+        };
+
         Restore();
+
+        // Сохранённый размер мог прийти с большего монитора или другого
+        // масштаба экрана — панель обязана встать целиком.
+        if (SizeToContent is SizeToContent.Manual)
+        {
+            KeepOnScreen();
+        }
 
         // Место запоминается по концу перетаскивания, а не по каждому шагу
         // мыши: настройки пишутся на каждую правку, и запись на каждый пиксель
@@ -76,14 +218,124 @@ public partial class PanelWindow : Window
 
     private nint OnMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
     {
+        const int WM_ENTERSIZEMOVE = 0x0231;
         const int WM_EXITSIZEMOVE = 0x0232;
+
+        if (message == WM_ENTERSIZEMOVE)
+        {
+            _isUserSizing = true;
+        }
 
         if (message == WM_EXITSIZEMOVE && WindowState is WindowState.Normal)
         {
+            _isUserSizing = false;
+
+            // Масштаб по ширине растит и высоту, и выросшее окно могло уйти
+            // за нижний край. Новый низ — тот, что получился в пределах экрана.
+            KeepOnScreen();
+
             SavePlacement?.Invoke(Left, Top);
+
+            if (SizeToContent is SizeToContent.Manual)
+            {
+                SaveSize?.Invoke(Width, Height);
+            }
         }
 
         return 0;
+    }
+
+    /// <summary>Масштаб по ширине: всё содержимое увеличивается равномерно.</summary>
+    ///
+    /// <remarks>
+    /// Через <c>LayoutTransform</c>, а не через пересчёт размеров: содержимое
+    /// раскладывается на исходной ширине и увеличивается целиком — кегль,
+    /// значки и поля вместе. Пересчёт каждого числа означал бы десятки мест, в
+    /// которых растянутая панель разойдётся с исходной.
+    ///
+    /// Высота при этом решается отдельно: лишняя, сверх нужной содержимому при
+    /// этом масштабе, уходит рядам со звёздочкой — макросам и кнопкам.
+    /// </remarks>
+    private void ApplyZoom()
+    {
+        if (_baseFrameWidth <= 0)
+        {
+            return;
+        }
+
+        var zoom = Math.Clamp(Frame.ActualWidth / _baseFrameWidth, 1, MaximumZoom);
+
+        // Масштаб растит и высоту, и дальше высоты экрана ему расти некуда:
+        // иначе растянутая вширь панель уводит «Позвонить» под панель задач.
+        var work = WorkArea();
+        var chrome = ActualHeight - Frame.ActualHeight;
+        if (_baseContentHeight > 0 && chrome > 0)
+        {
+            zoom = Math.Max(1, Math.Min(zoom, (work.Height - chrome) / _baseContentHeight));
+        }
+
+        if (Math.Abs(Zoom.ScaleX - zoom) < 0.001)
+        {
+            return;
+        }
+
+        Zoom.ScaleX = zoom;
+        Zoom.ScaleY = zoom;
+
+        // Чёткость увеличенного.
+        //
+        // Панель свёрстана под экранную сетку: текст в режиме `Display`
+        // подгоняется под пиксели исходного кегля, а края элементов
+        // округляются до целых точек. Под увеличением то и другое тянется как
+        // готовая картинка — привязанные к сетке буквы и однопиксельные края
+        // рассыпались на ступеньки, что и было видно в 0.1.47.
+        //
+        // В увеличенном окне текст считается в режиме `Ideal` — по контурам
+        // шрифта на итоговом размере, — и округление снимается: пиксель
+        // исходной сетки больше не существует, и держаться за него незачем.
+        // В исходном размере всё остаётся как было — там экранная сетка и
+        // даёт самый чёткий мелкий текст.
+        var zoomed = zoom > 1.001;
+        TextOptions.SetTextFormattingMode(
+            Root, zoomed ? TextFormattingMode.Ideal : TextFormattingMode.Display);
+        TextOptions.SetTextRenderingMode(
+            Root, zoomed ? TextRenderingMode.Grayscale : TextRenderingMode.Auto);
+        Root.UseLayoutRounding = !zoomed;
+        Root.SnapsToDevicePixels = !zoomed;
+
+        UpdateMinimumHeight();
+    }
+
+    /// <summary>Меньше содержимого окну становиться нельзя.</summary>
+    private void UpdateMinimumHeight()
+    {
+        if (!IsLoaded && _baseFrameWidth <= 0)
+        {
+            return;
+        }
+
+        // Сколько содержимому нужно без растяжения — замер на бесконечной
+        // высоте при нынешней ширине. Ряды со звёздочкой при таком замере
+        // берут свой минимум, то есть ровно исходную высоту панели, а масштаб
+        // в замер уже входит: у элемента с `LayoutTransform` желаемый размер
+        // — размер после преобразования.
+        var width = Frame.ActualWidth > 0 ? Frame.ActualWidth : _baseFrameWidth;
+        Root.Measure(new Size(width, double.PositiveInfinity));
+        var content = Root.DesiredSize.Height;
+        _baseContentHeight = content / Zoom.ScaleY;
+
+        // Следующий проход разметки обязан перемерить по-настоящему, а не
+        // взять замер на бесконечной высоте.
+        Root.InvalidateMeasure();
+
+        // Рамка и полоса заголовка — всё, что вне содержимого.
+        var chrome = ActualHeight - Frame.ActualHeight;
+        if (chrome <= 0 || double.IsNaN(chrome))
+        {
+            return;
+        }
+
+        MinHeight = Math.Ceiling(content + chrome);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -152,6 +404,20 @@ public partial class PanelWindow : Window
         }
     }
 
+    /// <summary>Звук нажатия на каждую набранную цифру.</summary>
+    ///
+    /// <remarks>
+    /// По вводу текста, а не по нажатию клавиши: так звучит и цифра с верхнего
+    /// ряда, и с цифрового блока, и вставка не звучит пачкой.
+    /// </remarks>
+    private void OnDialedNumberTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+    {
+        if (e.Text.Length == 1)
+        {
+            Model.KeyPressed?.Invoke(e.Text[0]);
+        }
+    }
+
     /// <summary>Держит нижний край окна на месте, когда середина меняет высоту.</summary>
     ///
     /// <remarks>
@@ -170,6 +436,18 @@ public partial class PanelWindow : Window
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
+
+        if (sizeInfo.WidthChanged)
+        {
+            ApplyZoom();
+        }
+
+        // Пока оператор тянет окно мышью, край двигает он сам: удержание низа
+        // здесь дёргало бы окно навстречу его руке.
+        if (_isUserSizing)
+        {
+            return;
+        }
 
         if (!sizeInfo.HeightChanged || _bottomEdge <= 0)
         {

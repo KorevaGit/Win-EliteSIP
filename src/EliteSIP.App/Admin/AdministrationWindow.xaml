@@ -10,26 +10,34 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=admin:AdministrationViewModel}"
         Title="{res:Loc AdminWindowTitle}"
-        Width="940"
+        Width="780"
         Height="457"
-        MinWidth="780"
+        MinWidth="740"
         MinHeight="457"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
+        FontSize="13"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
         TextOptions.TextFormattingMode="Display"
         theme:SettingsLayout.LabelColumn="132"
-        theme:SettingsLayout.RowMaxWidth="760">
+        theme:SettingsLayout.RowMaxWidth="560">
 
   <!--
-      Числа окна — из макета и замеров оригинала. Колонка подписей 132, а не
-      менеджерские 72: здесь «Отображаемое имя» и «Время регистрации», а не
-      «Громкость», и на 72 каждая вторая подпись переносилась бы в две строки.
+      Колонка подписей 132, а не менеджерские 72: здесь «Отображаемое имя» и
+      «Время регистрации», а не «Громкость», и на 72 каждая вторая подпись
+      переносилась бы в две строки.
 
       Высота 457 — и минимальная, и та, с которой окно открывается: её задаёт
-      сайдбар, все пункты которого обязаны быть видны сразу. Ширина 940 — с
-      запасом от порога, за которым списки перестраиваются в два столбца.
+      сайдбар, все пункты которого обязаны быть видны сразу.
+
+      Ширина считается по содержимому, а не берётся из макета оригинала.
+      Самая широкая строка — подпись 132 плюс зазор 6 плюс управление, которое
+      шире 360 не растёт; шаги стука со своими полями укладываются в тот же
+      предел. Отсюда потолок строки 560, а ширина окна — он же плюс сайдбар 160
+      и отступы полей. Прежние 940 при потолке 760 давали у правого края каждой
+      строки две с лишним сотни точек пустоты: окно читалось не просторным, а
+      сломанным.
   -->
 
   <Grid>
@@ -39,7 +47,7 @@
     </Grid.ColumnDefinitions>
 
     <!-- Боковой список разделов. -->
-    <Border Grid.Column="0" Background="{DynamicResource ControlBackgroundBrush}">
+    <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
       <ListBox ItemsSource="{Binding Sections}"
                SelectedValue="{Binding Section}"
                SelectedValuePath="Kind"
@@ -75,18 +83,18 @@
 
                     <Border x:Name="Row"
                             Background="Transparent"
-                            CornerRadius="6"
+                            CornerRadius="{StaticResource ControlCornerRadius}"
                             Padding="{TemplateBinding Padding}">
                       <ContentPresenter />
                     </Border>
                   </StackPanel>
                   <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
-                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource NavHoverBrush}" />
                     </Trigger>
                     <Trigger Property="IsSelected" Value="True">
-                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelectionBrush}" />
-                      <Setter Property="FontWeight" Value="SemiBold" />
+                      <!-- Как в настройках: выбранный раздел — текст и значок акцентом. -->
+                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                     </Trigger>
                   </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -98,9 +106,9 @@
         <ListBox.ItemTemplate>
           <DataTemplate DataType="{x:Type admin:AdminSectionItem}">
             <StackPanel Orientation="Horizontal">
-              <theme:Icon Glyph="{Binding Glyph}" Size="15" VerticalAlignment="Center"
-                          Foreground="{DynamicResource TextSecondaryBrush}" />
-              <TextBlock Text="{Binding Title}" Margin="6,0,0,0" VerticalAlignment="Center" />
+              <theme:Icon Glyph="{Binding Glyph}" Size="16" VerticalAlignment="Center"
+                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+              <TextBlock Text="{Binding Title}" Margin="12,0,0,0" VerticalAlignment="Center" />
             </StackPanel>
           </DataTemplate>
         </ListBox.ItemTemplate>
@@ -136,21 +144,21 @@
           <StackPanel Visibility="{Binding ShowsAccount, Converter={StaticResource BoolToVisibility}}">
             <theme:SettingsSection Header="{res:Loc AdminAccountTitle}">
               <theme:SettingsRow Header="{res:Loc AdminAccountUsername}">
-                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminAccountDisplayName}">
-                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminAccountPassword}">
-                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
                   <PasswordBox x:Name="SipPasswordField"
                                VerticalContentAlignment="Center"
                                Background="Transparent"
@@ -174,21 +182,21 @@
           <StackPanel Visibility="{Binding ShowsPbx, Converter={StaticResource BoolToVisibility}}">
             <theme:SettingsSection Header="{res:Loc AdminPbxTitle}">
               <theme:SettingsRow Header="{res:Loc AdminPbxOffice}">
-                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding OfficeAddress, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminPbxRemote}">
-                <Border Height="26" CornerRadius="6" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding RemoteAddress, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminPbxPort}">
-                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
@@ -207,7 +215,7 @@
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminPbxExpiry}">
-                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding RegistrationExpirySeconds, UpdateSourceTrigger=PropertyChanged}" />
@@ -240,14 +248,14 @@
                         <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
 
-                      <Border Grid.Column="0" Height="26" CornerRadius="6" Padding="6,0"
+                      <Border Grid.Column="0" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                               Background="{DynamicResource ControlHoverBrush}">
                         <TextBox Style="{StaticResource PanelTextBoxStyle}"
                                  Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
                                  Tag="{res:Loc AdminKnockHost}" />
                       </Border>
 
-                      <Border Grid.Column="2" Height="26" CornerRadius="6" Padding="6,0"
+                      <Border Grid.Column="2" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                               Background="{DynamicResource ControlHoverBrush}">
                         <TextBox Style="{StaticResource PanelTextBoxStyle}"
                                  FontFamily="Consolas"
@@ -255,7 +263,7 @@
                                  Tag="{res:Loc AdminKnockBytes}" />
                       </Border>
 
-                      <Border Grid.Column="4" Height="26" CornerRadius="6" Padding="6,0"
+                      <Border Grid.Column="4" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                               Background="{DynamicResource ControlHoverBrush}">
                         <TextBox Style="{StaticResource PanelTextBoxStyle}"
                                  FontFamily="Consolas"
@@ -285,7 +293,7 @@
               <theme:SettingsDivider />
 
               <theme:SettingsRow Header="{res:Loc AdminKnockSpacing}">
-                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding KnockSpacingSeconds, UpdateSourceTrigger=PropertyChanged}" />
@@ -293,7 +301,7 @@
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminKnockRepeat}">
-                <Border Height="26" Width="90" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding KnockRepeatIntervalSeconds, UpdateSourceTrigger=PropertyChanged}" />
@@ -311,7 +319,7 @@
             <theme:SettingsSection Header="{res:Loc AdminPbxTlsTitle}"
                                    Visibility="{Binding IsTls, Converter={StaticResource BoolToVisibility}}">
               <theme:SettingsRow Header="{res:Loc AdminPbxTlsFingerprint}">
-                <Border Height="26" CornerRadius="6" Padding="6,0"
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            IsEnabled="{Binding AcceptsAnyTlsCertificate, Converter={StaticResource NotBool}}"
@@ -334,7 +342,7 @@
 
             <theme:SettingsSection Header="{res:Loc AdminPbxFeatureTitle}">
               <theme:SettingsRow Header="{res:Loc AdminPbxTransfer}">
-                <Border Height="26" Width="120" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                <Border Height="24" Width="120" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            FontFamily="Consolas"
@@ -343,7 +351,7 @@
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminPbxConference}">
-                <Border Height="26" Width="120" HorizontalAlignment="Left" CornerRadius="6" Padding="6,0"
+                <Border Height="24" Width="120" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            FontFamily="Consolas"
@@ -372,7 +380,7 @@
                         <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
 
-                      <Border Grid.Column="0" Height="26" CornerRadius="6" Padding="6,0"
+                      <Border Grid.Column="0" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                               Background="{DynamicResource ControlHoverBrush}">
                         <TextBox Style="{StaticResource PanelTextBoxStyle}"
                                  FontFamily="Consolas"
@@ -380,7 +388,7 @@
                                  Tag="{res:Loc AdminQueueNumber}" />
                       </Border>
 
-                      <Border Grid.Column="2" Height="26" CornerRadius="6" Padding="6,0"
+                      <Border Grid.Column="2" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                               Background="{DynamicResource ControlHoverBrush}">
                         <TextBox Style="{StaticResource PanelTextBoxStyle}"
                                  Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
@@ -618,6 +626,48 @@
                         Click="OnOpenFolderClick" />
               </theme:SettingsIndented>
             </theme:SettingsSection>
+
+            <!--
+                Сброс — своей плашкой, а не строкой в «Обслуживании» выше.
+                Довод из оригинала: иначе в одном ряду оказываются «Открыть
+                папку» и «Стереть машину», и человек ищет первое, глядя на
+                второе.
+            -->
+            <theme:SettingsSection Header="{res:Loc AdminResetTitle}">
+              <theme:SettingsIndented>
+                <StackPanel Orientation="Horizontal">
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          Content="{res:Loc AdminResetButton}"
+                          IsEnabled="{Binding CanResetMachine}"
+                          Click="OnResetMachineClick" />
+
+                  <!--
+                      Подсказка видна ровно тогда, когда кнопка погашена.
+                      Триггером, а не конвертером: встроенный
+                      `BooleanToVisibilityConverter` инверсии не умеет, а
+                      заводить свой ради одной строки незачем.
+                  -->
+                  <TextBlock Text="{res:Loc AdminResetInCall}"
+                             Margin="8,0,0,0"
+                             FontSize="12"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource TextSecondaryBrush}">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding CanResetMachine}" Value="False">
+                            <Setter Property="Visibility" Value="Visible" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </StackPanel>
+              </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc AdminResetNote}" />
+            </theme:SettingsSection>
           </StackPanel>
 
           <!--
@@ -678,7 +728,7 @@
 
             <theme:SettingsSection Header="{res:Loc AdminSupportReflashTitle}">
               <theme:SettingsRow Header="{res:Loc AdminSupportReflashKey}">
-                <Border Height="26" CornerRadius="6" Padding="6,0"
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlBackgroundBrush}">
                   <TextBox Style="{StaticResource PanelTextBoxStyle}"
                            Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
@@ -706,7 +756,7 @@
                   <DataTemplate DataType="{x:Type settings:MacroSetting}">
                     <Border Margin="0,3"
                             Padding="8"
-                            CornerRadius="8"
+                            CornerRadius="{StaticResource ControlCornerRadius}"
                             Background="{DynamicResource ControlHoverBrush}">
                       <StackPanel>
                         <Grid>
@@ -719,8 +769,8 @@
                           </Grid.ColumnDefinitions>
 
                           <Border Grid.Column="0"
-                                  Height="26"
-                                  CornerRadius="6"
+                                  Height="24"
+                                  CornerRadius="{StaticResource ControlCornerRadius}"
                                   Padding="6,0"
                                   Background="{DynamicResource SurfaceBrush}">
                             <TextBox Style="{StaticResource PanelTextBoxStyle}"
@@ -729,8 +779,8 @@
                           </Border>
 
                           <Border Grid.Column="2"
-                                  Height="26"
-                                  CornerRadius="6"
+                                  Height="24"
+                                  CornerRadius="{StaticResource ControlCornerRadius}"
                                   Padding="6,0"
                                   Background="{DynamicResource SurfaceBrush}">
                             <TextBox Style="{StaticResource PanelTextBoxStyle}"
@@ -864,7 +914,7 @@
                                   Visibility="{Binding IsProtected, Converter={StaticResource NotBoolToVisibility}}" />
 
               <theme:SettingsRow Header="{res:Loc AdminAccessNewPassword}">
-                <Border Height="26" CornerRadius="6" Padding="6,0"
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <PasswordBox x:Name="NewPasswordField"
                                VerticalContentAlignment="Center"
@@ -877,7 +927,7 @@
               </theme:SettingsRow>
 
               <theme:SettingsRow Header="{res:Loc AdminAccessRepeatPassword}">
-                <Border Height="26" CornerRadius="6" Padding="6,0"
+                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
                         Background="{DynamicResource ControlHoverBrush}">
                   <PasswordBox x:Name="RepeatedPasswordField"
                                VerticalContentAlignment="Center"
@@ -974,18 +1024,45 @@
       <Border Grid.Row="1" Padding="12,8">
         <Grid>
           <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
 
-          <TextBlock Grid.Column="0"
-                     VerticalAlignment="Center"
-                     FontSize="12"
-                     Foreground="{DynamicResource UnsavedBrush}"
-                     Text="●"
-                     Visibility="{Binding IsDirty, Converter={StaticResource BoolToVisibility}}" />
+          <!--
+              Значок и две строки, а не одна точка. Точка говорит «что-то не
+              так», но не говорит что: после «Сохранить» она молча гасла, окно
+              оставалось открытым, и нажатие читалось как не сделавшее ничего.
+          -->
+          <theme:Icon Grid.Column="0"
+                      Size="16"
+                      VerticalAlignment="Center"
+                      Margin="0,0,8,0">
+            <theme:Icon.Style>
+              <Style TargetType="{x:Type theme:Icon}">
+                <Setter Property="Glyph" Value="lock.shield.fill" />
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                    <Setter Property="Glyph" Value="exclamationmark.triangle" />
+                    <Setter Property="Foreground" Value="{DynamicResource UnsavedBrush}" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </theme:Icon.Style>
+          </theme:Icon>
 
-          <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Text="{Binding SaveStateTitle}"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="{Binding SaveStateBody}"
+                       Margin="0,1,0,0"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
             <Button Style="{StaticResource SettingsButtonStyle}"
                     Content="{res:Loc AdminRevert}"
                     IsEnabled="{Binding IsDirty}"

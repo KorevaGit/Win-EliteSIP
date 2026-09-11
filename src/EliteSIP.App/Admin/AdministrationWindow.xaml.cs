@@ -68,7 +68,33 @@ public partial class AdministrationWindow : Window
         }
     }
 
-    private void OnSaveClick(object sender, RoutedEventArgs e) => Model.Save();
+    /// <summary>Сохранение: подтвердить, записать, закрыть.</summary>
+    ///
+    /// <remarks>
+    /// Подтверждение дублирует предупреждение со входа — намеренно, как в
+    /// оригинале: между входом и нажатием проходит вся настройка рабочего
+    /// места, и прочитанное на входе к этому моменту забыто.
+    ///
+    /// Окно закрывается следом. Молча оставаться открытым после записи оно не
+    /// должно: единственным откликом на нажатие была гаснущая точка, и
+    /// «Сохранить» выглядела кнопкой, которая ничего не делает.
+    /// </remarks>
+    private void OnSaveClick(object sender, RoutedEventArgs e)
+    {
+        var answer = Theme.Dialog.Ask(
+            this,
+            Strings.Get("AdminSaveConfirmTitle"),
+            Strings.Get("AdminSaveConfirmBody"),
+            confirmTitle: Strings.Get("AdminSave"));
+
+        if (answer is not DialogAnswer.Confirm)
+        {
+            return;
+        }
+
+        Model.Save();
+        Close();
+    }
 
     private void OnRevertClick(object sender, RoutedEventArgs e) => Model.Revert();
 
@@ -153,6 +179,55 @@ public partial class AdministrationWindow : Window
         {
             Model.RemovePassword();
         }
+    }
+
+    /// <summary>Стирает машину по решению администратора.</summary>
+    ///
+    /// <remarks>
+    /// Дорога та же, что и у отзыва панели: файлы стираются и приложение
+    /// перезапускается, встречая человека мастером. Двух разных сбросов быть не
+    /// должно — машина обязана прийти в одно состояние, кто бы её ни стёр.
+    ///
+    /// Подтверждение с отсчётом, а не обычное: цена нажатия — стёртое рабочее
+    /// место, и вернуть его нечем. Проверка «не в разговоре» повторяется здесь,
+    /// хотя кнопка и погашена: между открытием раздела и нажатием проходит
+    /// чтение двух абзацев и десять секунд отсчёта, и вызов за это время
+    /// успевает начаться.
+    /// </remarks>
+    private void OnResetMachineClick(object sender, RoutedEventArgs e)
+    {
+        if (!Model.CanResetMachine)
+        {
+            return;
+        }
+
+        var answer = Theme.Dialog.Ask(
+            this,
+            Strings.Get("AdminResetConfirmTitle"),
+            Strings.Get("AdminResetConfirmBody"),
+            confirmTitle: Strings.Get("AdminResetConfirmButton"),
+            footnote: Strings.Get("AdminResetConfirmFootnote"),
+            countdownSeconds: 10,
+            destructive: true);
+
+        if (answer is not DialogAnswer.Confirm || !Model.CanResetMachine)
+        {
+            return;
+        }
+
+        var reset = Model.ResetMachine;
+
+        // Черновик снимается до закрытия: иначе окно спросило бы про
+        // несохранённое, которое через мгновение будет стёрто вместе со всем
+        // остальным. Вопрос, у которого оба ответа означают одно, задавать
+        // незачем.
+        Model.Revert();
+        Close();
+
+        // Через очередь, а не отсюда: сброс закрывает окна и завершает
+        // приложение, а мы всё ещё внутри обработчика нажатия в окне, которое
+        // только что закрыли.
+        Dispatcher.BeginInvoke(reset);
     }
 
     /// <summary>Показывает папку с настройками и журналом.</summary>

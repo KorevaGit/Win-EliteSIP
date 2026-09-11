@@ -54,6 +54,85 @@ public sealed class RtpSessionTests
     }
 
     [Fact]
+    public void Порт_привязывается_к_адресу_сигнализации()
+    {
+        // Ради этого привязка и заведена: сокет «к любому» получает маршрут на
+        // каждом пакете заново, и VPN с маршрутом до АТС уводит RTP под чужим
+        // адресом, пока SIP и SDP остаются на прежнем интерфейсе.
+        using RtpPortReservation reservation = RtpPortReservation.Reserve(localAddress: "127.0.0.1");
+
+        Assert.Equal(IPAddress.Loopback, reservation.LocalAddress);
+
+        using Socket rtp = reservation.TakeRtpSocket();
+        using Socket rtcp = reservation.TakeRtcpSocket();
+        Assert.Equal(new IPEndPoint(IPAddress.Loopback, reservation.RtpPort), rtp.LocalEndPoint);
+        Assert.Equal(new IPEndPoint(IPAddress.Loopback, reservation.RtcpPort), rtcp.LocalEndPoint);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("0.0.0.0")]
+    [InlineData("::1")]
+    [InlineData("не адрес")]
+    public void Без_годного_адреса_порт_привязывается_ко_всем(string? localAddress)
+    {
+        // Неизвестный адрес — не повод отказать в звонке: так было до привязки,
+        // и так остаётся, пока канал не сообщил свой адрес. IPv6 сюда же:
+        // сокеты резервации только IPv4.
+        using RtpPortReservation reservation = RtpPortReservation.Reserve(localAddress: localAddress);
+
+        Assert.Equal(IPAddress.Any, reservation.LocalAddress);
+
+        using Socket rtp = reservation.TakeRtpSocket();
+        Assert.Equal(new IPEndPoint(IPAddress.Any, reservation.RtpPort), rtp.LocalEndPoint);
+    }
+
+    [Fact]
+    public void Пропавший_адрес_сигнализации_не_выдаётся_за_нехватку_портов()
+    {
+        // Адрес из TEST-NET-3 (RFC 5737) заведомо не принадлежит машине — так
+        // выглядит адаптер, который пропал между подключением и звонком.
+        // Привязка к нему не проходит ни на одном порту, и без запасного круга
+        // оператор увидел бы «нет свободного порта».
+        using RtpPortReservation reservation = RtpPortReservation.Reserve(localAddress: "203.0.113.7");
+
+        Assert.Equal(IPAddress.Any, reservation.LocalAddress);
+    }
+
+    [Fact]
+    public async Task Поток_на_привязанном_адресе_принимает_пакеты()
+    {
+        using RtpPortReservation sender = RtpPortReservation.Reserve(localAddress: "127.0.0.1");
+        using RtpPortReservation receiver = RtpPortReservation.Reserve(localAddress: "127.0.0.1");
+
+        using RtpSession outgoing = new(
+            new RtpSessionConfiguration(),
+            sender.RtpPort,
+            "127.0.0.1",
+            receiver.RtpPort,
+            sender.TakeRtpSocket());
+        using RtpSession incoming = new(
+            new RtpSessionConfiguration(),
+            receiver.RtpPort,
+            "127.0.0.1",
+            sender.RtpPort,
+            receiver.TakeRtpSocket());
+
+        TaskCompletionSource<RtpPacket> arrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        incoming.OnReceivedPacket = packet => arrived.TrySetResult(packet);
+        incoming.Start();
+        outgoing.Start();
+
+        byte[] silence = new byte[160];
+        Array.Fill(silence, G711.MuLawSilence);
+        outgoing.Send(silence);
+
+        RtpPacket packet = await arrived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(outgoing.SynchronizationSource, packet.Ssrc);
+    }
+
+    [Fact]
     public void Настройки_строятся_из_результата_согласования_SDP()
     {
         NegotiatedMedia negotiated = new(

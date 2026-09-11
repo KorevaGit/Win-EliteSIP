@@ -164,6 +164,12 @@
   <data name="AudioRelease" xml:space="preserve">
     <value>Отпускать наушники между звонками</value>
   </data>
+  <data name="AudioNoiseSuppression" xml:space="preserve">
+    <value>Шумоподавление</value>
+  </data>
+  <data name="AudioNoiseSuppressionNote" xml:space="preserve">
+    <value>Убирает шум комнаты из вашего голоса. Выключайте только на гарнитуре: на динамиках ноутбука он же гасит эхо, которое услышит собеседник. Действует со следующего звонка.</value>
+  </data>
   <data name="AudioLevelsNote" xml:space="preserve">
     <value>Уровни появятся здесь в разговоре и во время проверки ниже: по ним видно, что уходит в линию и что приходит из неё.</value>
   </data>
@@ -340,6 +346,78 @@
   </data>
   <data name="AdminRevert" xml:space="preserve">
     <value>Отменить</value>
+  </data>
+  <data name="AdminDirtyTitle" xml:space="preserve">
+    <value>Есть несохранённые изменения</value>
+  </data>
+  <data name="AdminDirtyBody" xml:space="preserve">
+    <value>Пока не нажато «Сохранить», на диск не записано ничего.</value>
+  </data>
+  <data name="AdminCleanTitle" xml:space="preserve">
+    <value>Изменений нет</value>
+  </data>
+  <data name="AdminCleanBody" xml:space="preserve">
+    <value>Настройки этой машины задаёт её администратор.</value>
+  </data>
+  <data name="AdminCleanBodyManaged" xml:space="preserve">
+    <value>Настройками этой машины управляет панель EliteSIP.</value>
+  </data>
+  <data name="SupportCheckPresets" xml:space="preserve">
+    <value>Проверить обновление предустановок</value>
+  </data>
+  <data name="SupportPresetsNote" xml:space="preserve">
+    <value>Спрашивает панель о настройках рабочего места — клавишах, очередях, адресах. Обычно это происходит само раз в два часа.</value>
+  </data>
+  <data name="SupportKeyChecking" xml:space="preserve">
+    <value>Проверяем ключ…</value>
+  </data>
+  <data name="SupportKeyApplied" xml:space="preserve">
+    <value>Настройки сменились. Приложение перезапустится.</value>
+  </data>
+  <data name="SupportLogsCollected" xml:space="preserve">
+    <value>Архив собран: {0}</value>
+  </data>
+  <data name="SupportLogsFailed" xml:space="preserve">
+    <value>Архив собрать не удалось: {0}</value>
+  </data>
+  <data name="SupportNetworkRepaired" xml:space="preserve">
+    <value>Дорога до АТС открыта заново.</value>
+  </data>
+  <data name="SupportPresetsAsked" xml:space="preserve">
+    <value>Панель опрошена.</value>
+  </data>
+  <data name="FirstRunKeyNoChannel" xml:space="preserve">
+    <value>В это приложение не положена заводская настройка, поэтому проверить ключ негде. Такая машина не получит ни предустановок, ни обновлений: настройте её вручную и сообщите тому, кто выпускал сборку.</value>
+  </data>
+  <data name="AdminResetTitle" xml:space="preserve">
+    <value>Сброс</value>
+  </data>
+  <data name="AdminResetButton" xml:space="preserve">
+    <value>Сбросить машину…</value>
+  </data>
+  <data name="AdminResetInCall" xml:space="preserve">
+    <value>недоступно в разговоре</value>
+  </data>
+  <data name="AdminResetNote" xml:space="preserve">
+    <value>Стирает настройки, историю и журнал — машина станет такой же, как сразу после установки, и пароля администратора на ней не будет. Готовится к передаче рабочего места другому сотруднику.</value>
+  </data>
+  <data name="AdminResetConfirmTitle" xml:space="preserve">
+    <value>Сбросить машину?</value>
+  </data>
+  <data name="AdminResetConfirmBody" xml:space="preserve">
+    <value>Будут стёрты настройки, история звонков и журнал. Профили, пароли, клавиши, очереди и последовательность стука исчезнут; пароля администратора на машине не останется, и закрытые настройки будут открыты всем.</value>
+  </data>
+  <data name="AdminResetConfirmFootnote" xml:space="preserve">
+    <value>Вернуть это нельзя ни «Отменой», ни из архива для поддержки: он собирается из журнала, а журнал стирается вместе со всем остальным.</value>
+  </data>
+  <data name="AdminResetConfirmButton" xml:space="preserve">
+    <value>Сбросить</value>
+  </data>
+  <data name="AdminSaveConfirmTitle" xml:space="preserve">
+    <value>Сохранить настройки?</value>
+  </data>
+  <data name="AdminSaveConfirmBody" xml:space="preserve">
+    <value>Настройки этой машины станут локальными: их задаёт администратор, а не файл конфигурации. Сохранение будет записано в журнал.</value>
   </data>
   <data name="AdminMacrosTitle" xml:space="preserve">
     <value>Клавиши макросов</value>
@@ -662,6 +740,12 @@
   <data name="TroubleNoAudio" xml:space="preserve">
     <value>Нет звукового устройства</value>
   </data>
+  <data name="CallStatusDialing" xml:space="preserve">
+    <value>Набор…</value>
+  </data>
+  <data name="CallStatusRinging" xml:space="preserve">
+    <value>Гудки…</value>
+  </data>
   <data name="CallStatusTalking" xml:space="preserve">
     <value>разговор</value>
   </data>
@@ -966,5 +1050,41 @@
   </data>
   <data name="AdminMaintenanceAutoStartNote" xml:space="preserve">
     <value>Софтфон, не поднявшийся после ночной перезагрузки, пропускает первые звонки смены. Переключатель действует сразу, а не по «Сохранить»: правду об автозапуске держит сама Windows и показывает её в диспетчере задач.</value>
+  </data>
+  <data name="AudioInputSection" xml:space="preserve">
+    <value>Микрофон</value>
+  </data>
+  <data name="AudioOutputSection" xml:space="preserve">
+    <value>Наушники</value>
+  </data>
+  <data name="AudioDevice" xml:space="preserve">
+    <value>Устройство</value>
+  </data>
+  <data name="AudioProcessingSection" xml:space="preserve">
+    <value>Обработка голоса</value>
+  </data>
+  <data name="AudioSelfTestSection" xml:space="preserve">
+    <value>Проверка звука</value>
+  </data>
+  <data name="SupportLogsSection" xml:space="preserve">
+    <value>Журнал для поддержки</value>
+  </data>
+  <data name="SupportUpdatesSection" xml:space="preserve">
+    <value>Обновления</value>
+  </data>
+  <data name="SupportPresetsSection" xml:space="preserve">
+    <value>Предустановки</value>
+  </data>
+  <data name="SwitchOn" xml:space="preserve">
+    <value>Вкл.</value>
+  </data>
+  <data name="SwitchOff" xml:space="preserve">
+    <value>Откл.</value>
+  </data>
+  <data name="UpdatesDownloading" xml:space="preserve">
+    <value>Скачиваем {0}: {1} из {2} МБ</value>
+  </data>
+  <data name="AdminUnlockCapsLock" xml:space="preserve">
+    <value>Включён Caps Lock</value>
   </data>
 </root>

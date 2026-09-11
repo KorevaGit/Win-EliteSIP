@@ -159,6 +159,10 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
     private WaveFormat? _captureFormat;
     private WaveFormat? _renderFormat;
+
+    /// <summary>Разрядность устройств. Разбирается один раз при подъёме тракта.</summary>
+    private SampleLayout _captureLayout;
+    private SampleLayout _renderLayout;
     private int _renderPadding;
     private int _capturePendingSamples;
     private int _latencyFrames;
@@ -167,6 +171,20 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private double _lastClockSample;
     private AudioDeviceWatch? _watch;
     private RestartSupervisor? _supervisor;
+
+    /// <summary>
+    /// Пики уровня с подъёма тракта: сырой микрофон, ушедшее в линию и
+    /// отданное наушникам.
+    ///
+    /// Три точки, а не одна, потому что жалоба «не слышно» без них не
+    /// разбирается: тишина на микрофоне — это устройство, тишина после
+    /// обработки — шумодав или АРУ, тишина в наушниках при принятых пакетах —
+    /// то, что прислал собеседник. Пишет каждую свой поток, читает журнал; гонка
+    /// здесь стоит одного неточного числа в строке диагностики.
+    /// </summary>
+    private float _capturePeak;
+    private float _sentPeak;
+    private float _playedPeak;
 
     /// <summary>
     /// Чем тракт связан с устройствами: что просили в настройках и что
@@ -561,7 +579,33 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             _balance.Summary,
             _rateController.Summary,
             _drift.Summary,
-            $"задержка эхоподавителю: {DeclaredDelayMilliseconds} мс");
+            $"задержка эхоподавителю: {DeclaredDelayMilliseconds} мс",
+            LevelSummary);
+    }
+
+    /// <summary>Пики уровня одной строкой. Сбрасываются на каждом подъёме тракта.</summary>
+    public string LevelSummary =>
+        $"пики: микрофон {Decibels(_capturePeak)}, в линию {Decibels(_sentPeak)}, "
+        + $"в наушники {Decibels(_playedPeak)}";
+
+    private static string Decibels(float peak) => peak <= 1e-5f
+        ? "тишина"
+        : string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{20 * Math.Log10(peak):F0} дБ");
+
+    private static float PeakOf(ReadOnlySpan<float> samples, float peak)
+    {
+        foreach (float sample in samples)
+        {
+            float magnitude = Math.Abs(sample);
+            if (magnitude > peak)
+            {
+                peak = magnitude;
+            }
+        }
+
+        return peak;
     }
 
     // MARK: - Сборка и разбор
@@ -603,10 +647,16 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _captureFormat = _captureClient.MixFormat;
         _renderFormat = _renderClient.MixFormat;
 
+        _captureLayout = LayoutOf(_captureFormat, "захват");
+        _renderLayout = LayoutOf(_renderFormat, "вывод");
+
         int processingRate = VoiceProcessor.NearestSupportedRate(_captureFormat.SampleRate);
         int codecRate = (int)_configuration.Codec.SampleRate();
 
-        _processor = new VoiceProcessor(processingRate, _configuration.AutomaticGainControl);
+        _processor = new VoiceProcessor(
+            processingRate,
+            _configuration.AutomaticGainControl,
+            _configuration.NoiseSuppression);
 
         _captureToProcessing = new Resampler(_captureFormat.SampleRate, processingRate);
         _processingToCodec = new Resampler(processingRate, codecRate);
@@ -677,6 +727,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         _correctionCarry = 0;
         _lastClockSample = 0;
+        _capturePeak = _sentPeak = _playedPeak = 0;
         _uptime.Restart();
         _captureClient.Start();
         _renderClient.Start();
@@ -688,9 +739,21 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _renderThread = StartThread("elitesip-render", () => RenderLoop(token));
         _feedThread = StartThread("elitesip-feed", () => FeedLoop(token));
 
+        // Имена устройств — первым делом. Жалоба «микрофон не идёт» 11 сентября
+        // 2026 оказалась гарнитурой, которая лежала на столе: тракт открывал
+        // системное устройство для связи, а говорили в другое, и по журналу,
+        // где были одни форматы, этого было не видно вовсе.
         Diagnostic(
-            $"тракт поднят: захват {_captureFormat.SampleRate} Гц {_captureFormat.Channels} кан., "
-            + $"вывод {_renderFormat.SampleRate} Гц {_renderFormat.Channels} кан., "
+            $"тракт поднят: микрофон «{_inputDevice.FriendlyName}», наушники «{_outputDevice.FriendlyName}»"
+            + (_configuration.InputDeviceId is null || _configuration.OutputDeviceId is null
+                ? " (системные для связи)"
+                : string.Empty));
+
+        Diagnostic(
+            $"форматы: захват {_captureFormat.SampleRate} Гц {_captureFormat.Channels} кан. "
+            + $"{_captureFormat.Encoding}/{_captureFormat.BitsPerSample} бит, "
+            + $"вывод {_renderFormat.SampleRate} Гц {_renderFormat.Channels} кан. "
+            + $"{_renderFormat.Encoding}/{_renderFormat.BitsPerSample} бит, "
             + $"обработка {processingRate} Гц, кодек {_configuration.Codec} {codecRate} Гц, "
             + $"запас кольца {targetFill} отсчётов, латентность потоков "
             + $"{_latencyFrames * 1000.0 / processingRate:F1} мс");
@@ -807,6 +870,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         AudioCaptureClient capture = client.AudioCaptureClient;
         int channels = format.Channels;
+        SampleLayout layout = _captureLayout;
 
         float[] mono = new float[format.SampleRate];
         float[] processingPending = new float[format.SampleRate];
@@ -831,7 +895,15 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
                     if (frames > 0 && frames <= mono.Length)
                     {
-                        MixToMono(buffer, mono, frames, channels);
+                        MixToMono(buffer, mono, frames, channels, layout);
+
+                        // Флаг «тишина» означает, что буфер читать не надо:
+                        // система отдаёт в нём что угодно.
+                        if ((flags & AudioClientBufferFlags.Silent) == 0)
+                        {
+                            _capturePeak = PeakOf(mono.AsSpan(0, frames), _capturePeak);
+                        }
+
                         activity.NoteDelivered(frames);
                         balance.NoteCaptured(frames);
 
@@ -894,6 +966,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int size = frame.Length;
         int offset = 0;
 
+        float peak = _sentPeak;
+
         while (count - offset >= size)
         {
             for (int i = 0; i < size; i++)
@@ -902,7 +976,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 // кодированием: решение перенесено из оригинала вместе с
                 // причиной — оно умножает уже готовые отсчёты вместе со всем,
                 // что в них попало, поэтому и ограничено вдвое.
-                frame[i] = ToPcm(pending[offset + i] * gain);
+                float sample = pending[offset + i] * gain;
+                peak = Math.Max(peak, Math.Abs(sample));
+                frame[i] = ToPcm(sample);
             }
 
             offset += size;
@@ -911,6 +987,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             balance.NoteEncodedFrame();
             Handlers.EncodedFrame?.Invoke(payload);
         }
+
+        _sentPeak = peak;
 
         if (offset > 0)
         {
@@ -962,6 +1040,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         AudioRenderClient render = client.AudioRenderClient;
         int channels = format.Channels;
+        SampleLayout layout = _renderLayout;
         int bufferFrames = client.BufferSize;
         float volume = _configuration.PlaybackVolume;
 
@@ -1006,7 +1085,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     scratch[i] *= volume;
                 }
 
-                WriteFrames(render, scratch, free, channels);
+                _playedPeak = PeakOf(scratch.AsSpan(0, free), _playedPeak);
+
+                WriteFrames(render, scratch, free, channels, layout);
 
                 // Опорный сигнал эхоподавителю — ровно то, что мы отдали
                 // устройству, и в том же порядке. Брать его до умножения на
@@ -1038,41 +1119,145 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         }
     }
 
+    /// <summary>
+    /// Разрядность устройства.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// В общем режиме WASAPI разговаривает с нами форматом устройства, и он не
+    /// обязан быть тем, которого мы ждём. Порт до 10 сентября 2026 приводил
+    /// буфер к <c>float*</c> в обе стороны и не проверял ничего: на USB-гарнитуре
+    /// это работало (там почти всегда 32-битные float), а на встроенном Realtek,
+    /// отдающем 16-битный PCM, байты читались как float. Получалась ровно та
+    /// пара, с которой пришёл заказчик: на выводе «робот», на захвате значения
+    /// вне диапазона, которые эхоподавление и АРУ добивали до тишины.
+    ///
+    /// Ветка выбирается один раз, до цикла, а не на каждом отсчёте: цикл этот
+    /// крутится каждые десять миллисекунд.
+    /// </remarks>
+    private enum SampleLayout
+    {
+        Float32,
+        Pcm16,
+    }
+
+    // Подтипы расширенного формата. Числа из `mmreg.h`; своими константами, а
+    // не через NAudio, потому что имени у них там нет.
+    private static readonly Guid SubTypePcm = new("00000001-0000-0010-8000-00aa00389b71");
+    private static readonly Guid SubTypeIeeeFloat = new("00000003-0000-0010-8000-00aa00389b71");
+
+    /// <summary>Разбирает формат устройства. Отказ — с внятной причиной.</summary>
+    ///
+    /// <remarks>
+    /// Отказ, а не молчаливое «попробуем как float»: неверно прочитанный звук
+    /// не выглядит поломкой, он выглядит плохой связью, и разбирают его
+    /// неделями. Пусть лучше тракт не поднимется и скажет почему.
+    /// </remarks>
+    private static SampleLayout LayoutOf(WaveFormat format, string role)
+    {
+        // Расширенный формат — обычный ответ WASAPI, а не редкость.
+        //
+        // Здесь я уже ошибся однажды, 10 сентября 2026, и ошибка стоила выпуска
+        // 0.1.1: разбор смотрел только на `Encoding`, а у `MixFormat` он почти
+        // всегда `Extensible` — настоящий вид лежит в подтипе. Тракт падал на
+        // каждом звонке, и падал молча.
+        var encoding = format.Encoding;
+        var bits = format.BitsPerSample;
+
+        if (format is WaveFormatExtensible extensible)
+        {
+            encoding = extensible.SubFormat == SubTypeIeeeFloat
+                ? WaveFormatEncoding.IeeeFloat
+                : extensible.SubFormat == SubTypePcm
+                    ? WaveFormatEncoding.Pcm
+                    : WaveFormatEncoding.Unknown;
+        }
+
+        return (encoding, bits) switch
+        {
+            (WaveFormatEncoding.IeeeFloat, 32) => SampleLayout.Float32,
+            (WaveFormatEncoding.Pcm, 16) => SampleLayout.Pcm16,
+
+            // Сюда попадает всё прочее: 24 бита, целый 32-битный, экзотика.
+            _ => throw new NotSupportedException(
+                $"{role}: устройство отдаёт {encoding}, {bits} бит на отсчёт — "
+                    + "такой формат тракт не читает"),
+        };
+    }
+
     private static unsafe void WriteFrames(
         AudioRenderClient render,
         float[] source,
         int frames,
-        int channels)
+        int channels,
+        SampleLayout layout)
     {
         nint buffer = render.GetBuffer(frames);
-        float* destination = (float*)buffer;
 
-        for (int i = 0; i < frames; i++)
+        if (layout is SampleLayout.Float32)
         {
-            float sample = source[i];
-            for (int c = 0; c < channels; c++)
+            float* destination = (float*)buffer;
+            for (int i = 0; i < frames; i++)
             {
-                destination[(i * channels) + c] = sample;
+                float sample = source[i];
+                for (int c = 0; c < channels; c++)
+                {
+                    destination[(i * channels) + c] = sample;
+                }
+            }
+        }
+        else
+        {
+            short* destination = (short*)buffer;
+            for (int i = 0; i < frames; i++)
+            {
+                // Ограничение обязательно: обработка отдаёт значения, которые
+                // после АРУ выходят за единицу, а short их молча заворачивает —
+                // тихий щелчок вместо громкого звука.
+                float sample = Math.Clamp(source[i], -1f, 1f);
+                short value = (short)(sample * short.MaxValue);
+                for (int c = 0; c < channels; c++)
+                {
+                    destination[(i * channels) + c] = value;
+                }
             }
         }
 
         render.ReleaseBuffer(frames, AudioClientBufferFlags.None);
     }
 
-    private static unsafe void MixToMono(nint buffer, float[] destination, int frames, int channels)
+    private static unsafe void MixToMono(
+        nint buffer, float[] destination, int frames, int channels, SampleLayout layout)
     {
-        float* source = (float*)buffer;
-        for (int i = 0; i < frames; i++)
+        if (layout is SampleLayout.Float32)
         {
-            // Сумма по каналам, а не первый канал: у части гарнитур полезный
-            // сигнал лежит во втором, и «первый» дал бы тишину. Замер W0.
-            float sum = 0f;
-            for (int c = 0; c < channels; c++)
+            float* source = (float*)buffer;
+            for (int i = 0; i < frames; i++)
             {
-                sum += source[(i * channels) + c];
-            }
+                // Сумма по каналам, а не первый канал: у части гарнитур полезный
+                // сигнал лежит во втором, и «первый» дал бы тишину. Замер W0.
+                float sum = 0f;
+                for (int c = 0; c < channels; c++)
+                {
+                    sum += source[(i * channels) + c];
+                }
 
-            destination[i] = sum / channels;
+                destination[i] = sum / channels;
+            }
+        }
+        else
+        {
+            short* source = (short*)buffer;
+            for (int i = 0; i < frames; i++)
+            {
+                float sum = 0f;
+                for (int c = 0; c < channels; c++)
+                {
+                    sum += source[(i * channels) + c] / (float)short.MaxValue;
+                }
+
+                destination[i] = sum / channels;
+            }
         }
     }
 

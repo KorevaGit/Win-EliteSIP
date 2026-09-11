@@ -168,11 +168,7 @@ public sealed class PanelViewModel : Observable
         Lines.CollectionChanged += (_, _) =>
         {
             NotifyChanged(nameof(HasSecondLine));
-            NotifyChanged(nameof(IsInCall));
-            NotifyChanged(nameof(CanHold));
-            NotifyChanged(nameof(CanTransfer));
-            NotifyChanged(nameof(CanStartConference));
-            NotifyChanged(nameof(IsCallButtonEnabled));
+            NotifyCallControls();
         };
 
         Macros.CollectionChanged += (_, _) => NotifyChanged(nameof(HasMacros));
@@ -295,16 +291,67 @@ public sealed class PanelViewModel : Observable
         set
         {
             Set(ref _activeLine, value);
-            NotifyChanged(nameof(IsInCall));
-            NotifyChanged(nameof(IsCallButtonEnabled));
-            NotifyChanged(nameof(CanOpenProfileMenu));
+            NotifyCallControls();
+            NotifyChanged(nameof(CallTitle));
         }
     }
 
     /// <summary>Линий больше одной — шапка делится на два поля в том же слоте.</summary>
     public bool HasSecondLine => Lines.Count > 1;
 
-    public bool IsInCall => Lines.Count > 0;
+    /// <summary>
+    /// Исходящий вызов, на который ещё не ответили. <c>null</c> — такого нет.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// До 10 сентября 2026 панель не знала о звонке до самого «ответили»:
+    /// линия заводится по <c>200 OK</c>, а <see cref="IsInCall"/> считался по
+    /// линиям. Пока шли гудки, панель выглядела свободной — без набранного
+    /// номера, без «Завершить», и «Позвонить» нажималась ещё раз, заводя второй
+    /// вызов поверх первого.
+    ///
+    /// Слой SIP при этом всё сообщал: у исходящего вызова есть событие
+    /// состояния с гудками, и оно попадало в ветку <c>default</c>.
+    /// </remarks>
+    public string? PendingNumber
+    {
+        get => _pendingNumber;
+        set
+        {
+            Set(ref _pendingNumber, value);
+            NotifyCallControls();
+            NotifyChanged(nameof(CallTitle));
+        }
+    }
+
+    private string? _pendingNumber;
+
+    /// <summary>Что показывать в шапке: собеседник или набираемый номер.</summary>
+    public string CallTitle => ActiveLine?.Title ?? _pendingNumber ?? string.Empty;
+
+    /// <summary>
+    /// Занята ли панель звонком — установленным или ещё только идущим.
+    /// </summary>
+    public bool IsInCall => Lines.Count > 0 || _pendingNumber is not null;
+
+    /// <summary>Всё, что считается от <see cref="IsInCall"/>, — одним списком.</summary>
+    ///
+    /// <remarks>
+    /// Списком в одном месте, а не строками в каждом сеттере: до 11 сентября
+    /// 2026 <see cref="CanMuteMicrophone"/> не попал ни в один из трёх наборов
+    /// уведомлений, и кнопка «Микрофон» оставалась серой весь разговор —
+    /// окно спросило её один раз, до звонка, и больше не переспрашивало.
+    /// </remarks>
+    private void NotifyCallControls()
+    {
+        NotifyChanged(nameof(IsInCall));
+        NotifyChanged(nameof(IsCallButtonEnabled));
+        NotifyChanged(nameof(CanOpenProfileMenu));
+        NotifyChanged(nameof(CanHold));
+        NotifyChanged(nameof(CanMuteMicrophone));
+        NotifyChanged(nameof(CanTransfer));
+        NotifyChanged(nameof(CanStartConference));
+    }
 
     /// <summary>Строка состояния разговора: «разговор», «удержание», «перевод…».</summary>
     public string CallStatus
@@ -331,7 +378,11 @@ public sealed class PanelViewModel : Observable
     public bool IsConferenceStarted
     {
         get => _isConferenceStarted;
-        set => Set(ref _isConferenceStarted, value);
+        set
+        {
+            Set(ref _isConferenceStarted, value);
+            NotifyChanged(nameof(CanStartConference));
+        }
     }
 
     public bool CanHold => IsInCall;
@@ -440,6 +491,9 @@ public sealed class PanelViewModel : Observable
     public ICommand? ToggleHold { get; set; }
 
     public ICommand? ToggleMicrophone { get; set; }
+
+    /// <summary>В поле номера набран символ — для звука нажатия.</summary>
+    public Action<char>? KeyPressed { get; set; }
 
     public ICommand? StartConference { get; set; }
 

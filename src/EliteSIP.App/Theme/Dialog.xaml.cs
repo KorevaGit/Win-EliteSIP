@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using EliteSIP.App.Resources;
 
 namespace EliteSIP.App.Theme;
@@ -57,12 +58,30 @@ public partial class Dialog : Window
     /// <param name="title">Сам вопрос. Коротко и вопросительно.</param>
     /// <param name="body">Что случится после ответа.</param>
     /// <param name="buttons">Какой набор кнопок нужен.</param>
+    /// <param name="footnote">
+    /// Приписка мелким под вопросом. <c>null</c> — её нет.
+    /// </param>
+    /// <param name="countdownSeconds">
+    /// Сколько секунд подтверждающая кнопка погашена. Ноль — не гасить.
+    ///
+    /// Заведено ради сброса машины и только ради него: отсчёт стоит там, где
+    /// цена нажатия — стёртое рабочее место, и разница между «прочитал» и
+    /// «промахнулся мышью» должна успеть проявиться.
+    /// </param>
+    /// <param name="destructive">
+    /// Красит подтверждающую кнопку цветом отказа. Заливкой она при этом не
+    /// становится: залитая красная кнопка читается как то, чего от человека
+    /// ждут, а от него не ждут стирания машины.
+    /// </param>
     public static DialogAnswer Ask(
         Window? owner,
         string title,
         string body,
         DialogButtons buttons = DialogButtons.ConfirmCancel,
-        string? confirmTitle = null)
+        string? confirmTitle = null,
+        string? footnote = null,
+        int countdownSeconds = 0,
+        bool destructive = false)
     {
         var dialog = new Dialog
         {
@@ -85,23 +104,73 @@ public partial class Dialog : Window
             dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
+        if (footnote is { Length: > 0 })
+        {
+            dialog.FootnoteText.Text = footnote;
+            dialog.FootnoteText.Visibility = Visibility.Visible;
+        }
+
+        Button confirm;
         if (buttons is DialogButtons.SaveDiscardCancel)
         {
-            dialog.AddButton(Strings.Get("DialogSave"), DialogAnswer.Confirm, primary: true);
+            confirm = dialog.AddButton(Strings.Get("DialogSave"), DialogAnswer.Confirm, primary: true);
             dialog.AddButton(Strings.Get("DialogDiscard"), DialogAnswer.Discard, primary: false);
         }
         else
         {
-            dialog.AddButton(confirmTitle ?? Strings.Get("DialogConfirm"), DialogAnswer.Confirm, primary: true);
+            confirm = dialog.AddButton(
+                confirmTitle ?? Strings.Get("DialogConfirm"), DialogAnswer.Confirm, primary: true, destructive);
         }
 
         dialog.AddButton(Strings.Get("DialogCancel"), DialogAnswer.Cancel, primary: false);
+
+        if (countdownSeconds > 0)
+        {
+            dialog.CountDown(confirm, confirmTitle ?? Strings.Get("DialogConfirm"), countdownSeconds);
+        }
 
         dialog.ShowDialog();
         return dialog._answer;
     }
 
-    private void AddButton(string title, DialogAnswer answer, bool primary)
+    /// <summary>Гасит кнопку и отпускает её через <paramref name="seconds"/>.</summary>
+    ///
+    /// <remarks>
+    /// Оставшееся написано на самой кнопке, а не рядом: человек в этот момент
+    /// смотрит на неё, и счётчик в стороне он прочтёт уже после того, как
+    /// поймёт, что кнопка не нажимается.
+    ///
+    /// Кнопка перестаёт быть кнопкой по умолчанию на время отсчёта: иначе Enter
+    /// подтвердил бы вопрос, которого человек ещё не дочитал, — то есть ровно
+    /// то, ради чего отсчёт и заведён.
+    /// </remarks>
+    private void CountDown(Button confirm, string title, int seconds)
+    {
+        var remaining = seconds;
+        confirm.IsEnabled = false;
+        confirm.IsDefault = false;
+        confirm.Content = $"{title} ({remaining})";
+
+        DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
+        timer.Tick += (_, _) =>
+        {
+            remaining--;
+            if (remaining > 0)
+            {
+                confirm.Content = $"{title} ({remaining})";
+                return;
+            }
+
+            timer.Stop();
+            confirm.Content = title;
+            confirm.IsEnabled = true;
+        };
+
+        timer.Start();
+        Closed += (_, _) => timer.Stop();
+    }
+
+    private Button AddButton(string title, DialogAnswer answer, bool primary, bool destructive = false)
     {
         var button = new Button
         {
@@ -113,7 +182,7 @@ public partial class Dialog : Window
             // Подтверждающая кнопка залита цветом действия, прочие — обычная
             // поверхность. Цветом залита ровно одна: две залитые означали бы,
             // что выбор из них равнозначен, а он не равнозначен никогда.
-            Style = (Style)FindResource(primary ? "AccentButtonStyle" : "SurfaceButtonStyle"),
+            Style = (Style)FindResource(primary && !destructive ? "AccentButtonStyle" : "SurfaceButtonStyle"),
             Padding = new Thickness(12, 0, 12, 0),
 
             // Enter отвечает подтверждением, Escape — отменой: так отвечают на
@@ -122,6 +191,11 @@ public partial class Dialog : Window
             IsCancel = answer is DialogAnswer.Cancel,
         };
 
+        if (destructive)
+        {
+            button.Foreground = (System.Windows.Media.Brush)FindResource("StatusFailureBrush");
+        }
+
         button.Click += (_, _) =>
         {
             _answer = answer;
@@ -129,5 +203,7 @@ public partial class Dialog : Window
         };
 
         Buttons.Children.Add(button);
+
+        return button;
     }
 }

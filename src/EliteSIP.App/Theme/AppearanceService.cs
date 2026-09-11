@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using System.Windows;
 using Microsoft.Win32;
 
@@ -71,6 +72,7 @@ public sealed class AppearanceService : IDisposable
     public void Apply()
     {
         var palette = new ResourceDictionary { Source = IsDark ? DarkPalette : LightPalette };
+        Tint(palette, IsDark);
 
         // Сначала добавить, потом убрать прежний: наоборот — это кадр, в
         // котором ни одна кисть не находится, и WPF на нём рисует окно
@@ -88,6 +90,45 @@ public sealed class AppearanceService : IDisposable
         // словарь ресурсов до неё не достаёт. Переставляется она здесь же,
         // чтобы окно не осталось тёмным под белой полосой.
         SystemCaption.ApplyToOpenWindows(_application, IsDark);
+    }
+
+    /// <summary>Переводит палитру на акцентный цвет системы.</summary>
+    ///
+    /// <remarks>
+    /// Переписываются ровно те ключи, что несут «цвет приложения»: сам акцент,
+    /// выделение, точка разговора — и фоны окна и панелей, подкрашенные им же
+    /// на несколько процентов. Всё остальное — текст, состояния, кнопки приёма
+    /// и сброса — остаётся своим: зелёный «Ответить» у человека с красным
+    /// акцентом должен остаться зелёным.
+    ///
+    /// Ключа в реестре может не быть (акцент не выбирали ни разу), и это не
+    /// беда: палитра тогда остаётся ровно такой, какой пришла из файла.
+    /// </remarks>
+    private static void Tint(ResourceDictionary palette, bool dark)
+    {
+        if (SystemAccent.Read(dark) is not { } accent)
+        {
+            return;
+        }
+
+        palette["AccentBrush"] = new SolidColorBrush(accent);
+        palette["SelectionBrush"] = new SolidColorBrush(
+            Color.FromArgb(0x4C, accent.R, accent.G, accent.B));
+        palette["StatusInCallBrush"] = new SolidColorBrush(accent);
+
+        // Заливка — базовой ступенью, а не осветлённой: так в Параметрах
+        // Windows 10. Под заливкой белый бегунок переключателя, и светлая
+        // ступень тёмной темы делала бы его невидимым.
+        if (SystemAccent.Read(dark: false) is { } fill)
+        {
+            palette["AccentFillBrush"] = new SolidColorBrush(fill);
+        }
+
+        // Фон акцентом больше не подкрашивается. Так было в 0.1.44–0.1.45, и
+        // на живой машине вышло не «как в системе», а своё третье оформление:
+        // Windows 10 держит фон нейтральным, чёрным или белым, а акцент кладёт
+        // только на то, что нажимается, — переключатели, ползунки, отметку
+        // выбранного раздела.
     }
 
     private static bool SystemPrefersDark()
@@ -114,7 +155,10 @@ public sealed class AppearanceService : IDisposable
             return;
         }
 
-        if (_appearance is not Appearance.System)
+        // Смена акцента касается любой палитры, а не только «как в системе»:
+        // выбранная руками тёмная тема тоже красится акцентом.
+        if (_appearance is not Appearance.System
+            && change.Category is not UserPreferenceCategory.Color)
         {
             return;
         }

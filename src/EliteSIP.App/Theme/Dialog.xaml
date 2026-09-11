@@ -45,6 +45,19 @@
                Foreground="{DynamicResource TextSecondaryBrush}" />
 
     <!--
+        Сноска: то, что человек обязан прочесть, но что не является самим
+        вопросом. Заведена ради сброса машины — «вернуть это нельзя ни
+        „Отменой“, ни из архива». Обычным вопросам не нужна и не показывается.
+    -->
+    <TextBlock x:Name="FootnoteText"
+               Margin="0,8,0,0"
+               FontSize="12"
+               TextWrapping="Wrap"
+               LineHeight="17"
+               Visibility="Collapsed"
+               Foreground="{DynamicResource TextTertiaryBrush}" />
+
+    <!--
         Кнопки справа и в том порядке, в каком их читают на Windows: сначала
         то, что подтверждает, потом отказ. На macOS порядок обратный, и это
         одно из немногих мест, где паритет с оригиналом уступает привычке

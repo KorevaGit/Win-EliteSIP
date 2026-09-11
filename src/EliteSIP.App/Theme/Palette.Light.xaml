@@ -24,16 +24,18 @@
   <SolidColorBrush x:Key="TextTertiaryBrush" Color="#72000000" />
 
   <!-- Поверхности. -->
-  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFF3F3F3" />
-  <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFFFF" />
-  <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#0F000000" />
-  <SolidColorBrush x:Key="ControlHoverBrush" Color="#17000000" />
+  <!-- Числа Параметров Windows 10: белый контент, светло-серый список. -->
+  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFFFFFFF" />
+  <SolidColorBrush x:Key="SidebarBrush" Color="#FFF2F2F2" />
+  <SolidColorBrush x:Key="SurfaceBrush" Color="#FFF2F2F2" />
+  <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FFCCCCCC" />
+  <SolidColorBrush x:Key="ControlHoverBrush" Color="#FFBDBDBD" />
   <!--
       Нажатая поверхность светлее спокойной, а не темнее — так в
       Windows 11: под курсором кнопка проявляется, под нажатием гаснет.
       В тёмной палитре то же правило даёт более тёмную заливку.
   -->
-  <SolidColorBrush x:Key="ControlPressedBrush" Color="#08000000" />
+  <SolidColorBrush x:Key="ControlPressedBrush" Color="#FF999999" />
   <SolidColorBrush x:Key="SeparatorBrush" Color="#14000000" />
 
   <!--
@@ -43,7 +45,8 @@
       отличает кнопку от просто закрашенного прямоугольника: без него плашка
       сливается с фоном окна, стоит фону оказаться того же тона.
   -->
-  <SolidColorBrush x:Key="ControlBorderBrush" Color="#0F000000" />
+  <SolidColorBrush x:Key="ControlBorderBrush" Color="#00000000" />
+  <SolidColorBrush x:Key="ControlBorderHoverBrush" Color="#FF7A7A7A" />
 
   <!--
       Полоса прокрутки. Ползунок заметно темнее обводки: он не край
@@ -76,6 +79,8 @@
       тёмный текст, и синяя плашка целиком его бы съела.
   -->
   <SolidColorBrush x:Key="SelectionBrush" Color="#330078D4" />
+  <SolidColorBrush x:Key="AccentFillBrush" Color="#FF0078D7" />
+  <SolidColorBrush x:Key="NavHoverBrush" Color="#FFE5E5E5" />
 
   <!--
       Состояние регистрации. Четыре цвета, и четвёртый — не оттенок третьего:

@@ -182,6 +182,12 @@
   <data name="AudioRelease" xml:space="preserve">
     <value>Release the headphones between calls</value>
   </data>
+  <data name="AudioNoiseSuppression" xml:space="preserve">
+    <value>Noise suppression</value>
+  </data>
+  <data name="AudioNoiseSuppressionNote" xml:space="preserve">
+    <value>Removes room noise from your voice. Turn it off only on a headset: on laptop speakers it also removes the echo the other side would hear. Takes effect from the next call.</value>
+  </data>
   <data name="AudioLevelsNote" xml:space="preserve">
     <value>Levels appear here during a call and during the check below: they show what goes into the line and what comes out of it.</value>
   </data>
@@ -358,6 +364,78 @@
   </data>
   <data name="AdminRevert" xml:space="preserve">
     <value>Revert</value>
+  </data>
+  <data name="AdminDirtyTitle" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="AdminDirtyBody" xml:space="preserve">
+    <value>Nothing is written to disk until you press Save.</value>
+  </data>
+  <data name="AdminCleanTitle" xml:space="preserve">
+    <value>No changes</value>
+  </data>
+  <data name="AdminCleanBody" xml:space="preserve">
+    <value>This machine's settings are set by its administrator.</value>
+  </data>
+  <data name="AdminCleanBodyManaged" xml:space="preserve">
+    <value>This machine's settings are managed by the EliteSIP panel.</value>
+  </data>
+  <data name="SupportCheckPresets" xml:space="preserve">
+    <value>Check preset updates</value>
+  </data>
+  <data name="SupportPresetsNote" xml:space="preserve">
+    <value>Asks the panel about this workplace — macro keys, queues, addresses. Normally this happens on its own every two hours.</value>
+  </data>
+  <data name="SupportKeyChecking" xml:space="preserve">
+    <value>Checking the key…</value>
+  </data>
+  <data name="SupportKeyApplied" xml:space="preserve">
+    <value>Settings have changed. The application will restart.</value>
+  </data>
+  <data name="SupportLogsCollected" xml:space="preserve">
+    <value>Archive collected: {0}</value>
+  </data>
+  <data name="SupportLogsFailed" xml:space="preserve">
+    <value>Could not collect the archive: {0}</value>
+  </data>
+  <data name="SupportNetworkRepaired" xml:space="preserve">
+    <value>The path to the PBX has been reopened.</value>
+  </data>
+  <data name="SupportPresetsAsked" xml:space="preserve">
+    <value>The panel has been asked.</value>
+  </data>
+  <data name="FirstRunKeyNoChannel" xml:space="preserve">
+    <value>This build carries no factory settings, so there is nowhere to check the key. Such a machine will receive neither presets nor updates: set it up manually and tell whoever built the release.</value>
+  </data>
+  <data name="AdminResetTitle" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="AdminResetButton" xml:space="preserve">
+    <value>Reset machine…</value>
+  </data>
+  <data name="AdminResetInCall" xml:space="preserve">
+    <value>unavailable during a call</value>
+  </data>
+  <data name="AdminResetNote" xml:space="preserve">
+    <value>Erases settings, history and the log — the machine becomes exactly as it was right after installation, with no administrator password. Use it to hand the workplace over to another employee.</value>
+  </data>
+  <data name="AdminResetConfirmTitle" xml:space="preserve">
+    <value>Reset the machine?</value>
+  </data>
+  <data name="AdminResetConfirmBody" xml:space="preserve">
+    <value>Settings, call history and the log will be erased. Profiles, passwords, macro keys, queues and the port-knock sequence will be gone; no administrator password will remain, and the protected settings will be open to everyone.</value>
+  </data>
+  <data name="AdminResetConfirmFootnote" xml:space="preserve">
+    <value>This cannot be undone by Revert or recovered from the support archive: the archive is built from the log, and the log is erased along with everything else.</value>
+  </data>
+  <data name="AdminResetConfirmButton" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="AdminSaveConfirmTitle" xml:space="preserve">
+    <value>Save settings?</value>
+  </data>
+  <data name="AdminSaveConfirmBody" xml:space="preserve">
+    <value>This machine's settings become local: they are set by its administrator, not by a configuration file. The save will be written to the log.</value>
   </data>
   <data name="AdminMacrosTitle" xml:space="preserve">
     <value>Macro keys</value>
@@ -682,6 +760,12 @@
   <data name="TroubleNoAudio" xml:space="preserve">
     <value>No audio device</value>
   </data>
+  <data name="CallStatusDialing" xml:space="preserve">
+    <value>Dialling…</value>
+  </data>
+  <data name="CallStatusRinging" xml:space="preserve">
+    <value>Ringing…</value>
+  </data>
   <data name="CallStatusTalking" xml:space="preserve">
     <value>talking</value>
   </data>
@@ -988,5 +1072,41 @@
   </data>
   <data name="AdminMaintenanceAutoStartNote" xml:space="preserve">
     <value>A softphone that did not come back after a night-time restart misses the first calls of the shift. This switch acts at once, not on Save: Windows keeps the truth about startup itself and shows it in Task Manager.</value>
+  </data>
+  <data name="AudioInputSection" xml:space="preserve">
+    <value>Microphone</value>
+  </data>
+  <data name="AudioOutputSection" xml:space="preserve">
+    <value>Headphones</value>
+  </data>
+  <data name="AudioDevice" xml:space="preserve">
+    <value>Device</value>
+  </data>
+  <data name="AudioProcessingSection" xml:space="preserve">
+    <value>Voice processing</value>
+  </data>
+  <data name="AudioSelfTestSection" xml:space="preserve">
+    <value>Sound check</value>
+  </data>
+  <data name="SupportLogsSection" xml:space="preserve">
+    <value>Logs for support</value>
+  </data>
+  <data name="SupportUpdatesSection" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="SupportPresetsSection" xml:space="preserve">
+    <value>Presets</value>
+  </data>
+  <data name="SwitchOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="SwitchOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="UpdatesDownloading" xml:space="preserve">
+    <value>Downloading {0}: {1} of {2} MB</value>
+  </data>
+  <data name="AdminUnlockCapsLock" xml:space="preserve">
+    <value>Caps Lock is on</value>
   </data>
 </root>

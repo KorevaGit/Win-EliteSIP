@@ -200,6 +200,7 @@ public sealed class MediaSession : IDisposable
     private bool _disposed;
     private int _playedFrames;
     private int _starvedFrames;
+    private int _firstPacketSeen;
 
     /// <param name="negotiated">Итог согласования SDP: кодек, адрес, порт, направление.</param>
     /// <param name="reservation">Занятая пара портов. Сессия её и освобождает.</param>
@@ -488,13 +489,23 @@ public sealed class MediaSession : IDisposable
     /// байты: разбор ответа сверяется с ним, чтобы понять итоговое направление
     /// потока.
     /// </summary>
+    /// <param name="localAddress">Адрес для SDP — каким нас видит сервер.</param>
+    /// <param name="codecs">Кодеки в порядке предпочтения.</param>
+    /// <param name="packetTimeMilliseconds">Длительность пакета.</param>
+    /// <param name="security">Требование к защите потока.</param>
+    /// <param name="bindAddress">
+    /// Локальный адрес сигнализации: к нему привязывается RTP, чтобы медиа
+    /// уходило тем же интерфейсом, что и SIP (см.
+    /// <see cref="RtpPortReservation.Reserve"/>). <c>null</c> — «к любому».
+    /// </param>
     public static (SessionDescription Offer, RtpPortReservation Reservation) MakeOffer(
         string localAddress,
         IReadOnlyList<AudioCodec>? codecs = null,
         int packetTimeMilliseconds = AudioCodecInfo.DefaultPacketTimeMilliseconds,
-        MediaSecurityPolicy security = MediaSecurityPolicy.None)
+        MediaSecurityPolicy security = MediaSecurityPolicy.None,
+        string? bindAddress = null)
     {
-        RtpPortReservation reservation = RtpPortReservation.Reserve();
+        RtpPortReservation reservation = RtpPortReservation.Reserve(localAddress: bindAddress);
         try
         {
             SessionDescription offer = SdpNegotiator.MakeOffer(
@@ -523,12 +534,14 @@ public sealed class MediaSession : IDisposable
     /// предложение на защищённом профиле надо отклонить звонком, а не принять
     /// молча. Незаметный откат на открытый RTP — ровно то, от чего защищались.
     /// </summary>
+    /// <param name="bindAddress">То же, что у <see cref="MakeOffer"/>.</param>
     public static (SessionDescription Answer, NegotiatedMedia Media, RtpPortReservation Reservation) MakeAnswer(
         SessionDescription offer,
         string localAddress,
         IReadOnlyList<AudioCodec>? codecs = null,
         int packetTimeMilliseconds = AudioCodecInfo.DefaultPacketTimeMilliseconds,
-        MediaSecurityPolicy security = MediaSecurityPolicy.None)
+        MediaSecurityPolicy security = MediaSecurityPolicy.None,
+        string? bindAddress = null)
     {
         ArgumentNullException.ThrowIfNull(offer);
 
@@ -538,7 +551,7 @@ public sealed class MediaSession : IDisposable
             throw new SdpNegotiationException(SdpNegotiationFailure.SecureMediaRequired);
         }
 
-        RtpPortReservation reservation = RtpPortReservation.Reserve();
+        RtpPortReservation reservation = RtpPortReservation.Reserve(localAddress: bindAddress);
         try
         {
             (SessionDescription answer, NegotiatedMedia media) = SdpNegotiator.MakeAnswer(
@@ -894,14 +907,23 @@ public sealed class MediaSession : IDisposable
         // первое не знает про уход часов устройства, второе про потери.
         int played = Volatile.Read(ref _playedFrames);
         double seconds = played * (double)_audioConfiguration.PacketTimeMilliseconds / 1000;
+        uint sent = CurrentRtp?.SendStatistics.Packets ?? 0;
 
         string summary = string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"принято {stats.Received}, спрятано {stats.Concealed}, не по порядку {stats.Reordered}, "
+            $"отправлено {sent}, принято {stats.Received}, спрятано {stats.Concealed}, не по порядку {stats.Reordered}, "
                 + $"опоздало {stats.Late}, выброшено {stats.Dropped}, дублей {stats.Duplicated}, "
                 + $"недоборов {stats.Underruns}, проиграно {seconds:F1} с, "
                 + $"пустых рендеров {Volatile.Read(ref _starvedFrames)}, "
                 + $"джиттер {jitterMilliseconds:F1} мс, запас {targetDepth} кадр., кодек {codec.SdpName()}");
+
+        // Уровни есть только у того, кто держит тракт: у фоновой линии звука
+        // нет, и спрашивать его не у кого.
+        if (_bus.TryWithEngine(_token, engine => (engine as WasapiVoiceAudioEngine)?.LevelSummary, out string? levels)
+            && levels is not null)
+        {
+            summary = $"{summary}, {levels}";
+        }
 
         return RemoteView is RemoteMediaView view ? $"{summary} | у собеседника: {view.Summary}" : summary;
     }
@@ -955,8 +977,15 @@ public sealed class MediaSession : IDisposable
         // даёт вовсе, а сокет всё равно нужен: диалог жив, и собеседник вернётся
         // повторным предложением. Поток в этом случае направляется на себя —
         // принимать он продолжает как обычно, а отправлять ему нечего и некуда.
+        //
+        // «На себя» — на тот адрес, к которому привязан сокет, а не на петлю:
+        // сокет, привязанный к адресу Ethernet, на 127.0.0.1 сам себя не
+        // услышит, и отчёты RTCP вернулись бы отказом ICMP.
         bool disabled = negotiated.IsStreamDisabled;
-        string remoteAddress = disabled ? "127.0.0.1" : negotiated.RemoteAddress;
+        string self = reservation.LocalAddress.Equals(System.Net.IPAddress.Any)
+            ? "127.0.0.1"
+            : reservation.LocalAddress.ToString();
+        string remoteAddress = disabled ? self : negotiated.RemoteAddress;
         ushort remotePort = disabled ? localPort : negotiated.RemotePort;
 
         RtpSession rtp = new(configuration, localPort, remoteAddress, remotePort, reservation.TakeRtpSocket());
@@ -1009,6 +1038,15 @@ public sealed class MediaSession : IDisposable
 
         rtp.OnReceivedPacket = packet =>
         {
+            // Первый пакет — одной строкой в журнал. Жалоба «собеседника не
+            // слышно» раньше не разбиралась вовсе: не было видно даже, дошёл
+            // ли до нас хоть один пакет, то есть сеть это или звук.
+            if (Interlocked.Exchange(ref _firstPacketSeen, 1) == 0)
+            {
+                OnDiagnostic?.Invoke(
+                    $"первый пакет RTP: SSRC {packet.Ssrc}, тип нагрузки {packet.PayloadType}");
+            }
+
             // События DTMF в звук не отдаём: их полезная нагрузка — не аудио, и
             // декодированная как G.711 она превратится в громкий треск.
             if (eventPayloadType is byte type && packet.PayloadType == type)
@@ -1105,6 +1143,14 @@ public sealed class MediaSession : IDisposable
         }
 
         current?.Rtp.Start();
+
+        // Куда привязан поток — в журнал: «RTP на 0.0.0.0» значит, что маршрут
+        // выбирает система, и звук может уйти не тем интерфейсом, что SIP.
+        OnDiagnostic?.Invoke(
+            $"RTP на {_reservation.LocalAddress}:{LocalPort}"
+            + (_reservation.LocalAddress.Equals(System.Net.IPAddress.Any)
+                ? " (любой адрес: маршрут выбирает система)"
+                : string.Empty));
 
         // На защищённом потоке RTCP выключен намеренно.
         //

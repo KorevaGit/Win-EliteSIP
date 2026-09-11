@@ -21,7 +21,13 @@ namespace EliteSIP.Audio;
 /// децибел.</b> С шумодавом и АРУ подавление держится выше 27 дБ на всех
 /// проверенных отношениях эха к шуму, вплоть до нулевого, — потому что шумодав
 /// убирает то, что осталось после эхоподавителя. Один AEC3 на нулевом отношении
-/// даёт 9,9 дБ. Поэтому шумодав включён всегда, а не по настройке.</item>
+/// даёт 9,9 дБ. Поэтому шумодав включён по умолчанию.
+///
+/// Выключатель у него всё же есть (с 11 сентября 2026): оператор его просил, и
+/// на гарнитуре, где эха нет по построению, цена выключения — только фон
+/// комнаты в линии. На динамиках ноутбука выключенный шумодав возвращает
+/// ровно те двадцать децибел эха, о которых выше, и об этом говорит пояснение
+/// под переключателем.</item>
 /// <item><b>АРУ — по настройке и по умолчанию выключена.</b> Продуктовое
 /// решение оригинала: на встроенном микрофоне она полезна, на хорошей гарнитуре
 /// «дышит». Эхоподавление и шумодав от неё не зависят — это проверено
@@ -51,7 +57,7 @@ internal sealed class VoiceProcessor : IDisposable
     private readonly float[][] _far;
     private bool _disposed;
 
-    public VoiceProcessor(int sampleRate, bool automaticGainControl)
+    public VoiceProcessor(int sampleRate, bool automaticGainControl, bool noiseSuppression = true)
     {
         if (Array.IndexOf(SupportedRates, sampleRate) < 0)
         {
@@ -76,7 +82,7 @@ internal sealed class VoiceProcessor : IDisposable
             // mobileMode = false: это AEC3, полноценный.
             config.SetEchoCanceller(true, false);
 
-            config.SetNoiseSuppression(true, NoiseSuppressionLevel.High);
+            config.SetNoiseSuppression(noiseSuppression, NoiseSuppressionLevel.High);
             config.SetHighPassFilter(true);
             config.SetGainController2(automaticGainControl);
 

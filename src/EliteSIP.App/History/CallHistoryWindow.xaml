@@ -217,14 +217,17 @@
         </Border>
       </Popup>
 
+      <!--
+          Тот же «чип», что у кнопки дня рядом, — стиль, поля и кегль значка.
+          Прежде снимок был кнопкой настроек со своей рамкой и полями и
+          выходил меньше соседа, стоя с ним в одном ряду.
+      -->
       <Button HorizontalAlignment="Right"
-              Style="{StaticResource SettingsButtonStyle}"
-              Padding="8,2"
-              MinHeight="24"
+              Style="{StaticResource ChipButtonStyle}"
               Click="OnSnapshotClick"
               IsEnabled="{Binding HasRecords}"
               ToolTip="{res:Loc HistorySnapshot}">
-        <theme:Icon Glyph="square.grid.3x3" Size="12" />
+        <theme:Icon Glyph="camera.fill" Size="12" VerticalAlignment="Center" />
       </Button>
     </Grid>
 
@@ -329,22 +332,15 @@
                           </StackPanel>
 
                           <!--
-                              Повтор набора живёт в своей кнопке, а не в выборе
-                              строки: выбор строки здесь не значит ничего, и
-                              звонок по случайному щелчку по списку — худшее,
-                              что может сделать софтфон.
+                              Повтора набора здесь больше нет.
+
+                              Кнопка была своя, не выбор строки, — и довод про
+                              случайный щелчок остаётся верным. Убрана она по
+                              другой причине: история открывается, чтобы
+                              посмотреть, а не чтобы звонить. Номер набирают на
+                              панели, и второе место, откуда уходит вызов, — это
+                              второе место, где он уходит не туда.
                           -->
-                          <Button Grid.Column="3"
-                                  Margin="8,0,0,0"
-                                  Width="28"
-                                  Height="28"
-                                  VerticalAlignment="Center"
-                                  Style="{StaticResource SurfaceButtonStyle}"
-                                  Click="OnRedialClick"
-                                  Tag="{Binding Number}"
-                                  ToolTip="{res:Loc HistoryRedial}">
-                            <theme:Icon Glyph="phone.fill" Size="12" />
-                          </Button>
                         </Grid>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>

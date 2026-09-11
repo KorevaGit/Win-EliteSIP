@@ -156,6 +156,13 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
 
             return true;
         }
+        // `ObjectDisposedException` — не отказ сети, а гонка: смена площадки
+        // роняет прежний стук вместе с `Ping`, пока его пакет ещё в полёте.
+        // Стучать больше некуда и незачем — новое подключение уже стучит своим.
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
         catch (Exception error) when (error is PingException or SocketException
                                           or InvalidOperationException)
         {

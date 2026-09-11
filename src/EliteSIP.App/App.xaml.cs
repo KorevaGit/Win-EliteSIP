@@ -15,6 +15,8 @@ using EliteSIP.App.Shell;
 using EliteSIP.App.FirstRun;
 using EliteSIP.App.Incoming;
 using EliteSIP.App.PanelLine;
+using EliteSIP.Diagnostics;
+using EliteSIP.PanelLink;
 
 namespace EliteSIP.App;
 
@@ -39,6 +41,9 @@ public partial class App : Application, IDisposable
     private UpdateService? _updates;
     private SingleInstance? _instance;
     private NetworkWatch? _networkWatch;
+
+    /// <summary>Повод переподключиться, отложенный до конца разговора.</summary>
+    private string? _reconnectAfterCall;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -101,6 +106,19 @@ public partial class App : Application, IDisposable
         SystemCaption.Watch(() => _appearance!.IsDark);
         _appearance.Apply();
 
+        // Решение о мастере пишется в журнал до мастера, а не после.
+        //
+        // Прежде экземпляр, встретивший человека мастером, не оставлял следов
+        // вовсе: первая запись в журнал идёт ниже по этой же функции, а до неё
+        // дело доходит только у настроенной машины. Мастер, появившийся на
+        // машине, которая настроена, выглядел поэтому необъяснимо — разбирать
+        // его было нечем, и разбор стоил половины дня.
+        Log($"запуск: настройки {AppSettings.DefaultPath}"
+            + $", файл {(System.IO.File.Exists(AppSettings.DefaultPath) ? "есть" : "НЕТ")}"
+            + $", настроена={_settings.Setup.IsCompleted}"
+            + $", ключи запуска=[{string.Join(' ', e.Args)}]"
+            + $", заводская настройка: канал={(FirstRun.FirstRunViewModel.HasChannel ? "есть" : "нет")}");
+
         // Ненастроенная машина встречает мастер, а не панель: панель без
         // добавочного и адреса не зазвонит, а «Управление» на такой машине
         // обязано быть заперто раньше пароля.
@@ -136,6 +154,30 @@ public partial class App : Application, IDisposable
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
         _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
 
+        // Рингтон входящего. Настройка его обещала с самого начала, а играть
+        // было нечем: звонок на Windows не звонил вовсе, и входящий выдавала
+        // только карточка на экране — то есть на машине, от которой оператор
+        // отвернулся, ничто.
+        //
+        // Устройство читается на каждый звонок, а не запоминается: гарнитуру
+        // переключают между звонками чаще, чем перезапускают программу.
+        _incoming.StartRingtone = () =>
+        {
+            if (!_settings.Ringtone.IsEnabled)
+            {
+                return;
+            }
+
+            _phone.Sounds.StartRingtone(
+                _settings.Ringtone.CustomSoundPath,
+                _settings.Ringtone.Volume,
+                _settings.Ringtone.Output is RingtoneOutput.CallDevice
+                    ? _settings.Audio.OutputDeviceId
+                    : null);
+        };
+
+        _incoming.StopRingtone = _phone.Sounds.Stop;
+
         _panel.CallOrHangUp = new RelayCommand(async _ =>
         {
             if (_panel.IsInCall)
@@ -150,6 +192,7 @@ public partial class App : Application, IDisposable
 
         _panel.ToggleHold = new RelayCommand(async _ => await _phone.ToggleHoldAsync());
         _panel.ToggleMicrophone = new RelayCommand(_ => _phone.ToggleMicrophone());
+        _panel.KeyPressed = key => _phone.Sounds.PlayKeyTone(key, _settings.Audio.OutputDeviceId);
         _panel.StartConference = new RelayCommand(async _ => await _phone.StartConferenceAsync());
         _panel.Transfer = new RelayCommand(async _ => await _phone.TransferAsync(_panel.TransferNumber));
 
@@ -200,6 +243,14 @@ public partial class App : Application, IDisposable
             {
                 _settings.Placement.Left = left;
                 _settings.Placement.Top = top;
+            },
+            RestoreSize = () => _settings.Placement is { Width: { } width, Height: { } height }
+                ? (width, height)
+                : null,
+            SaveSize = (width, height) =>
+            {
+                _settings.Placement.Width = width;
+                _settings.Placement.Height = height;
             },
         };
 
@@ -258,8 +309,62 @@ public partial class App : Application, IDisposable
             if (change.PropertyName is nameof(PanelViewModel.IsInCall) && !model.IsInCall)
             {
                 _panelLine?.HostBecameIdle();
+
+                if (_reconnectAfterCall is { } pending)
+                {
+                    _reconnectAfterCall = null;
+                    Reconnect(pending);
+                }
+
                 _updates?.Offer();
             }
+        };
+
+        // Смена площадки: пересчитать адрес АТС и переподключиться.
+        //
+        // Прежде переключатель «Офис / Из дома» не делал ничего вовсе. Он менял
+        // `Account.Site`, а адрес живёт в `Account.Domain`, и пересчитывал его
+        // только «Сохранить» в «Управлении» да активация по ключу. Оператор
+        // выбирал «Из дома», видел прежний адрес — и регистрация продолжала
+        // идти на внутренний, недостижимый снаружи.
+        // Подпись профиля из ключа — см. `PhoneService.ProfileLabel`. Сменилась
+        // (новый ключ) — капсула обновляется сразу, а не после перерегистрации.
+        _settings.Account.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName is nameof(AccountSettings.DisplayName) or nameof(AccountSettings.Username))
+            {
+                // И номер, и подпись — сразу. Номер прежде обновлялся только
+                // сменой состояния регистрации, и после «Сохранить» с новым
+                // добавочным капсула показывала старый.
+                _panel.StatusTitle = _settings.Account.Username.Length > 0 ? _settings.Account.Username : "—";
+                _panel.StatusLabel = PhoneService.ProfileLabel(_settings);
+            }
+        };
+
+        _panel.StatusLabel = PhoneService.ProfileLabel(_settings);
+
+        _settings.Account.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName is not nameof(AccountSettings.Site))
+            {
+                return;
+            }
+
+            var wanted = _settings.Account.Site is WorkplaceSite.Remote
+                ? _settings.Pbx.RemoteAddress
+                : _settings.Pbx.OfficeAddress;
+
+            // Пустой адрес не затирает прежний: у машины бывает заполнена
+            // только одна половина пары, и переключение на пустую сторону
+            // означало бы рабочее место, которому некуда регистрироваться.
+            if (wanted.Length > 0)
+            {
+                _settings.Account.Domain = wanted;
+            }
+
+            Reconnect(_settings.Account.Site is WorkplaceSite.Remote
+                ? "переключение на работу из дома"
+                : "переключение на работу из офиса");
         };
 
         // Выключение Windows и выход из системы: снять регистрацию, пока нас
@@ -341,7 +446,39 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        _settingsWindow = new SettingsWindow(new SettingsViewModel(_settings!), _appearance!);
+        // Линия обновлений — та же самая, что и в «Управлении»: одна служба на
+        // приложение, два окна её показывают. Второй экземпляр означал бы два
+        // независимых такта опроса на одном канале.
+        SettingsViewModel? model = null;
+        model = new SettingsViewModel(_settings!)
+        {
+            Updates = _updates is null ? null : new UpdatesViewModel(_updates),
+
+            // Стук по портам прямо сейчас. Нужен, когда из дома перестало
+            // подключаться без видимой причины: у домашнего интернета сменился
+            // адрес, а шлюз помнит прежний.
+            OnRepairNetwork = () =>
+            {
+                Reconnect("исправление сети");
+                model!.ReportSupport(Strings.Get("SupportNetworkRepaired"), SupportArea.Network);
+            },
+
+            // Предустановки по кнопке: такт двухчасовой, а разбирают здесь и
+            // сейчас.
+            OnCheckPresets = () =>
+            {
+                _ = _panelLine?.CheckAsync();
+                model!.ReportSupport(Strings.Get("SupportPresetsAsked"), SupportArea.Presets);
+            },
+
+            OnCollectLogs = () => CollectSupportArchive(model!),
+            OnRunSelfTest = () => _ = RunAudioSelfTestAsync(model!),
+            OnApplyKey = key => ApplyNewKeyAsync(key),
+        };
+
+        var settings = model;
+
+        _settingsWindow = new SettingsWindow(settings, _appearance!);
         _settingsWindow.AdministrationRequested += ShowAdministration;
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
@@ -413,6 +550,12 @@ public partial class App : Application, IDisposable
             // настройка, а факт: по нему видно, сработала ли защита на живом
             // звонке, не открывая журнал.
             LastGuardReport = _incoming?.LastReport?.Summary(),
+
+            // Ручной сброс идёт той же дорогой, что и отзыв панели: машина
+            // обязана прийти в одно и то же состояние, кто бы её ни стёр.
+            ResetMachine = ResetMachine,
+            IsInCall = () => _panel?.IsInCall is true,
+            OnConnectionChanged = () => Reconnect("учётная запись изменена в «Управлении»"),
         };
 
         _administrationWindow = new AdministrationWindow(administration, _appearance!);
@@ -498,7 +641,7 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private bool RunFirstRun()
     {
-        var model = new FirstRunViewModel(_settings!, _access!);
+        var model = new FirstRunViewModel(_settings!, _access!) { Log = Log };
         var window = new FirstRunWindow(model, _appearance!);
 
         if (window.ShowDialog() is not true)
@@ -514,6 +657,125 @@ public partial class App : Application, IDisposable
 
         _appearance!.Appearance = _settings!.Appearance.Theme;
         return true;
+    }
+
+    /// <summary>
+    /// Собирает архив с журналом на рабочий стол.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// На рабочий стол, а не в каталог настроек: архив собирают, чтобы его
+    /// отправить, и путь вида <c>%LOCALAPPDATA%</c> оператору называть нельзя —
+    /// он его не найдёт. Довод тот же, по которому в оригинале нет строки с
+    /// путём к файлам.
+    /// </remarks>
+    /// <summary>Записывает пять секунд и проигрывает их обратно.</summary>
+    ///
+    /// <remarks>
+    /// Тракт поднимается свой, на тех же настройках, что и разговор: общий в
+    /// это время может быть занят линией, а отнимать у собеседника микрофон
+    /// ради проверки нельзя.
+    /// </remarks>
+    private async Task RunAudioSelfTestAsync(Settings.SettingsViewModel model)
+    {
+        EliteSIP.Audio.AudioSelfTest test = new(
+            configuration => new EliteSIP.Audio.WasapiVoiceAudioEngine(configuration),
+            Log);
+
+        test.Progress += value => Dispatcher.BeginInvoke(() => model.ReportSelfTest(value));
+
+        model.ReportSelfTest("готовлю тракт");
+
+        var outcome = await test.RunAsync(_phone!.AudioConfiguration()).ConfigureAwait(true);
+
+        model.ReportSelfTest(outcome.Summary);
+        Log($"самопроверка звука: {outcome.Summary}");
+    }
+
+    private void CollectSupportArchive(Settings.SettingsViewModel model)
+    {
+        try
+        {
+            var directory = System.IO.Path.GetDirectoryName(AppSettings.DefaultPath)!;
+            var log = System.IO.Path.Combine(directory, "elitesip.log");
+
+            var lines = System.IO.File.Exists(log)
+                ? System.IO.File.ReadAllLines(log)
+                : [];
+
+            var destination = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                SupportArchive.SuggestedName());
+
+            var summary = $"EliteSIP {Settings.SettingsViewModel.Version}"
+                + $"{Environment.NewLine}машина: {_settings?.Panel.InstallationID}"
+                + $"{Environment.NewLine}добавочный: {_settings?.Account.Username}";
+
+            var made = SupportArchive.Make(lines, summary, destination);
+
+            model.ReportSupport(Strings.Format("SupportLogsCollected", System.IO.Path.GetFileName(made)), SupportArea.Logs);
+        }
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
+        {
+            model.ReportSupport(Strings.Format("SupportLogsFailed", error.Message), SupportArea.Logs);
+        }
+    }
+
+    /// <summary>
+    /// Применяет ключ смены рабочего места.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Ключ привязан к этой машине: в расчёт адреса уходит её идентификатор,
+    /// поэтому чужой ключ посчитает другой адрес и не найдёт по нему ничего.
+    /// Проверять привязку внутри пакета нельзя — Worker столбит пакет в момент
+    /// скачивания, и перепутавший свои же две машины сжёг бы ключ до всякой
+    /// проверки.
+    ///
+    /// После наложения — перезапуск: сменились и номер, и адрес АТС, и
+    /// предустановка, а половина из этого читается только при старте.
+    /// </remarks>
+    private async Task<(bool Ok, string Message)> ApplyNewKeyAsync(string text)
+    {
+        try
+        {
+            var key = ActivationKey.Parse(text);
+            var package = await ActivationService
+                .FetchAsync(key, _settings!.Panel.InstallationID)
+                .ConfigureAwait(true);
+
+            MachineAccess? access = null;
+            try
+            {
+                access = await MachineService
+                    .FetchAccessAsync(package.InstallationID, package.ChannelKey)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception error) when (error is PanelLinkException or System.Net.Http.HttpRequestException
+                                              or TaskCanceledException)
+            {
+                // Тот же порядок, что и в мастере: ключ уже сгорел, и отказ за
+                // паролем не отменяет смену рабочего места.
+                Log($"пароль от управления не приехал с ключом: {error.Message}");
+            }
+
+            _settings.Apply(package, access, _access!);
+            Log($"рабочее место сменено по ключу: {package.Employee}, добавочный {package.Number}");
+
+            // Через очередь: мы внутри обработчика кнопки в окне, которое
+            // перезапуск сейчас закроет.
+            _ = Dispatcher.BeginInvoke(Restart);
+
+            return (true, Strings.Get("SupportKeyApplied"));
+        }
+        catch (PanelLinkException error)
+        {
+            return (false, error.Message);
+        }
+        catch (ActivationChannelException error)
+        {
+            return (false, error.Message);
+        }
     }
 
     /// <summary>Перезапуск: новый процесс поднимается, этот закрывается.</summary>
@@ -551,6 +813,9 @@ public partial class App : Application, IDisposable
 
         if (_panel.IsInCall)
         {
+            // Отложить по-настоящему: прежде здесь было только обещание в
+            // журнале, а поднимать после разговора было некому.
+            _reconnectAfterCall = reason;
             Log($"{reason}: связь поднимется после разговора");
             return;
         }
@@ -630,8 +895,23 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private bool AskToInstallUpdate(Version version)
     {
+        // Владелец — окно, которое сейчас перед глазами, а не всегда панель.
+        //
+        // Прежде вопрос вешался на панель безусловно. Спрятанная в трей или
+        // свёрнутая панель уносила его с собой, а под открытыми настройками он
+        // оказывался позади: оператор видел его, только вернувшись на экран
+        // звонка. Спрятанная панель сначала показывается — вопрос об
+        // обновлении телефона задаётся из окна телефона.
+        if (_panelWindow is { IsVisible: false } or { WindowState: WindowState.Minimized })
+        {
+            ShowPanel();
+        }
+
+        var owner = Windows.OfType<Window>().FirstOrDefault(window => window.IsActive && window.IsVisible)
+            ?? _panelWindow;
+
         var answer = Theme.Dialog.Ask(
-            _panelWindow,
+            owner,
             Strings.Format("UpdateOfferTitle", version.ToString(3)),
             Strings.Get("UpdateOfferBody"),
             confirmTitle: Strings.Get("UpdateOfferInstall"));

@@ -128,6 +128,31 @@ public partial class IncomingCallWindow : Window
         FlashWindowEx(ref info);
     }
 
+    /// <summary>Снимает мигание кнопки в панели задач.</summary>
+    ///
+    /// <remarks>
+    /// Мигание заказано «до выхода на приложение», и вызов, который отклонили,
+    /// приняли в другом месте или который кончился сам, его не снимал: кнопка
+    /// мигала дальше, как будто вызов всё ещё ждёт. `FLASHW_STOP` возвращает
+    /// кнопку в обычное состояние.
+    /// </remarks>
+    public static void StopFlashingTaskbar(nint owner)
+    {
+        if (owner == 0)
+        {
+            return;
+        }
+
+        var info = new FlashInfo
+        {
+            cbSize = (uint)Marshal.SizeOf<FlashInfo>(),
+            hwnd = owner,
+            dwFlags = 0, // FLASHW_STOP
+        };
+
+        FlashWindowEx(ref info);
+    }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);

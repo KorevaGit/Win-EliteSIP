@@ -129,8 +129,40 @@ internal sealed class UpdateService : IDisposable
     /// <summary>Идёт ли проверка прямо сейчас — для кнопки «Проверить сейчас».</summary>
     internal bool IsChecking => _isChecking;
 
-    /// <summary>Чем кончилась последняя проверка. Показывается той же кнопке.</summary>
-    internal string? LastResult { get; private set; }
+    /// <summary>Чем кончилась последняя проверка — или что с ней сейчас.</summary>
+    ///
+    /// <remarks>
+    /// Меняется и по ходу проверки, а не только в конце: «скачиваем, 23 из 54
+    /// МБ». Прежде кнопка показывала «Проверяем…» до самого конца — а конец
+    /// включал закачку полусотни мегабайт и вопрос об установке, — и на
+    /// медленном канале это выглядело вечной проверкой.
+    /// </remarks>
+    internal string? LastResult
+    {
+        get => _lastResult;
+        private set
+        {
+            _lastResult = value;
+            StatusChanged?.Invoke();
+        }
+    }
+
+    private string? _lastResult;
+
+    /// <summary>Сменилось <see cref="LastResult"/> или <see cref="IsChecking"/>. В потоке интерфейса.</summary>
+    internal event Action? StatusChanged;
+
+    /// <summary>Идущая проверка — чтобы нажатие кнопки к ней присоединилось.</summary>
+    private Task? _running;
+
+    /// <summary>Сколько закачка может стоять без единого байта, прежде чем её оборвут.</summary>
+    ///
+    /// <remarks>
+    /// Минута, а не общий срок в четверть часа: оборвавшаяся связь иначе
+    /// показывала бы «скачиваем, 12 из 54 МБ» пятнадцать минут подряд.
+    /// Медленный канал сюда не попадает — медленный байты всё-таки отдаёт.
+    /// </remarks>
+    private static readonly TimeSpan StallTimeout = TimeSpan.FromMinutes(1);
 
     /// <summary>Спросить, чем показать предложение. Ставит приложение.</summary>
     ///
@@ -166,6 +198,15 @@ internal sealed class UpdateService : IDisposable
     /// <summary>Спросить канал прямо сейчас — кнопка в «Диагностике».</summary>
     internal async Task CheckNowAsync()
     {
+        // Проверка уже идёт (такт или прошлое нажатие) — ждём её, а не
+        // уходим молча: иначе нажатие посреди фоновой закачки не показывало
+        // ничего, и кнопка выглядела мёртвой.
+        if (_running is { IsCompleted: false } running)
+        {
+            await running.ConfigureAwait(true);
+            return;
+        }
+
         await CheckAsync(userInitiated: true).ConfigureAwait(true);
     }
 
@@ -191,9 +232,31 @@ internal sealed class UpdateService : IDisposable
             return;
         }
 
+        // Вопрос уже на экране — второй не нужен.
+        //
+        // Окно вопроса модальное и держит свой цикл сообщений, а внутри него
+        // живут таймеры и привязки: конец разговора, напоминание, кнопка
+        // «Установить» и завершившаяся проверка звали `Offer` снова, и
+        // оператор получал два одинаковых окна подряд.
+        if (_isOffering)
+        {
+            return;
+        }
+
         _reminder.Stop();
 
-        if (!AskToInstall(version))
+        bool accepted;
+        _isOffering = true;
+        try
+        {
+            accepted = AskToInstall(version);
+        }
+        finally
+        {
+            _isOffering = false;
+        }
+
+        if (!accepted)
         {
             _log($"обновление {version} отложено на {ReminderInterval.TotalMinutes:0} минут");
             _reminder.Start();
@@ -203,6 +266,9 @@ internal sealed class UpdateService : IDisposable
         Install();
     }
 
+    /// <summary>Висит ли вопрос об установке на экране прямо сейчас.</summary>
+    private bool _isOffering;
+
     public void Dispose()
     {
         _cycle.Stop();
@@ -210,42 +276,39 @@ internal sealed class UpdateService : IDisposable
     }
 
     /// <summary>
-    /// Запускает установщик и выходит.
+    /// Передаёт обновление обновляльщику.
     /// </summary>
     ///
     /// <remarks>
-    /// Ключи <c>/SILENT /NORESTART</c> — это Inno Setup: установщик ставит
-    /// молча и не перезагружает машину. Перезапуск приложения делает он сам, по
-    /// своей записи о запуске после установки; нам остаётся уйти с дороги, иначе
-    /// он не сможет заменить работающий файл.
+    /// Прежде здесь запускался установщик. Под политикой заказчика так нельзя:
+    /// скачанный файл лежит в каталоге, откуда запуск запрещён, а ставить надо
+    /// в <c>Program Files</c>, куда оператор не пишет. Установку делает
+    /// <c>EliteSIP.Updater</c> от SYSTEM — см. <see cref="UpdateHandoff"/>.
+    ///
+    /// <b>Уходим с дороги только если задачу удалось разбудить.</b> Иначе она
+    /// проснётся сама в течение десяти минут, и всё это время оператор сидел бы
+    /// без телефона неизвестно почему. Пусть лучше нас закроет установщик:
+    /// брошенная регистрация переживёт себя минуту-другую, а вот десять минут
+    /// тишины оператор объяснить не сможет.
     /// </remarks>
     private void Install()
     {
-        if (_readyInstaller is not string installer)
+        if (ReadyVersion is not { } version)
         {
             return;
         }
 
-        try
+        if (!UpdateHandoff.Request(version, _log))
         {
-            System.Diagnostics.ProcessStartInfo start = new(installer)
-            {
-                Arguments = "/SILENT /NORESTART /RESTARTAPPLICATIONS",
-                UseShellExecute = true,
-            };
-
-            using var process = System.Diagnostics.Process.Start(start);
-            _log($"установщик {ReadyVersion} запущен");
-        }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException)
-        {
-            // Не запустился — рабочее место продолжает работать на прежней
-            // версии. Это неприятно, но не смертельно, и молчать нельзя.
-            _log($"установщик не запустился: {error.Message}");
             return;
         }
 
-        PrepareForRestart?.Invoke();
+        _log($"обновление {version} передано обновляльщику");
+
+        if (UpdateHandoff.Trigger(_log))
+        {
+            PrepareForRestart?.Invoke();
+        }
     }
 
     private async Task TickAsync()
@@ -269,7 +332,18 @@ internal sealed class UpdateService : IDisposable
         _cycle.Interval = CheckInterval + jitter;
     }
 
-    private async Task CheckAsync(bool userInitiated)
+    private Task CheckAsync(bool userInitiated)
+    {
+        if (_running is { IsCompleted: false } running)
+        {
+            return running;
+        }
+
+        _running = RunCheckAsync(userInitiated);
+        return _running;
+    }
+
+    private async Task RunCheckAsync(bool userInitiated)
     {
         if (_isChecking)
         {
@@ -278,7 +352,9 @@ internal sealed class UpdateService : IDisposable
 
         var channel = Provisioning.Current?.Updates;
         var url = channel?.ReleasesUrl();
-        var publicKey = PresetService.ChannelPublicKey();
+        // Ключ линии выпусков, а не панели: в бою это разные ключи, и до
+        // 10 сентября 2026 порт путал их между собой.
+        var publicKey = PresetService.ReleasesPublicKey();
 
         if (channel is null || url is null || publicKey is null)
         {
@@ -287,7 +363,7 @@ internal sealed class UpdateService : IDisposable
         }
 
         _isChecking = true;
-        LastResult = null;
+        LastResult = Resources.Strings.Get("UpdatesChecking");
 
         try
         {
@@ -331,8 +407,13 @@ internal sealed class UpdateService : IDisposable
             }
 
             _log($"обновления: есть {manifest.Version.ToString(3)}, качаем");
+            LastResult = Resources.Strings.Format("UpdatesDownloading", manifest.Version.ToString(3), 0, Megabytes(manifest.Size));
 
-            var installer = await DownloadAsync(manifest, channel, deadline.Token).ConfigureAwait(true);
+            // Свой срок, а не общий: тем же двадцатисекундным мерялась закачка
+            // в полсотни мегабайт и обрывалась на девятнадцатой секунде.
+            using CancellationTokenSource download = new(ChannelRequest.DownloadTimeout);
+
+            var installer = await DownloadAsync(manifest, channel, download.Token).ConfigureAwait(true);
             if (installer is null)
             {
                 LastResult = Resources.Strings.Get("UpdatesDownloadFailed");
@@ -363,6 +444,7 @@ internal sealed class UpdateService : IDisposable
         finally
         {
             _isChecking = false;
+            StatusChanged?.Invoke();
         }
     }
 
@@ -376,13 +458,20 @@ internal sealed class UpdateService : IDisposable
     /// самый. Не сошёлся — файл стирается тут же: оставленный на диске
     /// установщик неизвестного происхождения хуже, чем отсутствие обновления.
     /// </remarks>
+    /// <summary>Байты в мегабайтах, целыми: «23 из 54 МБ».</summary>
+    private static long Megabytes(long bytes) => (bytes + 524_288) / 1_048_576;
+
     private async Task<string?> DownloadAsync(
         ReleaseManifest manifest,
         Provisioning.UpdateChannel channel,
         CancellationToken cancellation)
     {
-        var directory = Path.Combine(
-            Path.GetDirectoryName(Settings.AppSettings.DefaultPath)!, "updates");
+        // В общий каталог, а не в профиль пользователя: отсюда выпуск заберёт
+        // обновляльщик, работающий от SYSTEM, а до профиля оператора ему не
+        // дотянуться — у SYSTEM свой. Файл здесь остаётся данными: запускать его
+        // не будет ни приложение, ни обновляльщик, пока тот не перенесёт его в
+        // `Program Files`, проверив подпись заново.
+        var directory = UpdateHandoff.UpdatesDirectory;
 
         var path = Path.Combine(directory, $"EliteSIP-{manifest.Version.ToString(3)}.exe");
 
@@ -394,7 +483,10 @@ internal sealed class UpdateService : IDisposable
             request.Headers.TryAddWithoutValidation(
                 "Authorization", Provisioning.BasicHeader(channel.User, channel.Password));
 
-            using var response = await ChannelRequest.Client.SendAsync(request, cancellation)
+            // Заголовки — отдельно от тела: ответ читается потоком, кусками,
+            // чтобы было что показать по ходу и было по чему заметить простой.
+            using var response = await ChannelRequest.Client
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation)
                 .ConfigureAwait(true);
 
             if (response.StatusCode != HttpStatusCode.OK)
@@ -403,7 +495,52 @@ internal sealed class UpdateService : IDisposable
                 return null;
             }
 
-            var bytes = await response.Content.ReadAsByteArrayAsync(cancellation).ConfigureAwait(true);
+            var total = response.Content.Headers.ContentLength ?? manifest.Size;
+            var version = manifest.Version.ToString(3);
+
+            await using var body = await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(true);
+            using MemoryStream buffer = new(total > 0 ? (int)Math.Min(total, int.MaxValue) : 0);
+
+            var chunk = new byte[81920];
+            var lastShown = DateTime.MinValue;
+
+            while (true)
+            {
+                // Свой срок на каждый кусок: простой дольше минуты — это
+                // оборванная связь, а не медленный канал.
+                using var stall = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                stall.CancelAfter(StallTimeout);
+
+                int read;
+                try
+                {
+                    read = await body.ReadAsync(chunk, stall.Token).ConfigureAwait(true);
+                }
+                catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+                {
+                    _log($"обновления: закачка стоит дольше {StallTimeout.TotalSeconds:0} с "
+                        + $"на {Megabytes(buffer.Length)} из {Megabytes(total)} МБ — обрываю");
+                    throw new IOException("канал перестал отдавать данные");
+                }
+
+                if (read == 0)
+                {
+                    break;
+                }
+
+                buffer.Write(chunk, 0, read);
+
+                // Не на каждый кусок: сотня обновлений надписи в секунду —
+                // это занятый поток интерфейса, а глазу хватает двух.
+                if (DateTime.UtcNow - lastShown > TimeSpan.FromMilliseconds(500))
+                {
+                    lastShown = DateTime.UtcNow;
+                    LastResult = Resources.Strings.Format(
+                        "UpdatesDownloading", version, Megabytes(buffer.Length), Megabytes(total));
+                }
+            }
+
+            var bytes = buffer.ToArray();
             var digest = Convert.ToHexString(SHA256.HashData(bytes));
 
             if (!string.Equals(digest, manifest.Sha256, StringComparison.OrdinalIgnoreCase))

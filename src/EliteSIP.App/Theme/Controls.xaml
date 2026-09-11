@@ -58,7 +58,13 @@
       единственным исключением: 11 при высоте 22 — это не скругление, а форма,
       и означает она метку состояния, а не кнопку.
   -->
-  <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+  <!--
+      11 сентября 2026 — тройка. Оформление приведено к Параметрам Windows 10,
+      где кнопки и поля прямоугольные, но совсем без скругления приложение
+      выглядит грубо на Windows 11, где скруглено всё. Три точки — компромисс:
+      на «десятке» почти незаметны, на «одиннадцатой» не режут глаз.
+  -->
+  <CornerRadius x:Key="ControlCornerRadius">3</CornerRadius>
 
   <!--
       Кнопка-поверхность: подложка, скругление, подсветка под курсором.
@@ -187,7 +193,8 @@
     <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="Height" Value="32" />
+    <!-- Минимум, а не высота: в растянутой панели клавиши растут с рядом. -->
+    <Setter Property="MinHeight" Value="32" />
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template">
       <Setter.Value>
@@ -514,7 +521,7 @@
   -->
 
   <!-- Радиус всплывающей поверхности: списка, меню, подсказки. -->
-  <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+  <CornerRadius x:Key="OverlayCornerRadius">6</CornerRadius>
 
   <!--
       Тень под всплывающим. Слабая и глубокая: всплывающее в Windows 11 не

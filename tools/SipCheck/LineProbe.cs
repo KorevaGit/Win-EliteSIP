@@ -282,7 +282,10 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
         // Порядок из оригинала: порт занимается и слушает ДО 200 OK — Asterisk
         // начинает слать RTP сразу по ответу, не дожидаясь ACK.
         (SessionDescription answer, NegotiatedMedia media, RtpPortReservation reservation) =
-            MediaSession.MakeAnswer(SdpParser.Parse(incoming.Offer.Span), mediaAddress);
+            MediaSession.MakeAnswer(
+                SdpParser.Parse(incoming.Offer.Span),
+                mediaAddress,
+                bindAddress: agent.LocalSignalingAddress);
 
         if (!await agent.AnswerIncomingCallAsync(incoming.CallId, answer.EncodedData()).ConfigureAwait(false))
         {
@@ -387,10 +390,13 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
             return null;
         }
 
-        (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(mediaAddress);
+        (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(
+            mediaAddress,
+            bindAddress: _agent.LocalSignalingAddress);
         Console.WriteLine(
             $"-> звоним на {target}, RTP на {mediaAddress}:"
-                + reservation.RtpPort.ToString(CultureInfo.InvariantCulture));
+                + reservation.RtpPort.ToString(CultureInfo.InvariantCulture)
+                + $" (сокет на {reservation.LocalAddress})");
 
         SipOutgoingCall call = _agent.PlaceCall(target, offer.EncodedData());
 

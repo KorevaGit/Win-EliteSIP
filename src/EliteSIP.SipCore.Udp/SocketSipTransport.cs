@@ -137,8 +137,28 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Трасса: сырые сообщения SIP, как они уходят и приходят.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <c>null</c> — не пишем, и это обычное состояние: трасса вываливает в
+    /// журнал пароли в <c>Authorization</c> и весь SDP, поэтому включается она
+    /// руками в «Обслуживании» и только на время разбора.
+    ///
+    /// Здесь, в транспорте, а не в слое транзакций: тут ровно один выход и
+    /// один вход, а в слое отправка размазана по шести местам, и седьмое
+    /// однажды забыли бы.
+    ///
+    /// Переключатель «Писать трассу SIP» существовал с самого начала и не был
+    /// подключён ни к чему: его читали только настройки, чтобы сохранить.
+    /// </remarks>
+    public Action<bool, ReadOnlyMemory<byte>>? Trace { get; set; }
+
     public async Task SendAsync(ReadOnlyMemory<byte> data)
     {
+        Trace?.Invoke(true, data);
+
         Socket socket;
         SslStream? stream;
         lock (_gate)
@@ -534,7 +554,9 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             {
                 // Одна датаграмма — одно сообщение. Фреймер тут не нужен и
                 // только мешал бы: датаграмма без Content-Length законна.
-                _events.Writer.TryWrite(new SipTransportEvent.Received(buffer.AsSpan(0, read).ToArray()));
+                var datagram = buffer.AsSpan(0, read).ToArray();
+                Trace?.Invoke(false, datagram);
+                _events.Writer.TryWrite(new SipTransportEvent.Received(datagram));
                 continue;
             }
 
@@ -543,6 +565,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             {
                 while (_framer.NextMessageData() is byte[] message)
                 {
+                    Trace?.Invoke(false, message);
                     _events.Writer.TryWrite(new SipTransportEvent.Received(message));
                 }
             }
