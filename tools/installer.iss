@@ -107,7 +107,18 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; \
+    Excludes: "{#AppExe},{#UpdaterExe}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
+
+; Запускаемые файлы — последними, после всех библиотек.
+;
+; Прежний софтфон на время установки переименован (см. `PrepareToInstall`), и
+; пока нового exe нет, запустить нечего. Ляг новый exe первым, по алфавиту, —
+; щелчок по ярлыку поднимал бы его посреди копирования, и он занимал бы
+; ещё не заменённые библиотеки: живая проверка 11 сентября 2026 споткнулась
+; ровно так на `hostfxr.dll`.
+Source: "{#PublishDir}\{#UpdaterExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PublishDir}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 ; Каталог обмена между приложением и обновляльщиком.
@@ -272,6 +283,7 @@ Filename: "{sys}\netsh.exe"; \
 ; история и журнал живут в профиле пользователя и удалением программы не
 ; трогаются: переустановка не должна стирать рабочее место.
 Type: filesandordirs; Name: "{app}\updates"
+Type: files; Name: "{app}\{#AppExe}.updating"
 
 [Code]
 {
@@ -291,10 +303,50 @@ Type: filesandordirs; Name: "{app}\updates"
     - прежние установщики EliteSIP, кроме этого самого, — зависшие в нулевом
       сеансе от предыдущих попыток.
 }
+{
+  Софтфон на время установки убирается с дороги переименованием.
+
+  Закрыть его мало: закрытое окно оператор открывает снова через три секунды
+  — ярлыком или кнопкой в панели задач, — и новый процесс занимает файлы,
+  которые установщик ещё не заменил. Тихая установка на первом занятом файле
+  отменяется: 11 сентября 2026 так сорвались 0.1.49–0.1.52 (родитель
+  перезапущенного процесса в журнале — Explorer). Защита в самом приложении
+  (мьютекс установки) есть только с 0.1.52, а обновляют и с более старых.
+
+  Переименование работает для любой версии: запускать под прежним именем
+  нечего, щелчок по ярлыку просто ничего не найдёт, пока идёт копирование.
+  Windows разрешает переименовать и работающий exe, поэтому переименование
+  идёт первым, до снятия процесса. Не встала установка — имя возвращается в
+  `DeinitializeSetup`.
+}
+var
+  AppMovedAside: Boolean;
+
+function AppPath(): String;
+begin
+  Result := ExpandConstant('{app}\{#AppExe}');
+end;
+
+function MovedAsidePath(): String;
+begin
+  Result := ExpandConstant('{app}\{#AppExe}.updating');
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
+  AppMovedAside := False;
+  if FileExists(AppPath()) then
+  begin
+    DeleteFile(MovedAsidePath());
+    AppMovedAside := RenameFile(AppPath(), MovedAsidePath());
+    if AppMovedAside then
+      Log('Софтфон переименован на время установки')
+    else
+      Log('Софтфон переименовать не удалось');
+  end;
+
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#AppExe}', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#UpdaterExe}', '',
@@ -308,6 +360,26 @@ begin
   { Процесс уходит не мгновенно: дескрипторы файлов закрываются после него. }
   Sleep(1500);
   Result := '';
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  { Новый exe на месте — прежний больше не нужен. }
+  if (CurStep = ssPostInstall) and AppMovedAside then
+    DeleteFile(MovedAsidePath());
+end;
+
+procedure DeinitializeSetup();
+begin
+  { Установка не встала, а новый exe так и не лёг — вернуть прежний, иначе
+    оператору нечего будет запустить. }
+  if AppMovedAside and FileExists(MovedAsidePath()) then
+  begin
+    if FileExists(AppPath()) then
+      DeleteFile(MovedAsidePath())
+    else
+      RenameFile(MovedAsidePath(), AppPath());
+  end;
 end;
 
 {

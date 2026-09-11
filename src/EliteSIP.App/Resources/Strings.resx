@@ -1050,9 +1050,6 @@
   <data name="UpdatesDownloadFailed" xml:space="preserve">
     <value>the installer did not download</value>
   </data>
-  <data name="UpdateInstallingNow" xml:space="preserve">
-    <value>An EliteSIP update is being installed right now. The softphone will open by itself as soon as it finishes — usually in under a minute.</value>
-  </data>
   <data name="UpdateOfferTitle" xml:space="preserve">
     <value>Update to {0}?</value>
   </data>

@@ -36,4 +36,15 @@ internal static class SetupInProgress
             return true;
         }
     }
+
+    /// <summary>Ждёт конца установки, но не дольше срока.</summary>
+    internal static void WaitForExit(TimeSpan limit)
+    {
+        var deadline = DateTime.UtcNow + limit;
+
+        while (IsRunning() && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(500);
+        }
+    }
 }
