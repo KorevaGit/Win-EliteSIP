@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
     Русские подписи — язык, на котором приложение написано и на котором его
     читает заказчик. Лежат отдельным каталогом, а не в нейтральном, потому что
@@ -127,6 +127,9 @@
   </data>
   <data name="WorkInCallNote" xml:space="preserve">
     <value>Идёт разговор — переключить сейчас нельзя.</value>
+  </data>
+  <data name="WorkStartupSection" xml:space="preserve">
+    <value>Запуск</value>
   </data>
   <data name="WorkTroubleSection" xml:space="preserve">
     <value>Если не подключается</value>
@@ -1025,6 +1028,9 @@
   <data name="UpdatesDownloadFailed" xml:space="preserve">
     <value>установщик не скачался</value>
   </data>
+  <data name="UpdateInstallingNow" xml:space="preserve">
+    <value>Сейчас устанавливается обновление EliteSIP. Софтфон откроется сам, как только установка закончится, — обычно это меньше минуты.</value>
+  </data>
   <data name="UpdateOfferTitle" xml:space="preserve">
     <value>Обновить до {0}?</value>
   </data>
@@ -1049,7 +1055,7 @@
     <value>Запускать вместе с Windows</value>
   </data>
   <data name="AdminMaintenanceAutoStartNote" xml:space="preserve">
-    <value>Софтфон, не поднявшийся после ночной перезагрузки, пропускает первые звонки смены. Переключатель действует сразу, а не по «Сохранить»: правду об автозапуске держит сама Windows и показывает её в диспетчере задач.</value>
+    <value>Софтфон, не поднявшийся после ночной перезагрузки, пропускает первые звонки смены. Автозапуск видно и в диспетчере задач Windows, на вкладке «Автозагрузка».</value>
   </data>
   <data name="AudioInputSection" xml:space="preserve">
     <value>Микрофон</value>

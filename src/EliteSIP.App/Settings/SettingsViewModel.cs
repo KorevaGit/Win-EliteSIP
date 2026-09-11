@@ -260,6 +260,27 @@ public sealed class SettingsViewModel : Observable
 
     public bool ShowsWork => _section is SettingsSectionKind.Work;
 
+    /// <summary>
+    /// Запускать софтфон вместе с входом в систему.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Здесь, в «Работе», а не в «Управлении»: автозапуск пишется в ветку
+    /// пользователя, прав администратора не требует, и решать его должен тот,
+    /// кто за машиной работает. Действует сразу — правда о нём живёт в реестре,
+    /// его же показывает диспетчер задач, и читается тоже у системы: снятый там
+    /// автозапуск обязан показаться снятым и здесь.
+    /// </remarks>
+    public bool StartsWithWindows
+    {
+        get => Shell.AutoStart.IsEnabled;
+        set
+        {
+            _ = Shell.AutoStart.Set(value);
+            NotifyChanged();
+        }
+    }
+
     public bool ShowsAudio => _section is SettingsSectionKind.Audio;
 
     public bool ShowsRingtone => _section is SettingsSectionKind.Ringtone;

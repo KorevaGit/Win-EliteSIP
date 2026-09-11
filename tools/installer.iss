@@ -92,6 +92,13 @@ CloseApplications=yes
 ; (см. `UserSession` и раздел [Run]).
 RestartApplications=no
 
+; Мьютекс на всё время установки. Приложение, увидев его, не запускается, а
+; обновляльщик ждёт его исчезновения, прежде чем поднять софтфон: запуск
+; посреди копирования занимал файлы, и тихая установка отменялась на первом
+; же занятом (так 11 сентября 2026 сорвались 0.1.49–0.1.51). Глобальный —
+; установщик обновления работает от SYSTEM в нулевом сеансе.
+SetupMutex=EliteSIP.Setup,Global\EliteSIP.Setup
+
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
 
@@ -196,7 +203,10 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
 ; заводская настройка не положена, хотя она лежит на месте. Оператор при этом
 ; входит потом в собственный профиль, где ничего не настроено, а работа админа
 ; в мастере пропадает целиком.
-Filename: "{app}\{#AppExe}"; Description: "Запустить {#AppName}"; \
+;
+; `--after-setup`: установщик в этот момент ещё жив и держит свой мьютекс, а
+; без ключа приложение приняло бы это за установку в разгаре и ушло.
+Filename: "{app}\{#AppExe}"; Parameters: "--after-setup"; Description: "Запустить {#AppName}"; \
     Flags: nowait postinstall skipifsilent runasoriginaluser
 
 ; Подъём приложения после обновления — отсюда, а не из того обновляльщика,

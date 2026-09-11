@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
     Английские подписи. Нейтральный, то есть запасной, каталог — он же тот,
     который видит система с любым языком, кроме русского.
@@ -145,6 +145,9 @@
   </data>
   <data name="WorkInCallNote" xml:space="preserve">
     <value>A call is in progress — switching is not possible right now.</value>
+  </data>
+  <data name="WorkStartupSection" xml:space="preserve">
+    <value>Startup</value>
   </data>
   <data name="WorkTroubleSection" xml:space="preserve">
     <value>If it will not connect</value>
@@ -1047,6 +1050,9 @@
   <data name="UpdatesDownloadFailed" xml:space="preserve">
     <value>the installer did not download</value>
   </data>
+  <data name="UpdateInstallingNow" xml:space="preserve">
+    <value>An EliteSIP update is being installed right now. The softphone will open by itself as soon as it finishes — usually in under a minute.</value>
+  </data>
   <data name="UpdateOfferTitle" xml:space="preserve">
     <value>Update to {0}?</value>
   </data>
@@ -1071,7 +1077,7 @@
     <value>Start with Windows</value>
   </data>
   <data name="AdminMaintenanceAutoStartNote" xml:space="preserve">
-    <value>A softphone that did not come back after a night-time restart misses the first calls of the shift. This switch acts at once, not on Save: Windows keeps the truth about startup itself and shows it in Task Manager.</value>
+    <value>A softphone that did not come back after a night-time restart misses the first calls of the shift. Startup is also shown in Task Manager, on the Startup tab.</value>
   </data>
   <data name="AudioInputSection" xml:space="preserve">
     <value>Microphone</value>

@@ -351,6 +351,25 @@ public sealed class PanelViewModel : Observable
         NotifyChanged(nameof(CanMuteMicrophone));
         NotifyChanged(nameof(CanTransfer));
         NotifyChanged(nameof(CanStartConference));
+        ResyncToggles();
+    }
+
+    /// <summary>Заново сообщить окну состояние кнопок-переключателей ряда управления.</summary>
+    ///
+    /// <remarks>
+    /// Кнопки ряда — `ToggleButton` с привязкой в одну сторону, и щелчок
+    /// переключает их сам, не дожидаясь модели. Если модель после этого не
+    /// сменила значение — удержание не встало, собеседник положил трубку, пока
+    /// шёл повторный INVITE, — уведомления нет, и кнопка оставалась «нажатой»
+    /// и после конца разговора. Повторное уведомление дешевле, чем выяснять,
+    /// какой из путей его пропустил.
+    /// </remarks>
+    public void ResyncToggles()
+    {
+        NotifyChanged(nameof(IsOnHold));
+        NotifyChanged(nameof(IsMicrophoneMuted));
+        NotifyChanged(nameof(IsConferenceStarted));
+        NotifyChanged(nameof(IsTransferEntryVisible));
     }
 
     /// <summary>Строка состояния разговора: «разговор», «удержание», «перевод…».</summary>

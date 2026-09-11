@@ -238,7 +238,14 @@ internal sealed class UpdateService : IDisposable
         // живут таймеры и привязки: конец разговора, напоминание, кнопка
         // «Установить» и завершившаяся проверка звали `Offer` снова, и
         // оператор получал два одинаковых окна подряд.
-        if (_isOffering)
+        //
+        // И после согласия — тоже. «Обновить» ведёт к выходу, а выход снимает
+        // регистрацию, крутя очередь сообщений до двух секунд; конец разговора
+        // и прочие поводы звали `Offer` прямо там, и вопрос вставал второй раз
+        // поверх уходящего приложения. Оператор видел то же окно снова, а
+        // закрывалось всё только после второго «Обновить» (журнал 11 сентября
+        // 2026: «передано обновляльщику» дважды за секунду).
+        if (_isOffering || _isInstalling)
         {
             return;
         }
@@ -263,11 +270,23 @@ internal sealed class UpdateService : IDisposable
             return;
         }
 
-        Install();
+        _isInstalling = true;
+        _cycle.Stop();
+
+        if (!Install())
+        {
+            // Передать не вышло — предложение вернётся, как после «Отложить».
+            _isInstalling = false;
+            _cycle.Start();
+            _reminder.Start();
+        }
     }
 
     /// <summary>Висит ли вопрос об установке на экране прямо сейчас.</summary>
     private bool _isOffering;
+
+    /// <summary>Оператор согласился, приложение уходит под установщик.</summary>
+    private bool _isInstalling;
 
     public void Dispose()
     {
@@ -291,16 +310,16 @@ internal sealed class UpdateService : IDisposable
     /// брошенная регистрация переживёт себя минуту-другую, а вот десять минут
     /// тишины оператор объяснить не сможет.
     /// </remarks>
-    private void Install()
+    private bool Install()
     {
         if (ReadyVersion is not { } version)
         {
-            return;
+            return false;
         }
 
         if (!UpdateHandoff.Request(version, _log))
         {
-            return;
+            return false;
         }
 
         _log($"обновление {version} передано обновляльщику");
@@ -309,6 +328,10 @@ internal sealed class UpdateService : IDisposable
         {
             PrepareForRestart?.Invoke();
         }
+
+        // Согласие записано: даже если задачу не удалось разбудить, она
+        // проснётся сама, и спрашивать второй раз не о чем.
+        return true;
     }
 
     private async Task TickAsync()

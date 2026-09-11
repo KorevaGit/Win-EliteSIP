@@ -507,27 +507,6 @@ public sealed class AdministrationViewModel : Observable
         }
     }
 
-    /// <summary>
-    /// Запускать софтфон вместе с входом в систему.
-    /// </summary>
-    ///
-    /// <remarks>
-    /// Единственная настройка «Управления», которая действует сразу, а не по
-    /// «Сохранить», — и не по недосмотру: правда о ней живёт в реестре, его же
-    /// показывает диспетчер задач, и черновик здесь означал бы два источника
-    /// одного факта. Читается тоже у системы: снятый в диспетчере автозапуск
-    /// обязан показаться снятым и здесь.
-    /// </remarks>
-    public bool StartsWithWindows
-    {
-        get => Shell.AutoStart.IsEnabled;
-        set
-        {
-            _ = Shell.AutoStart.Set(value);
-            NotifyChanged();
-        }
-    }
-
     /// <summary>Черновик списка клавиш. Настоящий список правится по «Сохранить».</summary>
     public ObservableCollection<MacroSetting> Macros { get; } = [];
 

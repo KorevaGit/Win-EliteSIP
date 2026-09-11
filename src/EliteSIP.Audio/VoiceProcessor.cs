@@ -1,4 +1,4 @@
-using SoundFlow.Extensions.WebRtc.Apm;
+﻿using SoundFlow.Extensions.WebRtc.Apm;
 
 namespace EliteSIP.Audio;
 
@@ -51,6 +51,9 @@ internal sealed class VoiceProcessor : IDisposable
     private static readonly int[] SupportedRates = [8000, 16000, 32000, 48000];
 
     private readonly AudioProcessingModule _apm;
+
+    /// <summary>АРУ. <c>null</c> — выключена.</summary>
+    private readonly SpeechGainControl? _gainControl;
     private readonly StreamConfig _stream;
     private readonly float[][] _nearIn;
     private readonly float[][] _nearOut;
@@ -68,6 +71,7 @@ internal sealed class VoiceProcessor : IDisposable
         }
 
         SampleRate = sampleRate;
+        _gainControl = automaticGainControl ? new SpeechGainControl() : null;
 
         // Кадр APM — ровно десять миллисекунд. Это не настройка: библиотека
         // принимает только такой, и весь конвейер тракта считает от него.
@@ -84,7 +88,10 @@ internal sealed class VoiceProcessor : IDisposable
 
             config.SetNoiseSuppression(noiseSuppression, NoiseSuppressionLevel.High);
             config.SetHighPassFilter(true);
-            config.SetGainController2(automaticGainControl);
+            // Регуляторы усиления WebRTC выключены: АРУ своя, после обработки
+            // (см. SpeechGainControl — там и замеры, почему).
+            config.SetGainController1(false, GainControlMode.AdaptiveDigital, 3, 9, true);
+            config.SetGainController2(false);
 
             _apm.ApplyConfig(config);
         }
@@ -171,8 +178,16 @@ internal sealed class VoiceProcessor : IDisposable
         _apm.SetStreamDelayMs(Math.Clamp(delayMilliseconds, 0, 500));
         _apm.ProcessStream(_nearIn, _stream, _stream, _nearOut);
 
-        _nearOut[0].AsSpan(0, FrameSamples).CopyTo(destination);
+        // АРУ — после эхоподавителя и шумодава, а не до: так она меряет
+        // голос, а не эхо и не шум, и не вытягивает то, что они убрали.
+        Span<float> processed = _nearOut[0].AsSpan(0, FrameSamples);
+        _gainControl?.Process(processed);
+
+        processed.CopyTo(destination);
     }
+
+    /// <summary>Прибавка АРУ сейчас, дБ. Ноль, пока АРУ выключена.</summary>
+    public double AutomaticGainDb => _gainControl?.GainDb ?? 0;
 
     public void Dispose()
     {

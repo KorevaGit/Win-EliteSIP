@@ -50,6 +50,12 @@ if (args.Contains("--relaunch"))
 {
     var exe = Path.Combine(AppContext.BaseDirectory, "EliteSIP.App.exe");
 
+    // Установщик зовёт нас из своего раздела [Run], то есть ещё живым, а
+    // приложение, увидев его мьютекс, уходит, чтобы не помешать установке
+    // (см. `SetupInProgress` в приложении). Поэтому сперва ждём, пока
+    // установщик выйдет.
+    WaitForSetupToExit(TimeSpan.FromMinutes(2));
+
     if (UserSession.TryStartInActiveSession(exe, out var why))
     {
         log.Write($"выпуск {InstalledVersion()} установлен, приложение поднято в сеансе оператора");
@@ -215,6 +221,13 @@ void RelaunchIfPending()
         return;
     }
 
+    // Установка ещё идёт — поднятое сейчас приложение ушло бы само.
+    if (Mutex.TryOpenExisting(@"Global\EliteSIP.Setup", out var setup))
+    {
+        setup.Dispose();
+        return;
+    }
+
     var exe = Path.Combine(AppContext.BaseDirectory, "EliteSIP.App.exe");
     if (UserSession.TryStartInActiveSession(exe, out var reason))
     {
@@ -224,6 +237,23 @@ void RelaunchIfPending()
     else
     {
         log.Write($"софтфон после установки всё ещё не поднят ({reason})");
+    }
+}
+
+/// <summary>Ждёт, пока установщик EliteSIP не отпустит свой мьютекс.</summary>
+static void WaitForSetupToExit(TimeSpan limit)
+{
+    var deadline = DateTime.UtcNow + limit;
+
+    while (DateTime.UtcNow < deadline)
+    {
+        if (!Mutex.TryOpenExisting(@"Global\EliteSIP.Setup", out var mutex))
+        {
+            return;
+        }
+
+        mutex.Dispose();
+        Thread.Sleep(500);
     }
 }
 

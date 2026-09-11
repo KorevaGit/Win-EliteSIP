@@ -597,8 +597,16 @@ public sealed class PhoneService : IDisposable
             return;
         }
 
-        await _lines.HoldAsync(callId, !_panel.IsOnHold).ConfigureAwait(true);
-        SyncLines();
+        try
+        {
+            await _lines.HoldAsync(callId, !_panel.IsOnHold).ConfigureAwait(true);
+        }
+        finally
+        {
+            // И при отказе: кнопка уже переключилась от щелчка, и вернуть её
+            // может только сверка с линиями.
+            SyncLines();
+        }
     }
 
     /// <summary>Настройки звука оператора в том виде, в каком их понимает тракт.</summary>
@@ -1050,6 +1058,8 @@ public sealed class PhoneService : IDisposable
         {
             _panel.ActiveLine = null;
             _panel.CanSendDtmf = false;
+            _panel.IsOnHold = false;
+            _panel.ResyncToggles();
             return;
         }
 
@@ -1082,6 +1092,7 @@ public sealed class PhoneService : IDisposable
         _panel.IsOnHold = active?.IsOnHold ?? false;
         _panel.CanSendDtmf = active is not null;
         _panel.IsMicrophoneMuted = _lines.IsMicrophoneMuted;
+        _panel.ResyncToggles();
     }
 
     private void Trouble(string key, bool opensSettings)

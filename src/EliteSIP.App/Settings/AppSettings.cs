@@ -55,7 +55,7 @@ public sealed class AudioSettings : Observable
     private string? _outputDeviceName;
     private double _microphoneGain = 1.0;
     private double _playbackVolume = 1.0;
-    private bool _automaticGainControl = true;
+    private bool _automaticGainControl;
     private bool _noiseSuppression = true;
     private bool _releasesDeviceWhenIdle = true;
 
@@ -111,6 +111,11 @@ public sealed class AudioSettings : Observable
     }
 
     /// <summary>Единственное, что в обработке голоса действительно спорно.</summary>
+    ///
+    /// <remarks>
+    /// По умолчанию выключена, как в оригинале: на хорошей гарнитуре АРУ
+    /// «дышит», а тихий микрофон подтягивается ползунком.
+    /// </remarks>
     public bool AutomaticGainControl
     {
         get => _automaticGainControl;
@@ -396,6 +401,35 @@ public sealed class AppSettings : Observable
     /// <summary>Пароль учётки. Шифруется DPAPI — см. `SipCredentials`.</summary>
     public SipCredentials Credentials { get; init; } = new();
 
+    /// <summary>
+    /// Ревизия файла настроек. <c>null</c> — файл записан до того, как
+    /// ревизии появились.
+    /// </summary>
+    public int? Revision { get; set; }
+
+    /// <summary>Текущая ревизия. См. <see cref="Upgrade"/>.</summary>
+    public const int CurrentRevision = 1;
+
+    /// <summary>Однократные правки старых файлов. Зовётся при чтении.</summary>
+    ///
+    /// <remarks>
+    /// Ревизия 1 (11 сентября 2026): АРУ выключается. Порт завёл её
+    /// включённой по умолчанию, хотя в оригинале она выключена, — и заодно
+    /// гасил ручной ползунок усиления. При этом до той же даты АРУ не делала
+    /// ничего (см. <c>SpeechGainControl</c>), так что «включено» в старых
+    /// файлах — никем не выбранное умолчание, а выключение ничего не меняет на
+    /// слух и возвращает ползунок.
+    /// </remarks>
+    internal void Upgrade()
+    {
+        if (Revision is null or < 1)
+        {
+            Audio.AutomaticGainControl = false;
+        }
+
+        Revision = CurrentRevision;
+    }
+
     /// <summary>Читает настройки или отдаёт умолчания.</summary>
     ///
     /// <remarks>
@@ -414,8 +448,10 @@ public sealed class AppSettings : Observable
                 return new AppSettings();
             }
 
-            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), Format)
+            var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), Format)
                 ?? new AppSettings();
+            settings.Upgrade();
+            return settings;
         }
         catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {

@@ -187,6 +187,16 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private float _playedPeak;
 
     /// <summary>
+    /// Пики по каналам захвата — до сведения в моно.
+    ///
+    /// Сведение усреднением гасит каналы в противофазе: у части наборов
+    /// микрофонов Realtek так и приходит. Тогда «микрофон: тишина» в журнале
+    /// стоит при живом устройстве, и отличить это от мёртвого входа можно
+    /// только по каналам.
+    /// </summary>
+    private float[] _captureChannelPeaks = [];
+
+    /// <summary>
     /// Чем тракт связан с устройствами: что просили в настройках и что
     /// досталось на самом деле.
     ///
@@ -306,7 +316,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     Build();
                     break;
                 }
-                catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException)
+                catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException
+                                              or NotSupportedException)
                 {
                     // Разбираем недособранное сами: оставить половину открытых
                     // потоков значит держать гарнитуру в режиме связи после
@@ -457,7 +468,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     Report(new VoiceAudioEvent.Restarted(reason));
                     return;
                 }
-                catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException)
+                catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException
+                                              or NotSupportedException)
                 {
                     Teardown();
 
@@ -584,9 +596,19 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     }
 
     /// <summary>Пики уровня одной строкой. Сбрасываются на каждом подъёме тракта.</summary>
-    public string LevelSummary =>
-        $"пики: микрофон {Decibels(_capturePeak)}, в линию {Decibels(_sentPeak)}, "
-        + $"в наушники {Decibels(_playedPeak)}";
+    public string LevelSummary
+    {
+        get
+        {
+            float[] channels = _captureChannelPeaks;
+            string perChannel = channels.Length > 1
+                ? $" (каналы {string.Join(" / ", channels.Select(Decibels))})"
+                : string.Empty;
+
+            return $"пики: микрофон {Decibels(_capturePeak)}{perChannel}, в линию {Decibels(_sentPeak)}, "
+                + $"в наушники {Decibels(_playedPeak)}";
+        }
+    }
 
     private static string Decibels(float peak) => peak <= 1e-5f
         ? "тишина"
@@ -728,6 +750,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _correctionCarry = 0;
         _lastClockSample = 0;
         _capturePeak = _sentPeak = _playedPeak = 0;
+        _captureChannelPeaks = new float[_captureFormat.Channels];
         _uptime.Restart();
         _captureClient.Start();
         _renderClient.Start();
@@ -871,6 +894,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         AudioCaptureClient capture = client.AudioCaptureClient;
         int channels = format.Channels;
         SampleLayout layout = _captureLayout;
+        float[] channelPeaks = _captureChannelPeaks;
 
         float[] mono = new float[format.SampleRate];
         float[] processingPending = new float[format.SampleRate];
@@ -902,6 +926,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                         if ((flags & AudioClientBufferFlags.Silent) == 0)
                         {
                             _capturePeak = PeakOf(mono.AsSpan(0, frames), _capturePeak);
+                            ChannelPeaks(buffer, frames, channels, layout, channelPeaks);
                         }
 
                         activity.NoteDelivered(frames);
@@ -1224,6 +1249,32 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         }
 
         render.ReleaseBuffer(frames, AudioClientBufferFlags.None);
+    }
+
+    /// <summary>Пики по каналам сырого буфера захвата — для журнала.</summary>
+    private static unsafe void ChannelPeaks(
+        nint buffer, int frames, int channels, SampleLayout layout, float[] peaks)
+    {
+        if (channels < 2 || peaks.Length < channels)
+        {
+            return;
+        }
+
+        for (int i = 0; i < frames; i++)
+        {
+            for (int c = 0; c < channels; c++)
+            {
+                float value = layout is SampleLayout.Float32
+                    ? ((float*)buffer)[(i * channels) + c]
+                    : ((short*)buffer)[(i * channels) + c] / (float)short.MaxValue;
+
+                float magnitude = Math.Abs(value);
+                if (magnitude > peaks[c])
+                {
+                    peaks[c] = magnitude;
+                }
+            }
+        }
     }
 
     private static unsafe void MixToMono(
