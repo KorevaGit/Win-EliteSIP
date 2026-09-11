@@ -189,7 +189,7 @@
     <value>Noise suppression</value>
   </data>
   <data name="AudioNoiseSuppressionNote" xml:space="preserve">
-    <value>Removes room noise from your voice. Turn it off only on a headset: on laptop speakers it also removes the echo the other side would hear. Takes effect from the next call.</value>
+    <value>Removes room noise from your voice. Turn it off only on a headset: on laptop speakers it also removes the echo the other side would hear. Applies immediately, during a call too.</value>
   </data>
   <data name="AudioLevelsNote" xml:space="preserve">
     <value>Levels appear here during a call and during the check below: they show what goes into the line and what comes out of it.</value>

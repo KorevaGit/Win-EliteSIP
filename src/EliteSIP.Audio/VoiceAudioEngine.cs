@@ -170,6 +170,15 @@ public interface IVoiceAudioEngine : IDisposable
     /// <summary>Перестраивает тракт под новые настройки. Тракт должен быть остановлен.</summary>
     public void Reconfigure(VoiceAudioConfiguration configuration);
 
+    /// <summary>
+    /// Применяет настройки к тракту, не останавливая разговор.
+    ///
+    /// Громкость и усиление меняются сразу, обработка голоса — подменой на
+    /// ходу, другое устройство — пересборкой, как при его смене в системе.
+    /// На остановленном тракте просто запоминает настройки.
+    /// </summary>
+    public void Apply(VoiceAudioConfiguration configuration);
+
     /// <summary>Запускает тракт. Бросает, если поднять его не удалось.</summary>
     public void Start();
 

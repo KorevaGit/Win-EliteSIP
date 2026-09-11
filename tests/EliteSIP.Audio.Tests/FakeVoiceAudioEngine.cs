@@ -37,6 +37,15 @@ internal sealed class FakeVoiceAudioEngine : IVoiceAudioEngine
         Log.Add("reconfigure");
     }
 
+    /// <summary>Настройки, применённые на ходу. <c>null</c> — не применялись.</summary>
+    public VoiceAudioConfiguration? LastApplied { get; private set; }
+
+    public void Apply(VoiceAudioConfiguration configuration)
+    {
+        LastApplied = configuration;
+        Log.Add("apply");
+    }
+
     public void Start()
     {
         Log.Add("start");

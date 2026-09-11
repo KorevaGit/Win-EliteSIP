@@ -221,6 +221,30 @@ public sealed class VoiceAudioBus : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Применяет настройки к тракту на ходу — если он за этим владельцем.
+    ///
+    /// Запоминаются настройки и для сменного тракта: освобождённое устройство
+    /// собирается заново по последним настройкам, и без этого следующий
+    /// звонок встал бы на прежние.
+    /// </summary>
+    public bool Apply(AudioOwnerToken token, VoiceAudioConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        lock (_gate)
+        {
+            if (_disposed || !_ownership.IsOwner(token))
+            {
+                return false;
+            }
+
+            _lastConfiguration = configuration;
+        }
+
+        return WithEngine(token, engine => engine.Apply(configuration));
+    }
+
     /// <summary>Пересобирает тракт по требованию владельца.</summary>
     public bool Restart(AudioOwnerToken token, string reason) =>
         WithEngine(token, engine => engine.Restart(reason));

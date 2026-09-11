@@ -93,6 +93,92 @@ public sealed class PhoneService : IDisposable
         _dispatcher = dispatcher;
         _log = log;
         _sounds = new SignalSoundPlayer(log);
+
+        _settings.Audio.PropertyChanged += OnAudioSettingsChanged;
+    }
+
+    /// <summary>Настройки звука, которые тракт применяет на ходу.</summary>
+    private static readonly HashSet<string> LiveAudioSettings =
+    [
+        nameof(AudioSettings.InputDeviceId),
+        nameof(AudioSettings.OutputDeviceId),
+        nameof(AudioSettings.MicrophoneGain),
+        nameof(AudioSettings.PlaybackVolume),
+        nameof(AudioSettings.AutomaticGainControl),
+        nameof(AudioSettings.NoiseSuppression),
+        nameof(AudioSettings.ReleasesDeviceWhenIdle),
+    ];
+
+    private readonly object _audioApplyGate = new();
+    private bool _audioApplyPending;
+    private bool _audioApplyRunning;
+
+    /// <summary>Правка в «Звуке» — в идущий разговор, а не «со следующего звонка».</summary>
+    ///
+    /// <remarks>
+    /// До 11 сентября 2026 сессия получала настройки один раз, при подъёме, и
+    /// ползунки громкости и переключатели в разговоре не делали ничего.
+    ///
+    /// Применяется с фонового потока: смена устройства пересобирает тракт, а
+    /// это до полусекунды, которые окно настроек стояло бы колом. Правки
+    /// склеиваются — ползунок, который тянут, шлёт десятки изменений в
+    /// секунду, а применять имеет смысл последнее.
+    /// </remarks>
+    private void OnAudioSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs change)
+    {
+        // Между звонками применять некуда: тракт возьмёт настройки при подъёме.
+        if (change.PropertyName is not string name || !LiveAudioSettings.Contains(name) || _sessions.IsEmpty)
+        {
+            return;
+        }
+
+        lock (_audioApplyGate)
+        {
+            _audioApplyPending = true;
+            if (_audioApplyRunning)
+            {
+                return;
+            }
+
+            _audioApplyRunning = true;
+        }
+
+        _ = Task.Run(ApplyAudioSettings);
+    }
+
+    private void ApplyAudioSettings()
+    {
+        while (true)
+        {
+            lock (_audioApplyGate)
+            {
+                if (!_audioApplyPending)
+                {
+                    _audioApplyRunning = false;
+                    return;
+                }
+
+                _audioApplyPending = false;
+            }
+
+            var audio = AudioConfiguration();
+            foreach (var session in _sessions.Values)
+            {
+                try
+                {
+                    session.ApplyAudio(audio);
+                }
+                catch (Exception failure) when (failure is VoiceAudioException
+                                                    or ObjectDisposedException
+                                                    or InvalidOperationException)
+                {
+                    // Разговор мог кончиться между правкой и применением, а
+                    // устройство — отказать. Ни то ни другое не повод ронять
+                    // окно настроек.
+                    _log($"настройки звука не применились на ходу: {failure.Message}");
+                }
+            }
+        }
     }
 
     /// <summary>Служебные звуки: их же берёт окно входящего под рингтон.</summary>
@@ -1106,6 +1192,7 @@ public sealed class PhoneService : IDisposable
     {
         // Синхронно: приложение закрывается, и ждать снятия регистрации дольше
         // мгновения нельзя — иначе выход выглядит зависанием.
+        _settings.Audio.PropertyChanged -= OnAudioSettingsChanged;
         _lines = null;
         _running?.Cancel();
         _agent?.Dispose();

@@ -161,6 +161,16 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private readonly Lock _control = new();
     private readonly Lock _ring = new();
 
+    /// <summary>
+    /// Замок блока обработки: его зовут потоки захвата и вывода, а подменяет
+    /// переключатель в настройках. Отдельный от <see cref="_control"/>:
+    /// потоки звука не должны ждать пересборки тракта, а она держит тот.
+    /// </summary>
+    private readonly Lock _processing = new();
+
+    /// <summary>Вывод без пути до микрофона — наушники или гарнитура.</summary>
+    private bool _echoFree;
+
     private VoiceAudioConfiguration _configuration;
     private VoiceAudioHandlers _handlers = VoiceAudioHandlers.None;
 
@@ -314,6 +324,104 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 playbackSamples * 1000.0 / processingRate);
         }
     }
+
+    /// <inheritdoc/>
+    ///
+    /// <remarks>
+    /// До 11 сентября 2026 настройки доезжали до тракта только при его
+    /// подъёме: ползунки громкости и переключатели в «Звуке» двигались посреди
+    /// разговора и ничего не меняли — ровно та ручка, «которая двигается и
+    /// ничего не меняет», от которой предостерегают комментарии в настройках.
+    ///
+    /// Три уровня цены. Громкость и усиление потоки читают на каждом такте —
+    /// им достаточно новой записи. АРУ и шумодав живут в блоке обработки, и
+    /// он подменяется целиком под своим замком, не трогая устройств. Другое
+    /// устройство — пересборка тракта, как при его смене в системе: короткий
+    /// провал звука, разговор и RTP остаются.
+    /// </remarks>
+    public void Apply(VoiceAudioConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        string? restartReason = null;
+        lock (_control)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            VoiceAudioConfiguration previous = _configuration;
+            Volatile.Write(ref _configuration, configuration);
+
+            if (!_running)
+            {
+                return;
+            }
+
+            bool routeChanged = previous.InputDeviceId != configuration.InputDeviceId
+                || previous.OutputDeviceId != configuration.OutputDeviceId
+                || previous.UseRawCapture != configuration.UseRawCapture
+                || previous.Codec != configuration.Codec
+                || previous.PacketTimeMilliseconds != configuration.PacketTimeMilliseconds;
+
+            if (routeChanged)
+            {
+                // Микрофон выбран руками — подмена молчавшего больше не нужна.
+                if (previous.InputDeviceId != configuration.InputDeviceId)
+                {
+                    _inputOverrideId = null;
+                }
+
+                restartReason = "в настройках выбрано другое устройство";
+            }
+            else if (previous.AutomaticGainControl != configuration.AutomaticGainControl
+                || previous.NoiseSuppression != configuration.NoiseSuppression)
+            {
+                ReplaceProcessor();
+                Diagnostic(ProcessingSummary());
+            }
+        }
+
+        // Пересборка — вне замка: она берёт его сама и между попытками
+        // отпускает (см. Restart).
+        if (restartReason is not null)
+        {
+            Restart(restartReason);
+        }
+    }
+
+    /// <summary>
+    /// Подменяет блок обработки на ходу. Зовётся под <see cref="_control"/>.
+    ///
+    /// Новый собирается до замка обработки — сборка APM стоит миллисекунды, и
+    /// держать ради неё потоки звука незачем. Прежний освобождается после:
+    /// под замком его уже никто не держит.
+    /// </summary>
+    private void ReplaceProcessor()
+    {
+        if (_processor is not VoiceProcessor current)
+        {
+            return;
+        }
+
+        VoiceProcessor fresh = new(
+            current.SampleRate,
+            _configuration.AutomaticGainControl,
+            _configuration.NoiseSuppression,
+            echoCancellation: !_echoFree);
+
+        lock (_processing)
+        {
+            _processor = fresh;
+        }
+
+        current.Dispose();
+    }
+
+    /// <summary>Что включено в обработке — одной строкой для журнала.</summary>
+    private string ProcessingSummary() =>
+        "обработка: "
+        + (_echoFree ? "эхоподавление выкл. (вывод в наушники), " : "эхоподавление вкл., ")
+        + (_configuration.NoiseSuppression ? (_echoFree ? "шумодав умеренный, " : "шумодав сильный, ") : "шумодав выкл., ")
+        + (_configuration.AutomaticGainControl ? "АРУ вкл." : "АРУ выкл.");
 
     /// <inheritdoc/>
     public void Reconfigure(VoiceAudioConfiguration configuration)
@@ -740,12 +848,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int processingRate = VoiceProcessor.NearestSupportedRate(_captureFormat.SampleRate);
         int codecRate = (int)_configuration.Codec.SampleRate();
 
-        bool echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
+        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
         _processor = new VoiceProcessor(
             processingRate,
             _configuration.AutomaticGainControl,
             _configuration.NoiseSuppression,
-            echoCancellation: !echoFree);
+            echoCancellation: !_echoFree);
 
         _captureToProcessing = new Resampler(_captureFormat.SampleRate, processingRate);
         _processingToCodec = new Resampler(processingRate, codecRate);
@@ -840,11 +948,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 ? " (системные для связи)"
                 : string.Empty));
 
-        Diagnostic(
-            "обработка: "
-            + (echoFree ? "эхоподавление выкл. (вывод в наушники), " : "эхоподавление вкл., ")
-            + (_configuration.NoiseSuppression ? (echoFree ? "шумодав умеренный, " : "шумодав сильный, ") : "шумодав выкл., ")
-            + (_configuration.AutomaticGainControl ? "АРУ вкл." : "АРУ выкл."));
+        Diagnostic(ProcessingSummary());
 
         Diagnostic(
             $"форматы: захват {_captureFormat.SampleRate} Гц {_captureFormat.Channels} кан. "
@@ -1116,10 +1220,18 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 int consumed = 0;
                 while (processingCount - consumed >= frameSize)
                 {
-                    processor.Process(
-                        processingPending.AsSpan(consumed, frameSize),
-                        processed,
-                        ComputeDelayMilliseconds(processor.SampleRate, processingCount - consumed));
+                    int delay = ComputeDelayMilliseconds(processor.SampleRate, processingCount - consumed);
+
+                    // Блок обработки берётся из поля под своим замком, а не
+                    // из переменной цикла: переключатели АРУ и шумодава
+                    // подменяют его посреди разговора (см. Apply). Частота
+                    // и размер кадра у подменённого те же, поэтому они
+                    // читаются из прежнего.
+                    lock (_processing)
+                    {
+                        _processor!.Process(processingPending.AsSpan(consumed, frameSize), processed, delay);
+                    }
+
                     consumed += frameSize;
 
                     int produced = toCodec.Process(processed, codecPending.AsSpan(codecCount));
@@ -1147,7 +1259,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private int EmitFrames(AudioFrameEncoder encoder, float[] pending, int count, short[] frame)
     {
         SampleBalance balance = _balance!;
-        float gain = _configuration.MicrophoneGain;
+        float gain = Volatile.Read(ref _configuration).MicrophoneGain;
         int size = frame.Length;
         int offset = 0;
 
@@ -1232,7 +1344,6 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int channels = format.Channels;
         SampleLayout layout = _renderLayout;
         int bufferFrames = client.BufferSize;
-        float volume = _configuration.PlaybackVolume;
 
         float[] scratch = new float[bufferFrames];
         float[] reversePending = new float[format.SampleRate];
@@ -1304,6 +1415,10 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 // стоит у самой шкалы, пересчёт частоты даёт выбросы за неё, и
                 // микшер Windows срезал их жёстко — пики «в наушники +2 дБ» в
                 // журнале, треск в ухе.
+                //
+                // Громкость читается на каждом такте, а не один раз перед
+                // циклом: ползунок в настройках двигают посреди разговора.
+                float volume = Volatile.Read(ref _configuration).PlaybackVolume;
                 for (int i = 0; i < free; i++)
                 {
                     scratch[i] = SpeechGainControl.Limit(scratch[i] * volume);
@@ -1325,7 +1440,11 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 int consumed = 0;
                 while (reverseCount - consumed >= frameSize)
                 {
-                    processor.AnalyzeReverse(reversePending.AsSpan(consumed, frameSize));
+                    lock (_processing)
+                    {
+                        _processor!.AnalyzeReverse(reversePending.AsSpan(consumed, frameSize));
+                    }
+
                     consumed += frameSize;
                 }
 

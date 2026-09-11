@@ -260,6 +260,43 @@ public sealed class MediaSessionTests
     }
 
     [Fact]
+    public void Настройки_на_ходу_доходят_до_тракта_а_кодек_остаётся_согласованным()
+    {
+        using Fixture fixture = Fixture.Create();
+        fixture.Session.Start();
+
+        // Настройка приходит с кодеком по умолчанию из пустой конфигурации;
+        // разговор при этом идёт на том, о чём договорились с сервером.
+        fixture.Session.ApplyAudio(new VoiceAudioConfiguration
+        {
+            Codec = AudioCodec.G722,
+            PlaybackVolume = 0.3f,
+            AutomaticGainControl = true,
+        });
+
+        VoiceAudioConfiguration? applied = fixture.Engine.LastApplied;
+        Assert.NotNull(applied);
+        Assert.Equal(0.3f, applied.PlaybackVolume);
+        Assert.True(applied.AutomaticGainControl);
+        Assert.Equal(AudioCodec.Pcmu, applied.Codec);
+    }
+
+    [Fact]
+    public void Фоновая_линия_запоминает_настройки_и_возвращается_с_ними()
+    {
+        using Fixture fixture = Fixture.Create();
+        fixture.Session.Start();
+        fixture.Session.SuspendAudio();
+
+        fixture.Session.ApplyAudio(new VoiceAudioConfiguration { MicrophoneGain = 1.5f });
+        fixture.Session.ResumeAudio();
+
+        // Тракта у фоновой линии нет — применять было некуда, но при возврате
+        // она обязана собрать его уже по новым настройкам.
+        Assert.Equal(1.5f, fixture.Engine.LastConfiguration?.MicrophoneGain);
+    }
+
+    [Fact]
     public void Без_согласованного_события_тон_отправить_нечем()
     {
         using Fixture fixture = Fixture.Create(telephoneEventPayloadType: null);

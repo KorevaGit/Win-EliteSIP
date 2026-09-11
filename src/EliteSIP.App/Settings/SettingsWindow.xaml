@@ -141,14 +141,6 @@
               <theme:SettingsNote Text="{res:Loc WorkSiteNote}" />
             </theme:SettingsSection>
 
-            <theme:SettingsSection Header="{res:Loc WorkStartupSection}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminMaintenanceAutoStart}"
-                        IsChecked="{Binding StartsWithWindows}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminMaintenanceAutoStartNote}" />
-            </theme:SettingsSection>
-
             <theme:SettingsSection Header="{res:Loc WorkTroubleSection}">
               <theme:SettingsIndented>
                 <TextBlock Text="{res:Loc WorkRepairNote}"
@@ -475,6 +467,14 @@
                 обновлениями и предустановки — три разных разговора с
                 поддержкой, и у каждой кнопки свой итог прямо под ней.
             -->
+            <theme:SettingsSection Header="{res:Loc WorkStartupSection}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminMaintenanceAutoStart}"
+                        IsChecked="{Binding StartsWithWindows}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminMaintenanceAutoStartNote}" />
+            </theme:SettingsSection>
+
             <theme:SettingsSection Header="{res:Loc SupportLogsSection}">
               <theme:SettingsIndented>
                 <TextBlock Text="{res:Loc SupportArchiveNote}"

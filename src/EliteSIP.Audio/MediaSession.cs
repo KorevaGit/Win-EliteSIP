@@ -147,7 +147,11 @@ public sealed class MediaSession : IDisposable
     private readonly RtpPortReservation _reservation;
     private readonly VoiceAudioBus _bus;
     private readonly bool _ownsBus;
-    private readonly VoiceAudioConfiguration _audioConfiguration;
+    /// <summary>
+    /// Настройки тракта этой линии. Меняются на ходу (<see cref="ApplyAudio"/>),
+    /// и по ним же тракт собирается при возврате линии в разговор.
+    /// </summary>
+    private VoiceAudioConfiguration _audioConfiguration;
     private readonly AudioOwnerToken _token = AudioOwnerToken.New();
     private readonly JitterBuffer _jitter;
     private readonly RemoteSourceFilter _remoteSource = new();
@@ -720,6 +724,28 @@ public sealed class MediaSession : IDisposable
         ClaimAudio();
         _isAudioRunning = true;
         IsHeld = false;
+    }
+
+    /// <summary>
+    /// Применяет настройки оператора к идущему разговору: устройства,
+    /// громкость, усиление, обработку голоса.
+    ///
+    /// Кодек и пакетное время остаются согласованными — их задаёт договорённость
+    /// с сервером, а не настройка. Фоновая линия только запоминает настройки:
+    /// тракта у неё нет, и соберёт она его уже по новым, когда вернётся.
+    /// </summary>
+    public void ApplyAudio(VoiceAudioConfiguration audio)
+    {
+        ArgumentNullException.ThrowIfNull(audio);
+
+        VoiceAudioConfiguration updated = audio with
+        {
+            Codec = _audioConfiguration.Codec,
+            PacketTimeMilliseconds = _audioConfiguration.PacketTimeMilliseconds,
+        };
+
+        Volatile.Write(ref _audioConfiguration, updated);
+        _bus.Apply(_token, updated);
     }
 
     /// <summary>

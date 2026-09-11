@@ -362,6 +362,61 @@ public sealed class VoiceAudioBusTests
             () => bus.Claim(AudioOwnerToken.New(), new VoiceAudioConfiguration(), Handlers()));
     }
 
+    [Fact]
+    public void Настройки_на_ходу_доходят_до_тракта_владельца()
+    {
+        // До 11 сентября 2026 ползунки громкости посреди разговора не делали
+        // ничего: настройки доезжали до тракта только при захвате.
+        var (bus, engine, _) = Bus();
+        var line = AudioOwnerToken.New();
+        bus.Claim(line, new VoiceAudioConfiguration(), Handlers());
+
+        VoiceAudioConfiguration louder = new() { PlaybackVolume = 0.4f, NoiseSuppression = false };
+        Assert.True(bus.Apply(line, louder));
+
+        Assert.Same(louder, engine.LastApplied);
+    }
+
+    [Fact]
+    public void Чужой_ключ_настройки_не_применяет()
+    {
+        // Фоновая линия не вправе крутить громкость разговора, который идёт
+        // на другой.
+        var (bus, engine, _) = Bus();
+        bus.Claim(AudioOwnerToken.New(), new VoiceAudioConfiguration(), Handlers());
+
+        Assert.False(bus.Apply(AudioOwnerToken.New(), new VoiceAudioConfiguration { PlaybackVolume = 0.1f }));
+        Assert.Null(engine.LastApplied);
+    }
+
+    [Fact]
+    public void Сменный_тракт_собирается_по_настройкам_применённым_на_ходу()
+    {
+        // Иначе правка из разговора потерялась бы на первом же освобождении
+        // устройства, и следующий звонок встал бы на прежние настройки.
+        FakeVoiceAudioEngine engine = new();
+        ManualScheduler scheduler = new();
+        VoiceAudioConfiguration? builtWith = null;
+        VoiceAudioBus bus = new(
+            engine,
+            configuration =>
+            {
+                builtWith = configuration;
+                return new FakeVoiceAudioEngine();
+            },
+            scheduler.Schedule,
+            VoiceAudioBus.DefaultRetirementDelay);
+
+        var line = AudioOwnerToken.New();
+        bus.Claim(line, new VoiceAudioConfiguration(), Handlers());
+        VoiceAudioConfiguration applied = new() { MicrophoneGain = 1.5f };
+        bus.Apply(line, applied);
+        bus.Release(line);
+        scheduler.Fire();
+
+        Assert.Same(applied, builtWith);
+    }
+
     private static VoiceAudioHandlers Handlers() => new() { Diagnostic = _ => { } };
 
     private static (VoiceAudioBus Bus, FakeVoiceAudioEngine Engine, ManualScheduler Scheduler) Bus()
