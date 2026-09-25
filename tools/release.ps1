@@ -274,7 +274,9 @@ try {
 
         # Inno Setup на машине сборки стоит в профиль, а не в Program Files, и
         # в PATH его нет.
-        $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+        # Через переменную: под StrictMode `.Source` у пустого результата — ошибка.
+        $found = Get-Command iscc.exe -ErrorAction SilentlyContinue
+        $iscc = if ($found) { $found.Source } else { $null }
         if (-not $iscc) {
             $iscc = @(
                 (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
