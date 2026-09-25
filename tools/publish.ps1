@@ -15,9 +15,10 @@
       update  — собственный сервер https://update.elitesip.vip:8081, закрытый
                 объектный API (PUT /internal/objects/<ключ>, Bearer). С 0.1.56
                 выпуски публикуются только сюда.
-      legacy  — старый R2 за Worker'ом https://get.elitesip.vip, S3 API.
-                Нужен ровно один раз: переходный 0.1.56 для машин, которые ещё
-                читают старый канал (docs/RELEASES.md).
+      legacy  — УСТАРЕЛ. Замороженный R2 за Worker'ом https://get.elitesip.vip,
+                S3 API. Нужен был ровно один раз: переходный 0.1.56 для машин,
+                которые ещё читают старый канал (docs/RELEASES.md). Удалить,
+                когда все машины будут на 0.1.56+ (видно в Spark по seen/).
 
     Что делает, по порядку:
 
@@ -123,6 +124,10 @@ function Quote { param([string] $Value) '"' + $Value.Replace('\', '\\').Replace(
 
 $basicSecret = @("user = $(Quote $basicAuth)")
 
+if ($Channel -eq 'legacy') {
+    Write-Host 'внимание: канал legacy устарел — R2 заморожен, запись туда нужна была только для 0.1.56' -ForegroundColor Yellow
+}
+
 # --- 1. Что выкладываем -------------------------------------------------------
 
 Step "канал $Channel → $baseUrl"
@@ -221,6 +226,24 @@ try {
     $same = (Get-FileHash $servedManifest).Hash -eq (Get-FileHash $envelope).Hash
     if (-not $same) { Fail 'канал отдаёт не тот манифест (кэш или чужая выкладка)' }
     Ok 'манифест отдаётся, байт в байт тот, что подписан'
+
+    # Подпись — кодом клиента и ключом из заводской настройки выпуска: тем, что
+    # рабочие места получат вместе с установщиком.
+    $kit = Join-Path $root 'tools\ReleaseKit\bin\Release\net10.0\releasekit.exe'
+    $factory = Join-Path $env:APPDATA 'EliteSIP-release\provisioning.json'
+    if ((Test-Path $kit) -and (Test-Path $factory)) {
+        $keyFile = Join-Path $work 'releases.pub'
+        [System.IO.File]::WriteAllText(
+            $keyFile,
+            [string](Get-Content $factory -Raw -Encoding UTF8 | ConvertFrom-Json).releasesPublicKey,
+            (New-Object System.Text.UTF8Encoding $false))
+        & $kit verify $servedManifest $keyFile | Out-Null
+        if ($LASTEXITCODE -ne 0) { Fail 'подпись отданного манифеста не сходится с ключом клиента' }
+        Ok 'подпись отданного манифеста сходится с ключом клиента'
+    }
+    else {
+        Write-Host '  внимание: подпись не проверена — нет releasekit или заводской настройки' -ForegroundColor Yellow
+    }
 
     $servedInstaller = Join-Path $work "EliteSIP-$Version.exe"
     $code = Invoke-Curl -Arguments @('-o', $servedInstaller, $expectedUrl) -Secrets $basicSecret

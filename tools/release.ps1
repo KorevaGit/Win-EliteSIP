@@ -83,6 +83,9 @@ param(
 
     [string] $Provisioning = (Join-Path $env:APPDATA 'EliteSIP-release\provisioning.json'),
 
+    # Заметки выпуска: ложатся в поле notes манифеста.
+    [string] $Notes = '',
+
     [switch] $SkipSigning,
 
     [switch] $SkipInstaller,
@@ -212,7 +215,15 @@ try {
     # собранный под новый сервер с настройкой на старый, после установки
     # ходил бы за обновлениями не туда, и заметили бы это через выпуск.
     $factory = Get-Content $Provisioning -Raw -Encoding UTF8 | ConvertFrom-Json
-    $releasesRoot = if ($factory.updates.releasesURL) { $factory.updates.releasesURL } else { $factory.updates.baseURL }
+
+    # С 0.1.56 весь канал — один сервер, и разводить выпуски с панелью незачем:
+    # R2 заморожен, Spark пишет только на новый сервер. Разбор поля в клиенте
+    # остался на будущее, а в заводской настройке его быть не должно — иначе
+    # панель могла бы молча остаться на замороженном канале.
+    if ($factory.updates.PSObject.Properties['releasesURL']) {
+        Fail 'в заводской настройке есть updates.releasesURL — уберите его, канал задаётся одним baseURL'
+    }
+    $releasesRoot = $factory.updates.baseURL
     if (-not $releasesRoot -or ($releasesRoot.TrimEnd('/') -ne $BaseUrl.TrimEnd('/'))) {
         Fail ("канал выпусков в заводской настройке ($releasesRoot) не совпадает с -BaseUrl ($BaseUrl)")
     }
@@ -310,6 +321,14 @@ try {
     $publicKey = [System.IO.Path]::ChangeExtension($SigningKey, '.pub')
     if (-not (Test-Path $publicKey)) { Fail "рядом с ключом нет открытой половины: $publicKey" }
 
+    # До подписи: открытая половина обязана быть тем ключом, который клиент
+    # получит в заводской настройке. Иначе манифест подписан «верно», а
+    # рабочие места его отвергнут — и молча, потому что так и должны.
+    $factoryKey = (Get-Content $Provisioning -Raw -Encoding UTF8 | ConvertFrom-Json).releasesPublicKey
+    if ((Get-Content $publicKey -Raw).Trim() -ne ([string]$factoryKey).Trim()) {
+        Fail "открытый ключ $publicKey не совпадает с releasesPublicKey заводской настройки"
+    }
+
     # Манифест на один канал. `url` указывает на тот же хост, с которого
     # манифест будет отдан: клиент с 0.1.56 качает установщик только оттуда
     # (ReleaseManifest.IsServedFrom), и Basic-пару на чужой хост не отправит.
@@ -325,7 +344,7 @@ try {
             sha256       = $digest
             size         = $size
             published_at = $publishedAt
-            notes        = ''
+            notes        = $Notes
         }
 
         $manifestPath = Join-Path $Directory 'manifest.json'
