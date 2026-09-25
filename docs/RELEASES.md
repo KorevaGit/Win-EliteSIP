@@ -101,6 +101,8 @@ Credential Manager и кэш WinHTTP не используются. Устано
 }
 ```
 
+Пару можно задать одной строкой `basicAuth` или двумя полями `basicUser` и `basicPassword`; `baseURL` понимается в любом регистре.
+
 `adminToken` — переменная CI `ELITESIP_ADMIN_TOKEN` в GitLab-проекте
 `elitesip_update`. Раздел `legacy` после 0.1.56 не нужен.
 

@@ -88,7 +88,13 @@ $settings = (Get-Content $Config -Raw -Encoding UTF8 | ConvertFrom-Json).$Channe
 if (-not $settings) { Fail "в $Config нет раздела $Channel" }
 
 $baseUrl = ([string]$settings.baseURL).TrimEnd('/')
-$basicAuth = [string]$settings.basicAuth
+# Пара — одной строкой (basicAuth, как в macOS-конфиге) или двумя полями
+# (basicUser/basicPassword, как в конфиге владельца сервера).
+$basicAuth = if ($settings.PSObject.Properties['basicAuth']) {
+    [string]$settings.basicAuth
+} elseif ($settings.PSObject.Properties['basicUser'] -and $settings.PSObject.Properties['basicPassword']) {
+    "$($settings.basicUser):$($settings.basicPassword)"
+} else { '' }
 if (-not $baseUrl) { Fail "в $Config нет $Channel.baseURL" }
 if (-not $basicAuth) { Fail "в $Config нет $Channel.basicAuth" }
 

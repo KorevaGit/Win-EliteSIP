@@ -29,6 +29,7 @@ return args switch
     ["sign", var manifest, var key, var output] => Sign(manifest, key, output),
     ["verify", var envelope, var publicKey] => Verify(envelope, publicKey),
     ["hash", var file] => Hash(file),
+    ["public", var key] => PublicOf(key),
     _ => Usage(),
 };
 
@@ -41,6 +42,7 @@ static int Usage()
           sign <манифест.json> <ключ> <выход>  подписать манифест
           verify <конверт.json> <ключ.pub>     проверить кодом клиента
           hash <файл>                          SHA-256 файла, шестнадцатеричный
+          public <ключ>                        открытая половина ключа, base64
 
         Ключ подписи — файл с закрытым ключом Ed25519 в base64, 32 байта.
         В репозиторий он не кладётся: у него одно место — там же, где пара
@@ -70,6 +72,16 @@ static int Keygen(string directory)
     Console.WriteLine("Закрытый не коммитить. Потеря закрытого означает, что уже");
     Console.WriteLine("установленные машины перестанут принимать выпуски вовсе.");
 
+    return 0;
+}
+
+/// <summary>Открытая половина закрытого ключа — чтобы сверить её с ключом клиента.</summary>
+static int PublicOf(string keyPath)
+{
+    var key = new Ed25519PrivateKeyParameters(
+        Convert.FromBase64String(File.ReadAllText(keyPath).Trim()), 0);
+
+    Console.WriteLine(Convert.ToBase64String(key.GeneratePublicKey().GetEncoded()));
     return 0;
 }
 
