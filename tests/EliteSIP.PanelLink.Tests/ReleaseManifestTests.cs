@@ -139,6 +139,23 @@ public sealed class ReleaseManifestTests
         Assert.False(manifest.IsNewerThan(new Version(1, 5, 0)));
     }
 
+    [Theory]
+    [InlineData("https://get.elitesip.vip/releases/current.json", true)]
+    [InlineData("https://GET.elitesip.vip:443/releases/current.json", true)]
+    [InlineData("https://update.elitesip.vip:8081/releases/current.json", false)]
+    [InlineData("https://get.elitesip.vip:8081/releases/current.json", false)]
+    [InlineData("http://get.elitesip.vip/releases/current.json", false)]
+    public void Установщик_берётся_только_с_хоста_манифеста(string manifestAddress, bool expected)
+    {
+        var manifest = ReleaseManifest.Verified(Signed(Payload()), Pair.Public);
+
+        // Пара Basic едет вместе с запросом установщика, и на чужой хост —
+        // включая тот же хост на другом порту — её отправлять нельзя. Случай
+        // переезда канала: перенесённый манифест смотрит на get.elitesip.vip, а
+        // клиент взял его с update.elitesip.vip:8081.
+        Assert.Equal(expected, manifest.IsServedFrom(new Uri(manifestAddress)));
+    }
+
     private const string Digest =
         "9f2c4a1b9d3e5f60a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718";
 

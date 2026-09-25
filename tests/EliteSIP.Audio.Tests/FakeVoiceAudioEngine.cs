@@ -63,6 +63,11 @@ internal sealed class FakeVoiceAudioEngine : IVoiceAudioEngine
         Log.Add("stop");
     }
 
+    /// <summary>Что заглушка отдаёт шкалам. Задаётся тестом.</summary>
+    public AudioLevels Levels { get; set; }
+
+    public AudioLevels TakeLevels() => Levels;
+
     public void Restart(string reason)
     {
         RestartCount++;

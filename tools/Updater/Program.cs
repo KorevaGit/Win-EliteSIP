@@ -96,6 +96,14 @@ async Task<int> RunAsync()
     // Отметки нет — обычное состояние, и молчать о нём надо тоже обычно: строка
     // в журнале каждые десять минут утопила бы в себе всё остальное.
     var wanted = Request.Read(Paths.Request);
+
+    // Уборка идёт на такте, а не сразу после установки, и это не лень.
+    // Обновляльщик, начавший установку, до её конца не доживает: установщик
+    // заменяет его файлы и закрывает его самого (разбор — у
+    // `HandOverToInstallTask`). Убирать за собой ему просто нечем, а вот
+    // следующий такт уже видит, какой выпуск встал.
+    PruneUpdates(wanted);
+
     if (wanted is null)
     {
         return 0;
@@ -237,6 +245,155 @@ void RelaunchIfPending()
     else
     {
         log.Write($"софтфон после установки всё ещё не поднят ({reason})");
+    }
+}
+
+/// <summary>Убирает выпуски, которые уже никому не нужны.</summary>
+///
+/// <remarks>
+/// <para>
+/// <b>Зачем это вообще понадобилось.</b> Выпуск самодостаточный и весит под
+/// шестьдесят мегабайт, а ложится он дважды: скачанное приложением в общем
+/// каталоге и перенесённое сюда, в <c>Program Files</c>. До 0.1.56 не убиралось
+/// ни то ни другое — на машине разработки за один день проверок накопился почти
+/// гигабайт в двух каталогах. На боевой машине выпуски редки, но растёт это без
+/// предела, а места на таких машинах обычно немного.
+/// </para>
+/// <para>
+/// <b>Свой каталог, и только свой.</b> Общий чистит приложение — не из
+/// вежливости, а потому, что каталог обмена открыт оператору на запись. Всё,
+/// что SYSTEM удаляет по пути, который оператор может подменить связкой, — это
+/// удаление чужого файла его руками. Здесь же пишет только администратор.
+/// </para>
+/// <para>
+/// <b>Один установщик остаётся.</b> Тот, чей выпуск стоит сейчас: по нему чинят
+/// установку, не ходя в сеть, и стоит это ровно одного файла.
+/// </para>
+/// <para>
+/// <b>Ничего моложе часа не трогается.</b> Между «задача установки заведена» и
+/// «установщик открыл файл» проходят секунды; стереть выпуск в эту щель значило
+/// бы отменить обновление, на которое оператор уже согласился. Запущенный файл
+/// Windows и так удалить не даст, но полагаться на одну эту защиту здесь
+/// незачем.
+/// </para>
+/// </remarks>
+void PruneUpdates(Version? pending)
+{
+    var installed = InstalledVersion();
+
+    string[] installers;
+    try
+    {
+        installers = Directory.Exists(Paths.TrustedUpdates)
+            ? Directory.GetFiles(Paths.TrustedUpdates, "EliteSIP-*.exe")
+            : [];
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+    {
+        return;
+    }
+
+    foreach (var installer in installers)
+    {
+        var version = VersionOf(installer);
+
+        if (version is null
+            || SameRelease(version, installed)
+            || SameRelease(version, pending)
+            || IsFresh(installer))
+        {
+            continue;
+        }
+
+        try
+        {
+            File.Delete(installer);
+            log.Write($"убран выпуск {version}: он больше не нужен");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Занят — значит его прямо сейчас ставят. Уберём на следующем такте.
+        }
+    }
+
+    PruneInstallLogs();
+}
+
+/// <summary>
+/// Оставляет три последних журнала установки.
+/// </summary>
+///
+/// <remarks>
+/// Они по сто пятьдесят килобайт и копятся тем же чередом, что и выпуски.
+/// Три — потому что разбирают всегда последнюю установку, а две прежние нужны
+/// ровно для того, чтобы было с чем сравнить.
+/// </remarks>
+void PruneInstallLogs()
+{
+    const int keep = 3;
+
+    try
+    {
+        if (!Directory.Exists(Paths.TrustedUpdates))
+        {
+            return;
+        }
+
+        var stale = new DirectoryInfo(Paths.TrustedUpdates)
+            .GetFiles("install-*.log")
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .Skip(keep);
+
+        foreach (var file in stale)
+        {
+            TryDelete(file.FullName);
+        }
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+    {
+        // Каталога нет или он закрыт — убирать нечего и нечем.
+    }
+}
+
+/// <summary>Версия из имени файла: <c>EliteSIP-0.1.56.exe</c> → 0.1.56.</summary>
+static Version? VersionOf(string path)
+{
+    const string prefix = "EliteSIP-";
+
+    var name = Path.GetFileNameWithoutExtension(path);
+
+    return name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+        && Version.TryParse(name[prefix.Length..], out var version)
+            ? version
+            : null;
+}
+
+/// <summary>
+/// Один ли это выпуск.
+/// </summary>
+///
+/// <remarks>
+/// Сравнение по трём числам, а не целиком: в имени файла версия трёхчастная
+/// (<c>0.1.56</c>), а у поставленного файла она четырёхчастная (<c>0.1.56.0</c>),
+/// и обычное равенство их никогда не сведёт.
+/// </remarks>
+static bool SameRelease(Version? left, Version? right) =>
+    left is not null && right is not null
+        && left.Major == right.Major
+        && left.Minor == right.Minor
+        && left.Build == right.Build;
+
+/// <summary>Моложе часа — значит, может ещё пригодиться идущей установке.</summary>
+static bool IsFresh(string path)
+{
+    try
+    {
+        return DateTime.UtcNow - File.GetLastWriteTimeUtc(path) < TimeSpan.FromHours(1);
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+    {
+        // Не прочиталось — считаем свежим и не трогаем.
+        return true;
     }
 }
 
@@ -437,6 +594,14 @@ async Task<byte[]?> AcquireAsync(ReleaseManifest manifest, Provisioning.UpdateCh
         {
             log.Write($"скачанное приложением не прочиталось: {error.Message}");
         }
+    }
+
+    // Пару Basic — только хосту манифеста (разбор у `ReleaseManifest.IsServedFrom`).
+    if (channel.ReleasesUrl() is not { } manifestAddress || !manifest.IsServedFrom(manifestAddress))
+    {
+        log.Write($"выпуск {manifest.Version} лежит на другом хосте ({manifest.Url.Authority}), "
+            + "чем манифест — не качаю");
+        return null;
     }
 
     try

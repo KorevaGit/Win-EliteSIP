@@ -32,6 +32,10 @@ public partial class SettingsWindow : Window
         // соседний с ней переключатель корпуса требовал перезапуска, потому что
         // стекло выбиралось при сборке окон, — здесь выбирать нечего.
         model.Settings.Appearance.PropertyChanged += OnAppearanceChanged;
+
+        // Шкалы звука опрашиваются, только пока окно открыто и виден раздел
+        // «Звук»; закрытие окна отпускает и проверку, если она шла.
+        Loaded += (_, _) => model.UpdateMeterPolling(windowOpen: true);
     }
 
     public SettingsViewModel Model { get; }
@@ -48,6 +52,7 @@ public partial class SettingsWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         Model.Settings.Appearance.PropertyChanged -= OnAppearanceChanged;
+        Model.UpdateMeterPolling(windowOpen: false);
 
         // Иначе рингтон продолжает звонить после того, как окно закрыли, и
         // остановить его нечем.

@@ -37,7 +37,17 @@
     Отпечаток сертификата Authenticode в хранилище машины.
 
 .PARAMETER BaseUrl
-    Корень канала раздачи: из него собирается адрес установщика в манифесте.
+    Корень канала выпусков: из него собирается адрес установщика в манифесте.
+    С 0.1.56 это собственный сервер, а не R2 (см. docs/RELEASES.md).
+
+.PARAMETER LegacyBaseUrl
+    Только для переходного выпуска: собрать второй манифест с адресом на
+    старом канале (artifacts\legacy\current.json). Им обновляются машины,
+    которые ещё читают старый канал. Установщик тот же, байт в байт.
+
+.PARAMETER Provisioning
+    Заводская настройка, которая ляжет в выпуск. Живёт вне репозитория: в ней
+    пара Basic канала. По умолчанию %APPDATA%\EliteSIP-release\provisioning.json.
 
 .PARAMETER SkipSigning
     Собрать без подписи Authenticode. Только для проверки самого скрипта:
@@ -48,7 +58,13 @@
 
 .EXAMPLE
     .\tools\release.ps1 -Version 1.4.2 -SigningKey C:\keys\releases.key `
-        -CertificateThumbprint A1B2C3... -BaseUrl https://get.elitesip.vip
+        -CertificateThumbprint A1B2C3...
+
+.EXAMPLE
+    Переходный 0.1.56: манифест нового канала и манифест для старого.
+
+    .\tools\release.ps1 -Version 0.1.56 -SigningKey C:\keys\releases.key `
+        -SkipSigning -LegacyBaseUrl https://get.elitesip.vip
 #>
 
 [CmdletBinding()]
@@ -61,7 +77,11 @@ param(
 
     [string] $CertificateThumbprint,
 
-    [string] $BaseUrl = 'https://get.elitesip.vip',
+    [string] $BaseUrl = 'https://update.elitesip.vip:8081',
+
+    [string] $LegacyBaseUrl,
+
+    [string] $Provisioning = (Join-Path $env:APPDATA 'EliteSIP-release\provisioning.json'),
 
     [switch] $SkipSigning,
 
@@ -178,11 +198,30 @@ try {
     # мастер первого запуска не даёт ввести ключ. На машине, где файл когда-то
     # положили руками, всё выглядит исправным, потому что сброс его не стирает.
     # Жёлтую строку в выводе на такое не поставишь.
-    if (-not (Test-Path (Join-Path $publish 'provisioning.json'))) {
-        Fail ("в публикации нет provisioning.json. Без него линия панели, " +
+    #
+    # Прежде скрипт стирал каталог публикации, а потом требовал, чтобы файл в
+    # нём лежал, — одним прогоном это не проходило никогда. Теперь файл
+    # берётся из места вне репозитория и кладётся сюда сам.
+    if (-not (Test-Path $Provisioning)) {
+        Fail ("нет заводской настройки $Provisioning. Без неё линия панели, " +
               "активация по ключу и обновления выключены, и заметить это можно " +
-              "только на чистой машине. Положите файл в каталог публикации: $publish")
+              "только на чистой машине. Укажите файл параметром -Provisioning.")
     }
+
+    # Канал выпусков в настройке обязан совпасть с каналом манифеста: выпуск,
+    # собранный под новый сервер с настройкой на старый, после установки
+    # ходил бы за обновлениями не туда, и заметили бы это через выпуск.
+    $factory = Get-Content $Provisioning -Raw -Encoding UTF8 | ConvertFrom-Json
+    $releasesRoot = if ($factory.updates.releasesURL) { $factory.updates.releasesURL } else { $factory.updates.baseURL }
+    if (-not $releasesRoot -or ($releasesRoot.TrimEnd('/') -ne $BaseUrl.TrimEnd('/'))) {
+        Fail ("канал выпусков в заводской настройке ($releasesRoot) не совпадает с -BaseUrl ($BaseUrl)")
+    }
+    if (-not $factory.releasesPublicKey -or -not $factory.presetsPublicKey) {
+        Fail 'в заводской настройке нет одного из ключей: releasesPublicKey или presetsPublicKey'
+    }
+
+    Copy-Item $Provisioning (Join-Path $publish 'provisioning.json') -Force
+    Write-Host "  заводская настройка: выпуски $releasesRoot, панель $($factory.updates.baseURL)"
 
     # --- 4. Подпись Authenticode ---------------------------------------------
 
@@ -222,10 +261,18 @@ try {
             Fail 'нет tools\installer.iss — установщик из W12 ещё не написан (проверить скрипт можно с -SkipInstaller)'
         }
 
-        $iscc = Get-Command iscc.exe -ErrorAction SilentlyContinue
+        # Inno Setup на машине сборки стоит в профиль, а не в Program Files, и
+        # в PATH его нет.
+        $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+        if (-not $iscc) {
+            $iscc = @(
+                (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
+                (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe')
+            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+        }
         if (-not $iscc) { Fail 'iscc.exe не найден: нужен Inno Setup' }
 
-        & $iscc.Source `
+        & $iscc `
             "/DAppVersion=$Version" `
             "/DPublishDir=$publish" `
             "/O$artifacts" `
@@ -259,50 +306,79 @@ try {
     $digest = & $kit hash $installer
     $size = (Get-Item $installer).Length
 
-    $manifest = [ordered]@{
-        format       = 1
-        version      = $Version
-        url          = "$($BaseUrl.TrimEnd('/'))/releases/EliteSIP-$Version.exe"
-        sha256       = $digest
-        size         = $size
-        published_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        notes        = ''
-    }
-
-    $manifestPath = Join-Path $artifacts 'manifest.json'
-    $envelopePath = Join-Path $artifacts 'current.json'
-
-    # Без BOM, и это не мелочь: `Set-Content -Encoding UTF8` в Windows
-    # PowerShell пишет UTF-8 с меткой порядка байтов, метка попадает внутрь
-    # подписанного содержимого, и разбор у клиента спотыкается о неё. Поймано
-    # именно проверкой на шаге 8 — тем и ценна проверка кодом клиента.
-    [System.IO.File]::WriteAllText(
-        $manifestPath,
-        ($manifest | ConvertTo-Json),
-        (New-Object System.Text.UTF8Encoding $false))
-    & $kit sign $manifestPath $SigningKey $envelopePath
-    if ($LASTEXITCODE -ne 0) { Fail 'манифест не подписался' }
-
-    # --- 7. Проверка кодом клиента -------------------------------------------
-
-    Step 'проверка манифеста кодом клиента'
-
+    $publishedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     $publicKey = [System.IO.Path]::ChangeExtension($SigningKey, '.pub')
     if (-not (Test-Path $publicKey)) { Fail "рядом с ключом нет открытой половины: $publicKey" }
 
-    & $kit verify $envelopePath $publicKey
-    if ($LASTEXITCODE -ne 0) { Fail 'манифест не прошёл проверку клиентом' }
+    # Манифест на один канал. `url` указывает на тот же хост, с которого
+    # манифест будет отдан: клиент с 0.1.56 качает установщик только оттуда
+    # (ReleaseManifest.IsServedFrom), и Basic-пару на чужой хост не отправит.
+    function Write-Manifest {
+        param([string] $Root, [string] $Directory)
+
+        New-Item -ItemType Directory -Force $Directory | Out-Null
+
+        $manifest = [ordered]@{
+            format       = 1
+            version      = $Version
+            url          = "$($Root.TrimEnd('/'))/releases/EliteSIP-$Version.exe"
+            sha256       = $digest
+            size         = $size
+            published_at = $publishedAt
+            notes        = ''
+        }
+
+        $manifestPath = Join-Path $Directory 'manifest.json'
+        $envelopePath = Join-Path $Directory 'current.json'
+
+        # Без BOM, и это не мелочь: `Set-Content -Encoding UTF8` в Windows
+        # PowerShell пишет UTF-8 с меткой порядка байтов, метка попадает внутрь
+        # подписанного содержимого, и разбор у клиента спотыкается о неё. Поймано
+        # именно проверкой кодом клиента — тем она и ценна.
+        [System.IO.File]::WriteAllText(
+            $manifestPath,
+            ($manifest | ConvertTo-Json),
+            (New-Object System.Text.UTF8Encoding $false))
+        & $kit sign $manifestPath $SigningKey $envelopePath
+        if ($LASTEXITCODE -ne 0) { Fail "манифест для $Root не подписался" }
+
+        # Проверка кодом клиента: тем же ReleaseManifest.Verified, которым его
+        # прочитает рабочее место.
+        & $kit verify $envelopePath $publicKey
+        if ($LASTEXITCODE -ne 0) { Fail "манифест для $Root не прошёл проверку клиентом" }
+
+        return $envelopePath
+    }
+
+    $envelopePath = Write-Manifest $BaseUrl $artifacts
+
+    # --- 7. Манифест для старого канала (только переходный выпуск) ----------
+
+    $legacyEnvelope = $null
+    if ($LegacyBaseUrl) {
+        Step 'манифест для старого канала'
+        $legacyEnvelope = Write-Manifest $LegacyBaseUrl (Join-Path $artifacts 'legacy')
+    }
 
     # --- 8. Что выкладывать --------------------------------------------------
 
     Step 'выпуск собран'
 
     Write-Host ''
-    Write-Host 'Выложить на канал:' -ForegroundColor Green
-    Write-Host "  $installer"
-    Write-Host "    -> releases/EliteSIP-$Version.exe"
-    Write-Host "  $envelopePath"
-    Write-Host '    -> releases/current.json'
+    Write-Host "  установщик: $installer"
+    Write-Host "  sha256:     $digest"
+    Write-Host "  размер:     $size"
+    Write-Host "  манифест:   $envelopePath ($BaseUrl)"
+    if ($legacyEnvelope) {
+        Write-Host "  переходный: $legacyEnvelope ($LegacyBaseUrl)"
+    }
+    Write-Host ''
+    Write-Host 'Выложить (docs/RELEASES.md):' -ForegroundColor Green
+    Write-Host "  .\tools\publish.ps1 -Channel update -Version $Version"
+    if ($legacyEnvelope) {
+        Write-Host '  и только после проверки нового канала:'
+        Write-Host "  .\tools\publish.ps1 -Channel legacy -Version $Version"
+    }
     Write-Host ''
     Write-Host 'Порядок значим: сперва установщик, потом манифест. Наоборот —'
     Write-Host 'это машины, которые пошли за файлом, которого ещё нет.'

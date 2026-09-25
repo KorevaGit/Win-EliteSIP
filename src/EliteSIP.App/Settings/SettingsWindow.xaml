@@ -295,12 +295,38 @@
                            Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsIndented>
 
+              <!-- Одна кнопка на запуск и остановку: вторая рядом читалась бы
+                   как ещё одна проверка. -->
               <theme:SettingsIndented>
                 <Button Style="{StaticResource SettingsButtonStyle}"
                         HorizontalAlignment="Left"
-                        Content="{res:Loc AudioSelfTestStart}"
+                        Content="{Binding SelfTestButtonText}"
+                        IsEnabled="{Binding CanRunSelfTest}"
                         Command="{Binding RunSelfTest}" />
               </theme:SettingsIndented>
+
+              <!-- Серая кнопка без объяснения — худший вид отказа. -->
+              <theme:SettingsNote Text="{res:Loc AudioSelfTestBusy}"
+                                  Visibility="{Binding IsSelfTestBlockedByCall,
+                                                       Converter={StaticResource BoolToVisibility}}" />
+
+              <!--
+                  Шкалы — только во время проверки и разговора. В остальное
+                  время подсказка: полоса на нуле читается как сломанный
+                  микрофон, а открывать микрофон ради шкалы нельзя.
+              -->
+              <theme:SettingsRow Header="{res:Loc AudioMeterVoice}"
+                                 Visibility="{Binding ShowsMeters, Converter={StaticResource BoolToVisibility}}">
+                <theme:LevelMeter Level="{Binding VoiceLevel}" VerticalAlignment="Center" />
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AudioMeterSound}"
+                                 Visibility="{Binding ShowsMeters, Converter={StaticResource BoolToVisibility}}">
+                <theme:LevelMeter Level="{Binding SoundLevel}" VerticalAlignment="Center" />
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AudioMeterHint}"
+                                  Visibility="{Binding ShowsMeters, Converter={StaticResource NotBoolToVisibility}}" />
 
               <theme:SettingsNote Text="{Binding SelfTestResult}"
                                   Visibility="{Binding HasSelfTestResult,

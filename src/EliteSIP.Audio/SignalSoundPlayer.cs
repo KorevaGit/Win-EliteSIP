@@ -15,12 +15,15 @@ namespace EliteSIP.Audio;
 /// гарнитура лежит на столе. Пропускать служебные звуки через тракт значило бы
 /// поднимать разговор до разговора и терять этот выбор.
 ///
-/// <b>Почему гудки рисуются, а не принимаются.</b> АТС может прислать
-/// «ранние медиа» — свои гудки в RTP до ответа, — но принимать их некому:
-/// медиасессия заводится на 200 OK, и до него звук из сети слушать нечем. Пока
-/// это так, тишина в трубке после «Позвонить» — это тишина, а не гудки, и
-/// оператор в ней слышит сломанную программу. Тон рисуется здесь: 425 Гц,
-/// секунда через четыре — то, что российская телефонная сеть называет КПВ.
+/// <b>Когда гудки рисуются, а когда принимаются.</b> Если станция прислала
+/// SDP в 183 (ранние медиа), гудки, IVR и «абонент недоступен» идут её потоком
+/// через тракт разговора, и здесь не звучит ничего. Рисуется тон только на 180
+/// без SDP — так станция говорит «звонит, гудков не будет, играй сам». Тон тот,
+/// что российская телефонная сеть называет КПВ: 425 Гц, секунда через четыре.
+///
+/// До 0.1.56 тон рисовался на любой 180/183, а поток станции не принимался
+/// вовсе: медиа поднималось на 200 OK. На направлениях с ранними медиа это
+/// давало то тишину, то наш тон поверх обрывка объявления — «гудки через раз».
 /// </summary>
 public sealed class SignalSoundPlayer : IDisposable
 {
@@ -28,6 +31,9 @@ public sealed class SignalSoundPlayer : IDisposable
     private readonly Action<string>? _log;
 
     private WasapiPlayer? _output;
+
+    /// <summary>Что играет: гудки и рингтон снимаются каждый своей кнопкой.</summary>
+    private Signal _signal;
 
     /// <summary>Источник, если он владеет файлом. Снимается вместе с выводом.</summary>
     private IDisposable? _sourceOwner;
@@ -49,8 +55,28 @@ public sealed class SignalSoundPlayer : IDisposable
     }
 
     /// <summary>Гудки звонящему. Повторный вызов ничего не меняет.</summary>
-    public void StartRingback(double volume = 0.35)
-        => Start(new RingbackProvider(volume), deviceId: null, "гудки");
+    ///
+    /// <param name="deviceId">
+    /// Устройство разговора или <c>null</c> — системное. Гудки звучат там же,
+    /// где через секунду зазвучит собеседник: до 0.1.56 они шли в системное
+    /// устройство, и оператор в гарнитуре, выбранной не системной, набирал
+    /// номер в тишине, а гудки играли в колонках.
+    /// </param>
+    /// <param name="volume">Громкость от нуля до единицы.</param>
+    public void StartRingback(string? deviceId, double volume = 0.35)
+        => Start(new RingbackProvider(volume), deviceId, Signal.Ringback);
+
+    /// <summary>Снимает гудки, если играют они, а не рингтон.</summary>
+    public void StopRingback() => Stop(Signal.Ringback);
+
+    /// <summary>Снимает рингтон, если играет он, а не гудки.</summary>
+    ///
+    /// <remarks>
+    /// Окно входящего снимало звонок общим <see cref="Stop()"/>, и заодно глушило
+    /// гудки исходящего, который ещё ждал ответа: оператор принимал или
+    /// отклонял входящий и дальше ждал свой вызов в тишине.
+    /// </remarks>
+    public void StopRingtone() => Stop(Signal.Ringtone);
 
     /// <summary>
     /// Рингтон входящего.
@@ -90,17 +116,25 @@ public sealed class SignalSoundPlayer : IDisposable
             provider = new RingtoneProvider(volume);
         }
 
-        Start(provider, deviceId, "рингтон");
+        Start(provider, deviceId, Signal.Ringtone);
     }
 
     /// <summary>Снимает то, что играет. Тишина — обычное состояние, молча.</summary>
-    public void Stop()
+    public void Stop() => Stop(only: null);
+
+    /// <param name="only">снять, только если играет это. <c>null</c> — что угодно.</param>
+    private void Stop(Signal? only)
     {
         WasapiPlayer? going;
         IDisposable? owner;
 
         lock (_gate)
         {
+            if (only is Signal wanted && (_output is null || _signal != wanted))
+            {
+                return;
+            }
+
             going = _output;
             owner = _sourceOwner;
             _output = null;
@@ -128,7 +162,7 @@ public sealed class SignalSoundPlayer : IDisposable
         }
     }
 
-    private void Start(ISampleProvider provider, string? deviceId, string what)
+    private void Start(ISampleProvider provider, string? deviceId, Signal signal)
     {
         lock (_gate)
         {
@@ -156,6 +190,7 @@ public sealed class SignalSoundPlayer : IDisposable
                 }
 
                 _output = output;
+                _signal = signal;
                 _sourceOwner = provider as IDisposable;
             }
         }
@@ -163,7 +198,7 @@ public sealed class SignalSoundPlayer : IDisposable
         {
             // Отсутствие служебного звука не должно ронять звонок: без гудка
             // разговор состоится, без исключения в потоке сигнализации — нет.
-            _log?.Invoke($"{what} не играют: {error.Message}");
+            _log?.Invoke($"{(signal is Signal.Ringback ? "гудки" : "рингтон")} не играют: {error.Message}");
         }
     }
 
@@ -347,6 +382,13 @@ public sealed class SignalSoundPlayer : IDisposable
         }
     }
 
+
+    /// <summary>Длинные сигналы: играют, пока их не снимут.</summary>
+    private enum Signal
+    {
+        Ringback,
+        Ringtone,
+    }
 
     /// <summary>Общее у всех рисованных сигналов: моно, 48 кГц.</summary>
     private abstract class ToneProvider(double volume) : ISampleProvider

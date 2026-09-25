@@ -78,6 +78,11 @@ public sealed partial class SipUserAgent
         int? serverMinimumExpires = null;
         int authenticationAttempts = 0;
 
+        // Что уже сказано наверх о звуке до ответа. Живёт на весь звонок, а не
+        // на одну попытку: повтор INVITE с авторизацией ранних медиа не
+        // отменяет, и тот же SDP в ответ на второй запрос — повтор, а не новость.
+        var progress = new CallProgress();
+
         // Три попытки, а не две: к вызову авторизации (chan_sip требует её не
         // только на REGISTER, но и на INVITE) добавился отказ 422 со слишком
         // коротким сроком сессии. Прийти могут оба подряд, и тогда третий
@@ -148,6 +153,8 @@ public sealed partial class SipUserAgent
                         EmitCallState(new SipCallState.Ringing(), callId);
                         ArmRingingLimit(callId);
                     }
+
+                    EmitProgress(callId, provisional.Response, progress, writer);
                     continue;
                 }
 
@@ -318,6 +325,83 @@ public sealed partial class SipUserAgent
         Log(SipLogLevel.Info, "<- 200 OK, отправлен ACK");
         call.Writer.TryWrite(new SipCallEvent.State(new SipCallState.Answered()));
         call.Writer.TryWrite(new SipCallEvent.Answered(response.Body, response.ContentType));
+    }
+
+    /// <summary>Что о звуке до ответа уже ушло наверх.</summary>
+    private sealed class CallProgress
+    {
+        /// <summary>Тело последнего раннего SDP. <c>null</c> — ранних медиа не было.</summary>
+        public byte[]? EarlyBody { get; set; }
+
+        public bool RingbackAnnounced { get; set; }
+    }
+
+    /// <summary>
+    /// Переводит предварительный ответ в то, что должно быть слышно.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Разбор по RFC 3960: SDP в предварительном ответе — это поток, который
+    /// станция играет сама, и он главнее всего остального; 180 без SDP — «звонит,
+    /// а гудков не будет, играй сам». 183 без SDP не значит ни того ни другого и
+    /// звука не меняет.
+    ///
+    /// Слой сигнализации решает, <i>что</i> слышно, а не играет: гудки и поток
+    /// поднимает приложение. Так правило живёт в одном месте и проверяется без
+    /// звуковой карты.
+    /// </remarks>
+    private void EmitProgress(string callId, SipResponse response, CallProgress progress, ChannelWriter<SipCallEvent> writer)
+    {
+        lock (_gate)
+        {
+            // Линию уже сняли (отбой, предел гудков), а поток транзакции ещё
+            // доносит запоздавшие 18x: поднимать под них звук некому и незачем.
+            if (!_calls.ContainsKey(callId))
+            {
+                return;
+            }
+        }
+
+        if (CarriesSdp(response))
+        {
+            if (progress.EarlyBody is byte[] previous && response.Body.Span.SequenceEqual(previous))
+            {
+                return;
+            }
+
+            progress.EarlyBody = response.Body.ToArray();
+            Log(
+                SipLogLevel.Info,
+                $"<- {response.StatusCode.ToString(CultureInfo.InvariantCulture)} с SDP: ранние медиа");
+            writer.TryWrite(new SipCallEvent.EarlyMedia(response.StatusCode, response.Body, response.ContentType));
+            return;
+        }
+
+        // 180 без тела после ранних медиа гудков не заказывает: SDP уже был, и
+        // по RFC 3960 играется он, пока станция не пришлёт другой. Chan_sip шлёт
+        // такую пару (183 с SDP, потом голый 180) на части направлений, и без
+        // этой проверки поверх её гудков звучали бы наши.
+        if (response.StatusCode == 180 && !progress.RingbackAnnounced && progress.EarlyBody is null)
+        {
+            progress.RingbackAnnounced = true;
+            writer.TryWrite(new SipCallEvent.LocalRingback());
+        }
+    }
+
+    /// <summary>Есть ли в ответе описание сеанса, а не пустое или чужое тело.</summary>
+    private static bool CarriesSdp(SipResponse response)
+    {
+        if (response.Body.IsEmpty || response.ContentType is not string contentType)
+        {
+            return false;
+        }
+
+        // Параметры типа («application/sdp; charset=…») встречаются, и сравнение
+        // по всей строке их не пропустило бы.
+        int parameters = contentType.IndexOf(';', StringComparison.Ordinal);
+        string mediaType = (parameters < 0 ? contentType : contentType[..parameters]).Trim();
+
+        return mediaType.Equals("application/sdp", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -69,7 +69,17 @@ public sealed class SettingsViewModel : Observable
         RepairNetwork = new RelayCommand(_ => OnRepairNetwork?.Invoke());
         CheckPresets = new RelayCommand(_ => OnCheckPresets?.Invoke());
         CollectLogs = new RelayCommand(_ => OnCollectLogs?.Invoke());
-        RunSelfTest = new RelayCommand(_ => OnRunSelfTest?.Invoke());
+        RunSelfTest = new RelayCommand(_ =>
+        {
+            if (_isSelfTestRunning)
+            {
+                OnStopSelfTest?.Invoke();
+            }
+            else if (!_isInCall)
+            {
+                OnRunSelfTest?.Invoke();
+            }
+        });
 
         ApplyKey = new RelayCommand(
             async _ => await ApplyKeyAsync(),
@@ -146,8 +156,17 @@ public sealed class SettingsViewModel : Observable
 
     private string? _selfTestResult;
 
-    /// <summary>Запустить запись и воспроизведение.</summary>
+    /// <summary>Запустить проверку — или остановить идущую. Одна кнопка на оба.</summary>
     public RelayCommand RunSelfTest { get; private set; } = null!;
+
+    /// <summary>Остановить проверку: кнопка, уход из раздела, закрытие окна.</summary>
+    internal Action? OnStopSelfTest { get; init; }
+
+    /// <summary>
+    /// Состояние звука для шкал. Ставит приложение: у окна нет ни телефона, ни
+    /// тракта.
+    /// </summary>
+    internal Func<AudioMeterReading>? ReadMeters { get; init; }
 
     /// <summary>Что вышло: и «говорите» по ходу, и итог.</summary>
     public string? SelfTestResult => _selfTestResult;
@@ -160,6 +179,94 @@ public sealed class SettingsViewModel : Observable
         _selfTestResult = message;
         NotifyChanged(nameof(SelfTestResult));
         NotifyChanged(nameof(HasSelfTestResult));
+    }
+
+    // --- Шкалы «Голос» и «Звук» ---------------------------------------------
+    //
+    // Шкалы не открывают ничего сами: они читают тракт проверки или тракт
+    // разговора, и только пока хоть один из них работает. Держать микрофон
+    // открытым ради шкалы нельзя — Bluetooth-гарнитура от этого сидит в режиме
+    // гарнитуры, и звук всей системы становится моно и глухим (так вышло на
+    // macOS). Таймер опроса живёт, пока открыт раздел «Звук», и опрос ничего
+    // не стоит: он спрашивает уже работающий тракт.
+
+    private readonly System.Windows.Threading.DispatcherTimer _meterTimer =
+        new() { Interval = TimeSpan.FromMilliseconds(50) };
+
+    private bool _meterWindowOpen;
+    private bool _isSelfTestRunning;
+    private bool _isInCall;
+    private double _voiceLevel;
+    private double _soundLevel;
+
+    public bool IsSelfTestRunning => _isSelfTestRunning;
+
+    /// <summary>Во время звонка проверка не запускается: это отнятый у собеседника микрофон.</summary>
+    public bool CanRunSelfTest => _isSelfTestRunning || !_isInCall;
+
+    public bool IsSelfTestBlockedByCall => _isInCall && !_isSelfTestRunning;
+
+    public string SelfTestButtonText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "AudioSelfTestStart");
+
+    /// <summary>Шкалы видны во время проверки и разговора, в остальное время — подсказка.</summary>
+    public bool ShowsMeters => _isSelfTestRunning || _isInCall;
+
+    /// <summary>Уровень голоса, линейный.</summary>
+    public double VoiceLevel => _voiceLevel;
+
+    /// <summary>Уровень звука в наушниках, линейный.</summary>
+    public double SoundLevel => _soundLevel;
+
+    /// <summary>Открыт раздел «Звук» — начать опрос. Закрыт — остановить и снять проверку.</summary>
+    internal void UpdateMeterPolling(bool windowOpen)
+    {
+        _meterWindowOpen = windowOpen;
+
+        if (windowOpen && ShowsAudio)
+        {
+            if (!_meterTimer.IsEnabled)
+            {
+                _meterTimer.Tick -= OnMeterTick;
+                _meterTimer.Tick += OnMeterTick;
+                _meterTimer.Start();
+                OnMeterTick(null, EventArgs.Empty);
+            }
+
+            return;
+        }
+
+        _meterTimer.Stop();
+
+        // Ушли из раздела или закрыли окно — устройство отпускается сразу.
+        OnStopSelfTest?.Invoke();
+    }
+
+    private void OnMeterTick(object? sender, EventArgs e)
+    {
+        if (ReadMeters?.Invoke() is not AudioMeterReading reading)
+        {
+            return;
+        }
+
+        var running = reading.IsSelfTestRunning;
+        var inCall = reading.IsInCall;
+        var levels = reading.Levels;
+
+        if (running != _isSelfTestRunning || inCall != _isInCall)
+        {
+            _isSelfTestRunning = running;
+            _isInCall = inCall;
+            NotifyChanged(nameof(IsSelfTestRunning));
+            NotifyChanged(nameof(CanRunSelfTest));
+            NotifyChanged(nameof(IsSelfTestBlockedByCall));
+            NotifyChanged(nameof(SelfTestButtonText));
+            NotifyChanged(nameof(ShowsMeters));
+        }
+
+        _voiceLevel = levels?.Voice ?? 0;
+        _soundLevel = levels?.Sound ?? 0;
+        NotifyChanged(nameof(VoiceLevel));
+        NotifyChanged(nameof(SoundLevel));
     }
 
     // --- Новый ключ ----------------------------------------------------------
@@ -247,6 +354,7 @@ public sealed class SettingsViewModel : Observable
         set
         {
             Set(ref _section, value);
+            UpdateMeterPolling(_meterWindowOpen);
             foreach (var name in new[]
             {
                 nameof(ShowsWork), nameof(ShowsAudio), nameof(ShowsRingtone),
@@ -420,3 +528,9 @@ public enum SupportArea
     Presets,
     Network,
 }
+
+/// <summary>Что шкалам окна настроек показать в этот такт.</summary>
+/// <param name="IsSelfTestRunning">Идёт проверка.</param>
+/// <param name="IsInCall">Идёт звонок — любой, включая неотвеченный.</param>
+/// <param name="Levels">Уровни работающего тракта. <c>null</c> — не работает ни один.</param>
+internal readonly record struct AudioMeterReading(bool IsSelfTestRunning, bool IsInCall, AudioLevels? Levels);

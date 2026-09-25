@@ -196,7 +196,7 @@ public partial class App : Application, IDisposable
                     : null);
         };
 
-        _incoming.StopRingtone = _phone.Sounds.Stop;
+        _incoming.StopRingtone = _phone.Sounds.StopRingtone;
 
         _panel.CallOrHangUp = new RelayCommand(async _ =>
         {
@@ -493,6 +493,13 @@ public partial class App : Application, IDisposable
 
             OnCollectLogs = () => CollectSupportArchive(model!),
             OnRunSelfTest = () => _ = RunAudioSelfTestAsync(model!),
+            OnStopSelfTest = () => _phone?.SelfTest.Abort(),
+            ReadMeters = () => _phone is null
+                ? default
+                : new AudioMeterReading(
+                    _phone.SelfTest.IsRunning,
+                    _phone.IsCallActive,
+                    _phone.SelfTest.TakeLevels() ?? _phone.TakeCallLevels()),
             OnApplyKey = key => ApplyNewKeyAsync(key),
         };
 
@@ -698,18 +705,28 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private async Task RunAudioSelfTestAsync(Settings.SettingsViewModel model)
     {
-        EliteSIP.Audio.AudioSelfTest test = new(
-            configuration => new EliteSIP.Audio.WasapiVoiceAudioEngine(configuration),
-            Log);
+        if (_phone is not { } phone || phone.IsCallActive)
+        {
+            return;
+        }
 
-        test.Progress += value => Dispatcher.BeginInvoke(() => model.ReportSelfTest(value));
+        var test = phone.SelfTest;
+        void OnProgress(string value) => Dispatcher.BeginInvoke(() => model.ReportSelfTest(value));
 
-        model.ReportSelfTest("готовлю тракт");
+        test.Progress += OnProgress;
+        try
+        {
+            model.ReportSelfTest("готовлю тракт");
 
-        var outcome = await test.RunAsync(_phone!.AudioConfiguration()).ConfigureAwait(true);
+            var outcome = await test.RunAsync(phone.AudioConfiguration()).ConfigureAwait(true);
 
-        model.ReportSelfTest(outcome.Summary);
-        Log($"самопроверка звука: {outcome.Summary}");
+            model.ReportSelfTest(outcome.Summary);
+            Log($"самопроверка звука: {outcome.Summary}");
+        }
+        finally
+        {
+            test.Progress -= OnProgress;
+        }
     }
 
     private void CollectSupportArchive(Settings.SettingsViewModel model)

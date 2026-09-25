@@ -85,8 +85,22 @@ internal static class Provisioning
     /// <summary>Откуда рабочее место берёт настройки и обновления.</summary>
     internal sealed class UpdateChannel
     {
-        /// <summary>Корень канала, без имени фида: <c>https://get.elitesip.vip</c>.</summary>
+        /// <summary>Корень канала линии панели: активация, предустановки, помашинный доступ.</summary>
         public string BaseUrl { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Корень канала выпусков. Не задан — выпуски там же, где панель (<see cref="BaseUrl"/>).
+        /// </summary>
+        ///
+        /// <remarks>
+        /// Разведено с 0.1.56, когда выпуски переехали из R2 на свой сервер
+        /// (<c>https://update.elitesip.vip:8081</c>), а панель — нет: новый
+        /// сервер отдаёт только <c>releases/</c>. Один адрес на всё увёл бы туда
+        /// и активацию, и предустановки, и отзыв, и линия панели замолчала бы
+        /// так же тихо, как 10 сентября 2026. Пара Basic у обоих каналов одна.
+        /// </remarks>
+        [JsonPropertyName("releasesURL")]
+        public string? ReleasesBaseUrl { get; init; }
 
         public string User { get; init; } = string.Empty;
 
@@ -112,13 +126,15 @@ internal static class Provisioning
         /// <summary>
         /// Адрес манифеста выпуска.
         ///
-        /// Тот же канал и та же пара, что у предустановок: второй секрет ничего
+        /// Корень свой, если задан <see cref="ReleasesBaseUrl"/>, пара — та же, что у
+        /// предустановок: второй секрет ничего
         /// не добавил бы — оба всё равно видны через `strings`, а настоящую
         /// защиту линии даёт подпись Ed25519.
         ///
         /// Среза здесь нет, в отличие от appcast оригинала: сборка одна.
         /// </summary>
-        public Uri? ReleasesUrl() => Address("releases/current.json");
+        public Uri? ReleasesUrl() => Address(
+            string.IsNullOrWhiteSpace(ReleasesBaseUrl) ? BaseUrl : ReleasesBaseUrl, "releases/current.json");
 
         /// <summary>
         /// Адрес помашинного объекта: <c>access/&lt;id&gt;</c> или
@@ -131,9 +147,11 @@ internal static class Provisioning
         public Uri? MachineUrl(string prefix, string installationID)
             => installationID.Length == 0 ? null : Address($"{prefix}/{installationID}");
 
-        private Uri? Address(string path)
+        private Uri? Address(string path) => Address(BaseUrl, path);
+
+        private static Uri? Address(string baseUrl, string path)
         {
-            var root = BaseUrl.EndsWith('/') ? BaseUrl : BaseUrl + "/";
+            var root = baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/";
 
             return Uri.TryCreate(root + path, UriKind.Absolute, out var url) ? url : null;
         }

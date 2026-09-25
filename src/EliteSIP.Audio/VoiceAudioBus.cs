@@ -245,6 +245,33 @@ public sealed class VoiceAudioBus : IDisposable
         return WithEngine(token, engine => engine.Apply(configuration));
     }
 
+    /// <summary>
+    /// Уровни тракта для шкал — у того, кто им сейчас владеет. <c>null</c> —
+    /// тракт свободен, и шкалам показывать нечего.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Без токена, в отличие от прочего: шкалы окна настроек не владеют ни
+    /// одной линией, а спросить «как слышно разговор» им нужно. Читать уровни
+    /// безопасно кому угодно — управлять трактом по-прежнему может только
+    /// владелец.
+    /// </remarks>
+    public AudioLevels? TakeLevels()
+    {
+        IVoiceAudioEngine engine;
+        lock (_gate)
+        {
+            if (_disposed || !_ownership.IsBusy)
+            {
+                return null;
+            }
+
+            engine = _current;
+        }
+
+        return engine.TakeLevels();
+    }
+
     /// <summary>Пересобирает тракт по требованию владельца.</summary>
     public bool Restart(AudioOwnerToken token, string reason) =>
         WithEngine(token, engine => engine.Restart(reason));

@@ -67,6 +67,24 @@ public sealed class PhoneService : IDisposable
     private string? _pendingCallId;
 
     /// <summary>
+    /// Что слышно до ответа. Трогается под <see cref="_preAnswerGate"/>: пишет
+    /// поток сигнализации, читает поток окна.
+    /// </summary>
+    private readonly Lock _preAnswerGate = new();
+
+    /// <summary>Станция прислала 180 без SDP: гудки наши.</summary>
+    private bool _ringbackWanted;
+
+    /// <summary>Поток ранних медиа неотвеченного исходящего. Главнее наших гудков.</summary>
+    private MediaSession? _earlySession;
+
+    /// <summary>
+    /// Тракт ранних медиа отказал. Второй раз до ответа его не дёргаем: каждая
+    /// сверка линий повторяла бы ту же попытку и ту же строку в журнале.
+    /// </summary>
+    private bool _earlyAudioFailed;
+
+    /// <summary>
     /// Медиа разговоров по Call-ID — и исходящих, и входящих.
     /// </summary>
     ///
@@ -93,8 +111,55 @@ public sealed class PhoneService : IDisposable
         _dispatcher = dispatcher;
         _log = log;
         _sounds = new SignalSoundPlayer(log);
+        SelfTest = new AudioSelfTest(configuration => new WasapiVoiceAudioEngine(configuration), log);
 
         _settings.Audio.PropertyChanged += OnAudioSettingsChanged;
+    }
+
+    /// <summary>
+    /// «Проверить микрофон и звук». Живёт здесь, а не в окне настроек: только
+    /// телефон знает, когда начинается звонок, и снять проверку обязан он — до
+    /// того, как звонок откроет устройство.
+    /// </summary>
+    public AudioSelfTest SelfTest { get; }
+
+    /// <summary>
+    /// Идёт ли что-нибудь, чему нужен звук: разговор, неотвеченный исходящий,
+    /// входящий на экране. Проверку в это время не запускают.
+    /// </summary>
+    public bool IsCallActive =>
+        _pendingCallId is not null
+        || _incoming.IsVisible
+        || !_sessions.IsEmpty
+        || (_lines?.Lines.Count ?? 0) > 0;
+
+    /// <summary>
+    /// Уровни разговора для шкал. <c>null</c> — тракт свободен.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// «Голос» — то, что уходит в линию, поэтому при нажатой кнопке микрофона
+    /// или на удержании он ноль: в линию в это время не уходит ничего, и шкала,
+    /// пляшущая под голос, обещала бы обратное.
+    /// </remarks>
+    public AudioLevels? TakeCallLevels()
+    {
+        if (_bus?.TakeLevels() is not AudioLevels levels)
+        {
+            return null;
+        }
+
+        var owner = _sessions.Values.FirstOrDefault(session => session.OwnsAudio);
+        return owner is null || owner.IsMicrophoneMuted ? levels with { Voice = 0 } : levels;
+    }
+
+    /// <summary>Снимает проверку ради звонка. Возвращается, когда устройство отпущено.</summary>
+    private void AbortSelfTestForCall(string why)
+    {
+        if (SelfTest.Abort())
+        {
+            _log($"проверка звука снята: {why}");
+        }
     }
 
     /// <summary>Настройки звука, которые тракт применяет на ходу.</summary>
@@ -126,8 +191,21 @@ public sealed class PhoneService : IDisposable
     /// </remarks>
     private void OnAudioSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs change)
     {
+        if (change.PropertyName is not string name || !LiveAudioSettings.Contains(name))
+        {
+            return;
+        }
+
+        // Ползунок, сдвинутый во время проверки, действует сразу и виден на
+        // шкале. Применение дешёвое (громкость и усиление читаются на такте),
+        // поэтому прямо здесь.
+        if (SelfTest.IsRunning)
+        {
+            SelfTest.Apply(AudioConfiguration());
+        }
+
         // Между звонками применять некуда: тракт возьмёт настройки при подъёме.
-        if (change.PropertyName is not string name || !LiveAudioSettings.Contains(name) || _sessions.IsEmpty)
+        if (_sessions.IsEmpty)
         {
             return;
         }
@@ -385,6 +463,9 @@ public sealed class PhoneService : IDisposable
             return;
         }
 
+        // До всего, что может открыть устройство: гудков, ранних медиа, ответа.
+        AbortSelfTestForCall("исходящий звонок");
+
         // Адрес для SDP берётся у агента, а не у сокета: это тот же адрес, что
         // в Contact, то есть внешний, сообщённый сервером в received. Локальный
         // адрес за NAT даст установленный звонок без звука — самую дорогую в
@@ -468,6 +549,14 @@ public sealed class PhoneService : IDisposable
 
         _history.Begin(record);
         _records[call.CallId] = record;
+
+        // Гудки исходящего — до рингтона: плеер служебных звуков один, и пока
+        // в нём играли гудки, рингтон входящего не начинался вовсе. Вернутся
+        // они сами, когда окно уберут (сверка линий → UpdatePreAnswerAudio).
+        _sounds.StopRingback();
+
+        // Рингтон открывает устройство следующей строкой — проверка уходит до него.
+        AbortSelfTestForCall("входящий звонок");
 
         _incoming.Show(
             subject,
@@ -854,17 +943,34 @@ public sealed class PhoneService : IDisposable
                 switch (value)
                 {
                     case SipCallEvent.Answered response:
-                        // Гудки снимаются здесь, а не в `finally`: тракт
-                        // разговора поднимается следующей строкой, и гудок,
-                        // доигрывающий поверх первого «алло», слышен как
-                        // сбой связи.
-                        _sounds.Stop();
+                        MediaSession? early;
+                        lock (_preAnswerGate)
+                        {
+                            // Гудки снимаются здесь, а не в `finally`: тракт
+                            // разговора поднимается следующей строкой, и гудок,
+                            // доигрывающий поверх первого «алло», слышен как
+                            // сбой связи.
+                            _ringbackWanted = false;
+                            early = _earlySession;
+                            _earlySession = null;
+                            _earlyAudioFailed = false;
+                        }
 
-                        session = await OpenMediaAsync(response, offer, reservation, call.CallId, number)
-                            .ConfigureAwait(false);
+                        _sounds.StopRingback();
+
+                        // Ранний поток продолжается, а не пересоздаётся: на
+                        // границе «гудки → алло» не должно пропасть ни кадра.
+                        session = early is not null
+                            ? await ContinueEarlyMediaAsync(early, response, offer, call.CallId, number)
+                                .ConfigureAwait(false)
+                            : await OpenMediaAsync(response, offer, reservation, call.CallId, number)
+                                .ConfigureAwait(false);
 
                         if (session is null)
                         {
+                            // Ранний поток, который не удалось продолжить, всё
+                            // равно надо снять: `finally` смотрит на `session`.
+                            session = early;
                             await _agent!.HangUpAsync(call.CallId).ConfigureAwait(false);
                             break;
                         }
@@ -885,18 +991,36 @@ public sealed class PhoneService : IDisposable
 
                         break;
 
-                    // Гудки. Прежде это событие попадало в `default` и
+                    // «Звонит». Прежде это событие попадало в `default` и
                     // терялось, а оно единственное, по которому видно, что
-                    // вызов пошёл.
+                    // вызов пошёл. Звука оно само не решает: что слышно,
+                    // говорят два события ниже.
                     case SipCallEvent.State { Value: SipCallState.Ringing }:
-                        // И гудки в трубку: до 200 OK медиасессии нет, а
-                        // значит, нет и звука. Тишина после «Позвонить»
-                        // читается как несостоявшийся звонок, и оператор
-                        // кладёт трубку раньше, чем на той стороне подойдут.
-                        _sounds.StartRingback();
-
                         await _dispatcher.InvokeAsync(
                             () => _panel.CallStatus = Strings.Get("CallStatusRinging"));
+                        break;
+
+                    // 180 без SDP: станция гудков не даст, играем сами.
+                    // Тишина после «Позвонить» читается как несостоявшийся
+                    // звонок, и оператор кладёт трубку раньше, чем на той
+                    // стороне подойдут.
+                    case SipCallEvent.LocalRingback:
+                        lock (_preAnswerGate)
+                        {
+                            _ringbackWanted = true;
+                        }
+
+                        await _dispatcher.InvokeAsync(UpdatePreAnswerAudio);
+                        break;
+
+                    // 18x с SDP: станция играет сама — гудки, IVR,
+                    // «абонент недоступен». Поток поднимается сразу, с
+                    // заглушённым микрофоном.
+                    case SipCallEvent.EarlyMedia progress:
+                        session = await FollowEarlyMediaAsync(progress, offer, reservation, call.CallId, session)
+                            .ConfigureAwait(false);
+
+                        await _dispatcher.InvokeAsync(UpdatePreAnswerAudio);
                         break;
 
                     case SipCallEvent.Failed failure:
@@ -920,7 +1044,14 @@ public sealed class PhoneService : IDisposable
             // Второй раз за тот же вызов — намеренно: сюда приходят и отбой, и
             // отказ, и обрыв потока событий, и после любого из них гудки
             // обязаны замолчать. Снятие тишины ничего не стоит.
-            _sounds.Stop();
+            lock (_preAnswerGate)
+            {
+                _ringbackWanted = false;
+                _earlySession = null;
+                _earlyAudioFailed = false;
+            }
+
+            _sounds.StopRingback();
 
             if (session is not null)
             {
@@ -956,6 +1087,11 @@ public sealed class PhoneService : IDisposable
 
             await session.StartAsync(CancellationToken.None).ConfigureAwait(false);
             await _lines!.AttachAsync(callId, new MediaSessionLine(session, offer), number).ConfigureAwait(false);
+
+            // Станция может ответить сразу на удержании (a=sendonly): тогда
+            // микрофон молчит, даже если кнопку никто не нажимал.
+            _lines.ApplyRemoteMedia(callId, negotiated);
+
             WatchMedia(callId, session);
             return session;
         }
@@ -974,6 +1110,222 @@ public sealed class PhoneService : IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Поднимает поток ранних медиа или уточняет уже поднятый.
+    /// </summary>
+    ///
+    /// <returns>Сессию раннего потока — прежнюю или новую; <c>null</c>, если её нет.</returns>
+    ///
+    /// <remarks>
+    /// Повтор 183 с тем же телом сюда не доходит — его отсеивает SipCore. Сюда
+    /// приходит либо первое ранее медиа, либо другое тело: станция сменила адрес,
+    /// ключ или кодек. Во втором случае поток перенастраивается на том же
+    /// локальном порту, объявленном в нашем предложении, а не пересоздаётся.
+    ///
+    /// Ничего из этого не роняет вызов. Не разобрался SDP или не поднялся
+    /// тракт — оператор останется без гудков станции, но звонок дойдёт до
+    /// ответа, и там будет вторая попытка с окончательным SDP.
+    /// </remarks>
+    private async Task<MediaSession?> FollowEarlyMediaAsync(
+        SipCallEvent.EarlyMedia early,
+        SessionDescription offer,
+        RtpPortReservation reservation,
+        string callId,
+        MediaSession? current)
+    {
+        NegotiatedMedia negotiated;
+        try
+        {
+            negotiated = SdpNegotiator.ResolveAnswer(SdpParser.Parse(early.Body.Span), offer);
+        }
+        catch (Exception failure) when (failure is SdpParseException or SdpNegotiationException)
+        {
+            _log($"ранние медиа не приняты: {failure.Message}");
+            return current;
+        }
+
+        if (current is not null)
+        {
+            try
+            {
+                var outcome = current.Adopt(negotiated);
+                _log($"ранние медиа уточнены ({early.Status}): {outcome}");
+            }
+            catch (InvalidOperationException failure)
+            {
+                _log($"ранние медиа не уточнились: {failure.Message}");
+            }
+
+            return current;
+        }
+
+        var session = OpenSession(callId, negotiated, reservation);
+
+        // Звук сейчас у другой линии — оператор говорит, пока исходящий
+        // звонит. Тракт у разговора не отбираем: поток принимается, а в ухо
+        // пойдёт, когда та линия кончится (см. UpdatePreAnswerAudio).
+        var claimAudio = _lines?.ActiveCallId is null;
+
+        var audioFailed = false;
+        try
+        {
+            await session.StartListeningAsync(claimAudio).ConfigureAwait(false);
+        }
+        catch (VoiceAudioException failure)
+        {
+            // Поток остаётся: порт объявлен в нашем предложении, и ответ станции
+            // придёт на него же. Без звука до ответа звонок жив; на ответе
+            // слой линий попробует тракт ещё раз и, если снова откажет,
+            // звонок положат со словами, что чинить.
+            _log($"тракт не поднялся на ранних медиа: {failure.Message}");
+            audioFailed = true;
+        }
+
+        lock (_preAnswerGate)
+        {
+            _earlySession = session;
+            _earlyAudioFailed = audioFailed;
+        }
+
+        _log($"ранние медиа ({early.Status}): поток поднят, микрофон заглушён"
+            + (claimAudio ? string.Empty : ", звук у другой линии"));
+        return session;
+    }
+
+    /// <summary>
+    /// Продолжает ранний поток как разговор: 200 OK пришёл после 183 с SDP.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Поток не пересоздаётся. Ответ с тем же SDP не меняет в нём ничего, другой
+    /// адрес или ключи перенастраивают его на том же порту, другой кодек
+    /// пересобирает формат — всё это <see cref="MediaSession.Adopt"/>. Пустое
+    /// тело при поднятом раннем потоке значит «всё как было».
+    ///
+    /// Микрофон открывает слой линий, а не этот код: при заведении линии он
+    /// сводит кнопку, своё удержание и серверное — о кнопке сессия не знает, и
+    /// нажатую во время гудков она бы проигнорировала.
+    /// </remarks>
+    private async Task<MediaSession?> ContinueEarlyMediaAsync(
+        MediaSession early,
+        SipCallEvent.Answered response,
+        SessionDescription offer,
+        string callId,
+        string number)
+    {
+        try
+        {
+            var negotiated = early.Negotiated;
+
+            if (!response.Body.IsEmpty)
+            {
+                negotiated = SdpNegotiator.ResolveAnswer(SdpParser.Parse(response.Body.Span), offer);
+                var outcome = early.Adopt(negotiated);
+                _log($"ответ продолжает ранний поток: {outcome}");
+            }
+            else
+            {
+                _log("ответ без SDP продолжает ранний поток как есть");
+            }
+
+            await _lines!.AttachAsync(callId, new MediaSessionLine(early, offer), number).ConfigureAwait(false);
+
+            if (negotiated is not null)
+            {
+                _lines.ApplyRemoteMedia(callId, negotiated);
+            }
+
+            WatchMedia(callId, early);
+            return early;
+        }
+        catch (Exception failure) when (failure is SdpParseException
+                                            or SdpNegotiationException
+                                            or InvalidOperationException)
+        {
+            _log($"не договорились о медиа в ответе: {failure.Message}");
+        }
+        catch (VoiceAudioException failure)
+        {
+            _log($"тракт не поднялся: {failure.Message}");
+            await _dispatcher.InvokeAsync(() => Trouble("TroubleNoAudio", opensSettings: true));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Сводит, что должно быть слышно до ответа: поток станции, наши гудки или
+    /// тишина.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Зовётся на потоке окна — на каждое событие вызова и на каждую сверку
+    /// линий. Правило одно на все поводы:
+    ///
+    /// <list type="bullet">
+    ///   <item><description>звук у другой линии (оператор принял входящий, пока
+    ///   звонит исходящий) или на экране входящий с рингтоном — молчим;</description></item>
+    ///   <item><description>есть ранние медиа — слышен поток станции, наших гудков
+    ///   нет;</description></item>
+    ///   <item><description>станция прислала 180 без SDP — наши гудки в устройство
+    ///   разговора;</description></item>
+    ///   <item><description>иначе тишина.</description></item>
+    /// </list>
+    ///
+    /// Настройка звуков клавиш сюда не входит намеренно: гудки — не подсказка
+    /// нажатия, а единственный признак того, что вызов идёт.
+    /// </remarks>
+    private void UpdatePreAnswerAudio()
+    {
+        bool ringback;
+        bool audioFailed;
+        MediaSession? early;
+
+        lock (_preAnswerGate)
+        {
+            ringback = _ringbackWanted;
+            early = _earlySession;
+            audioFailed = _earlyAudioFailed;
+        }
+
+        var otherLineActive = _lines?.ActiveCallId is not null;
+
+        if (early is not null || !ringback || otherLineActive || _incoming.IsVisible)
+        {
+            _sounds.StopRingback();
+        }
+        else
+        {
+            _sounds.StartRingback(_settings.Audio.OutputDeviceId);
+        }
+
+        // Другая линия кончилась, а исходящий всё ещё на ранних медиа — вернуть
+        // ему звук. Микрофон при этом остаётся заглушённым. Подъём тракта стоит
+        // сотни миллисекунд, поэтому в фоне, а не на потоке окна.
+        if (early is not null && !audioFailed && !otherLineActive && !early.OwnsAudio)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    lock (_preAnswerGate)
+                    {
+                        if (!ReferenceEquals(_earlySession, early))
+                        {
+                            return;
+                        }
+                    }
+
+                    early.ResumeListening();
+                }
+                catch (Exception failure) when (failure is VoiceAudioException or ObjectDisposedException)
+                {
+                    _log($"ранним медиа звук не вернулся: {failure.Message}");
+                }
+            });
+        }
     }
 
     /// <summary>Заводит медиа разговора на настройках оператора.</summary>
@@ -1179,6 +1531,10 @@ public sealed class PhoneService : IDisposable
         _panel.CanSendDtmf = active is not null;
         _panel.IsMicrophoneMuted = _lines.IsMicrophoneMuted;
         _panel.ResyncToggles();
+
+        // Линии сменились — могла стать активной другая, пока исходящий ещё
+        // звонит, или кончиться та, что забирала у него звук.
+        UpdatePreAnswerAudio();
     }
 
     private void Trouble(string key, bool opensSettings)
@@ -1193,6 +1549,7 @@ public sealed class PhoneService : IDisposable
         // Синхронно: приложение закрывается, и ждать снятия регистрации дольше
         // мгновения нельзя — иначе выход выглядит зависанием.
         _settings.Audio.PropertyChanged -= OnAudioSettingsChanged;
+        SelfTest.Dispose();
         _lines = null;
         _running?.Cancel();
         _agent?.Dispose();

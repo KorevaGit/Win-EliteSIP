@@ -230,6 +230,20 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private float _playedPeak;
 
     /// <summary>
+    /// Те же две точки — «в линию» и «в наушники», — но окном для шкал, а не
+    /// с начала работы: <see cref="TakeLevels"/> забирает их и обнуляет.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Отдельно от пиков журнала, потому что те копятся до пересборки и
+    /// отвечают на вопрос «было ли громко», а шкале нужно «громко ли сейчас».
+    /// Запись без замка: окно, в которое читатель и писатель попали разом,
+    /// теряет одну двадцатую секунды на шкале, и ничего больше.
+    /// </remarks>
+    private float _sentMeter;
+    private float _playedMeter;
+
+    /// <summary>
     /// Пики по каналам захвата — до сведения в моно.
     ///
     /// Сведение усреднением гасит каналы в противофазе: у части наборов
@@ -784,6 +798,11 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             System.Globalization.CultureInfo.InvariantCulture,
             $"{20 * Math.Log10(peak):F0} дБ");
 
+    /// <inheritdoc/>
+    public AudioLevels TakeLevels() => new(
+        Interlocked.Exchange(ref _sentMeter, 0),
+        Interlocked.Exchange(ref _playedMeter, 0));
+
     private static float PeakOf(ReadOnlySpan<float> samples, float peak)
     {
         foreach (float sample in samples)
@@ -1264,6 +1283,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int offset = 0;
 
         float peak = _sentPeak;
+        float meter = 0;
 
         while (count - offset >= size)
         {
@@ -1274,7 +1294,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 // причиной — оно умножает уже готовые отсчёты вместе со всем,
                 // что в них попало, поэтому и ограничено вдвое.
                 float sample = pending[offset + i] * gain;
-                peak = Math.Max(peak, Math.Abs(sample));
+                meter = Math.Max(meter, Math.Abs(sample));
 
                 // Мягко, а не срезом: эхоподавитель и шумодав отдают выбросы
                 // за шкалу, и жёсткий срез в кодеке собеседник слышит хрипом.
@@ -1290,7 +1310,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             Handlers.EncodedFrame?.Invoke(payload);
         }
 
-        _sentPeak = peak;
+        _sentPeak = Math.Max(peak, meter);
+
+        if (meter > _sentMeter)
+        {
+            _sentMeter = meter;
+        }
 
         if (offset > 0)
         {
@@ -1424,7 +1449,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     scratch[i] = SpeechGainControl.Limit(scratch[i] * volume);
                 }
 
-                _playedPeak = PeakOf(scratch.AsSpan(0, free), _playedPeak);
+                float played = PeakOf(scratch.AsSpan(0, free), 0);
+                _playedPeak = Math.Max(_playedPeak, played);
+
+                if (played > _playedMeter)
+                {
+                    _playedMeter = played;
+                }
 
                 WriteFrames(render, scratch, free, channels, layout);
 

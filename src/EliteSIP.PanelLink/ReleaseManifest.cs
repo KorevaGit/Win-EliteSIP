@@ -147,6 +147,38 @@ public sealed record ReleaseManifest
         return Version > installed;
     }
 
+    /// <summary>
+    /// Лежит ли установщик там же, откуда взят манифест: та же схема, хост и порт.
+    /// </summary>
+    ///
+    /// <param name="manifestAddress">адрес, с которого манифест скачан.</param>
+    ///
+    /// <remarks>
+    /// <para>
+    /// Установщик качается с парой Basic канала, и отправлять её на другой хост
+    /// нельзя: пара общая на все машины, и чужой сервер получил бы её даром.
+    /// Подпись манифеста говорит, что адрес вписали мы, — но и мы ошибаемся.
+    /// </para>
+    /// <para>
+    /// Ровно такая ошибка ждала переезда канала в сентябре 2026: выпуски по
+    /// 0.1.55 перенесены на новый сервер вместе с манифестом, а <c>url</c> в нём
+    /// подписан и указывает на старый. Клиент нового канала, увидев такой
+    /// манифест с новой версией, повёз бы пару на старый хост. Здесь он
+    /// откажется и скажет об этом в журнале.
+    /// </para>
+    /// </remarks>
+    public bool IsServedFrom(Uri manifestAddress)
+    {
+        ArgumentNullException.ThrowIfNull(manifestAddress);
+
+        return Uri.Compare(
+            Url,
+            manifestAddress,
+            UriComponents.SchemeAndServer,
+            UriFormat.Unescaped,
+            StringComparison.OrdinalIgnoreCase) == 0;
+    }
+
     private static bool IsHex(string value)
     {
         foreach (var character in value)

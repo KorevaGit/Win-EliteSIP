@@ -180,7 +180,22 @@
     <value>Пять секунд записи и сразу воспроизведение — тем же трактом, что и разговор.</value>
   </data>
   <data name="AudioSelfTestStart" xml:space="preserve">
-    <value>Записать и прослушать</value>
+    <value>Проверить микрофон и звук</value>
+  </data>
+  <data name="AudioSelfTestStop" xml:space="preserve">
+    <value>Остановить</value>
+  </data>
+  <data name="AudioSelfTestBusy" xml:space="preserve">
+    <value>Во время звонка проверка недоступна: она заняла бы микрофон, которым вы говорите. Шкалы ниже показывают разговор.</value>
+  </data>
+  <data name="AudioMeterVoice" xml:space="preserve">
+    <value>Голос</value>
+  </data>
+  <data name="AudioMeterSound" xml:space="preserve">
+    <value>Звук</value>
+  </data>
+  <data name="AudioMeterHint" xml:space="preserve">
+    <value>Шкалы голоса и звука появятся во время проверки и во время разговора. Микрофон открывается только на это время.</value>
   </data>
   <data name="AudioAggregateNote" xml:space="preserve">
     <value>Разные устройства: системного эхоподавления не будет. На колонках собеседник услышит себя, в наушниках — нет.</value>

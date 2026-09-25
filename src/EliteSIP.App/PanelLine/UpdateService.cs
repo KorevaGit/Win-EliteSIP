@@ -182,6 +182,12 @@ internal sealed class UpdateService : IDisposable
     /// <summary>Заводит общий будильник и делает первую проверку.</summary>
     internal void Start()
     {
+        // Прибраться — до всего прочего и независимо от того, жива ли линия.
+        // Выпуск, который уже встал, не нужен больше никому, а весит он под
+        // шестьдесят мегабайт: за десяток обновлений это полгигабайта в каталоге
+        // обмена, и растёт оно без предела.
+        PruneStaged(version => version > Installed);
+
         if (Provisioning.Current?.Updates is null)
         {
             // Отладочная сборка на машине без заводской настройки должна
@@ -429,6 +435,18 @@ internal sealed class UpdateService : IDisposable
                 return;
             }
 
+            // Установщик — только с того же хоста, что и манифест: качается он с
+            // парой Basic, а отдавать её чужому хосту нельзя (разбор — у
+            // `ReleaseManifest.IsServedFrom`).
+            if (!manifest.IsServedFrom(url))
+            {
+                _log($"обновления: {manifest.Version.ToString(3)} лежит на другом хосте "
+                    + $"({manifest.Url.GetLeftPart(UriPartial.Authority)}), чем манифест "
+                    + $"({url.GetLeftPart(UriPartial.Authority)}) — не качаю");
+                LastResult = Resources.Strings.Get("UpdatesDownloadFailed");
+                return;
+            }
+
             _log($"обновления: есть {manifest.Version.ToString(3)}, качаем");
             LastResult = Resources.Strings.Format("UpdatesDownloading", manifest.Version.ToString(3), 0, Megabytes(manifest.Size));
 
@@ -483,6 +501,62 @@ internal sealed class UpdateService : IDisposable
     /// </remarks>
     /// <summary>Байты в мегабайтах, целыми: «23 из 54 МБ».</summary>
     private static long Megabytes(long bytes) => (bytes + 524_288) / 1_048_576;
+
+    /// <summary>
+    /// Убирает из каталога обмена скачанные выпуски, которые больше не нужны.
+    /// </summary>
+    ///
+    /// <param name="keep">какие версии оставить.</param>
+    ///
+    /// <remarks>
+    /// <b>Чистит приложение, а не обновляльщик, и это намеренно.</b> Каталог
+    /// обмена открыт оператору на запись, и файлы в нём — его. Всё, что SYSTEM
+    /// удалял бы по такому пути, он удалял бы по пути, который оператор может
+    /// подменить связкой на чужой файл; за собой же он убирает в своём каталоге,
+    /// куда оператор не пишет.
+    ///
+    /// Занятый файл пропускается молча: его прямо сейчас читает обновляльщик,
+    /// и следующая уборка застанет его свободным.
+    /// </remarks>
+    private void PruneStaged(Func<Version, bool> keep)
+    {
+        string[] staged;
+        try
+        {
+            var directory = UpdateHandoff.UpdatesDirectory;
+
+            staged = Directory.Exists(directory)
+                ? Directory.GetFiles(directory, "EliteSIP-*.exe")
+                : [];
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        foreach (var file in staged)
+        {
+            const string prefix = "EliteSIP-";
+            var name = Path.GetFileNameWithoutExtension(file);
+
+            if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                || !Version.TryParse(name[prefix.Length..], out var version)
+                || keep(version))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Delete(file);
+                _log($"обновления: убран скачанный выпуск {version.ToString(3)}");
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                // Занят или закрыт — уберём в следующий раз.
+            }
+        }
+    }
 
     private async Task<string?> DownloadAsync(
         ReleaseManifest manifest,
@@ -573,6 +647,11 @@ internal sealed class UpdateService : IDisposable
             }
 
             await File.WriteAllBytesAsync(path, bytes, cancellation).ConfigureAwait(true);
+
+            // Прежние скачанные больше не пригодятся: обновляльщик ставит ровно
+            // то, что объявлено манифестом, а манифест теперь называет этот
+            // файл.
+            PruneStaged(version => version == manifest.Version);
 
             return path;
         }

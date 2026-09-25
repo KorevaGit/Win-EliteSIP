@@ -25,6 +25,13 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/AudioProbe/AudioProbe.csproj" />
+    <!--
+      Обновляльщик в решении с 12 сентября 2026, и до того его не собирал никто,
+      кроме релизного скрипта: ни `dotnet build`, ни CI его не видели. Это код,
+      который работает от SYSTEM, — он обязан ломать сборку так же, как всё
+      остальное, а не в день выпуска.
+    -->
+    <Project Path="tools/Updater/EliteSIP.Updater.csproj" />
     <Project Path="tools/IconGen/IconGen.csproj" />
     <Project Path="tools/ReleaseKit/ReleaseKit.csproj" />
     <Project Path="tools/SipCheck/SipCheck.csproj" />

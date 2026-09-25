@@ -98,7 +98,8 @@ public sealed class RtpSession : IDisposable
 
     private static readonly IPEndPoint AnySource = new(IPAddress.Any, 0);
 
-    private readonly RtpSessionConfiguration _configuration;
+    /// <summary>Формат потока. Меняется только под <see cref="_lock"/> — см. <see cref="Reconfigure"/>.</summary>
+    private RtpSessionConfiguration _configuration;
     private readonly Socket _socket;
     private IPEndPoint _remote;
     private readonly Lock _lock = new();
@@ -110,10 +111,15 @@ public sealed class RtpSession : IDisposable
     /// есть состояние (счётчик оборотов), и две отправки разом сбили бы его так
     /// же, как сбили бы нумерацию.
     /// </remarks>
-    private readonly SrtpContext? _outbound;
+    private SrtpContext? _outbound;
 
     /// <summary>Защита входящего направления. Замка не требует: приём один.</summary>
-    private readonly SrtpContext? _inbound;
+    ///
+    /// <remarks>
+    /// Подменяется целиком при смене ключа собеседника, и поток приёма
+    /// подхватывает новый контекст со следующего пакета — отсюда volatile.
+    /// </remarks>
+    private volatile SrtpContext? _inbound;
     private readonly CancellationTokenSource _stopping = new();
 
     /// <summary>Состояние отправителя. Трогается только под <see cref="_lock"/>.</summary>
@@ -218,6 +224,69 @@ public sealed class RtpSession : IDisposable
             // Маркер: для собеседника это начало речи с нового плеча.
             _needsMarker = true;
         }
+    }
+
+    /// <summary>
+    /// Меняет формат потока — кодек, тип нагрузки, пакетное время, ключи SRTP —
+    /// не трогая сокет.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <para>
+    /// Нужно ранним медиа. Поток поднимается по SDP из 183, а 200 OK вправе
+    /// уточнить его: станция отвечает с другого узла, со своим ключом SDES, а
+    /// изредка и с другим кодеком. Порт при этом наш и уже объявлен, отпускать
+    /// его ради пересборки нельзя по той же причине, что в <see cref="Retarget"/>.
+    /// </para>
+    /// <para>
+    /// SSRC остаётся прежним, номер последовательности и метка времени идут
+    /// дальше, первый пакет в новом формате несёт маркер. Контекст отправки
+    /// пересоздаётся, только если сменился наш ключ: иначе у него обнулился бы
+    /// счётчик оборотов, и собеседник отверг бы пакеты как повторы.
+    /// </para>
+    /// </remarks>
+    public void Reconfigure(RtpSessionConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        SrtpContext? inbound = null;
+
+        lock (_lock)
+        {
+            MediaSecurity previous = _configuration.Security;
+            MediaSecurity next = configuration.Security;
+
+            if (next.IsEncrypted)
+            {
+                if (next.LocalKey is not SrtpMasterKey local || next.RemoteKey is not SrtpMasterKey remote)
+                {
+                    // То же правило, что в конструкторе: открытый RTP там, где
+                    // согласован SRTP, — это downgrade, и молча его не делают.
+                    throw new InvalidOperationException("защищённый поток без одного из ключей SDES");
+                }
+
+                if (_outbound is null || !Equals(previous.LocalKey, local))
+                {
+                    _outbound = new SrtpContext(local);
+                }
+
+                inbound = _inbound is null || !Equals(previous.RemoteKey, remote)
+                    ? new SrtpContext(remote)
+                    : _inbound;
+            }
+            else
+            {
+                _outbound = null;
+            }
+
+            _configuration = configuration;
+            _needsMarker = true;
+        }
+
+        // Приём подхватывает контекст со следующего пакета. Пакет, уже
+        // прочитанный со старым ключом, доигрывает как есть — это десятки
+        // миллисекунд, и склеивать тут нечего.
+        _inbound = inbound;
     }
 
     /// <summary>Пришедший пакет. Вызывается на потоке приёма — не блокировать.</summary>
@@ -504,9 +573,13 @@ public sealed class RtpSession : IDisposable
             RtpPacket packet;
             try
             {
-                packet = _inbound is null
+                // Один раз в локальную: контекст подменяется на ходу
+                // (<see cref="Reconfigure"/>), и проверка на null с вызовом по
+                // второму чтению разошлись бы.
+                SrtpContext? inbound = _inbound;
+                packet = inbound is null
                     ? RtpPacket.Parse(buffer.AsSpan(0, received))
-                    : _inbound.Unprotect(buffer.AsSpan(0, received));
+                    : inbound.Unprotect(buffer.AsSpan(0, received));
             }
             catch (Exception error) when (error is RtpParseException or SrtpException)
             {

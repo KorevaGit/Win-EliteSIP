@@ -176,6 +176,129 @@ public sealed class MediaSessionTests
     }
 
     [Fact]
+    public async Task Ответ_с_тем_же_SDP_продолжает_ранний_поток_без_единой_перемены()
+    {
+        using Fixture fixture = Fixture.Create();
+        fixture.Session.IsMicrophoneMuted = false;
+        fixture.Session.Start();
+        ushort port = fixture.Session.LocalPort;
+        Action<ReadOnlyMemory<byte>> encoded = fixture.Engine.Handlers.EncodedFrame!;
+        int starts = fixture.Engine.StartCount;
+
+        encoded(new byte[160]);
+        RtpPacket before = await fixture.WaitForSentAsync();
+
+        // 200 OK повторяет 183 слово в слово — так бывает почти всегда.
+        MediaRenegotiation outcome = fixture.Session.Adopt(fixture.Negotiated);
+
+        encoded(new byte[160]);
+        RtpPacket after = await fixture.WaitForSentAsync();
+
+        // Тот же поток: SSRC, порт и тракт прежние, номера идут подряд. Любая
+        // пересборка здесь — это провал звука ровно на «алло».
+        Assert.Equal(MediaRenegotiation.DirectionOnly, outcome);
+        Assert.Equal(port, fixture.Session.LocalPort);
+        Assert.Equal(before.Ssrc, after.Ssrc);
+        Assert.Equal((ushort)(before.SequenceNumber + 1), after.SequenceNumber);
+        Assert.Equal(starts, fixture.Engine.StartCount);
+    }
+
+    [Fact]
+    public void Уточнённый_адрес_перенацеливает_поток_и_не_открывает_микрофон()
+    {
+        using Fixture fixture = Fixture.Create();
+        fixture.Session.StartWithoutAudio();
+        fixture.Session.IsMicrophoneMuted = true;
+        ushort port = fixture.Session.LocalPort;
+
+        MediaRenegotiation outcome = fixture.Session.Adopt(
+            fixture.Negotiated with { RemotePort = (ushort)(fixture.Negotiated.RemotePort + 2) });
+
+        Assert.Equal(MediaRenegotiation.StreamRebuilt, outcome);
+        Assert.Equal(port, fixture.Session.LocalPort);
+
+        // До ответа микрофон заглушён намеренно; уточнённый 183 его не
+        // открывает. Renegotiate на том же SDP открыл бы — по направлению.
+        Assert.True(fixture.Session.IsMicrophoneMuted);
+    }
+
+    [Fact]
+    public async Task Смена_кодека_в_ответе_перенастраивает_поток_на_том_же_сокете()
+    {
+        using Fixture fixture = Fixture.Create();
+        fixture.Session.IsMicrophoneMuted = false;
+        fixture.Session.Start();
+        ushort port = fixture.Session.LocalPort;
+
+        fixture.Engine.Handlers.EncodedFrame!(new byte[160]);
+        RtpPacket before = await fixture.WaitForSentAsync();
+
+        // Пересогласование посреди разговора кодек менять не даёт, а ответ после
+        // ранних медиа — вправе: SDP из 183 был предварительным.
+        MediaRenegotiation outcome = fixture.Session.Adopt(
+            fixture.Negotiated with { Codec = AudioCodec.G722, PayloadType = 9 });
+
+        Assert.Equal(MediaRenegotiation.StreamReconfigured, outcome);
+        Assert.Equal(port, fixture.Session.LocalPort);
+        Assert.Equal(AudioCodec.G722, fixture.Engine.LastApplied?.Codec);
+        Assert.Equal(AudioCodec.G722, fixture.Session.Negotiated?.Codec);
+
+        fixture.Engine.Handlers.EncodedFrame!(new byte[160]);
+        RtpPacket after = await fixture.WaitForSentAsync();
+
+        // Новый тип нагрузки, прежний источник и маркер начала: для станции это
+        // тот же поток в новом формате, а не второй поток.
+        Assert.Equal(9, after.PayloadType);
+        Assert.Equal(before.Ssrc, after.Ssrc);
+        Assert.True(after.Marker);
+    }
+
+    [Fact]
+    public async Task Новый_ключ_SRTP_в_ответе_принимается_без_пересборки_порта()
+    {
+        SrtpMasterKey ours = SrtpMasterKey.Random();
+        SrtpMasterKey early = SrtpMasterKey.Random();
+        SrtpMasterKey answered = SrtpMasterKey.Random();
+
+        using Fixture fixture = Fixture.Create(security: MediaSecurity.Sdes(ours, early));
+        fixture.Session.StartWithoutAudio();
+        ushort port = fixture.Session.LocalPort;
+
+        MediaRenegotiation outcome = fixture.Session.Adopt(
+            fixture.Negotiated with { Security = MediaSecurity.Sdes(ours, answered) });
+
+        Assert.Equal(MediaRenegotiation.StreamReconfigured, outcome);
+        Assert.Equal(port, fixture.Session.LocalPort);
+
+        // Пакет, защищённый ключом из 200 OK, проходит проверку и доезжает до
+        // буфера. Со старым контекстом он был бы отброшен как подделка.
+        SrtpContext station = new(answered);
+        fixture.SendToSession(station.Protect(
+            new RtpPacket(0, 1, 160, 0x1111, new byte[160])));
+
+        Assert.Equal(1, await fixture.WaitForReceivedAsync(1));
+    }
+
+    [Fact]
+    public async Task Пакет_со_старым_ключом_после_смены_отбрасывается()
+    {
+        SrtpMasterKey ours = SrtpMasterKey.Random();
+        SrtpMasterKey early = SrtpMasterKey.Random();
+
+        using Fixture fixture = Fixture.Create(security: MediaSecurity.Sdes(ours, early));
+        fixture.Session.StartWithoutAudio();
+
+        fixture.Session.Adopt(
+            fixture.Negotiated with { Security = MediaSecurity.Sdes(ours, SrtpMasterKey.Random()) });
+
+        fixture.SendToSession(new SrtpContext(early).Protect(
+            new RtpPacket(0, 1, 160, 0x1111, new byte[160])));
+        await Task.Delay(200);
+
+        Assert.Equal(0, fixture.Session.Statistics.Received);
+    }
+
+    [Fact]
     public async Task Немой_микрофон_не_отправляет_кадр_но_двигает_метку_времени()
     {
         using Fixture fixture = Fixture.Create();
@@ -421,7 +544,9 @@ public sealed class MediaSessionTests
 
         public NegotiatedMedia Negotiated { get; }
 
-        public static Fixture Create(byte? telephoneEventPayloadType = EventPayloadType)
+        public static Fixture Create(
+            byte? telephoneEventPayloadType = EventPayloadType,
+            MediaSecurity? security = null)
         {
             Socket peer = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             peer.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -438,7 +563,8 @@ public sealed class MediaSessionTests
                 PayloadType: 0,
                 RemoteAddress: "127.0.0.1",
                 RemotePort: (ushort)((IPEndPoint)peer.LocalEndPoint!).Port,
-                TelephoneEventPayloadType: telephoneEventPayloadType);
+                TelephoneEventPayloadType: telephoneEventPayloadType,
+                Security: security);
 
             FakeVoiceAudioEngine engine = new();
             VoiceAudioBus bus = new(engine, _ => engine);

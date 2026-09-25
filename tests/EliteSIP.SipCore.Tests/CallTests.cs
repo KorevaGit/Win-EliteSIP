@@ -423,6 +423,173 @@ public sealed class CallTests
         await agent.StopAsync();
     }
 
+    /// <summary>183 с SDP в том виде, в каком его шлёт Asterisk при ранних медиа.</summary>
+    private static SipResponse EarlyMedia(SipRequest invite, int status = 183, int port = 14028)
+    {
+        SipResponse response = Answer(invite, status);
+        response.Body = Encoding.UTF8.GetBytes(
+            "v=0\r\no=root 1 1 IN IP4 172.17.0.2\r\ns=Asterisk\r\nc=IN IP4 172.17.0.2\r\nt=0 0\r\n"
+                + $"m=audio {port} RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n");
+        return response;
+    }
+
+    /// <summary>Собирает все события звонка до его конца.</summary>
+    private static Task<List<SipCallEvent>> CollectAsync(SipOutgoingCall call) => Task.Run(async () =>
+    {
+        List<SipCallEvent> events = [];
+        await foreach (SipCallEvent value in call.Events)
+        {
+            events.Add(value);
+        }
+        return events;
+    });
+
+    [Fact]
+    public async Task _180_без_тела_просит_играть_гудки_самим()
+    {
+        ScriptedSipServer server = MakeServer();
+        using SipUserAgent agent = await MakeAgentAsync(server);
+
+        SipOutgoingCall call = agent.PlaceCall("600", SdpOffer());
+        Task<List<SipCallEvent>> collector = CollectAsync(call);
+
+        Assert.True(await WaitForSignedInviteAsync(server));
+        SipRequest invite = LastInvite(server);
+
+        server.Inject(ScriptedSipServer.Response(invite, 100));
+        server.Inject(ScriptedSipServer.Response(invite, 180));
+
+        // Повтор 180 — обычное дело при долгом вызове; гудки от него не
+        // начинаются второй раз.
+        server.Inject(ScriptedSipServer.Response(invite, 180));
+        server.Inject(Answer(invite));
+
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.CallState is SipCallState.Answered));
+        await agent.HangUpAsync();
+        List<SipCallEvent> events = await collector;
+
+        Assert.Single(events.OfType<SipCallEvent.LocalRingback>());
+        Assert.Empty(events.OfType<SipCallEvent.EarlyMedia>());
+
+        // Гудки — до ответа, а не после.
+        Assert.True(
+            events.FindIndex(value => value is SipCallEvent.LocalRingback)
+                < events.FindIndex(value => value is SipCallEvent.Answered));
+
+        await agent.StopAsync();
+    }
+
+    [Fact]
+    public async Task _183_с_SDP_даёт_ранние_медиа_и_одно_событие_на_повтор_того_же_тела()
+    {
+        ScriptedSipServer server = MakeServer();
+        using SipUserAgent agent = await MakeAgentAsync(server);
+
+        SipOutgoingCall call = agent.PlaceCall("600", SdpOffer());
+        Task<List<SipCallEvent>> collector = CollectAsync(call);
+
+        Assert.True(await WaitForSignedInviteAsync(server));
+        SipRequest invite = LastInvite(server);
+
+        server.Inject(ScriptedSipServer.Response(invite, 100));
+        server.Inject(EarlyMedia(invite));
+        server.Inject(EarlyMedia(invite));
+        server.Inject(EarlyMedia(invite));
+
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.CallState is SipCallState.Ringing));
+
+        // Отбой во время ранних медиа: звонок кончается как обычно, ранний
+        // поток не превращается в разговор.
+        await agent.HangUpAsync();
+        server.Inject(ScriptedSipServer.Response(invite, 487));
+        List<SipCallEvent> events = await collector;
+
+        SipCallEvent.EarlyMedia early = Assert.Single(events.OfType<SipCallEvent.EarlyMedia>());
+        Assert.Equal(183, early.Status);
+        Assert.Contains("m=audio 14028", Encoding.UTF8.GetString(early.Body.Span), StringComparison.Ordinal);
+        Assert.Equal("application/sdp", early.ContentType);
+
+        // Станция играет сама — своих гудков поверх её потока быть не должно.
+        Assert.Empty(events.OfType<SipCallEvent.LocalRingback>());
+        Assert.Empty(events.OfType<SipCallEvent.Answered>());
+
+        await agent.StopAsync();
+    }
+
+    [Fact]
+    public async Task _183_с_другим_телом_сообщается_заново()
+    {
+        ScriptedSipServer server = MakeServer();
+        using SipUserAgent agent = await MakeAgentAsync(server);
+
+        SipOutgoingCall call = agent.PlaceCall("600", SdpOffer());
+        Task<List<SipCallEvent>> collector = CollectAsync(call);
+
+        Assert.True(await WaitForSignedInviteAsync(server));
+        SipRequest invite = LastInvite(server);
+
+        server.Inject(EarlyMedia(invite, port: 14028));
+        server.Inject(EarlyMedia(invite, port: 14028));
+        server.Inject(EarlyMedia(invite, port: 15000));
+        server.Inject(Answer(invite));
+
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.CallState is SipCallState.Answered));
+        await agent.HangUpAsync();
+        List<SipCallEvent> events = await collector;
+
+        // Два разных тела — два события: второе перенастраивает поток на новый
+        // порт станции, повтор первого не значит ничего.
+        List<SipCallEvent.EarlyMedia> early = [.. events.OfType<SipCallEvent.EarlyMedia>()];
+        Assert.Equal(2, early.Count);
+        Assert.Contains("m=audio 15000", Encoding.UTF8.GetString(early[1].Body.Span), StringComparison.Ordinal);
+
+        await agent.StopAsync();
+    }
+
+    [Fact]
+    public async Task _200_после_183_продолжает_ранний_поток_а_не_начинает_новый()
+    {
+        ScriptedSipServer server = MakeServer();
+        using SipUserAgent agent = await MakeAgentAsync(server);
+
+        SipOutgoingCall call = agent.PlaceCall("600", SdpOffer());
+        Task<List<SipCallEvent>> collector = CollectAsync(call);
+
+        Assert.True(await WaitForSignedInviteAsync(server));
+        SipRequest invite = LastInvite(server);
+
+        server.Inject(EarlyMedia(invite));
+
+        // 180 без тела после ранних медиа гудков не заказывает: поток уже идёт.
+        server.Inject(ScriptedSipServer.Response(invite, 180));
+        server.Inject(Answer(invite));
+
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.CallState is SipCallState.Answered));
+        Assert.True(await TestSupport.WaitUntilAsync(
+            () => server.ReceivedRequests.Any(request => request.Method == SipMethod.Ack)));
+
+        await agent.HangUpAsync();
+        List<SipCallEvent> events = await collector;
+
+        // Порядок: ровно одно раннее медиа, затем ответ с тем же описанием.
+        // Второго раннего события ответ не порождает — поток продолжается, а
+        // SDP ответа приходит, чтобы уточнить его, если на той стороне что-то
+        // сменилось.
+        int early = events.FindIndex(value => value is SipCallEvent.EarlyMedia);
+        int answered = events.FindIndex(value => value is SipCallEvent.Answered);
+
+        Assert.Single(events.OfType<SipCallEvent.EarlyMedia>());
+        Assert.InRange(early, 0, answered - 1);
+
+        var earlyBody = ((SipCallEvent.EarlyMedia)events[early]).Body;
+        var answerBody = ((SipCallEvent.Answered)events[answered]).Body;
+        Assert.True(earlyBody.Span.SequenceEqual(answerBody.Span));
+
+        Assert.Empty(events.OfType<SipCallEvent.LocalRingback>());
+
+        await agent.StopAsync();
+    }
+
     /// <summary>BYE со стороны сервера внутри установленного диалога.</summary>
     private static SipRequest MakeBye(SipRequest invite, string remoteTag, string branch, int sequence)
     {

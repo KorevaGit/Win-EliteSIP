@@ -197,13 +197,18 @@ internal sealed class Provisioning
     {
         public string BaseUrl { get; init; } = string.Empty;
 
+        /// <summary>Корень канала выпусков; не задан — <see cref="BaseUrl"/>. См. приложение, <c>Provisioning.UpdateChannel</c>.</summary>
+        [System.Text.Json.Serialization.JsonPropertyName("releasesURL")]
+        public string? ReleasesBaseUrl { get; init; }
+
         public string User { get; init; } = string.Empty;
 
         public string Password { get; init; } = string.Empty;
 
         internal Uri? ReleasesUrl()
         {
-            var root = BaseUrl.EndsWith('/') ? BaseUrl : BaseUrl + "/";
+            var baseUrl = string.IsNullOrWhiteSpace(ReleasesBaseUrl) ? BaseUrl : ReleasesBaseUrl;
+            var root = baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/";
 
             return Uri.TryCreate(root + "releases/current.json", UriKind.Absolute, out var url)
                 ? url

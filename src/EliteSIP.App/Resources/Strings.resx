@@ -198,7 +198,22 @@
     <value>Five seconds of recording and immediate playback — through the same path as a call.</value>
   </data>
   <data name="AudioSelfTestStart" xml:space="preserve">
-    <value>Record and play back</value>
+    <value>Test microphone and sound</value>
+  </data>
+  <data name="AudioSelfTestStop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="AudioSelfTestBusy" xml:space="preserve">
+    <value>The test is unavailable during a call: it would take the microphone you are talking into. The meters below show the call.</value>
+  </data>
+  <data name="AudioMeterVoice" xml:space="preserve">
+    <value>Voice</value>
+  </data>
+  <data name="AudioMeterSound" xml:space="preserve">
+    <value>Sound</value>
+  </data>
+  <data name="AudioMeterHint" xml:space="preserve">
+    <value>Voice and sound meters appear during the test and during a call. The microphone is opened only for that time.</value>
   </data>
   <data name="AudioAggregateNote" xml:space="preserve">
     <value>Different devices: there will be no system echo cancellation. On speakers the other side will hear themselves, in headphones they will not.</value>

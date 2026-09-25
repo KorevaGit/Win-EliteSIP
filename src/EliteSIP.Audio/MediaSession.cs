@@ -13,6 +13,12 @@ public enum MediaRenegotiation
     /// локальном порту.
     /// </summary>
     StreamRebuilt,
+
+    /// <summary>
+    /// Сменился формат потока — кодек, пакетное время или ключи SRTP. Поток
+    /// перенастроен на том же сокете; при смене кодека пересобран и тракт.
+    /// </summary>
+    StreamReconfigured,
 }
 
 /// <summary>
@@ -153,7 +159,11 @@ public sealed class MediaSession : IDisposable
     /// </summary>
     private VoiceAudioConfiguration _audioConfiguration;
     private readonly AudioOwnerToken _token = AudioOwnerToken.New();
-    private readonly JitterBuffer _jitter;
+    /// <summary>
+    /// Джиттер-буфер. Подменяется только при смене кодека (<see cref="Adopt"/>) и
+    /// только под <see cref="_bufferGate"/>, под которым его и читают.
+    /// </summary>
+    private JitterBuffer _jitter;
     private readonly RemoteSourceFilter _remoteSource = new();
     private readonly List<DtmfJob> _dtmfQueue = [];
 
@@ -237,28 +247,8 @@ public sealed class MediaSession : IDisposable
             PacketTimeMilliseconds = negotiated.PacketTimeMilliseconds,
         };
 
-        // Запас буфера считается от запаса тракта, а не берётся по умолчанию.
-        //
-        // Тракт наполняет своё кольцо на несколько кадров вперёд
-        // (<see cref="VoiceAudioConfiguration.PlaybackLeadFrames"/>), то есть
-        // просит звук раньше, чем тот успевает прийти по сети. Буфер, набравший
-        // меньше этого запаса, опустошается на первом же наполнении кольца — а
-        // дальше работает храповик: на пустом буфере отдаётся сокрытие,
-        // ожидаемый номер уходит вперёд, и настоящий пакет, пришедший через
-        // двадцать миллисекунд, объявляется опоздавшим и выбрасывается.
-        // Обратного хода у этого нет: буфер выходит из цикла только полным
-        // перенабором, теряя всё, что пришло за это время.
-        //
-        // На живом звонке это стоило 425 выброшенных пакетов из 738 и 432
-        // сокрытий на пятнадцати секундах речи — разговор слышен, но больше
-        // половины его повторы. Единица сверху — на неровность прихода;
-        // адаптация по джиттеру дальше подстроит сама.
-        int lead = _audioConfiguration.PlaybackLeadFrames;
-        _jitter = new JitterBuffer(
-            targetDepth: lead + 2,
-            minimumDepth: lead + 1,
-            codec: negotiated.Codec,
-            packetTimeMilliseconds: negotiated.PacketTimeMilliseconds);
+        // Запас буфера считается от запаса тракта — почему, сказано у MakeJitter.
+        _jitter = MakeJitter(negotiated, _audioConfiguration);
 
         if (bus is null)
         {
@@ -617,6 +607,55 @@ public sealed class MediaSession : IDisposable
     }
 
     /// <summary>
+    /// Поднимает поток ранних медиа: слушать станцию, ничего ей не говоря.
+    /// </summary>
+    ///
+    /// <param name="claimAudio">
+    /// Забирать ли тракт. Ложь — когда звук сейчас у другой линии (оператор
+    /// говорит, а исходящий ещё звонит): поток принимается, но в ухо не идёт,
+    /// и тракт у разговора не отбирается. Вернуть звук — <see cref="ResumeListening"/>.
+    /// </param>
+    ///
+    /// <remarks>
+    /// Микрофон заглушается до подъёма, а не после: первый кадр захвата
+    /// приходит сразу, и оператор, говорящий в этот момент с соседом, ушёл бы
+    /// им в линию оператору станции.
+    ///
+    /// <b>Отказ тракта поток не снимает</b>, в отличие от <see cref="Start"/>.
+    /// Порт объявлен в нашем предложении, и 200 OK станции придёт на него же:
+    /// снятый поток означал бы, что ответить на вызов уже нечем. Исключение
+    /// уходит вызывающему, поток остаётся принимать без звука.
+    /// </remarks>
+    public async Task StartListeningAsync(bool claimAudio, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        IsMicrophoneMuted = true;
+        IsReceivingAudio = true;
+
+        await Lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await Task.Run(
+                () =>
+                {
+                    StartTransport();
+
+                    if (claimAudio)
+                    {
+                        ClaimAudio();
+                        _isAudioRunning = true;
+                    }
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            Lifecycle.Release();
+        }
+    }
+
+    /// <summary>
     /// <see cref="Stop"/>, не задерживающий вызывающего.
     ///
     /// Снятие дороже подъёма: остановка RTP ждёт закрытия сокета, тракт
@@ -847,6 +886,193 @@ public sealed class MediaSession : IDisposable
         Apply(updated.Direction);
 
         return MediaRenegotiation.StreamRebuilt;
+    }
+
+    /// <summary>
+    /// Принимает уточнённое описание потока, поднятого по ранним медиа: новый
+    /// 183 или окончательный 200 OK.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <para>
+    /// <b>Поток продолжается, а не начинается заново.</b> В подавляющем
+    /// большинстве случаев 200 OK повторяет SDP из 183 слово в слово, и тогда
+    /// здесь не меняется ничего: тот же сокет, тот же SSRC, тот же тракт, ни
+    /// одного потерянного кадра на границе «гудки → алло».
+    /// </para>
+    /// <para>
+    /// Если станция ответила с другого адреса или порта, поток перенацеливается
+    /// (<see cref="RtpSession.Retarget"/>); если сменились ключи SRTP или
+    /// кодек — перенастраивается на том же сокете (<see cref="RtpSession.Reconfigure"/>).
+    /// Локальный порт не меняется никогда: он объявлен в нашем предложении.
+    /// </para>
+    /// <para>
+    /// <b>Микрофон и приём здесь не трогаются</b>, в отличие от
+    /// <see cref="Renegotiate"/>. До ответа микрофон заглушён намеренно, и
+    /// уточнённый 183 не повод его открыть; после ответа состояние выставляет
+    /// слой линий — с учётом кнопки и удержаний, которых сессия не знает.
+    /// </para>
+    /// </remarks>
+    public MediaRenegotiation Adopt(NegotiatedMedia updated)
+    {
+        ArgumentNullException.ThrowIfNull(updated);
+
+        Transport? current;
+        lock (_transportGate)
+        {
+            current = _transport;
+        }
+
+        if (current is null)
+        {
+            return MediaRenegotiation.DirectionOnly;
+        }
+
+        NegotiatedMedia was = current.Negotiated;
+
+        bool codecChanged = was.Codec != updated.Codec
+            || was.PacketTimeMilliseconds != updated.PacketTimeMilliseconds;
+
+        bool formatChanged = codecChanged
+            || was.PayloadType != updated.PayloadType
+            || was.TelephoneEventPayloadType != updated.TelephoneEventPayloadType
+            || !Equals(was.Security.LocalKey, updated.Security.LocalKey)
+            || !Equals(was.Security.RemoteKey, updated.Security.RemoteKey);
+
+        // Выключенное плечо ничего не перенацеливает — то же правило, что у
+        // пересогласования: 0.0.0.0 значит «не шли», а не «шли сюда».
+        bool endpointChanged = !updated.IsStreamDisabled
+            && (updated.RemoteAddress != was.RemoteAddress || updated.RemotePort != was.RemotePort);
+
+        if (!formatChanged && !endpointChanged)
+        {
+            lock (_transportGate)
+            {
+                _transport = current with { Negotiated = updated };
+            }
+
+            return MediaRenegotiation.DirectionOnly;
+        }
+
+        if (endpointChanged)
+        {
+            current.Rtp.Retarget(updated.RemoteAddress, updated.RemotePort);
+            current.Rtcp.Retarget(updated.RemoteAddress, (ushort)(updated.RemotePort + 1));
+            _remoteSource.Forget();
+            OnDiagnostic?.Invoke($"поток перенацелен на {updated.RemoteAddress}:{updated.RemotePort}");
+        }
+
+        RtpSessionConfiguration configuration = current.Configuration;
+
+        if (formatChanged)
+        {
+            configuration = RtpSessionConfiguration.FromNegotiated(updated);
+            current.Rtp.Reconfigure(configuration);
+
+            // Открытые отчёты рядом с шифрованным звуком — утечка того, что
+            // шифрование прячет (разбор у StartTransport). Обратно, с
+            // защищённого на открытый, RTCP не поднимается: станция так не
+            // делает, а поток без отчётов разговору не мешает.
+            if (updated.Security.IsEncrypted && !was.Security.IsEncrypted)
+            {
+                current.Rtcp.Stop();
+            }
+
+            OnDiagnostic?.Invoke(codecChanged
+                ? $"поток перенастроен: {was.Codec} → {updated.Codec}"
+                : "поток перенастроен: сменились ключи или типы нагрузки");
+        }
+
+        if (codecChanged)
+        {
+            VoiceAudioConfiguration audio = _audioConfiguration with
+            {
+                Codec = updated.Codec,
+                PacketTimeMilliseconds = updated.PacketTimeMilliseconds,
+            };
+
+            lock (_bufferGate)
+            {
+                _jitter = MakeJitter(updated, audio);
+            }
+
+            // Тракт собирает кадры под кодек: другой кодек — другая частота и
+            // размер кадра. Шина пересоберёт его, если он наш; если нет, новые
+            // настройки подхватит следующий захват.
+            Volatile.Write(ref _audioConfiguration, audio);
+            _bus.Apply(_token, audio);
+        }
+        else
+        {
+            lock (_bufferGate)
+            {
+                _jitter.Reset();
+            }
+        }
+
+        lock (_transportGate)
+        {
+            _transport = current with { Configuration = configuration, Negotiated = updated };
+            _remoteView = null;
+        }
+
+        // Тип нагрузки событий DTMF замкнут в обработчике приёма — провязать
+        // заново, иначе новые события пошли бы в звук треском.
+        WireTransport();
+
+        return formatChanged ? MediaRenegotiation.StreamReconfigured : MediaRenegotiation.StreamRebuilt;
+    }
+
+    /// <summary>
+    /// Возвращает раннему потоку звук с заглушённым микрофоном.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Пока идут гудки, тракт может забрать другая линия — оператор принял
+    /// входящий. Когда та линия кончится, ранний поток снова слышен, а
+    /// <see cref="ResumeAudio"/> для этого не годится: он открывает микрофон, а
+    /// до ответа слышать нас на той стороне незачем.
+    /// </remarks>
+    public void ResumeListening()
+    {
+        if (OwnsAudio)
+        {
+            return;
+        }
+
+        // Сначала заглушить, потом забирать тракт: первый же кадр захвата
+        // приходит сразу после подъёма.
+        IsMicrophoneMuted = true;
+        IsReceivingAudio = true;
+        ClaimAudio();
+        _isAudioRunning = true;
+    }
+
+    /// <summary>Джиттер-буфер под кодек и запас тракта.</summary>
+    ///
+    /// <remarks>
+    /// Запас считается от запаса тракта, а не берётся по умолчанию. Тракт
+    /// наполняет своё кольцо на несколько кадров вперёд
+    /// (<see cref="VoiceAudioConfiguration.PlaybackLeadFrames"/>), то есть
+    /// просит звук раньше, чем тот успевает прийти по сети. Буфер, набравший
+    /// меньше этого запаса, опустошается на первом же наполнении кольца — а
+    /// дальше работает храповик: на пустом буфере отдаётся сокрытие, ожидаемый
+    /// номер уходит вперёд, и настоящий пакет, пришедший через двадцать
+    /// миллисекунд, объявляется опоздавшим и выбрасывается.
+    ///
+    /// На живом звонке это стоило 425 выброшенных пакетов из 738 и 432
+    /// сокрытий на пятнадцати секундах речи — разговор слышен, но больше
+    /// половины его повторы. Единица сверху — на неровность прихода;
+    /// адаптация по джиттеру дальше подстроит сама.
+    /// </remarks>
+    private static JitterBuffer MakeJitter(NegotiatedMedia negotiated, VoiceAudioConfiguration audio)
+    {
+        int lead = audio.PlaybackLeadFrames;
+        return new JitterBuffer(
+            targetDepth: lead + 2,
+            minimumDepth: lead + 1,
+            codec: negotiated.Codec,
+            packetTimeMilliseconds: negotiated.PacketTimeMilliseconds);
     }
 
     /// <summary>

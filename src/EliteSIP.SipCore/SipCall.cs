@@ -18,7 +18,11 @@ public abstract record SipCallState
 
     public sealed record Dialing : SipCallState;
 
-    /// <summary>Пришёл 180 или 183: на той стороне звонит.</summary>
+    /// <summary>
+    /// Пришёл 180 или 183: на той стороне звонит. Что при этом слышно, говорят
+    /// отдельные события — <see cref="SipCallEvent.EarlyMedia"/> и
+    /// <see cref="SipCallEvent.LocalRingback"/>.
+    /// </summary>
     public sealed record Ringing : SipCallState;
 
     /// <summary>Нам звонят: INVITE принят, мы ответили 180, решение за оператором.</summary>
@@ -49,7 +53,45 @@ public abstract record SipCallEvent
     public sealed record State(SipCallState Value) : SipCallEvent;
 
     /// <summary>Собеседник ответил. Тело — SDP-ответ, его нужно разобрать и запустить медиа.</summary>
+    ///
+    /// <remarks>
+    /// Если до ответа пришло <see cref="EarlyMedia"/>, поток уже идёт, и ответ
+    /// его продолжает, а не начинает заново: тело может повторить раннее,
+    /// уточнить адрес или ключи, а изредка — сменить кодек. Пустое тело при
+    /// поднятом раннем медиа значит «всё как было».
+    /// </remarks>
     public sealed record Answered(ReadOnlyMemory<byte> Body, string? ContentType) : SipCallEvent;
+
+    /// <summary>
+    /// Ранние медиа: предварительный ответ (обычно 183, бывает 180) с SDP.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <para>
+    /// Станция сама играет в этот поток — гудки, IVR, «абонент недоступен» — и
+    /// поднять его надо сразу, до ответа. Пока звук поднимался только на 200 OK,
+    /// на направлениях с ранними медиа оператор слышал тишину или обрывок
+    /// объявления: жалоба «гудки слышны через раз» на macOS была ровно этим.
+    /// </para>
+    /// <para>
+    /// <b>Одно событие на тело, а не на ответ.</b> Asterisk повторяет 183 с тем
+    /// же SDP, пока идёт вызов, и каждое событие наверху означало бы
+    /// перезапуск звука. Новое событие приходит, только если тело изменилось.
+    /// </para>
+    /// </remarks>
+    public sealed record EarlyMedia(int Status, ReadOnlyMemory<byte> Body, string? ContentType) : SipCallEvent;
+
+    /// <summary>
+    /// 180 без SDP: на той стороне звонит, а гудков станция не даёт — играть
+    /// их надо самим.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Приходит один раз за вызов. Раннее медиа важнее: если поток уже идёт или
+    /// поднимется позже, гудки собственного производства замолкают, иначе
+    /// оператор слышит два сигнала сразу.
+    /// </remarks>
+    public sealed record LocalRingback : SipCallEvent;
 
     public sealed record Failed(int Status, string Reason) : SipCallEvent;
 
