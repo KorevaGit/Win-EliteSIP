@@ -360,12 +360,12 @@ try {
             $manifestPath,
             ($manifest | ConvertTo-Json),
             (New-Object System.Text.UTF8Encoding $false))
-        & $kit sign $manifestPath $SigningKey $envelopePath
+        & $kit sign $manifestPath $SigningKey $envelopePath | Out-Host
         if ($LASTEXITCODE -ne 0) { Fail "манифест для $Root не подписался" }
 
         # Проверка кодом клиента: тем же ReleaseManifest.Verified, которым его
         # прочитает рабочее место.
-        & $kit verify $envelopePath $publicKey
+        & $kit verify $envelopePath $publicKey | Out-Host
         if ($LASTEXITCODE -ne 0) { Fail "манифест для $Root не прошёл проверку клиентом" }
 
         return $envelopePath
