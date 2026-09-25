@@ -59,7 +59,9 @@ public sealed class AudioSelfTestTests
     public async Task Записанное_проигрывается_тем_же_трактом()
     {
         FakeVoiceAudioEngine engine = new();
-        using AudioSelfTest test = new(_ => engine, duration: TimeSpan.FromMilliseconds(200));
+        // Запас на загруженную машину: кадр обязан успеть внутрь записи, а
+        // параллельный прогон всех сборок задерживает его на сотни миллисекунд.
+        using AudioSelfTest test = new(_ => engine, duration: TimeSpan.FromSeconds(2));
 
         Task<AudioSelfTestResult> running = test.RunAsync(new VoiceAudioConfiguration());
         Assert.True(await WaitUntilAsync(() => engine.Handlers.EncodedFrame is not null));
