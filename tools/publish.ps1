@@ -100,7 +100,8 @@ if (-not $basicAuth) { Fail "в $Config нет $Channel.basicAuth" }
 
 # curl из System32 есть на любой Windows 10/11; для legacy нужен тот, что
 # умеет подписывать S3 (--aws-sigv4, curl 7.75 и новее).
-$curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
+$curlCommand = Get-Command curl.exe -ErrorAction SilentlyContinue
+$curl = if ($curlCommand) { $curlCommand.Source } else { $null }
 if (-not $curl) { Fail 'curl.exe не найден' }
 
 <#
