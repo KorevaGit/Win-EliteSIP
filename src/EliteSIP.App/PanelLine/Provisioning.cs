@@ -80,7 +80,27 @@ internal static class Provisioning
         /// <c>null</c> — линия выпусков выключена, а панель работает.
         /// </remarks>
         public string? ReleasesPublicKey { get; init; }
+
+        /// <summary>
+        /// Адрес Spark для привязки машины. Не задан — боевой
+        /// (<see cref="DefaultPairUrl"/>); стенду его задают здесь, как на macOS
+        /// ключом <c>ESPairURL</c>.
+        /// </summary>
+        [JsonPropertyName("pairURL")]
+        public string? PairUrl { get; init; }
+
+        /// <summary>Куда идут запросы привязки.</summary>
+        [JsonIgnore]
+        public Uri PairBase => Uri.TryCreate(
+            string.IsNullOrWhiteSpace(PairUrl) ? DefaultPairUrl : PairUrl!.TrimEnd('/') + "/",
+            UriKind.Absolute,
+            out var url)
+                ? url
+                : new Uri(DefaultPairUrl);
     }
+
+    /// <summary>Боевой Spark.</summary>
+    internal const string DefaultPairUrl = "https://spark.elitesochi.com/";
 
     /// <summary>Откуда рабочее место берёт настройки и обновления.</summary>
     internal sealed class UpdateChannel
@@ -312,11 +332,18 @@ internal static class ChannelRequest
     /// Basic и <b>проверен</b>, а не объявлен. Два места для одного факта
     /// однажды разошлись бы.
     /// </remarks>
-    internal static void Describe(HttpRequestMessage request, int appliedRevision)
+    internal static void Describe(HttpRequestMessage request, int appliedRevision, int appliedConfigRevision = 0)
     {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+
         request.Headers.TryAddWithoutValidation("X-EliteSIP-App", AppVersion);
         request.Headers.TryAddWithoutValidation(
-            "X-EliteSIP-Revision", appliedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            "X-EliteSIP-Schema", Settings.AppSettings.CurrentRevision.ToString(invariant));
+        request.Headers.TryAddWithoutValidation("X-EliteSIP-Revision", appliedRevision.ToString(invariant));
+
+        // По этому заголовку Spark ставит в карточке сотрудника «Работает»:
+        // применённая ревизия догнала выложенную, правка дошла до машины.
+        request.Headers.TryAddWithoutValidation("X-EliteSIP-Config", appliedConfigRevision.ToString(invariant));
     }
 
     internal static string AppVersion { get; } =

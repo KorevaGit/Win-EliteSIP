@@ -396,7 +396,7 @@
     <value>This machine's settings are set by its administrator.</value>
   </data>
   <data name="AdminCleanBodyManaged" xml:space="preserve">
-    <value>This machine's settings are managed by the EliteSIP panel.</value>
+    <value>This machine's settings are managed by Spark. Changes saved here will take it offline.</value>
   </data>
   <data name="SupportCheckPresets" xml:space="preserve">
     <value>Check preset updates</value>
@@ -1126,5 +1126,35 @@
   </data>
   <data name="AdminUnlockCapsLock" xml:space="preserve">
     <value>Caps Lock is on</value>
+  </data>
+  <data name="PanelNumberChanged" xml:space="preserve">
+    <value>The administrator changed your number: {0}</value>
+  </data>
+  <data name="AdminDirtyBodyManaged" xml:space="preserve">
+    <value>Saving takes the machine offline: Spark stops sending it settings until it is brought back online (with a button, no re-pairing).</value>
+  </data>
+  <data name="AdminSupportLink" xml:space="preserve">
+    <value>Link</value>
+  </data>
+  <data name="SupportLinkOnline" xml:space="preserve">
+    <value>Spark, online</value>
+  </data>
+  <data name="SupportLinkOffline" xml:space="preserve">
+    <value>offline, manual</value>
+  </data>
+  <data name="SupportLinkNone" xml:space="preserve">
+    <value>manual, machine not paired with Spark</value>
+  </data>
+  <data name="SupportReturnOnline" xml:space="preserve">
+    <value>Go back online</value>
+  </data>
+  <data name="SupportReturnOnlineNote" xml:space="preserve">
+    <value>The machine is offline: changes were saved here, and Spark leaves its settings alone. Going back online replaces local changes with the settings from Spark; no re-pairing needed.</value>
+  </data>
+  <data name="SupportSparkSection" xml:space="preserve">
+    <value>Spark link</value>
+  </data>
+  <data name="SupportMachineNotPaired" xml:space="preserve">
+    <value>not paired with Spark</value>
   </data>
 </root>

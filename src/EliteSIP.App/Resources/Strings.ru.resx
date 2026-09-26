@@ -378,7 +378,7 @@
     <value>Настройки этой машины задаёт её администратор.</value>
   </data>
   <data name="AdminCleanBodyManaged" xml:space="preserve">
-    <value>Настройками этой машины управляет панель EliteSIP.</value>
+    <value>Настройками этой машины управляет Spark. Сохранённые здесь правки уведут её в оффлайн.</value>
   </data>
   <data name="SupportCheckPresets" xml:space="preserve">
     <value>Проверить обновление предустановок</value>
@@ -1104,5 +1104,35 @@
   </data>
   <data name="AdminUnlockCapsLock" xml:space="preserve">
     <value>Включён Caps Lock</value>
+  </data>
+  <data name="PanelNumberChanged" xml:space="preserve">
+    <value>Администратор сменил номер: {0}</value>
+  </data>
+  <data name="AdminDirtyBodyManaged" xml:space="preserve">
+    <value>«Сохранить» уведёт машину в оффлайн: Spark перестанет присылать ей настройки, пока её не вернут в онлайн (кнопкой, без новой привязки).</value>
+  </data>
+  <data name="AdminSupportLink" xml:space="preserve">
+    <value>Связь</value>
+  </data>
+  <data name="SupportLinkOnline" xml:space="preserve">
+    <value>Spark, онлайн</value>
+  </data>
+  <data name="SupportLinkOffline" xml:space="preserve">
+    <value>оффлайн, вручную</value>
+  </data>
+  <data name="SupportLinkNone" xml:space="preserve">
+    <value>вручную, машина не привязана к Spark</value>
+  </data>
+  <data name="SupportReturnOnline" xml:space="preserve">
+    <value>Вернуться в онлайн</value>
+  </data>
+  <data name="SupportReturnOnlineNote" xml:space="preserve">
+    <value>Машина в оффлайне: здесь сохраняли правки, и Spark её настроек не трогает. Возврат заменит местные правки настройками из Spark, новая привязка не нужна.</value>
+  </data>
+  <data name="SupportSparkSection" xml:space="preserve">
+    <value>Связь со Spark</value>
+  </data>
+  <data name="SupportMachineNotPaired" xml:space="preserve">
+    <value>не привязана к Spark</value>
   </data>
 </root>

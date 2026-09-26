@@ -564,59 +564,48 @@
                 Предустановки — своя группа: «почему у меня старые клавиши» и
                 «почему у меня старая версия» — два разных вопроса.
             -->
-            <theme:SettingsSection Header="{res:Loc SupportPresetsSection}">
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc SupportCheckPresets}"
-                        Command="{Binding CheckPresets}" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{Binding SupportResult}"
-                                  Visibility="{Binding HasPresetsResult,
-                                                       Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-
             <!--
-                Поле ключа стоит здесь, а не в «Управлении», и это решение:
-                смена отдела перестала означать выезд к машине. Административного
-                пароля оно не требует намеренно — пароль защищает настройки
-                машины, а ключ сам по себе есть право их сменить, и выдаёт его
-                панель.
+                Связь со Spark. Ключей активации больше нет: номер и
+                предустановку меняют в карточке сотрудника в Spark, машина
+                применяет их сама. Здесь остаётся, по чему её найти в Spark, и
+                одна кнопка: проверить сейчас — или, в оффлайне, вернуться в
+                онлайн. Раньше машина вне панели этой группы не видела вовсе.
             -->
-            <theme:SettingsSection Header="{res:Loc SupportNewKeySection}">
-              <theme:SettingsIndented>
-                <TextBlock Text="{res:Loc SupportNewKeyNote}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsIndented>
-
-              <!--
-                  Прежде здесь стоял вписанный в разметку образец ключа с
-                  `IsEnabled="False"` — не привязка, а рисунок. Отсюда и
-                  впечатление, что поле «недоступно»: оно и было картинкой.
-              -->
-              <theme:SettingsRow Header="{res:Loc SupportKey}">
-                <Border Height="32" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8,0"
-                        Background="{DynamicResource ControlBackgroundBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+            <theme:SettingsSection Header="{res:Loc SupportSparkSection}">
+              <theme:SettingsRow Header="{res:Loc AdminSupportMachine}">
+                <TextBlock Text="{Binding MachineID}"
                            FontFamily="Consolas"
-                           IsEnabled="{Binding CanTypeNewKey}"
-                           Text="{Binding NewKey, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
+              <theme:SettingsRow Header="{res:Loc AdminSupportLink}">
+                <TextBlock Text="{Binding LinkState}"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
 
               <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc SupportApplyKey}"
-                        Command="{Binding ApplyKey}" />
+                <Grid>
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          HorizontalAlignment="Left"
+                          Content="{res:Loc SupportCheckPresets}"
+                          Command="{Binding CheckPresets}"
+                          Visibility="{Binding IsPanelOffline, Converter={StaticResource NotBoolToVisibility}}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          HorizontalAlignment="Left"
+                          Content="{res:Loc SupportReturnOnline}"
+                          Command="{Binding ReturnOnline}"
+                          Visibility="{Binding IsPanelOffline, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
               </theme:SettingsIndented>
 
-              <theme:SettingsNote Text="{Binding NewKeyResult}"
-                                  IsAlarming="{Binding NewKeyFailed}"
-                                  Visibility="{Binding HasNewKeyResult,
+              <theme:SettingsNote Text="{res:Loc SupportReturnOnlineNote}"
+                                  Visibility="{Binding IsPanelOffline, Converter={StaticResource BoolToVisibility}}" />
+
+              <theme:SettingsNote Text="{Binding SupportResult}"
+                                  Visibility="{Binding HasPresetsResult,
                                                        Converter={StaticResource BoolToVisibility}}" />
             </theme:SettingsSection>
           </StackPanel>

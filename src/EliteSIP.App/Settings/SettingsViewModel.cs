@@ -81,9 +81,15 @@ public sealed class SettingsViewModel : Observable
             }
         });
 
-        ApplyKey = new RelayCommand(
-            async _ => await ApplyKeyAsync(),
-            _ => !_isApplyingKey && _newKey.Trim().Length > 0);
+        ReturnOnline = new RelayCommand(async _ =>
+        {
+            if (OnReturnOnline is not null)
+            {
+                await OnReturnOnline().ConfigureAwait(true);
+            }
+
+            RefreshLink();
+        });
     }
 
     public AppSettings Settings { get; }
@@ -114,10 +120,6 @@ public sealed class SettingsViewModel : Observable
     internal Action? OnRunSelfTest { get; init; }
 
     private string? _supportResult;
-    private string _newKey = string.Empty;
-    private string? _newKeyResult;
-    private bool _newKeyFailed;
-    private bool _isApplyingKey;
 
     /// <summary>Чем кончилось последнее нажатие в «Техподдержке».</summary>
     public string? SupportResult => _supportResult;
@@ -269,81 +271,34 @@ public sealed class SettingsViewModel : Observable
         NotifyChanged(nameof(SoundLevel));
     }
 
-    // --- Новый ключ ----------------------------------------------------------
+    // --- Связь со Spark -------------------------------------------------------
 
-    /// <summary>Ключ, который вводит человек. Нигде не сохраняется.</summary>
-    public string NewKey
+    /// <summary>Идентификатор машины — по нему её находят в Spark.</summary>
+    public string MachineID => Settings.Panel.IsActivated
+        ? Settings.Panel.InstallationID
+        : Strings.Get("SupportMachineNotPaired");
+
+    /// <summary>Связь словами — та же строка, что в «Управлении».</summary>
+    public string LinkState => Strings.Get(
+        Settings.Panel.Mode is PanelMode.Managed && Settings.Panel.HasChannelKey ? "SupportLinkOnline"
+        : Settings.Panel.IsOffline ? "SupportLinkOffline"
+        : "SupportLinkNone");
+
+    /// <summary>Машина в оффлайне: на месте «Проверить» — «Вернуться в онлайн».</summary>
+    public bool IsPanelOffline => Settings.Panel.IsOffline;
+
+    /// <summary>«Вернуться в онлайн».</summary>
+    public RelayCommand ReturnOnline { get; private set; } = null!;
+
+    /// <summary>Вернуть машину под Spark. Ставит приложение — линия его.</summary>
+    internal Func<Task>? OnReturnOnline { get; init; }
+
+    /// <summary>Сменилось состояние линии — перечитать строки связи.</summary>
+    internal void RefreshLink()
     {
-        get => _newKey;
-        set
-        {
-            Set(ref _newKey, value);
-            ApplyKey.RaiseCanExecuteChanged();
-        }
-    }
-
-    public bool CanTypeNewKey => !_isApplyingKey;
-
-    public string? NewKeyResult => _newKeyResult;
-
-    public bool HasNewKeyResult => _newKeyResult is not null;
-
-    /// <summary>Тревожная ли приписка. Отказ красный, успех обычный.</summary>
-    public bool NewKeyFailed => _newKeyFailed;
-
-    /// <summary>Применить ключ смены рабочего места.</summary>
-    public RelayCommand ApplyKey { get; private set; } = null!;
-
-    /// <summary>
-    /// Что делает приложение с введённым ключом.
-    /// </summary>
-    ///
-    /// <remarks>
-    /// Замыканием: заход на канал, распечатывание пакета и наложение на
-    /// настройки — дело приложения, а окно настроек про панель не знает.
-    /// Возвращает строку для человека; исключений наружу не выпускает.
-    /// </remarks>
-    internal Func<string, Task<(bool Ok, string Message)>>? OnApplyKey { get; init; }
-
-    private async Task ApplyKeyAsync()
-    {
-        if (OnApplyKey is null || _isApplyingKey)
-        {
-            return;
-        }
-
-        _isApplyingKey = true;
-        _newKeyResult = Strings.Get("SupportKeyChecking");
-        _newKeyFailed = false;
-        NotifyKeyState();
-
-        var (ok, message) = await OnApplyKey(_newKey).ConfigureAwait(true);
-
-        _isApplyingKey = false;
-        _newKeyResult = message;
-        _newKeyFailed = !ok;
-
-        // Удачный ключ сгорел — поле чистится, чтобы его не нажали второй раз.
-        if (ok)
-        {
-            _newKey = string.Empty;
-            NotifyChanged(nameof(NewKey));
-        }
-
-        NotifyKeyState();
-    }
-
-    private void NotifyKeyState()
-    {
-        foreach (var name in new[]
-        {
-            nameof(NewKeyResult), nameof(HasNewKeyResult), nameof(NewKeyFailed), nameof(CanTypeNewKey),
-        })
-        {
-            NotifyChanged(name);
-        }
-
-        ApplyKey.RaiseCanExecuteChanged();
+        NotifyChanged(nameof(MachineID));
+        NotifyChanged(nameof(LinkState));
+        NotifyChanged(nameof(IsPanelOffline));
     }
 
     public IReadOnlyList<SettingsSectionItem> Sections { get; }

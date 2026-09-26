@@ -170,7 +170,7 @@ internal sealed class PresetService
         {
             using HttpRequestMessage request = new(HttpMethod.Get, url);
             ChannelRequest.Authorize(request, panel.InstallationID, channelKey);
-            ChannelRequest.Describe(request, panel.AppliedRevision);
+            ChannelRequest.Describe(request, panel.AppliedRevision, panel.AppliedConfigRevision);
 
             using CancellationTokenSource deadline = new(ChannelRequest.Timeout);
             using var response = await ChannelRequest.Client.SendAsync(request, deadline.Token)

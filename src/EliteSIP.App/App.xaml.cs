@@ -302,7 +302,14 @@ public partial class App : Application, IDisposable
             // потерять её по «Отменить», либо затереть ею несохранённое.
             isBlocked: () => model.IsInCall || _administrationWindow is { IsLoaded: true },
             reset: ResetMachine,
-            log: Log);
+            log: Log)
+        {
+            // Конфигурация из Spark сменила номер, пароль или площадку, либо
+            // предустановка — адрес АТС. Без этого новый номер начинал бы
+            // работать только после перезапуска (так было в macOS 0.1.50).
+            Reregister = Reconnect,
+            AnnounceNumber = number => model.Notice = Strings.Format("PanelNumberChanged", number),
+        };
 
         _panelLine.Start();
 
@@ -487,6 +494,11 @@ public partial class App : Application, IDisposable
             // сейчас.
             OnCheckPresets = () =>
             {
+                if (_panelLine is not null)
+                {
+                    _ = _panelLine.CheckMachineAsync();
+                }
+
                 _ = _panelLine?.CheckAsync();
                 model!.ReportSupport(Strings.Get("SupportPresetsAsked"), SupportArea.Presets);
             },
@@ -500,14 +512,30 @@ public partial class App : Application, IDisposable
                     _phone.SelfTest.IsRunning,
                     _phone.IsCallActive,
                     _phone.SelfTest.TakeLevels() ?? _phone.TakeCallLevels()),
-            OnApplyKey = key => ApplyNewKeyAsync(key),
+            OnReturnOnline = () => _panelLine?.ReturnOnline() ?? Task.CompletedTask,
         };
 
         var settings = model;
 
         _settingsWindow = new SettingsWindow(settings, _appearance!);
         _settingsWindow.AdministrationRequested += ShowAdministration;
-        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+
+        // Машину увели в оффлайн из «Управления» или вернули в онлайн, пока
+        // настройки открыты, — кнопка и строка «Связь» обязаны это показать.
+        Action refreshLink = settings.RefreshLink;
+        if (_panelLine is not null)
+        {
+            _panelLine.StateChanged += refreshLink;
+        }
+
+        _settingsWindow.Closed += (_, _) =>
+        {
+            _settingsWindow = null;
+            if (_panelLine is not null)
+            {
+                _panelLine.StateChanged -= refreshLink;
+            }
+        };
         _settingsWindow.Show();
     }
 
@@ -556,9 +584,12 @@ public partial class App : Application, IDisposable
             ? null
             : new SupportViewModel(
                 _settings!,
-                _access,
-                checkNow: () => _panelLine.CheckAsync(),
-                isInCall: () => _panel?.IsInCall is true);
+                checkNow: async () =>
+                {
+                    await _panelLine.CheckMachineAsync().ConfigureAwait(true);
+                    await _panelLine.CheckAsync().ConfigureAwait(true);
+                },
+                returnOnline: () => _panelLine.ReturnOnline());
 
         if (support is not null)
         {
@@ -567,6 +598,10 @@ public partial class App : Application, IDisposable
             // а ответ на нажатие, и жить он должен ровно столько, сколько открыто
             // окно.
             _panelLine!.Report = support.ReportFromLine;
+
+            // Конфигурация пришла или машину вернули в онлайн, пока окно
+            // открыто, — строка «Связь» и ревизии обязаны это показать.
+            _panelLine.StateChanged += support.Refresh;
         }
 
         var administration = new AdministrationViewModel(_settings!, _access, PreviewIncomingCall)
@@ -583,6 +618,12 @@ public partial class App : Application, IDisposable
             ResetMachine = ResetMachine,
             IsInCall = () => _panel?.IsInCall is true,
             OnConnectionChanged = () => Reconnect("учётная запись изменена в «Управлении»"),
+            WentOffline = () =>
+            {
+                Log("правки в «Управлении» сохранены — машина в оффлайне, Spark её настроек не трогает");
+                support?.Refresh();
+                (_settingsWindow?.Model)?.RefreshLink();
+            },
         };
 
         _administrationWindow = new AdministrationWindow(administration, _appearance!);
@@ -590,6 +631,11 @@ public partial class App : Application, IDisposable
         _administrationWindow.Closed += (_, _) =>
         {
             _administrationWindow = null;
+
+            if (support is not null && _panelLine is not null)
+            {
+                _panelLine.StateChanged -= support.Refresh;
+            }
 
             // Ответ линии больше некому показывать; заодно снимается ссылка на
             // закрытое окно.
@@ -755,63 +801,6 @@ public partial class App : Application, IDisposable
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
         {
             model.ReportSupport(Strings.Format("SupportLogsFailed", error.Message), SupportArea.Logs);
-        }
-    }
-
-    /// <summary>
-    /// Применяет ключ смены рабочего места.
-    /// </summary>
-    ///
-    /// <remarks>
-    /// Ключ привязан к этой машине: в расчёт адреса уходит её идентификатор,
-    /// поэтому чужой ключ посчитает другой адрес и не найдёт по нему ничего.
-    /// Проверять привязку внутри пакета нельзя — Worker столбит пакет в момент
-    /// скачивания, и перепутавший свои же две машины сжёг бы ключ до всякой
-    /// проверки.
-    ///
-    /// После наложения — перезапуск: сменились и номер, и адрес АТС, и
-    /// предустановка, а половина из этого читается только при старте.
-    /// </remarks>
-    private async Task<(bool Ok, string Message)> ApplyNewKeyAsync(string text)
-    {
-        try
-        {
-            var key = ActivationKey.Parse(text);
-            var package = await ActivationService
-                .FetchAsync(key, _settings!.Panel.InstallationID)
-                .ConfigureAwait(true);
-
-            MachineAccess? access = null;
-            try
-            {
-                access = await MachineService
-                    .FetchAccessAsync(package.InstallationID, package.ChannelKey)
-                    .ConfigureAwait(true);
-            }
-            catch (Exception error) when (error is PanelLinkException or System.Net.Http.HttpRequestException
-                                              or TaskCanceledException)
-            {
-                // Тот же порядок, что и в мастере: ключ уже сгорел, и отказ за
-                // паролем не отменяет смену рабочего места.
-                Log($"пароль от управления не приехал с ключом: {error.Message}");
-            }
-
-            _settings.Apply(package, access, _access!);
-            Log($"рабочее место сменено по ключу: {package.Employee}, добавочный {package.Number}");
-
-            // Через очередь: мы внутри обработчика кнопки в окне, которое
-            // перезапуск сейчас закроет.
-            _ = Dispatcher.BeginInvoke(Restart);
-
-            return (true, Strings.Get("SupportKeyApplied"));
-        }
-        catch (PanelLinkException error)
-        {
-            return (false, error.Message);
-        }
-        catch (ActivationChannelException error)
-        {
-            return (false, error.Message);
         }
     }
 

@@ -698,43 +698,37 @@
                            Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
 
+              <theme:SettingsRow Header="{res:Loc AdminSupportLink}">
+                <TextBlock Text="{Binding LinkState}"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              </theme:SettingsRow>
+
               <theme:SettingsDivider />
 
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminSupportManaged}"
-                        IsEnabled="{Binding CanBeManaged}"
-                        IsChecked="{Binding IsManaged}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminSupportManagedNote}" />
-
+              <!-- У машины на связи — «Проверить настройки сейчас»; в оффлайне
+                   на её месте «Вернуться в онлайн». Две кнопки рядом читались
+                   бы как два разных способа сделать одно. -->
               <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AdminSupportCheckNow}"
-                        Command="{Binding CheckNow}" />
+                <Grid>
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          HorizontalAlignment="Left"
+                          Content="{res:Loc AdminSupportCheckNow}"
+                          Command="{Binding CheckNow}"
+                          Visibility="{Binding IsOnline, Converter={StaticResource BoolToVisibility}}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          HorizontalAlignment="Left"
+                          Content="{res:Loc SupportReturnOnline}"
+                          Command="{Binding ReturnOnline}"
+                          Visibility="{Binding IsOffline, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
               </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc SupportReturnOnlineNote}"
+                                  Visibility="{Binding IsOffline, Converter={StaticResource BoolToVisibility}}" />
 
               <theme:SettingsNote Text="{Binding Report}"
                                   Visibility="{Binding HasReport, Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AdminSupportReflashTitle}">
-              <theme:SettingsRow Header="{res:Loc AdminSupportReflashKey}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlBackgroundBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AdminSupportReflashApply}"
-                        Command="{Binding Reflash}" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc AdminSupportReflashNote}" />
             </theme:SettingsSection>
           </StackPanel>
 

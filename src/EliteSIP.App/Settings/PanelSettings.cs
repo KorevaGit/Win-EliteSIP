@@ -38,6 +38,10 @@ public sealed class PanelSettings : Observable
     private DateTimeOffset? _lastContactAt;
     private PanelMode _mode = PanelMode.Manual;
     private bool _wantsResync;
+    private string? _protectedMachineKey;
+    private int _appliedConfigRevision;
+    private bool _machineKeyRegistered;
+    private string _lastNumberNotice = string.Empty;
 
     /// <summary>
     /// Единственное, по чему панель вообще узнаёт эту машину.
@@ -214,4 +218,85 @@ public sealed class PanelSettings : Observable
     /// </remarks>
     public string? ChannelKey()
         => _protectedChannelKey is null ? null : ProtectedSecret.Unprotect(_protectedChannelKey);
+
+    /// <summary>
+    /// Закрытый ключ машины X25519 под DPAPI (base64 внутри).
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Им машина открывает свою конфигурацию из Spark. Создаётся в мастере до
+    /// привязки (или при регистрации машины, поднятой ключом активации), живёт
+    /// до сброса. <c>null</c> у машины, поднятой ключом и ещё не
+    /// зарегистрировавшей свой ключ: ей Spark отдаёт только <c>access/</c>
+    /// старого образца.
+    /// </remarks>
+    public string? ProtectedMachineKey
+    {
+        get => _protectedMachineKey;
+        set
+        {
+            Set(ref _protectedMachineKey, value);
+            NotifyChanged(nameof(HasMachineKey));
+        }
+    }
+
+    /// <summary>Ревизия применённой конфигурации — заголовок <c>X-EliteSIP-Config</c>.</summary>
+    ///
+    /// <remarks>
+    /// По нему Spark показывает в карточке сотрудника «Работает»: правка дошла.
+    /// Ноль — ещё не применялась; так же обнуляется возвратом в онлайн, чтобы та
+    /// же ревизия легла заново поверх местных правок.
+    /// </remarks>
+    public int AppliedConfigRevision
+    {
+        get => _appliedConfigRevision;
+        set => Set(ref _appliedConfigRevision, value);
+    }
+
+    /// <summary>
+    /// Номер, о смене которого панель уже сказала: «Администратор сменил номер:
+    /// 205». Пусто — сказать нечего.
+    /// </summary>
+    public string LastNumberNotice
+    {
+        get => _lastNumberNotice;
+        set => Set(ref _lastNumberNotice, value);
+    }
+
+    /// <summary>
+    /// Spark знает открытый ключ этой машины: привязана по коду или машина,
+    /// поднятая ключом активации, уже зарегистрировала свой.
+    /// </summary>
+    public bool MachineKeyRegistered
+    {
+        get => _machineKeyRegistered;
+        set => Set(ref _machineKeyRegistered, value);
+    }
+
+    [JsonIgnore]
+    public bool HasMachineKey => !string.IsNullOrEmpty(_protectedMachineKey);
+
+    /// <summary>
+    /// Машина в оффлайне: связь со Spark есть чем вернуть, но она выключена.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Уходит в оффлайн машина, на которой в «Управлении» сохранили правки: с
+    /// этой минуты Spark её настроек не трогает — ни конфигурацией, ни
+    /// предустановкой. Ключ канала и привязка при этом остаются, поэтому вернуть
+    /// её можно кнопкой «Вернуться в онлайн», без новой привязки. Отзыв
+    /// работает и в оффлайне: отвязанная в Spark машина сбрасывается всё равно.
+    /// </remarks>
+    [JsonIgnore]
+    public bool IsOffline => Mode == PanelMode.Manual && HasChannelKey;
+
+    /// <summary>Сохраняет ключ машины под DPAPI.</summary>
+    public void SetMachineKey(string privateKeyBase64)
+        => ProtectedMachineKey = string.IsNullOrEmpty(privateKeyBase64)
+            ? null
+            : ProtectedSecret.Protect(privateKeyBase64);
+
+    /// <summary>Ключ машины. <c>null</c> — нет или не расшифровался.</summary>
+    public string? MachineKey()
+        => _protectedMachineKey is null ? null : ProtectedSecret.Unprotect(_protectedMachineKey);
 }

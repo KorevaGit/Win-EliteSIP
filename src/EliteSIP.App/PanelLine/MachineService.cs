@@ -66,6 +66,44 @@ internal sealed class MachineService
         _log = log;
     }
 
+    /// <summary>
+    /// Что делать с открытой конфигурацией. Ставит линия: применить сразу или
+    /// отложить до конца разговора решает она.
+    /// </summary>
+    internal Action<MachineConfig>? ApplyConfig { get; set; }
+
+    /// <summary>
+    /// Спросить канал про свою конфигурацию из Spark.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// 404 — Spark ещё не выложил или машину отвязали: молчать и ждать. Не
+    /// открылась своим ключом, чужая машина, не та подпись — в журнал и не
+    /// применять. Ревизию «новее применённой» сверяет тот, кто применяет: сюда
+    /// не заходит состояние, которое может поменяться, пока идёт запрос.
+    /// </remarks>
+    internal Task CheckConfigAsync()
+        => FetchAsync("config", (data, publicKey, installationID) =>
+        {
+            var key = _settings().Panel.MachineKey();
+            if (key is null)
+            {
+                // Машина, поднятая ключом активации, ещё не зарегистрировала
+                // свой: конфигурации для неё нет, живёт по access/.
+                return;
+            }
+
+            try
+            {
+                var config = MachineConfig.Open(data, publicKey, installationID, MachineKeyPair.FromBase64(key));
+                ApplyConfig?.Invoke(config);
+            }
+            catch (PanelLinkException error)
+            {
+                _log($"конфигурация ОТБРОШЕНА: {error.Message}");
+            }
+        });
+
     /// <summary>Спросить канал про свой доступ. Идёт в общем такте с предустановками.</summary>
     internal Task CheckAccessAsync()
         => FetchAsync("access", (data, publicKey, installationID) =>
@@ -150,7 +188,7 @@ internal sealed class MachineService
         {
             using HttpRequestMessage request = new(HttpMethod.Get, url);
             ChannelRequest.Authorize(request, panel.InstallationID, channelKey);
-            ChannelRequest.Describe(request, panel.AppliedRevision);
+            ChannelRequest.Describe(request, panel.AppliedRevision, panel.AppliedConfigRevision);
 
             using CancellationTokenSource deadline = new(ChannelRequest.Timeout);
             using var response = await ChannelRequest.Client

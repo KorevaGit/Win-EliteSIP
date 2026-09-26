@@ -227,8 +227,38 @@ public sealed class PanelViewModel : Observable
     public Trouble? Trouble
     {
         get => _trouble;
-        set => Set(ref _trouble, value);
+        set
+        {
+            Set(ref _trouble, value);
+            NotifyChanged(nameof(ShowsNotice));
+        }
     }
+
+    private string? _notice;
+
+    /// <summary>
+    /// Спокойное сообщение в том же слоте, что беда: «Администратор сменил
+    /// номер: 205».
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Отдельно от беды, потому что беду снимает первая же удачная регистрация,
+    /// а смена номера как раз и кончается регистрацией — строка гасла бы, не
+    /// успев быть прочитанной. Уходит по щелчку. Беда её перекрывает.
+    /// </remarks>
+    public string? Notice
+    {
+        get => _notice;
+        set
+        {
+            Set(ref _notice, value);
+            NotifyChanged(nameof(ShowsNotice));
+        }
+    }
+
+    public bool ShowsNotice => _notice is not null && _trouble is null;
+
+    public RelayCommand DismissNotice => new(_ => Notice = null);
 
     /// <summary>В разговоре капсула не нажимается: смена профиля снимает регистрацию.</summary>
     public bool CanOpenProfileMenu => !IsInCall;

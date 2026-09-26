@@ -229,6 +229,21 @@
                    Foreground="{DynamicResource CautionBrush}" />
       </StackPanel>
 
+      <!-- Спокойное сообщение в том же месте: «Администратор сменил номер: 205».
+           Уходит по щелчку; беда его перекрывает. -->
+      <Button Grid.Column="1"
+              Margin="6,0,6,0"
+              VerticalAlignment="Center"
+              HorizontalAlignment="Left"
+              Style="{StaticResource ChromeButtonStyle}"
+              Command="{Binding DismissNotice}"
+              Visibility="{Binding ShowsNotice, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{Binding Notice}"
+                   FontSize="12"
+                   TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+      </Button>
+
       <Button Grid.Column="2"
               Style="{StaticResource ChromeButtonStyle}"
               Command="{Binding ShowSettings}"

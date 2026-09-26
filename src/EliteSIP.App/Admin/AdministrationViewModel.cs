@@ -622,7 +622,9 @@ public sealed class AdministrationViewModel : Observable
 
     /// <summary>Что это состояние означает.</summary>
     public string SaveStateBody => IsDirty
-        ? Strings.Get("AdminDirtyBody")
+        ? Strings.Get(_settings.Panel.Mode is PanelMode.Managed && _settings.Panel.HasChannelKey
+            ? "AdminDirtyBodyManaged"
+            : "AdminDirtyBody")
         : Strings.Get(_settings.Panel.IsManaged ? "AdminCleanBodyManaged" : "AdminCleanBody");
 
     /// <summary>Куда лежит файл настроек — для «Диагностики».</summary>
@@ -697,6 +699,17 @@ public sealed class AdministrationViewModel : Observable
     /// <summary>Пишет черновик в настройки.</summary>
     public void Save()
     {
+        // Правки на машине, которой управляет Spark, уводят её в оффлайн: с
+        // этой минуты конфигурация и предустановка её настроек не трогают.
+        // Прежде сохранённое здесь молча жило до следующей ревизии и молча же
+        // затиралось ею. Ключ канала и привязка остаются — вернуть машину можно
+        // кнопкой «Вернуться в онлайн», без новой привязки.
+        if (IsDirty && _settings.Panel.Mode is PanelMode.Managed && _settings.Panel.HasChannelKey)
+        {
+            _settings.Panel.Mode = PanelMode.Manual;
+            WentOffline?.Invoke();
+        }
+
         var connectionBefore = ConnectionKey();
         var passwordChanged = SipPassword.Length > 0;
 
@@ -797,6 +810,9 @@ public sealed class AdministrationViewModel : Observable
 
     /// <summary>Поднять регистрацию заново. Ставит приложение.</summary>
     public Action? OnConnectionChanged { get; init; }
+
+    /// <summary>Сохранение увело машину в оффлайн — сказать в журнал и окнам.</summary>
+    public Action? WentOffline { get; init; }
 
     /// <summary>Всё, от чего зависит регистрация, одной строкой — чтобы сравнить до и после.</summary>
     private string ConnectionKey() => string.Join('|',
