@@ -92,90 +92,86 @@
       </StackPanel>
 
       <!--
-          2. Ключ активации.
+          2. Привязка.
 
-          Поле здесь одно, и это главное свойство экрана: всё остальное о
-          рабочем месте знает панель. Пока ключ не проверен, показывать нечего —
-          «Далее» неактивно, и уводит отсюда только «Настроить вручную».
+          Ключей активации нет: машина показывает код и QR, администратор
+          вводит код в Spark или сканирует QR в EliteSIP Connect. Дальше машина
+          настраивается сама. Код крупно — его диктуют по телефону; QR рядом —
+          его сканируют с метра. «Далее» неактивно до привязки, уводит отсюда
+          без неё только «Настроить вручную».
       -->
       <StackPanel VerticalAlignment="Center"
-                  Visibility="{Binding ShowsKey, Converter={StaticResource BoolToVisibility}}">
-        <theme:Icon Glyph="lock.shield.fill" Size="32" HorizontalAlignment="Center"
-                    Foreground="{DynamicResource TextPrimaryBrush}" />
-
-        <TextBlock Text="{res:Loc FirstRunKeyTitle}"
-                   Margin="0,10,0,0"
+                  Visibility="{Binding ShowsPair, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{res:Loc FirstRunPairTitle}"
                    FontSize="16"
                    FontWeight="SemiBold"
                    TextAlignment="Center" />
 
-        <TextBlock Text="{res:Loc FirstRunKeySubtitle}"
+        <TextBlock Text="{res:Loc FirstRunPairSubtitle}"
                    Margin="0,4,0,12"
                    FontSize="12"
                    TextAlignment="Center"
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource TextSecondaryBrush}" />
 
-        <Border Width="220"
-                Height="32"
-                CornerRadius="{StaticResource ControlCornerRadius}"
-                Padding="8,0"
-                Background="{DynamicResource ControlBackgroundBrush}"
-                BorderThickness="1"
-                BorderBrush="{DynamicResource ControlBorderBrush}">
-          <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                   FontSize="15"
-                   TextAlignment="Center"
-                   IsEnabled="{Binding CanTypeKey}"
-                   Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
-        </Border>
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Visibility="{Binding HasPairCode, Converter={StaticResource BoolToVisibility}}">
+          <!-- Белая подложка при любой теме: сканеры читают тёмное на светлом. -->
+          <Border Background="White" CornerRadius="4" Padding="4">
+            <Image Source="{Binding PairQr}"
+                   Width="132" Height="132"
+                   RenderOptions.BitmapScalingMode="NearestNeighbor" />
+          </Border>
 
-        <Button Margin="0,10,0,0"
-                HorizontalAlignment="Center"
-                MinWidth="150"
-                Style="{StaticResource SettingsButtonStyle}"
-                Content="{res:Loc FirstRunKeyCheck}"
-                IsEnabled="{Binding CanCheckKey}"
-                Click="OnCheckKeyClick" />
+          <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="{res:Loc FirstRunPairCodeLabel}"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="{Binding PairCode}"
+                       FontFamily="Consolas"
+                       FontSize="34"
+                       FontWeight="SemiBold" />
+            <Button Margin="0,6,0,0"
+                    HorizontalAlignment="Left"
+                    Style="{StaticResource SettingsButtonStyle}"
+                    Content="{res:Loc FirstRunPairNewCode}"
+                    Click="OnNewCodeClick" />
+          </StackPanel>
+        </StackPanel>
 
-        <TextBlock Text="{res:Loc FirstRunKeyChecking}"
-                   Margin="0,8,0,0"
-                   FontSize="12"
-                   TextAlignment="Center"
-                   Foreground="{DynamicResource TextSecondaryBrush}"
-                   Visibility="{Binding IsCheckingKey, Converter={StaticResource BoolToVisibility}}" />
-
-        <theme:SettingsNote Text="{Binding KeyFailure}"
-                            IsAlarming="True"
-                            Visibility="{Binding HasKeyFailure, Converter={StaticResource BoolToVisibility}}" />
+        <theme:SettingsNote Text="{Binding PairStatus}"
+                            IsAlarming="{Binding PairFailed}"
+                            HorizontalAlignment="Center"
+                            Visibility="{Binding HasPairStatus, Converter={StaticResource BoolToVisibility}}" />
 
         <!--
             Заводской настройки нет — говорим об этом здесь, а не пропускаем
             экран. Пропуск был молчаливым, и машина, навсегда отрезанная от
-            панели, выглядела бы просто заведённой вручную.
+            Spark, выглядела бы просто заведённой вручную.
         -->
         <theme:SettingsNote Text="{res:Loc FirstRunKeyNoChannel}"
                             IsAlarming="True"
                             Visibility="{Binding HasNoChannel, Converter={StaticResource BoolToVisibility}}" />
 
         <!--
-            Что приехало — показывается до «Далее», а не после: человек обязан
-            увидеть, чьё это рабочее место, прежде чем оно станет его.
+            Кому привязали — до «Далее», а не после: человек обязан увидеть,
+            чьё это рабочее место, прежде чем оно станет его.
         -->
         <StackPanel Margin="0,10,0,0"
-                    Visibility="{Binding IsActivated, Converter={StaticResource BoolToVisibility}}">
-          <TextBlock Text="{Binding ActivatedEmployee}"
+                    Visibility="{Binding IsPaired, Converter={StaticResource BoolToVisibility}}">
+          <theme:Icon Glyph="checkmark.circle.fill" Size="28" HorizontalAlignment="Center"
+                      Foreground="{DynamicResource AnswerBrush}" />
+          <TextBlock Text="{Binding PairedEmployee}"
+                     Margin="0,6,0,0"
                      FontSize="14"
                      FontWeight="SemiBold"
                      TextAlignment="Center" />
           <TextBlock Margin="0,2,0,0"
                      FontSize="12"
                      TextAlignment="Center"
-                     Foreground="{DynamicResource TextSecondaryBrush}">
-            <Run Text="{Binding ActivatedNumber, Mode=OneWay}" />
-            <Run Text=" · " />
-            <Run Text="{Binding ActivatedPreset, Mode=OneWay}" />
-          </TextBlock>
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     Text="{Binding PairedNumber}" />
         </StackPanel>
 
         <Button Margin="0,14,0,0"

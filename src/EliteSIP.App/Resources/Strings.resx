@@ -1157,4 +1157,28 @@
   <data name="SupportMachineNotPaired" xml:space="preserve">
     <value>not paired with Spark</value>
   </data>
+  <data name="FirstRunPairTitle" xml:space="preserve">
+    <value>Pair with Spark</value>
+  </data>
+  <data name="FirstRunPairSubtitle" xml:space="preserve">
+    <value>Read the code to your administrator: they will enter it in Spark or scan the QR in EliteSIP Connect. The machine sets itself up.</value>
+  </data>
+  <data name="FirstRunPairCodeLabel" xml:space="preserve">
+    <value>Machine code</value>
+  </data>
+  <data name="FirstRunPairNewCode" xml:space="preserve">
+    <value>Not me — show a new code</value>
+  </data>
+  <data name="FirstRunPairOpening" xml:space="preserve">
+    <value>Getting a code…</value>
+  </data>
+  <data name="FirstRunPairWaiting" xml:space="preserve">
+    <value>Waiting for pairing. The code stays the same while the machine is on — it can be paired days later.</value>
+  </data>
+  <data name="FirstRunPairSettingUp" xml:space="preserve">
+    <value>Paired — fetching settings…</value>
+  </data>
+  <data name="FirstRunPairRetry" xml:space="preserve">
+    <value>No connection to Spark ({0}). Retrying in {1} s.</value>
+  </data>
 </root>

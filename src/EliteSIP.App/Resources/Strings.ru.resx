@@ -1135,4 +1135,28 @@
   <data name="SupportMachineNotPaired" xml:space="preserve">
     <value>не привязана к Spark</value>
   </data>
+  <data name="FirstRunPairTitle" xml:space="preserve">
+    <value>Привязка к Spark</value>
+  </data>
+  <data name="FirstRunPairSubtitle" xml:space="preserve">
+    <value>Продиктуйте код администратору: он введёт его в Spark или отсканирует QR в EliteSIP Connect. Машина настроится сама.</value>
+  </data>
+  <data name="FirstRunPairCodeLabel" xml:space="preserve">
+    <value>Код машины</value>
+  </data>
+  <data name="FirstRunPairNewCode" xml:space="preserve">
+    <value>Это не я — показать новый код</value>
+  </data>
+  <data name="FirstRunPairOpening" xml:space="preserve">
+    <value>Получаю код…</value>
+  </data>
+  <data name="FirstRunPairWaiting" xml:space="preserve">
+    <value>Ждём привязки. Код не меняется, пока машина включена, — можно привязать и через несколько дней.</value>
+  </data>
+  <data name="FirstRunPairSettingUp" xml:space="preserve">
+    <value>Привязали — забираю настройки…</value>
+  </data>
+  <data name="FirstRunPairRetry" xml:space="preserve">
+    <value>Нет связи со Spark ({0}). Повтор через {1} с.</value>
+  </data>
 </root>

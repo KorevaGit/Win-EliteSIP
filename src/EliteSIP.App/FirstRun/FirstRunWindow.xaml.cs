@@ -58,12 +58,16 @@ public partial class FirstRunWindow : Window
         }
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        // Длинный опрос Spark не должен пережить окно.
+        Model.Dispose();
+        base.OnClosed(e);
+    }
+
     private void OnBackClick(object sender, RoutedEventArgs e) => Model.Back();
 
-    // Заход на канал — единственное в мастере, что ждёт сети. Окно при этом не
-    // блокируется: «Назад» и крестик обязаны работать, пока человек ждёт ответа.
-    private async void OnCheckKeyClick(object sender, RoutedEventArgs e)
-        => await Model.CheckKeyAsync();
+    private void OnNewCodeClick(object sender, RoutedEventArgs e) => Model.RequestNewCode();
 
     private void OnManualSetupClick(object sender, RoutedEventArgs e) => Model.UseManualSetup();
 

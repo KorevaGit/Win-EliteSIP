@@ -20,4 +20,10 @@
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Помощники QR (Reed–Solomon, биты формата) проверяются опубликованными
+         векторами, но наружу из пакета им незачем. -->
+    <InternalsVisibleTo Include="EliteSIP.PanelLink.Tests" />
+  </ItemGroup>
+
 </Project>

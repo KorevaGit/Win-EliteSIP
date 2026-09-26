@@ -233,44 +233,4 @@ internal sealed class MachineService
             }
         }
     }
-
-    /// <summary>
-    /// Забрать свой административный пароль прямо сейчас, не дожидаясь такта.
-    /// </summary>
-    ///
-    /// <remarks>
-    /// Нужно ровно в одном месте — в мастере, сразу после того, как ключ открыл
-    /// пакет. Ждать общего опроса там нельзя: между концом мастера и первым
-    /// заходом на канал «Управление» стояло бы открытым для всякого, а машина
-    /// при этом выглядела бы настроенной.
-    ///
-    /// Отдельной функцией, а не методом службы: службы в этот момент ещё нет —
-    /// она заводится при запуске приложения, а мастер идёт до него.
-    /// </remarks>
-    internal static async Task<MachineAccess> FetchAccessAsync(
-        string installationID, string channelKey, CancellationToken cancellation = default)
-    {
-        var publicKey = PresetService.ChannelPublicKey()
-            ?? throw new PanelLinkException(PanelLinkFailure.SignatureDidNotMatch);
-
-        var url = Provisioning.Current?.Updates?.MachineUrl("access", installationID)
-            ?? throw new PanelLinkException(PanelLinkFailure.MalformedBundle);
-
-        using HttpRequestMessage request = new(HttpMethod.Get, url);
-        ChannelRequest.Authorize(request, installationID, channelKey);
-
-        using CancellationTokenSource deadline = new(ChannelRequest.Timeout);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cancellation);
-
-        using var response = await ChannelRequest.Client.SendAsync(request, linked.Token)
-            .ConfigureAwait(false);
-        if (response.StatusCode != HttpStatusCode.OK)
-        {
-            throw new PanelLinkException(PanelLinkFailure.MalformedBundle);
-        }
-
-        var data = await response.Content.ReadAsByteArrayAsync(linked.Token).ConfigureAwait(false);
-
-        return MachineAccess.Verified(data, publicKey, installationID);
-    }
 }
