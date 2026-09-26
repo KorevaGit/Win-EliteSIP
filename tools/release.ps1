@@ -157,7 +157,10 @@ try {
 
     Step 'сборка и проверки'
 
-    dotnet build --configuration Release --nologo
+    # Проверка уязвимостей пакетов ходит на api.nuget.org и при сбое сети
+    # роняет сборку (NU1900 как ошибка) — так сорвалась первая сборка 0.1.57.
+    # Пакеты давно в кэше; аудит — дело CI, а не дня выпуска.
+    dotnet build --configuration Release --nologo -p:NuGetAudit=false
     if ($LASTEXITCODE -ne 0) { Fail 'сборка не прошла' }
 
     dotnet test --configuration Release --nologo --no-build
@@ -182,7 +185,8 @@ try {
         --runtime win-x64 `
         --self-contained true `
         --output $publish `
-        --nologo
+        --nologo `
+        -p:NuGetAudit=false
     if ($LASTEXITCODE -ne 0) { Fail 'публикация не прошла' }
 
     # Обновляльщик — в тот же каталог: установщик кладёт их рядом, и задача
@@ -192,7 +196,8 @@ try {
         --runtime win-x64 `
         --self-contained true `
         --output $publish `
-        --nologo
+        --nologo `
+        -p:NuGetAudit=false
     if ($LASTEXITCODE -ne 0) { Fail 'обновляльщик не опубликовался' }
 
     # Заводская настройка в публикацию не кладётся скриптом и не должна:
