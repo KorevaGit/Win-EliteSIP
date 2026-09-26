@@ -83,6 +83,10 @@ param(
 
     [string] $Provisioning = (Join-Path $env:APPDATA 'EliteSIP-release\provisioning.json'),
 
+    # Открытый ключ подписи Spark: им проверяются предустановки, конфигурация
+    # машины, доступ и отзыв.
+    [string] $PanelPublicKey = 'P8XaNYhYwDSSS+805amNpc84GGrnnWV+mgbvyPiWBIs=',
+
     # Заметки выпуска: ложатся в поле notes манифеста.
     [string] $Notes = '',
 
@@ -229,6 +233,17 @@ try {
     }
     if (-not $factory.releasesPublicKey -or -not $factory.presetsPublicKey) {
         Fail 'в заводской настройке нет одного из ключей: releasesPublicKey или presetsPublicKey'
+    }
+
+    # Ключ линии панели обязан быть ключом Spark: им подписаны предустановки,
+    # доступ, конфигурация машины и отзыв. 0.1.56 ушёл с ключом прежней панели
+    # EliteSupport, и машины молча отвергали всё, что подписал Spark, — в том
+    # числе отзыв: «Отвязать» не сбрасывало ни одной машины. Значение — это
+    # DefaultClientPublicKey в spark.elitesochi.com/backend/internal/elitesip/keys.go
+    # и ESPresetsPublicKey macOS-клиента с 0.1.44.
+    if ($factory.presetsPublicKey -ne $PanelPublicKey) {
+        Fail ("presetsPublicKey в заводской настройке ($($factory.presetsPublicKey)) — не ключ Spark ($PanelPublicKey). " +
+              'Если Spark сменил ключ, передайте новый параметром -PanelPublicKey.')
     }
 
     Copy-Item $Provisioning (Join-Path $publish 'provisioning.json') -Force
