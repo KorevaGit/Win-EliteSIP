@@ -97,7 +97,7 @@
         шестерёнка справа. Крайние слоты не меняют размер никогда, средний
         тянется и обрезается — иначе капсула ездила бы от длины чужой надписи.
     -->
-    <Grid Grid.Row="0">
+    <Grid Grid.Row="0" SizeChanged="OnStatusRowSizeChanged">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" MinWidth="72" />
@@ -118,7 +118,9 @@
           регистрацию и оборвали бы разговор. Гаснет при этом один шеврон —
           номер и точка обязаны читаться и в разговоре.
       -->
-      <Button Grid.Column="0"
+      <Button x:Name="ProfilePill"
+              Grid.Column="0"
+              HorizontalContentAlignment="Stretch"
               Style="{StaticResource ProfilePillStyle}"
               IsEnabled="{Binding CanOpenProfileMenu}"
               Click="OnProfileClick"
@@ -142,7 +144,16 @@
           </ContextMenu>
         </Button.ContextMenu>
 
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <!-- Сетка, а не StackPanel: в горизонтальной стопке обрезка не срабатывает,
+             и длинное имя профиля выталкивало шестерёнку за край панели.
+             Сжимается первой подпись, номер — только когда места нет совсем. -->
+        <Grid VerticalAlignment="Center">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
           <!--
               Точка состояния. Единственное, чем показано обычное положение
               дел: подпись «На линии» рядом с зелёным кружком занимала место и
@@ -152,7 +163,7 @@
               регистрации и потому стоит последним: правила WPF выбирают
               последнее сработавшее.
           -->
-          <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+          <Ellipse Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center">
             <Ellipse.Style>
               <Style TargetType="Ellipse">
                 <Setter Property="Fill" Value="{DynamicResource StatusOfflineBrush}" />
@@ -173,7 +184,9 @@
               </Style>
             </Ellipse.Style>
           </Ellipse>
-          <TextBlock Text="{Binding StatusTitle}"
+          <TextBlock Grid.Column="1"
+                     Text="{Binding StatusTitle}"
+                     TextTrimming="CharacterEllipsis"
                      Margin="4,0,0,0"
                      FontSize="12"
                      FontWeight="SemiBold"
@@ -185,7 +198,8 @@
               различаются они адресом сервера — тем, дозвонится оператор или
               нет.
           -->
-          <TextBlock Text="{Binding StatusLabel}"
+          <TextBlock Grid.Column="2"
+                     Text="{Binding StatusLabel}"
                      Margin="4,0,0,0"
                      FontSize="12"
                      VerticalAlignment="Center"
@@ -197,13 +211,14 @@
               Шеврон — единственное, чем капсула сообщает, что она кнопка со
               списком, а не подпись.
           -->
-          <theme:Icon Glyph="chevron.down"
+          <theme:Icon Grid.Column="3"
+                      Glyph="chevron.down"
                       Size="10"
                       Margin="5,1,0,0"
                       VerticalAlignment="Center"
                       Foreground="{DynamicResource TextTertiaryBrush}"
                       Visibility="{Binding CanOpenProfileMenu, Converter={StaticResource BoolToVisibility}}" />
-        </StackPanel>
+        </Grid>
       </Button>
 
       <!--

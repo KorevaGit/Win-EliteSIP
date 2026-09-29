@@ -55,7 +55,7 @@
       <Grid MinHeight="{Binding ViewportHeight, ElementName=StepScroll}">
 
       <!-- 1. Приветствие и язык. -->
-      <StackPanel VerticalAlignment="Center"
+      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
                   Visibility="{Binding ShowsWelcome, Converter={StaticResource BoolToVisibility}}">
         <theme:Icon Glyph="phone.fill" Size="40" HorizontalAlignment="Center"
                     Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -100,7 +100,7 @@
           его сканируют с метра. «Далее» неактивно до привязки, уводит отсюда
           без неё только «Настроить вручную».
       -->
-      <StackPanel VerticalAlignment="Center"
+      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
                   Visibility="{Binding ShowsPair, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{res:Loc FirstRunPairTitle}"
                    FontSize="16"
@@ -140,19 +140,36 @@
           </StackPanel>
         </StackPanel>
 
-        <theme:SettingsNote Text="{Binding PairStatus}"
-                            IsAlarming="{Binding PairFailed}"
-                            HorizontalAlignment="Center"
-                            Visibility="{Binding HasPairStatus, Converter={StaticResource BoolToVisibility}}" />
+        <TextBlock Text="{Binding PairStatus}"
+                   Margin="24,16,24,0"
+                   FontSize="12"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Visibility="{Binding HasPairStatus, Converter={StaticResource BoolToVisibility}}">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding PairFailed}" Value="True">
+                  <Setter Property="Foreground" Value="{DynamicResource CautionBrush}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
 
         <!--
             Заводской настройки нет — говорим об этом здесь, а не пропускаем
             экран. Пропуск был молчаливым, и машина, навсегда отрезанная от
             Spark, выглядела бы просто заведённой вручную.
         -->
-        <theme:SettingsNote Text="{res:Loc FirstRunKeyNoChannel}"
-                            IsAlarming="True"
-                            Visibility="{Binding HasNoChannel, Converter={StaticResource BoolToVisibility}}" />
+        <TextBlock Text="{res:Loc FirstRunKeyNoChannel}"
+                   Margin="24,12,24,0"
+                   FontSize="12"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource CautionBrush}"
+                   Visibility="{Binding HasNoChannel, Converter={StaticResource BoolToVisibility}}" />
 
         <!--
             Кому привязали — до «Далее», а не после: человек обязан увидеть,
@@ -160,7 +177,7 @@
         -->
         <StackPanel Margin="0,10,0,0"
                     Visibility="{Binding IsPaired, Converter={StaticResource BoolToVisibility}}">
-          <theme:Icon Glyph="checkmark.circle.fill" Size="28" HorizontalAlignment="Center"
+          <theme:Icon Glyph="checkmark.circle" Size="28" HorizontalAlignment="Center"
                       Foreground="{DynamicResource AnswerBrush}" />
           <TextBlock Text="{Binding PairedEmployee}"
                      Margin="0,6,0,0"
@@ -182,7 +199,7 @@
       </StackPanel>
 
       <!-- 3. Первый пользователь. -->
-      <StackPanel VerticalAlignment="Center"
+      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
                   Visibility="{Binding ShowsUser, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{res:Loc FirstRunUserTitle}" FontSize="16" FontWeight="SemiBold" TextAlignment="Center" />
         <TextBlock Text="{res:Loc FirstRunUserSubtitle}"
@@ -258,7 +275,7 @@
       </StackPanel>
 
       <!-- 3. Оформление. -->
-      <StackPanel VerticalAlignment="Center"
+      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
                   Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{res:Loc SectionAppearance}" FontSize="16" FontWeight="SemiBold" TextAlignment="Center" />
         <TextBlock Text="{res:Loc FirstRunAppearanceSubtitle}"
@@ -269,20 +286,20 @@
                    Foreground="{DynamicResource TextSecondaryBrush}" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardTheme"
+          <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="System" GroupName="WizardTheme"
                        Content="{res:Loc AppearanceSystem}"
                        IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
-          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardTheme"
+          <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="Light" GroupName="WizardTheme"
                        Content="{res:Loc AppearanceLight}"
                        IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
-          <RadioButton Style="{StaticResource SegmentStyle}" GroupName="WizardTheme"
+          <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="Dark" GroupName="WizardTheme"
                        Content="{res:Loc AppearanceDark}"
                        IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
         </StackPanel>
       </StackPanel>
 
       <!-- 4. Готово. -->
-      <StackPanel VerticalAlignment="Center"
+      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
                   Visibility="{Binding ShowsFinale, Converter={StaticResource BoolToVisibility}}">
         <theme:Icon Glyph="checkmark.circle" Size="40" HorizontalAlignment="Center"
                     Foreground="{DynamicResource StatusRegisteredBrush}" />
@@ -314,8 +331,10 @@
       </Grid>
     </ScrollViewer>
 
-    <!-- Полоса шагов. -->
-    <Grid Grid.Row="1" Margin="0,12,0,0">
+    <!-- Полоса шагов: отделена линией, как нижняя полоса диалогов Windows. -->
+    <Border Grid.Row="1" Height="1" VerticalAlignment="Top" Margin="-16,0,-16,0"
+            Background="{DynamicResource SeparatorBrush}" />
+    <Grid Grid.Row="1" Margin="0,14,0,0">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />

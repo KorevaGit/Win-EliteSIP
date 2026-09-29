@@ -522,6 +522,20 @@ public partial class PanelWindow : Window
     /// курсором, то есть каждый раз в новом месте, а список под кнопкой обязан
     /// открываться под кнопкой.
     /// </remarks>
+    /// <summary>
+    /// Капсула профиля — не шире 60 % строки состояния.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Колонка капсулы растёт по содержимому, и длинная подпись профиля
+    /// («ТестиковичАСУС») выталкивала шестерёнку настроек за край панели.
+    /// Предел относительный: панель растягивают, и абсолютное число было бы
+    /// либо тесным на широкой, либо бесполезным на узкой. Остальное место — слоту
+    /// беды и шестерёнке, которые не должны исчезать никогда.
+    /// </remarks>
+    private void OnStatusRowSizeChanged(object sender, SizeChangedEventArgs e)
+        => ProfilePill.MaxWidth = Math.Max(120, e.NewSize.Width * 0.6);
+
     private void OnProfileClick(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button pill || pill.ContextMenu is not { } menu)

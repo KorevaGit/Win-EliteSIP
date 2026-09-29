@@ -240,35 +240,124 @@
   </Style>
 
   <!--
-      Сегментированный переключатель. Своего в WPF нет, а в макете он есть:
-      тема, язык, рабочее место и выход рингтона выбираются именно им.
-      Собран из переключателей с общим родителем — то есть остаётся
-      переключателем и для доступности, а не превращается в набор кнопок.
+      Плитка темы: превью окна и подпись под ним — как в «Персонализации»
+      Windows. Тема выбирается глазами, а не словом: до 0.1.59 её
+      переключатель выглядел так же, как выбор языка рядом, и их путали.
+      Tag задаёт превью: Light, Dark или System (половина светлая, половина
+      тёмная). Цвета превью фиксированы: они показывают тему, а не
+      оформление текущей.
   -->
-  <Style x:Key="SegmentStyle" TargetType="{x:Type RadioButton}">
+  <Style x:Key="ThemeTileStyle" TargetType="{x:Type RadioButton}">
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="Padding" Value="10,3" />
+    <Setter Property="Margin" Value="0,0,12,0" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="{x:Type RadioButton}">
-          <!--
-              Выбранный сегмент — заливка акцентом с белой надписью: так
-              Windows 10 показывает выбранное в своих переключателях вида.
-          -->
-          <Border x:Name="Surface"
-                  Background="{DynamicResource ControlBackgroundBrush}"
-                  CornerRadius="{DynamicResource ControlCornerRadius}"
-                  Padding="{TemplateBinding Padding}"
-                  SnapsToDevicePixels="True">
-            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Border>
+          <StackPanel Background="Transparent">
+            <Border x:Name="Frame"
+                    Width="104" Height="68"
+                    CornerRadius="6"
+                    BorderThickness="2"
+                    BorderBrush="{DynamicResource ControlBorderHoverBrush}"
+                    Padding="2">
+              <Grid ClipToBounds="True">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition x:Name="DarkHalf" Width="0" />
+                </Grid.ColumnDefinitions>
+                <!-- Светлая (или левая) половина. -->
+                <Border x:Name="Left" Background="#FFF3F3F3" CornerRadius="3">
+                  <StackPanel Margin="8,8,8,0">
+                    <Border x:Name="LeftBar" Height="6" CornerRadius="2" Background="#FFD0D0D0" />
+                    <Border x:Name="LeftAccent" Height="12" Width="36" Margin="0,8,0,0" CornerRadius="2"
+                            HorizontalAlignment="Left" Background="{DynamicResource AccentFillBrush}" />
+                  </StackPanel>
+                </Border>
+                <!-- Тёмная половина — только у «Как в системе». -->
+                <Border Grid.Column="1" Background="#FF202020" CornerRadius="0,3,3,0">
+                  <StackPanel Margin="8,8,8,0">
+                    <Border Height="6" CornerRadius="2" Background="#FF454545" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Border>
+            <ContentPresenter Margin="0,6,0,0" HorizontalAlignment="Center" />
+          </StackPanel>
           <ControlTemplate.Triggers>
+            <Trigger Property="Tag" Value="Dark">
+              <Setter TargetName="Left" Property="Background" Value="#FF202020" />
+              <Setter TargetName="LeftBar" Property="Background" Value="#FF454545" />
+            </Trigger>
+            <Trigger Property="Tag" Value="System">
+              <Setter TargetName="DarkHalf" Property="Width" Value="*" />
+              <Setter TargetName="Left" Property="CornerRadius" Value="3,0,0,3" />
+            </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AccentFillBrush}" />
-              <Setter Property="Foreground" Value="White" />
+              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource AccentFillBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+      Выбор одного из нескольких — радиокнопками Windows: кружок и подпись.
+
+      До 0.1.59 здесь был сегментированный переключатель из макета macOS
+      (сплошная плашка с залитым выбранным сегментом). На Windows он читался
+      чужеродно, и все такие переключатели выглядели одинаково: тема и язык
+      в «Оформлении» были неотличимы. Имя стиля оставлено прежним — им
+      пользуются полтора десятка мест, и каждое из них остаётся переключателем.
+  -->
+  <Style x:Key="SegmentStyle" TargetType="{x:Type RadioButton}">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Margin" Value="0,0,18,0" />
+    <Setter Property="Padding" Value="8,0,0,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type RadioButton}">
+          <Grid Background="Transparent" MinHeight="24">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid Width="18" Height="18" VerticalAlignment="Center">
+              <Ellipse x:Name="Ring"
+                       Stroke="{DynamicResource TextSecondaryBrush}"
+                       StrokeThickness="1"
+                       Fill="Transparent" />
+              <Ellipse x:Name="Dot"
+                       Width="8" Height="8"
+                       Fill="White"
+                       Visibility="Collapsed" />
+            </Grid>
+            <ContentPresenter Grid.Column="1"
+                              Margin="{TemplateBinding Padding}"
+                              VerticalAlignment="Center" />
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Ring" Property="Fill" Value="{DynamicResource AccentFillBrush}" />
+              <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentFillBrush}" />
+              <Setter TargetName="Dot" Property="Visibility" Value="Visible" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Ring" Property="StrokeThickness" Value="2" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />

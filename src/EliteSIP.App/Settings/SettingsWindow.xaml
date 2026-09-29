@@ -423,15 +423,15 @@
             <theme:SettingsSection Header="{res:Loc SectionAppearance}">
               <theme:SettingsRow Header="{res:Loc AppearanceTheme}">
                 <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}"
+                  <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="System"
                                GroupName="Theme"
                                Content="{res:Loc AppearanceSystem}"
                                IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}"
+                  <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="Light"
                                GroupName="Theme"
                                Content="{res:Loc AppearanceLight}"
                                IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}"
+                  <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="Dark"
                                GroupName="Theme"
                                Content="{res:Loc AppearanceDark}"
                                IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
