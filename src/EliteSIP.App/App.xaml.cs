@@ -245,6 +245,38 @@ public partial class App : Application, IDisposable
         var model = _panel;
 
         SyncMacros();
+
+        // Клавиши меняет не только «Управление»: предустановка из Spark кладёт
+        // их прямо в настройки, и до 0.1.59 панель узнавала об этом только
+        // после перезапуска — предустановка «применялась», а клавиши на экране
+        // оставались прежние. Правки склеиваются: предустановка чистит список
+        // и добавляет по одной, и перестраивать панель на каждую незачем.
+        var macrosPending = false;
+        void MacrosChanged()
+        {
+            if (macrosPending)
+            {
+                return;
+            }
+
+            macrosPending = true;
+            Dispatcher.BeginInvoke(() =>
+            {
+                macrosPending = false;
+                SyncMacros();
+            });
+        }
+
+        _settings.Dtmf.Macros.CollectionChanged += (_, _) => MacrosChanged();
+        _settings.Dtmf.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName is nameof(DtmfSettings.MacroColumns)
+                or nameof(DtmfSettings.MacroHeight)
+                or nameof(DtmfSettings.MacroHeightIsManual))
+            {
+                MacrosChanged();
+            }
+        };
         PanelDemo.Apply(model, _settings, e.Args);
 
         if (e.Args.Contains("--demo"))

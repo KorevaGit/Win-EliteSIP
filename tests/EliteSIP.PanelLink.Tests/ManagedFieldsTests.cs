@@ -58,6 +58,35 @@ public sealed class ManagedFieldsTests
     }
 
     /// <summary>
+    /// Пустой список клавиш у Spark (Go) приходит как <c>null</c>. Внутри
+    /// присланного блока это «клавиш нет», а не «не трогать»: иначе убранные в
+    /// Spark клавиши оставались на машине навсегда.
+    /// </summary>
+    [Fact]
+    public void Явный_null_клавиш_в_блоке_значит_клавиш_нет()
+    {
+        var dtmf = ManagedFields.Parse("""{"dtmf":{"toneMilliseconds":90,"macros":null}}""").Dtmf;
+
+        Assert.NotNull(dtmf);
+        Assert.NotNull(dtmf.Macros);
+        Assert.Empty(dtmf.Macros);
+    }
+
+    [Fact]
+    public void Клавиши_Spark_разбираются_со_всеми_полями()
+    {
+        var dtmf = ManagedFields.Parse(
+            """{"dtmf":{"toneMilliseconds":100,"gapMilliseconds":80,"pauseMilliseconds":2000,"macros":[{"id":"m1","title":"Перевод","sequence":"*02","transfersCall":true}],"macroColumns":3,"macroHeight":44,"macroHeightIsManual":false}}""").Dtmf;
+
+        var macro = Assert.Single(dtmf!.Macros!);
+        Assert.Equal("m1", macro.ID);
+        Assert.Equal("Перевод", macro.Title);
+        Assert.Equal("*02", macro.Sequence);
+        Assert.True(macro.TransfersCall);
+        Assert.Equal(3, dtmf.MacroColumns);
+    }
+
+    /// <summary>
     /// Ноль — это значение, и спутать его с отсутствием нельзя: выключенная
     /// пауза и неуправляемая пауза — разные состояния машины.
     /// </summary>

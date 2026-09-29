@@ -237,15 +237,56 @@ public sealed record ManagedFields
 
             return new ManagedFields
             {
-                Dtmf = Block<DtmfFields>(root, "dtmf"),
+                Dtmf = ParseDtmf(root),
                 IncomingCall = Block<CallGuard>(root, "incomingCall"),
                 Conference = Block<ConferenceFields>(root, "conference"),
-                PortKnock = Block<PortKnockFields>(root, "portKnock"),
+                PortKnock = ParsePortKnock(root),
                 SiteAddresses = Block<SiteAddressesFields>(root, "siteAddresses"),
                 AcceptsAnyTLSCertificate = Flag(root, "acceptsAnyTLSCertificate"),
                 Transport = Text(root, "transport"),
             };
         }
+    }
+
+    /// <summary>
+    /// Блок клавиш: как любой другой, но с одним уточнением про пустой список.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Spark пишет предустановку на Go, и пустой список клавиш уходит у него
+    /// как <c>"macros": null</c>, а не <c>[]</c>. Обычное правило разбора —
+    /// «<c>null</c> значит не прислали, оставить своё» — здесь давало машину,
+    /// на которой убранные в Spark клавиши жили вечно. Поэтому явный
+    /// <c>null</c> внутри присланного блока <c>dtmf</c> значит «клавиш нет»;
+    /// отсутствующий блок или поле по-прежнему значат «не трогать».
+    /// </remarks>
+    private static DtmfFields? ParseDtmf(JsonElement root)
+    {
+        var dtmf = Block<DtmfFields>(root, "dtmf");
+
+        if (dtmf is { Macros: null }
+            && root.GetProperty("dtmf").TryGetProperty("macros", out var macros)
+            && macros.ValueKind is JsonValueKind.Null)
+        {
+            return dtmf with { Macros = [] };
+        }
+
+        return dtmf;
+    }
+
+    /// <summary>Шаги стука — то же правило про <c>null</c>, что у клавиш.</summary>
+    private static PortKnockFields? ParsePortKnock(JsonElement root)
+    {
+        var knock = Block<PortKnockFields>(root, "portKnock");
+
+        if (knock is { Steps: null }
+            && root.GetProperty("portKnock").TryGetProperty("steps", out var steps)
+            && steps.ValueKind is JsonValueKind.Null)
+        {
+            return knock with { Steps = [] };
+        }
+
+        return knock;
     }
 
     /// <summary>Разбирает один блок, молча теряя непонятное.</summary>
