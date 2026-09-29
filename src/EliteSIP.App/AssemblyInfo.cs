@@ -8,3 +8,7 @@ using System.Windows;
                                                 //(used if a resource is not found in the page,
                                                 // app, or any theme specific resource dictionaries)
 )]
+
+// Раскладка конфигурации Spark и прочая логика без окон — internal, а
+// проверять её надо.
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("EliteSIP.App.Tests")]

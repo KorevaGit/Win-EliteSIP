@@ -34,45 +34,8 @@ internal static class ConfigApply
         var registrationChanged = false;
         string? newNumber = null;
 
-        // Несколько номеров — у macOS это профили с переключением. У Windows
-        // профиль один, и раскладывать дополнительные номера пока некуда:
-        // берётся основной (он же первый в списке и он же в number), а
-        // остальные называются в журнале, чтобы «где мой второй номер» было
-        // видно по нему.
-        if (config.Lines.Count > 1)
-        {
-            log($"конфигурация: номеров {config.Lines.Count}, на этой машине работает только основной "
-                + $"{config.Number}; остальные ({string.Join(", ", config.Lines.Skip(1).Select(line => line.Number))}) "
-                + "ждут поддержки профилей");
-        }
-
-        if (config.Number.Length > 0 && config.Number != settings.Account.Username)
-        {
-            // «Сменил» — только если номер уже был: первая настройка после
-            // привязки не смена.
-            if (settings.Account.Username.Length > 0)
-            {
-                newNumber = config.Number;
-            }
-
-            settings.Account.Username = config.Number;
-            registrationChanged = true;
-        }
-
-        if (config.SipPassword.Length > 0 && config.SipPassword != settings.Credentials.Password())
-        {
-            settings.Credentials.SetPassword(config.SipPassword);
-            registrationChanged = true;
-        }
-
-        // Пустое имя не затирает прежнее: Spark мог его просто не знать.
-        if (config.Employee.Length > 0)
-        {
-            settings.Account.DisplayName = config.Employee;
-        }
-
-        // Площадка — до выбора адреса АТС: адрес берётся из пары адресов
-        // предустановки по ней. Неизвестное значение площадку не трогает.
+        // Площадка одна на все номера сотрудника: формат работы — его, а не
+        // номера. Неизвестное значение площадку не трогает.
         WorkplaceSite? site = config.WorkFormat switch
         {
             "office" => WorkplaceSite.Office,
@@ -80,16 +43,20 @@ internal static class ConfigApply
             _ => null,
         };
 
-        if (site is { } wanted && wanted != settings.Account.Site)
+        var lines = config.EffectiveLines;
+        if (lines.Count > 0)
         {
-            settings.Account.Site = wanted;
+            (registrationChanged, newNumber) = ApplyLines(settings, config, lines, site, log);
+        }
+        else if (site is { } only && only != settings.Account.Site)
+        {
+            settings.Account.Site = only;
             registrationChanged = true;
         }
 
-        var address = settings.Account.Site is WorkplaceSite.Remote
-            ? settings.Pbx.RemoteAddress
-            : settings.Pbx.OfficeAddress;
-
+        // Адрес регистрации активного профиля — из пары адресов предустановки
+        // по площадке.
+        var address = AddressFor(settings, settings.Account.Site);
         if (address.Length > 0 && address != settings.Account.Domain)
         {
             settings.Account.Domain = address;
@@ -123,6 +90,152 @@ internal static class ConfigApply
 
         return new ConfigChange(registrationChanged, newNumber, presetChanged);
     }
+
+    /// <summary>
+    /// Раскладывает номера сотрудника по профилям — как на macOS.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><description>Основной номер (<c>main</c>) живёт в профиле, который
+    ///   был у машины всегда: так сохраняется её история звонков.</description></item>
+    ///   <item><description>Остальные — в профилях со стабильным идентификатором
+    ///   (<see cref="MachineConfig.LineProfileID"/>): переименование номера в
+    ///   Spark не теряет историю.</description></item>
+    ///   <item><description>Профили, которых нет в конфигурации, на управляемой
+    ///   машине удаляются.</description></item>
+    ///   <item><description>Активный остаётся активным, если его номер ещё есть;
+    ///   иначе активным становится основной.</description></item>
+    ///   <item><description>Новые профили наследуют адрес текущего; площадка у
+    ///   всех — из формата работы.</description></item>
+    /// </list>
+    /// </remarks>
+    /// <returns>Сменилась ли регистрация активного профиля и на какой номер.</returns>
+    private static (bool RegistrationChanged, string? NewNumber) ApplyLines(
+        AppSettings settings,
+        MachineConfig config,
+        IReadOnlyList<MachineConfig.Line> lines,
+        WorkplaceSite? site,
+        Action<string> log)
+    {
+        var panel = settings.Panel;
+        panel.MainProfileId ??= settings.Account.ProfileId;
+        var mainId = panel.MainProfileId.Value;
+
+        Guid ProfileOf(MachineConfig.Line line) => line.ID == MachineConfig.MainLineID || line.ID.Length == 0
+            ? mainId
+            : MachineConfig.LineProfileID(config.InstallationID, line.ID);
+
+        var wanted = lines
+            .GroupBy(ProfileOf)
+            .Select(group => (ProfileId: group.Key, Line: group.First()))
+            .ToList();
+        var wantedIds = wanted.Select(item => item.ProfileId).ToHashSet();
+
+        var activeBefore = settings.Account.ProfileId;
+        var numberBefore = settings.Account.Username;
+        var passwordBefore = settings.Credentials.ProtectedPassword;
+        var siteBefore = settings.Account.Site;
+
+        // Активного профиля в конфигурации нет — его место занимает основной.
+        if (!wantedIds.Contains(activeBefore))
+        {
+            var main = settings.Profiles.FirstOrDefault(profile => profile.ProfileId == mainId);
+            if (main is not null)
+            {
+                settings.Profiles.Remove(main);
+                ProfileSwitch.Load(settings, main);
+            }
+            else
+            {
+                settings.Account.ProfileId = mainId;
+            }
+
+            log($"профиль {numberBefore} убран в Spark — активным стал основной");
+        }
+
+        var template = settings.Account.Domain;
+
+        foreach (var (profileId, line) in wanted)
+        {
+            if (profileId == settings.Account.ProfileId)
+            {
+                settings.Account.Username = line.Number;
+                if (line.SipPassword.Length > 0 && line.SipPassword != settings.Credentials.Password())
+                {
+                    settings.Credentials.SetPassword(line.SipPassword);
+                }
+
+                // Пустая подпись не затирает прежнюю: Spark мог её просто не знать.
+                if (line.Label.Length > 0)
+                {
+                    settings.Account.DisplayName = line.Label;
+                }
+
+                if (site is { } active)
+                {
+                    settings.Account.Site = active;
+                }
+
+                continue;
+            }
+
+            var profile = settings.Profiles.FirstOrDefault(item => item.ProfileId == profileId);
+            if (profile is null)
+            {
+                profile = new ProfileSetting
+                {
+                    ProfileId = profileId,
+                    Domain = template,
+                    Site = site ?? settings.Account.Site,
+                };
+                settings.Profiles.Add(profile);
+            }
+
+            profile.Username = line.Number;
+            if (line.SipPassword.Length > 0 && line.SipPassword != profile.Password())
+            {
+                profile.SetPassword(line.SipPassword);
+            }
+
+            if (line.Label.Length > 0)
+            {
+                profile.DisplayName = line.Label;
+            }
+
+            if (site is { } other)
+            {
+                profile.Site = other;
+            }
+
+            var address = AddressFor(settings, profile.Site);
+            if (address.Length > 0)
+            {
+                profile.Domain = address;
+            }
+        }
+
+        foreach (var stale in settings.Profiles.Where(profile => !wantedIds.Contains(profile.ProfileId)).ToList())
+        {
+            settings.Profiles.Remove(stale);
+            log($"профиль {stale.Username} убран: номера больше нет в Spark");
+        }
+
+        var registrationChanged = settings.Account.ProfileId != activeBefore
+            || settings.Account.Username != numberBefore
+            || settings.Credentials.ProtectedPassword != passwordBefore
+            || settings.Account.Site != siteBefore;
+
+        // «Сменил номер» — только если номер уже был: первая настройка не смена.
+        var newNumber = numberBefore.Length > 0 && settings.Account.Username != numberBefore
+            ? settings.Account.Username
+            : null;
+
+        return (registrationChanged, newNumber);
+    }
+
+    private static string AddressFor(AppSettings settings, WorkplaceSite site)
+        => site is WorkplaceSite.Remote ? settings.Pbx.RemoteAddress : settings.Pbx.OfficeAddress;
 
     /// <summary>
     /// Пароль настроек из Spark: непустой ставится, пустой снимает прежний.

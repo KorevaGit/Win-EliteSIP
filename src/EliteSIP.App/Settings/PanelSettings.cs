@@ -41,6 +41,7 @@ public sealed class PanelSettings : Observable
     private string? _protectedMachineKey;
     private int _appliedConfigRevision;
     private bool _machineKeyRegistered;
+    private Guid? _mainProfileId;
     private string _lastNumberNotice = string.Empty;
 
     /// <summary>
@@ -261,6 +262,16 @@ public sealed class PanelSettings : Observable
     {
         get => _lastNumberNotice;
         set => Set(ref _lastNumberNotice, value);
+    }
+
+    /// <summary>
+    /// Профиль основного номера сотрудника — тот, что был у машины всегда: на нём
+    /// её история звонков. Запоминается при первой конфигурации.
+    /// </summary>
+    public Guid? MainProfileId
+    {
+        get => _mainProfileId;
+        set => Set(ref _mainProfileId, value);
     }
 
     /// <summary>

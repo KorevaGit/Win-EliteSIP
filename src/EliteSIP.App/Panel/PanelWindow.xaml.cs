@@ -537,7 +537,65 @@ public partial class PanelWindow : Window
         // Данные меню берёт у кнопки: всплывающее живёт вне дерева окна, и
         // `DataContext` туда сам не доходит.
         menu.DataContext = DataContext;
+        FillProfiles(menu);
         menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Строки профилей в меню капсулы.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Профиль один — остаётся прежняя строка «номер · подпись» с галочкой
+    /// «на линии». Несколько (номера сотрудника из Spark) — каждый своей
+    /// строкой, активный с галочкой; щелчок по другому переключает и
+    /// перерегистрирует. Строки собираются заново при каждом открытии:
+    /// список меняется конфигурацией из Spark, пока меню закрыто.
+    /// </remarks>
+    private void FillProfiles(System.Windows.Controls.ContextMenu menu)
+    {
+        foreach (var stale in menu.Items.OfType<System.Windows.Controls.MenuItem>()
+                     .Where(item => Equals(item.Tag, "profile")).ToList())
+        {
+            menu.Items.Remove(stale);
+        }
+
+        var single = menu.Items.OfType<System.Windows.Controls.MenuItem>()
+            .FirstOrDefault(item => Equals(item.Tag, "single-profile"));
+
+        var choices = Model.ReadProfiles?.Invoke() ?? [];
+        var many = choices.Count > 1;
+
+        if (single is not null)
+        {
+            single.Visibility = many ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (!many)
+        {
+            return;
+        }
+
+        for (var i = 0; i < choices.Count; i++)
+        {
+            var choice = choices[i];
+            var item = new System.Windows.Controls.MenuItem
+            {
+                Header = choice.Title,
+                IsChecked = choice.IsActive,
+                Tag = "profile",
+            };
+
+            item.Click += (_, _) =>
+            {
+                if (!choice.IsActive)
+                {
+                    Model.SwitchProfile?.Invoke(choice.ProfileId);
+                }
+            };
+
+            menu.Items.Insert(i, item);
+        }
     }
 
     private void OnTransferClick(object sender, RoutedEventArgs e)

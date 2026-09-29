@@ -13,6 +13,7 @@
     <Project Path="src/EliteSIP.SipCore/EliteSIP.SipCore.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/EliteSIP.App.Tests/EliteSIP.App.Tests.csproj" />
     <Project Path="tests/EliteSIP.AdminAccess.Tests/EliteSIP.AdminAccess.Tests.csproj" />
     <Project Path="tests/EliteSIP.Audio.Tests/EliteSIP.Audio.Tests.csproj" />
     <Project Path="tests/EliteSIP.CallGuard.Tests/EliteSIP.CallGuard.Tests.csproj" />

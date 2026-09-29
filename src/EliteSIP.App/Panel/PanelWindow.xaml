@@ -131,7 +131,8 @@
                 лишняя и сейчас: она отвечает на вопрос «под кем я», а
                 галочка рядом с ней — на вопрос «на линии ли».
             -->
-            <MenuItem Header="{Binding ProfileMenuTitle}"
+            <MenuItem Tag="single-profile"
+                      Header="{Binding ProfileMenuTitle}"
                       IsChecked="{Binding IsOnline, Mode=OneWay}"
                       Command="{Binding GoOnline}" />
             <Separator />

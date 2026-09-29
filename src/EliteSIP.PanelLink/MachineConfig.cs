@@ -71,6 +71,46 @@ public sealed record MachineConfig
     /// <summary>Номер из списка <c>lines</c>.</summary>
     public sealed record Line(string ID, string Number, string SipPassword, string Label);
 
+    /// <summary>Идентификатор основного номера в <c>lines</c>.</summary>
+    public const string MainLineID = "main";
+
+    /// <summary>
+    /// Номера, которые должны стать профилями: список <c>lines</c>, а если его
+    /// нет — один основной номер с подписью сотрудника.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Так же, как <c>effectiveLines</c> на macOS: у сотрудника из Битрикса и у
+    /// ручного профиля с одним номером <c>lines</c> в конфигурации нет вовсе, и
+    /// машина не должна различать эти случаи дальше этой строки.
+    /// </remarks>
+    public IReadOnlyList<Line> EffectiveLines => Lines.Count > 0
+        ? Lines
+        : Number.Length > 0 ? [new Line(MainLineID, Number, SipPassword, Employee)] : [];
+
+    /// <summary>
+    /// Идентификатор профиля дополнительного номера — стабильный.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Тот же номер после любой правки в Spark обязан попасть в тот же профиль:
+    /// на нём держится история звонков. Как на macOS — UUID версии 5 из первых
+    /// 16 байт <c>SHA-256("elitesip.line:" + installation_id + ":" + id)</c>.
+    /// </remarks>
+    public static Guid LineProfileID(string installationID, string lineID)
+    {
+        ArgumentNullException.ThrowIfNull(installationID);
+        ArgumentNullException.ThrowIfNull(lineID);
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"elitesip.line:{installationID}:{lineID}"));
+        var bytes = hash.AsSpan(0, 16).ToArray();
+
+        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+
+        return new Guid(bytes, bigEndian: true);
+    }
+
     /// <summary>
     /// Проверяет подпись, сверяет машину и открывает конфигурацию.
     /// </summary>

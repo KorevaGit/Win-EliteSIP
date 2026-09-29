@@ -81,6 +81,52 @@ public sealed class MachineConfigTests
         Assert.Equal("line-17", config.Lines[1].ID);
     }
 
+    /// <summary>Перенос <c>testSingleNumberBecomesOneLine</c> из macOS.</summary>
+    [Fact]
+    public void Один_номер_становится_одной_линией_с_подписью_сотрудника()
+    {
+        var config = new MachineConfig
+        {
+            InstallationID = "a",
+            Revision = 1,
+            Employee = "Смирнов",
+            Number = "101",
+            SipPassword = "p",
+        };
+
+        Assert.Equal([new MachineConfig.Line("main", "101", "p", "Смирнов")], config.EffectiveLines);
+    }
+
+    [Fact]
+    public void Список_номеров_берётся_как_есть()
+    {
+        var config = new MachineConfig
+        {
+            InstallationID = "a",
+            Revision = 2,
+            Number = "101",
+            Lines = [new("main", "101", "p", "С"), new("line-7", "102", "q", "Линия 2")],
+        };
+
+        Assert.Equal(2, config.EffectiveLines.Count);
+        Assert.Equal("line-7", config.EffectiveLines[1].ID);
+    }
+
+    [Fact]
+    public void Профиль_дополнительного_номера_стабилен_и_различается_по_номеру()
+    {
+        var first = MachineConfig.LineProfileID("4def1c28841b17be078d88f914636d04", "line-17");
+
+        Assert.Equal(first, MachineConfig.LineProfileID("4def1c28841b17be078d88f914636d04", "line-17"));
+        Assert.NotEqual(first, MachineConfig.LineProfileID("4def1c28841b17be078d88f914636d04", "line-18"));
+        Assert.NotEqual(first, MachineConfig.LineProfileID("0000000000000000000000000000000a", "line-17"));
+
+        // UUID версии 5, вариант RFC 4122 — как у macOS.
+        var text = first.ToString();
+        Assert.Equal('5', text[14]);
+        Assert.Contains(text[19], "89ab");
+    }
+
     [Fact]
     public void Чужой_ключ_машины_конфигурацию_не_открывает()
     {

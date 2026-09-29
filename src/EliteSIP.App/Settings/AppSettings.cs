@@ -402,6 +402,19 @@ public sealed class AppSettings : Observable
     public SipCredentials Credentials { get; init; } = new();
 
     /// <summary>
+    /// Прочие профили — кроме активного, который живёт в <see cref="Account"/> и
+    /// <see cref="Credentials"/>.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Появились с 0.1.58 ради нескольких номеров сотрудника из Spark: каждый
+    /// номер — свой профиль, и переключаются между ними в меню панели. Активный
+    /// остаётся в прежних разделах намеренно: их читают телефон, история и
+    /// «Управление», и переключение подменяет содержимое, а не адрес.
+    /// </remarks>
+    public ObservableCollection<ProfileSetting> Profiles { get; init; } = [];
+
+    /// <summary>
     /// Ревизия файла настроек. <c>null</c> — файл записан до того, как
     /// ревизии появились.
     /// </summary>
@@ -520,6 +533,7 @@ public sealed class AppSettings : Observable
         Watch(Dtmf.Macros);
         Watch(Queues.Queues);
         Watch(PortKnock.Steps);
+        Watch(Profiles);
 
         foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel, PortKnock, Placement })
         {

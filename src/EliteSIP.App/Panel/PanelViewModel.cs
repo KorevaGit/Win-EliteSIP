@@ -294,6 +294,21 @@ public sealed class PanelViewModel : Observable
     /// </remarks>
     public ICommand GoOnline => _goOnline ??= new RelayCommand(_ => IsOfflineByChoice = false);
 
+    /// <summary>
+    /// Профили для меню капсулы. Один — меню показывает номер и галочку
+    /// «на линии»; несколько — каждый своей строкой, активный с галочкой.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Появились с несколькими номерами сотрудника в Spark: каждый номер —
+    /// свой профиль, и переключаются между ними здесь, как на macOS. Список
+    /// приложение собирает при открытии меню — он дешёвый и всегда свежий.
+    /// </remarks>
+    internal Func<IReadOnlyList<ProfileChoice>>? ReadProfiles { get; set; }
+
+    /// <summary>Сделать профиль активным. Ставит приложение: переключение перерегистрирует.</summary>
+    internal Action<Guid>? SwitchProfile { get; set; }
+
     /// <summary>Уйти с линии до конца сеанса.</summary>
     public ICommand GoOffline => _goOffline ??= new RelayCommand(_ => IsOfflineByChoice = true);
 
@@ -596,3 +611,6 @@ public abstract class Observable : INotifyPropertyChanged
     protected void NotifyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
+
+/// <summary>Строка меню профиля: номер с подписью и отметка активного.</summary>
+public sealed record ProfileChoice(Guid ProfileId, string Title, bool IsActive);

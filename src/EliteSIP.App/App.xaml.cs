@@ -370,6 +370,36 @@ public partial class App : Application, IDisposable
 
         _panel.StatusLabel = PhoneService.ProfileLabel(_settings);
 
+        // Профили для меню капсулы: активный и сохранённые — номера сотрудника
+        // из Spark. Подпись — как у капсулы: «номер · подпись».
+        _panel.ReadProfiles = () =>
+        {
+            static string Title(string number, string label) =>
+                label.Length > 0 && label != number ? $"{number} · {label}" : number;
+
+            var active = new ProfileChoice(
+                _settings.Account.ProfileId,
+                Title(_settings.Account.Username, _settings.Account.DisplayName),
+                IsActive: true);
+
+            return [active, .. _settings.Profiles.Select(profile =>
+                new ProfileChoice(profile.ProfileId, Title(profile.Username, profile.DisplayName), IsActive: false))];
+        };
+
+        // Переключение снимает регистрацию, поэтому в разговоре капсула не
+        // нажимается (`CanOpenProfileMenu`); здесь — перерегистрация на новом
+        // номере, и подпись капсулы обновится через `Account.PropertyChanged`.
+        _panel.SwitchProfile = profileId =>
+        {
+            if (_panel.IsInCall || !_settings.SwitchProfile(profileId))
+            {
+                return;
+            }
+
+            Log($"профиль переключён на {_settings.Account.Username}");
+            Reconnect("смена профиля");
+        };
+
         _settings.Account.PropertyChanged += (_, change) =>
         {
             if (change.PropertyName is not nameof(AccountSettings.Site))

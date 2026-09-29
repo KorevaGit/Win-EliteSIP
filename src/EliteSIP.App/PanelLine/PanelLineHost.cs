@@ -329,6 +329,17 @@ internal sealed class PanelLineHost : IDisposable
             _settings.Account.Domain = wanted;
         }
 
+        // И у неактивных профилей: иначе переключение на второй номер
+        // регистрировалось бы по прежнему адресу АТС.
+        foreach (var profile in _settings.Profiles)
+        {
+            var address = profile.Site is WorkplaceSite.Remote ? _settings.Pbx.RemoteAddress : _settings.Pbx.OfficeAddress;
+            if (address.Length > 0)
+            {
+                profile.Domain = address;
+            }
+        }
+
         _log(wasResync
             ? $"предустановка переприменена по просьбе машины: «{entry.Name}», ревизия {entry.Revision}"
             : $"предустановка применена: «{entry.Name}», ревизия {entry.Revision}");
