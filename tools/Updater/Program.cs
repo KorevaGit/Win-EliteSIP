@@ -56,7 +56,9 @@ if (args.Contains("--relaunch"))
     // установщик выйдет.
     WaitForSetupToExit(TimeSpan.FromMinutes(2));
 
-    if (UserSession.TryStartInActiveSession(exe, out var why))
+    // `--after-setup`: установщика мы уже дождались, и второй раз ждать его
+    // приложению незачем — это были лишние секунды перед панелью.
+    if (UserSession.TryStartInActiveSession(exe, out var why, "--after-setup"))
     {
         log.Write($"выпуск {InstalledVersion()} установлен, приложение поднято в сеансе оператора");
         TryDelete(Paths.RelaunchMarker);

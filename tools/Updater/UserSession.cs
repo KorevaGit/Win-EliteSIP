@@ -80,8 +80,11 @@ internal static class UserSession
         return false;
     }
 
-    internal static bool TryStartInActiveSession(string executable, out string reason)
+    internal static bool TryStartInActiveSession(string executable, out string reason, string? arguments = null)
     {
+        // Буфер, а не строка: CreateProcessW вправе писать в командную строку.
+        char[]? commandLine = arguments is null ? null : $"\"{executable}\" {arguments}\0".ToCharArray();
+
         var session = WTSGetActiveConsoleSessionId();
         if (session == NoActiveSession)
         {
@@ -138,7 +141,7 @@ internal static class UserSession
             var started = CreateProcessAsUser(
                 primary,
                 executable,
-                commandLine: null,
+                commandLine,
                 IntPtr.Zero,
                 IntPtr.Zero,
                 inheritHandles: false,
@@ -153,7 +156,7 @@ internal static class UserSession
                 started = CreateProcessAsUser(
                     primary,
                     executable,
-                    commandLine: null,
+                    commandLine,
                     IntPtr.Zero,
                     IntPtr.Zero,
                     inheritHandles: false,
@@ -262,7 +265,7 @@ internal static class UserSession
     private static extern bool CreateProcessAsUser(
         IntPtr token,
         string? applicationName,
-        string? commandLine,
+        [In, Out] char[]? commandLine,
         IntPtr processAttributes,
         IntPtr threadAttributes,
         [MarshalAs(UnmanagedType.Bool)] bool inheritHandles,

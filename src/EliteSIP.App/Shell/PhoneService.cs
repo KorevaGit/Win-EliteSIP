@@ -903,7 +903,15 @@ public sealed class PhoneService : IDisposable
                         break;
 
                     case SipUserAgentEvent.Log log:
-                        _log($"[{log.Level}] {log.Message}");
+                        // Отладочный уровень — только с трассой SIP. Без неё он
+                        // был девятью десятыми журнала: keep-alive каждые 25 с и
+                        // OPTIONS раз в минуту, круглые сутки, — а разбирать
+                        // звонок в этой толще было труднее, чем без неё.
+                        if (log.Level is not SipLogLevel.Debug || _settings.Maintenance.LogsSipTrace)
+                        {
+                            _log($"[{log.Level}] {log.Message}");
+                        }
+
                         break;
 
                     case SipUserAgentEvent.IncomingCall incoming:

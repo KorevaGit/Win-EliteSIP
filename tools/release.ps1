@@ -186,7 +186,8 @@ try {
         --self-contained true `
         --output $publish `
         --nologo `
-        -p:NuGetAudit=false
+        -p:NuGetAudit=false `
+        -p:PublishReadyToRun=true
     if ($LASTEXITCODE -ne 0) { Fail 'публикация не прошла' }
 
     # Обновляльщик — в тот же каталог: установщик кладёт их рядом, и задача
@@ -197,7 +198,8 @@ try {
         --self-contained true `
         --output $publish `
         --nologo `
-        -p:NuGetAudit=false
+        -p:NuGetAudit=false `
+        -p:PublishReadyToRun=true
     if ($LASTEXITCODE -ne 0) { Fail 'обновляльщик не опубликовался' }
 
     # Заводская настройка в публикацию не кладётся скриптом и не должна:

@@ -45,8 +45,12 @@ public partial class App : Application, IDisposable
     /// <summary>Повод переподключиться, отложенный до конца разговора.</summary>
     private string? _reconnectAfterCall;
 
+    /// <summary>Часы запуска: от входа в OnStartup — для строки «запуск» в журнале.</summary>
+    private readonly System.Diagnostics.Stopwatch _startup = new();
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        _startup.Restart();
         base.OnStartup(e);
 
         // Необработанное исключение в потоке интерфейса кладёт софтфон молча:
@@ -91,9 +95,18 @@ public partial class App : Application, IDisposable
         // файлы уже заменены, а установщик ещё жив. Его и дожидаемся молча, а
         // не уходим с окном «идёт обновление»: такое окно, висящее без ответа,
         // обновляльщик принимал за работающий софтфон и не поднимал настоящий.
+        // Ожидание и отказ ниже молчали, и после обновления 0.1.58 это стоило
+        // разбора вслепую: обновляльщик поднял софтфон в 08:24:10, а процесс,
+        // работавший дальше, появился в 08:24:55 — и ни строки о том, что было
+        // между. Настройки ещё не прочитаны, поэтому строка пишется напрямую.
         if (!e.Args.Contains("--after-setup"))
         {
+            var waited = System.Diagnostics.Stopwatch.StartNew();
             Shell.SetupInProgress.WaitForExit(TimeSpan.FromMinutes(2));
+            if (waited.ElapsedMilliseconds > 1000)
+            {
+                EarlyLog($"запуск ждал конца установки {waited.ElapsedMilliseconds} мс");
+            }
         }
 
         // Вторая копия только будит первую и выходит: две копии пишут один файл
@@ -101,6 +114,7 @@ public partial class App : Application, IDisposable
         _instance = SingleInstance.Claim();
         if (_instance is null)
         {
+            EarlyLog("запуск: софтфон уже работает — поднят его экран, этот экземпляр выходит");
             Shutdown();
             return;
         }
@@ -476,7 +490,25 @@ public partial class App : Application, IDisposable
         // Регистрация поднимается сама при запуске — как в оригинале
         // (автоподключение). Ждать нажатия оператора нельзя: софтфон, который
         // после включения машины молчит, пропускает первые звонки смены.
+        var beforeConnect = _startup.ElapsedMilliseconds;
         _ = _phone.ConnectAsync();
+        var afterConnect = _startup.ElapsedMilliseconds;
+
+        // Замер запуска — в журнал. Жалоба «долго открывается» без чисел не
+        // разбирается: на машине разработчика всё быстро, а тормозит у
+        // оператора на старом ПК, и сравнить нечем. Отдельно — время до
+        // `OnStartup` (загрузка рантайма и сборок, на свежеустановленных файлах
+        // сюда же ложится проверка антивирусом), отдельно — наша работа.
+        var sinceProcess = (int)(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+        Log($"запуск: панель готова через {sinceProcess} мс от старта процесса "
+            + $"(рантайм до OnStartup {sinceProcess - (int)_startup.ElapsedMilliseconds} мс, "
+            + $"наша подготовка {beforeConnect} мс, подъём регистрации {afterConnect - beforeConnect} мс)");
+
+        _panelWindow.ContentRendered += (_, _) =>
+        {
+            var painted = (int)(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+            Log($"запуск: панель на экране через {painted} мс от старта процесса");
+        };
 
         // Тот же ключ, что в оригинале: снимок окна настроек нужен для сверки
         // раскладки, а дотянуться до него скриптом иначе нечем — окно
@@ -841,12 +873,20 @@ public partial class App : Application, IDisposable
     {
         try
         {
-            var directory = System.IO.Path.GetDirectoryName(AppSettings.DefaultPath)!;
-            var log = System.IO.Path.Combine(directory, "elitesip.log");
-
-            var lines = System.IO.File.Exists(log)
-                ? System.IO.File.ReadAllLines(log)
-                : [];
+            // Все файлы журнала — ротированные и текущий, от старых к новым; и с
+            // общим доступом на запись: текущий держит открытым `LogFile`, и
+            // обычное чтение на нём падало бы.
+            _logFile?.Flush();
+            var lines = new List<string>();
+            foreach (var path in (_logFile?.Files() ?? []).Reverse())
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(stream);
+                while (reader.ReadLine() is { } line)
+                {
+                    lines.Add(line);
+                }
+            }
 
             var destination = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
@@ -1056,6 +1096,11 @@ public partial class App : Application, IDisposable
         _history?.Dispose();
         _history = null;
 
+        // Журнал держит файл открытым — закрыть до чистки, иначе он её
+        // переживёт.
+        _logFile?.Dispose();
+        _logFile = null;
+
         var failures = MachineReset.Wipe();
         if (failures.Count > 0)
         {
@@ -1189,6 +1234,7 @@ public partial class App : Application, IDisposable
     protected override void OnExit(ExitEventArgs e)
     {
         Dispose();
+        _logFile?.Dispose();
         base.OnExit(e);
     }
 
@@ -1196,18 +1242,16 @@ public partial class App : Application, IDisposable
     ///
     /// <remarks>
     /// Журнал технический и не переводится: его сравнивают между машинами и
-    /// прикладывают к обращению в поддержку. Полноценная ротация с маскированием
-    /// секретов лежит в `EliteSIP.Diagnostics` с W1 и подключается вместе с
-    /// разделом «Обслуживание»; пока сюда пишется то, без чего разбирать звонок
-    /// нечем.
+    /// прикладывают к обращению в поддержку. Пишет `EliteSIP.Diagnostics.LogFile`:
+    /// фоновая очередь, ротация, маскирование секретов.
     /// </remarks>
-    private void Log(string message)
+    /// <summary>
+    /// Строка журнала до чтения настроек — выход при запуске и ожидание
+    /// установщика. Пишется всегда: знать о них важнее, чем уважить
+    /// выключенный журнал, а случаются они редко.
+    /// </summary>
+    private static void EarlyLog(string message)
     {
-        if (_settings?.Maintenance.LogToFile is not true)
-        {
-            return;
-        }
-
         try
         {
             var directory = System.IO.Path.GetDirectoryName(AppSettings.DefaultPath)!;
@@ -1217,10 +1261,40 @@ public partial class App : Application, IDisposable
                 DateTimeOffset.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture)
                     + " " + message + Environment.NewLine);
         }
-        catch (System.IO.IOException)
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
         {
-            // Журнал не пишется — звонить это не мешает.
+            // Журнал не пишется — запуску это не мешает.
         }
+    }
+
+    private LogFile? _logFile;
+
+    private void Log(string message)
+    {
+        if (_settings?.Maintenance.LogToFile is not true)
+        {
+            return;
+        }
+
+        // Через очередь `LogFile`, а не открытием файла на каждую строку: до
+        // 0.1.59 каждая строка открывала, дописывала и закрывала файл прямо в
+        // потоке окна — на старом диске это заметные миллисекунды на каждый
+        // keep-alive, — а сам файл рос без предела (26 МБ за две недели на машине
+        // разработки). Теперь запись фоновая, файл ротируется по 4 МБ, хранятся
+        // пять последних не старше двух недель, пароли маскируются.
+        // Пишут несколько потоков (сигнализация, звук, окно) — заводится атомарно.
+        if (Volatile.Read(ref _logFile) is not { } log)
+        {
+            var fresh = new LogFile(new LogFile.Settings(
+                System.IO.Path.GetDirectoryName(AppSettings.DefaultPath)!));
+            log = Interlocked.CompareExchange(ref _logFile, fresh, null) ?? fresh;
+            if (!ReferenceEquals(log, fresh))
+            {
+                fresh.Dispose();
+            }
+        }
+
+        log.Write(message, "i");
     }
 
     /// <summary>Кладёт падение рядом с настройками — там же, где журнал.</summary>

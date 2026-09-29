@@ -443,6 +443,26 @@ internal static class MachineReset
             }
         }
 
+        // Ротированные файлы журнала: elitesip-<время>.log.
+        try
+        {
+            foreach (var rotated in Directory.GetFiles(directory, "elitesip-*.log"))
+            {
+                try
+                {
+                    File.Delete(rotated);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    failures.Add(Path.GetFileName(rotated));
+                }
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            failures.Add("elitesip-*.log");
+        }
+
         return failures;
     }
 }
