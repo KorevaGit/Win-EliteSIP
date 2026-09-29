@@ -76,6 +76,19 @@ public sealed record ManagedFields
     /// </summary>
     public string? Transport { get; init; }
 
+    /// <summary>
+    /// Режим автоподъёма: <c>off</c>, <c>always</c>, <c>header</c>, <c>list</c>.
+    /// Строкой по той же причине, что <see cref="Transport"/>: незнакомое
+    /// значение отбрасывает тот, кто накладывает поля.
+    /// </summary>
+    public string? AutoAnswer { get; init; }
+
+    /// <summary>
+    /// Номера для режима <c>list</c>. Приехал — заменяет список целиком;
+    /// явный <c>null</c> (так Go пишет пустой список) — список пуст.
+    /// </summary>
+    public IReadOnlyList<string>? AutoAnswerNumbers { get; init; }
+
     // MARK: - Блоки
     //
     // Приставка `Fields` у половины из них — вынужденная: в C# вложенный тип не
@@ -244,6 +257,8 @@ public sealed record ManagedFields
                 SiteAddresses = Block<SiteAddressesFields>(root, "siteAddresses"),
                 AcceptsAnyTLSCertificate = Flag(root, "acceptsAnyTLSCertificate"),
                 Transport = Text(root, "transport"),
+                AutoAnswer = Text(root, "autoAnswer"),
+                AutoAnswerNumbers = TextList(root, "autoAnswerNumbers"),
             };
         }
     }
@@ -320,6 +335,29 @@ public sealed record ManagedFields
             && value.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? value.GetBoolean()
             : null;
+
+    /// <summary>
+    /// Список строк верхнего уровня. Отсутствует — <c>null</c> («не трогать»);
+    /// явный <c>null</c> — пусто, по правилу клавиш. Не строки теряются молча.
+    /// </summary>
+    private static List<string>? TextList(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Null => [],
+            JsonValueKind.Array => value.EnumerateArray()
+                .Where(item => item.ValueKind is JsonValueKind.String)
+                .Select(item => item.GetString()!.Trim())
+                .Where(item => item.Length > 0)
+                .ToList(),
+            _ => null,
+        };
+    }
 
     private static string? Text(JsonElement root, string name)
         => root.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.String

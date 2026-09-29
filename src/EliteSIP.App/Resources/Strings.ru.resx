@@ -1159,4 +1159,29 @@
   <data name="FirstRunPairRetry" xml:space="preserve">
     <value>Нет связи со Spark ({0}). Повтор через {1} с.</value>
   </data>
+  <!-- Автоподъём (0.1.61). -->
+  <data name="AdminAutoAnswerTitle" xml:space="preserve">
+    <value>Автоподъём</value>
+  </data>
+  <data name="AdminAutoAnswerOff" xml:space="preserve">
+    <value>Выключен — вызов принимает оператор</value>
+  </data>
+  <data name="AdminAutoAnswerAlways" xml:space="preserve">
+    <value>Всегда</value>
+  </data>
+  <data name="AdminAutoAnswerHeader" xml:space="preserve">
+    <value>Когда просит АТС (X-Autoanswer, Call-Info answer-after, Alert-Info)</value>
+  </data>
+  <data name="AdminAutoAnswerList" xml:space="preserve">
+    <value>Для номеров из списка</value>
+  </data>
+  <data name="AdminAutoAnswerNumbers" xml:space="preserve">
+    <value>Номера</value>
+  </data>
+  <data name="AdminAutoAnswerNote" xml:space="preserve">
+    <value>Автоподъём снимает трубку сразу, без мелодии и окна входящего. Номера сравниваются по цифрам, длинные — по последним десяти. Поверх идущего разговора не срабатывает.</value>
+  </data>
+  <data name="AdminAutoAnswerAlwaysNote" xml:space="preserve">
+    <value>Трубка будет сниматься на любой входящий, даже если за рабочим местом никого нет.</value>
+  </data>
 </root>

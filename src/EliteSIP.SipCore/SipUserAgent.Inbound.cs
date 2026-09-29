@@ -100,6 +100,7 @@ public sealed partial class SipUserAgent
             CallerNumber = from?.Uri.User ?? string.Empty,
             CallerName = from?.DisplayName,
             RequestsAutoAnswer = RequestsAutoAnswer(request),
+            AsksForAutoAnswer = AsksForAutoAnswer(request),
             CalledNumber = request.To?.Uri.User ?? _account.Username,
             Offer = request.Body,
             OfferContentType = request.ContentType,
@@ -122,6 +123,61 @@ public sealed partial class SipUserAgent
     /// <c>X-Autoanswer: FALSE</c> — это явное «не надо», и толковать его как
     /// признак раздачи было бы прямо наоборот смыслу.
     /// </summary>
+    /// <summary>
+    /// Просит ли вызов автоответа любым из принятых способов — для режима
+    /// автоподъёма «по заголовку».
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Шире, чем <see cref="RequestsAutoAnswer"/>: тот — признак раздачи лида
+    /// на диалплане заказчика, и расширять его значило бы показывать раздачей
+    /// всякий интерком. Здесь — всё, чем АТС просят снять трубку:
+    /// <list type="bullet">
+    /// <item><c>X-Autoanswer: true</c> — диалплан заказчика;</item>
+    /// <item><c>Call-Info: …;answer-after=N</c> — Asterisk/FreePBX, Polycom;</item>
+    /// <item><c>Alert-Info</c> с <c>auto-answer</c>, <c>autoanswer</c> или
+    /// <c>Ring Answer</c> — Asterisk-интерком, Yealink, Snom;</item>
+    /// <item><c>Answer-Mode</c>/<c>Priv-Answer-Mode: Auto</c> — RFC 5373.</item>
+    /// </list>
+    /// </remarks>
+    internal static bool AsksForAutoAnswer(SipRequest request)
+    {
+        if (RequestsAutoAnswer(request))
+        {
+            return true;
+        }
+
+        foreach (var value in request.Headers.Values("Call-Info"))
+        {
+            if (value.Contains("answer-after", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        foreach (var value in request.Headers.Values("Alert-Info"))
+        {
+            var squeezed = value.Replace("-", string.Empty, StringComparison.Ordinal)
+                                .Replace(" ", string.Empty, StringComparison.Ordinal);
+            if (squeezed.Contains("autoanswer", StringComparison.OrdinalIgnoreCase)
+                || squeezed.Contains("ringanswer", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        foreach (var name in new[] { "Answer-Mode", "Priv-Answer-Mode" })
+        {
+            if (request.Headers.First(name) is { } mode
+                && mode.Trim().StartsWith("auto", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool RequestsAutoAnswer(SipRequest request)
     {
         if (request.Headers.First("X-Autoanswer") is not string value)

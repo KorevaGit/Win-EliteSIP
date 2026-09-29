@@ -66,6 +66,58 @@ public sealed class ShrinkBox : Decorator
         set => SetValue(BaseFontSizeProperty, value);
     }
 
+    /// <summary>
+    /// Растить ли кегль вместе с высотой, которую дали подписи, — до
+    /// <see cref="MaximumScale"/> от исходного.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Для клавиш панели: с 0.1.60 растянутое окно увеличивает только клавиши,
+    /// и подпись в 16 точек посреди клавиши высотой в сотню терялась.
+    /// </remarks>
+    public static readonly DependencyProperty GrowsWithHeightProperty = DependencyProperty.Register(
+        nameof(GrowsWithHeight),
+        typeof(bool),
+        typeof(ShrinkBox),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    /// <summary>До какой доли кегля разрешено расти.</summary>
+    public static readonly DependencyProperty MaximumScaleProperty = DependencyProperty.Register(
+        nameof(MaximumScale),
+        typeof(double),
+        typeof(ShrinkBox),
+        new FrameworkPropertyMetadata(1.75, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    /// <summary>
+    /// Высота подписи, когда разметка даёт бесконечную (окно по содержимому).
+    /// </summary>
+    public static readonly DependencyProperty FallbackHeightProperty = DependencyProperty.Register(
+        nameof(FallbackHeight),
+        typeof(double),
+        typeof(ShrinkBox),
+        new FrameworkPropertyMetadata(double.PositiveInfinity, FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    public bool GrowsWithHeight
+    {
+        get => (bool)GetValue(GrowsWithHeightProperty);
+        set => SetValue(GrowsWithHeightProperty, value);
+    }
+
+    public double MaximumScale
+    {
+        get => (double)GetValue(MaximumScaleProperty);
+        set => SetValue(MaximumScaleProperty, value);
+    }
+
+    public double FallbackHeight
+    {
+        get => (double)GetValue(FallbackHeightProperty);
+        set => SetValue(FallbackHeightProperty, value);
+    }
+
+    /// <summary>Доля высоты подписи, которую занимает кегль: две строки с полями.</summary>
+    private const double HeightToFont = 0.3;
+
     protected override Size MeasureOverride(Size constraint)
     {
         if (Child is not { } child)
@@ -73,7 +125,14 @@ public sealed class ShrinkBox : Decorator
             return default;
         }
 
-        var size = ScaledSize(child, constraint.Width);
+        var height = double.IsInfinity(constraint.Height) ? FallbackHeight : constraint.Height;
+        var start = BaseFontSize;
+        if (GrowsWithHeight && !double.IsInfinity(height))
+        {
+            start = Math.Clamp(height * HeightToFont, BaseFontSize, BaseFontSize * MaximumScale);
+        }
+
+        var size = ScaledSize(child, constraint.Width, start);
         child.SetValue(TextElement.FontSizeProperty, size);
         child.Measure(new Size(constraint.Width, double.PositiveInfinity));
 
@@ -82,8 +141,8 @@ public sealed class ShrinkBox : Decorator
         // промаха» без низа — 0.1.58 на живой машине). Ужимается ступенями до
         // того же предела: ниже честнее срезать, чем показать нечитаемое.
         var floor = BaseFontSize * MinimumScale;
-        while (!double.IsInfinity(constraint.Height)
-               && child.DesiredSize.Height > constraint.Height
+        while (!double.IsInfinity(height)
+               && child.DesiredSize.Height > height
                && size > floor)
         {
             size = Math.Max(floor, size * 0.92);
@@ -91,7 +150,7 @@ public sealed class ShrinkBox : Decorator
             child.Measure(new Size(constraint.Width, double.PositiveInfinity));
         }
 
-        child.Measure(constraint);
+        child.Measure(new Size(constraint.Width, Math.Min(constraint.Height, height)));
         return child.DesiredSize;
     }
 
@@ -108,14 +167,14 @@ public sealed class ShrinkBox : Decorator
     /// «Отдел продаж» ужимать не нужно вовсе, он переносится. Ужимать надо
     /// ровно то, что не переносится ни при какой ширине.
     /// </remarks>
-    private double ScaledSize(UIElement child, double available)
+    private double ScaledSize(UIElement child, double available, double start)
     {
         if (child is not TextBlock text
             || string.IsNullOrEmpty(text.Text)
             || double.IsInfinity(available)
             || available <= 0)
         {
-            return BaseFontSize;
+            return start;
         }
 
         var typeface = new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch);
@@ -129,7 +188,7 @@ public sealed class ShrinkBox : Decorator
                 CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight,
                 typeface,
-                BaseFontSize,
+                start,
                 Brushes.Black,
                 dpi);
 
@@ -138,9 +197,11 @@ public sealed class ShrinkBox : Decorator
 
         if (longest <= available || longest <= 0)
         {
-            return BaseFontSize;
+            return start;
         }
 
-        return BaseFontSize * Math.Max(available / longest, MinimumScale);
+        // Предел — от исходного кегля, а не от выросшего: выросшая подпись
+        // ужимается обратно хоть до исходного, но не ниже его доли.
+        return Math.Max(start * available / longest, BaseFontSize * MinimumScale);
     }
 }

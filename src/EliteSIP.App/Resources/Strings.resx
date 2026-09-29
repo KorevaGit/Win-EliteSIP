@@ -1181,4 +1181,29 @@
   <data name="FirstRunPairRetry" xml:space="preserve">
     <value>No connection to Spark ({0}). Retrying in {1} s.</value>
   </data>
+  <!-- Автоподъём (0.1.61). -->
+  <data name="AdminAutoAnswerTitle" xml:space="preserve">
+    <value>Auto answer</value>
+  </data>
+  <data name="AdminAutoAnswerOff" xml:space="preserve">
+    <value>Off — calls are answered by the operator</value>
+  </data>
+  <data name="AdminAutoAnswerAlways" xml:space="preserve">
+    <value>Always</value>
+  </data>
+  <data name="AdminAutoAnswerHeader" xml:space="preserve">
+    <value>When the PBX asks for it (X-Autoanswer, Call-Info answer-after, Alert-Info)</value>
+  </data>
+  <data name="AdminAutoAnswerList" xml:space="preserve">
+    <value>For numbers from the list</value>
+  </data>
+  <data name="AdminAutoAnswerNumbers" xml:space="preserve">
+    <value>Numbers</value>
+  </data>
+  <data name="AdminAutoAnswerNote" xml:space="preserve">
+    <value>An auto-answered call is picked up at once, without ringtone or incoming window. Numbers are compared by digits; long ones by the last ten. Not applied on top of an active call.</value>
+  </data>
+  <data name="AdminAutoAnswerAlwaysNote" xml:space="preserve">
+    <value>Every incoming call will be answered even if nobody is at the workplace.</value>
+  </data>
 </root>

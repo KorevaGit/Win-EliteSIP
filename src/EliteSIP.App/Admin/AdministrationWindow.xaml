@@ -443,6 +443,41 @@
               <theme:SettingsNote Text="{res:Loc AdminGuardWhyNote}" />
             </theme:SettingsSection>
 
+            <!-- Автоподъём (с 0.1.61, как на macOS). -->
+            <theme:SettingsSection Header="{res:Loc AdminAutoAnswerTitle}">
+              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
+                           Content="{res:Loc AdminAutoAnswerOff}"
+                           IsChecked="{Binding Guard.AutoAnswerOff}" />
+              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
+                           Content="{res:Loc AdminAutoAnswerAlways}"
+                           IsChecked="{Binding Guard.AutoAnswerAlways}" />
+              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
+                           Content="{res:Loc AdminAutoAnswerHeader}"
+                           IsChecked="{Binding Guard.AutoAnswerHeader}" />
+              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
+                           Content="{res:Loc AdminAutoAnswerList}"
+                           IsChecked="{Binding Guard.AutoAnswerList}" />
+
+              <theme:SettingsRow Header="{res:Loc AdminAutoAnswerNumbers}"
+                                 Margin="0,8,0,0"
+                                 Visibility="{Binding Guard.AutoAnswerList, Converter={StaticResource BoolToVisibility}}">
+                <Border CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,4"
+                        Background="{DynamicResource ControlBackgroundBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
+                           MinHeight="60"
+                           AcceptsReturn="True"
+                           TextWrapping="Wrap"
+                           VerticalContentAlignment="Top"
+                           Text="{Binding Guard.AutoAnswerNumbersText, UpdateSourceTrigger=LostFocus}" />
+                </Border>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AdminAutoAnswerNote}" />
+              <theme:SettingsNote Text="{res:Loc AdminAutoAnswerAlwaysNote}"
+                                  IsAlarming="True"
+                                  Visibility="{Binding Guard.AutoAnswerAlways, Converter={StaticResource BoolToVisibility}}" />
+            </theme:SettingsSection>
+
             <theme:SettingsSection Header="{res:Loc AdminGuardRandomTitle}"
                                    IsEnabled="{Binding Guard.IsEnabled}">
               <CheckBox Style="{StaticResource SettingsSwitchStyle}"

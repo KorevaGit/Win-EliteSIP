@@ -238,14 +238,27 @@ public partial class PanelWindow : Window
         if (message == WM_ENTERSIZEMOVE)
         {
             _isUserSizing = true;
+
+            // Раз окно тянут руками, его размер задаёт рука, а не содержимое.
+            // Пока `SizeToContent` оставался `Height`, любой перемер разметки
+            // посреди перетаскивания возвращал высоту к содержимому — окно
+            // «сбрасывалось» под мышью (0.1.60 на живой машине).
+            if (SizeToContent is not SizeToContent.Manual)
+            {
+                var (width, height) = (ActualWidth, ActualHeight);
+                SizeToContent = SizeToContent.Manual;
+                Width = width;
+                Height = height;
+            }
         }
 
         if (message == WM_EXITSIZEMOVE && WindowState is WindowState.Normal)
         {
             _isUserSizing = false;
+            UpdateMinimumHeight();
 
-            // Масштаб по ширине растит и высоту, и выросшее окно могло уйти
-            // за нижний край. Новый низ — тот, что получился в пределах экрана.
+            // Выросшее окно могло уйти за нижний край. Новый низ — тот, что
+            // получился в пределах экрана.
             KeepOnScreen();
 
             SavePlacement?.Invoke(Left, Top);
@@ -324,6 +337,13 @@ public partial class PanelWindow : Window
     private void UpdateMinimumHeight()
     {
         if (!IsLoaded && _baseFrameWidth <= 0)
+        {
+            return;
+        }
+
+        // Посреди перетаскивания не трогать: смена предела клавиш — это
+        // перемер всей панели на каждый шаг мыши. Пересчёт — по отпусканию.
+        if (_isUserSizing)
         {
             return;
         }

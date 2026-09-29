@@ -680,8 +680,8 @@
                   хвост здесь нельзя: «Бухгалтер» вместо «Бухгалтерии» читается
                   как другое слово, а не как обрезанное.
               -->
-              <theme:ShrinkBox BaseFontSize="16" Margin="4,0"
-                               MaxHeight="{Binding DataContext.MacroLabelMaxHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+              <theme:ShrinkBox BaseFontSize="16" Margin="4,0" GrowsWithHeight="True"
+                               FallbackHeight="{Binding DataContext.MacroLabelMaxHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                 <TextBlock Text="{Binding Title}"
                            FontWeight="Medium"
                            TextAlignment="Center"

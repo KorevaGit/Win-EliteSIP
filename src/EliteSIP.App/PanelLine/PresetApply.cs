@@ -47,6 +47,7 @@ internal static class PresetApply
         ApplyPortKnock(settings, fields.PortKnock);
         ApplyTlsTrust(settings, fields.AcceptsAnyTLSCertificate);
         ApplyTransport(settings, fields.Transport);
+        ApplyAutoAnswer(settings, fields.AutoAnswer, fields.AutoAnswerNumbers);
 
         // Признак «этим управляет сервер» выводится из режима машины, а не из
         // файла, и ставится здесь — в одном месте на все управляемые поля.
@@ -86,6 +87,8 @@ internal static class PresetApply
             || !string.Equals(settings.Pbx.RemoteAddress, other.Pbx.RemoteAddress, StringComparison.Ordinal)
             || settings.Pbx.AcceptsAnyTlsCertificate != other.Pbx.AcceptsAnyTlsCertificate
             || settings.Pbx.Transport != other.Pbx.Transport
+            || !string.Equals(settings.IncomingCall.AutoAnswer, other.IncomingCall.AutoAnswer, StringComparison.Ordinal)
+            || !settings.IncomingCall.AutoAnswerNumbers.SequenceEqual(other.IncomingCall.AutoAnswerNumbers, StringComparer.Ordinal)
             || DiffersInKnock(settings.PortKnock, other.PortKnock);
     }
 
@@ -337,6 +340,23 @@ internal static class PresetApply
         else if (string.Equals(incoming, "tls", StringComparison.OrdinalIgnoreCase))
         {
             settings.Pbx.Transport = SipTransport.Tls;
+        }
+    }
+
+    /// <summary>
+    /// Автоподъём: режим — только знакомый (незнакомый из более новой панели
+    /// не применяется, остаётся свой); список — целиком, как клавиши.
+    /// </summary>
+    private static void ApplyAutoAnswer(AppSettings settings, string? mode, IReadOnlyList<string>? numbers)
+    {
+        if (AutoAnswerModes.IsKnown(mode))
+        {
+            settings.IncomingCall.AutoAnswer = mode!;
+        }
+
+        if (numbers is not null)
+        {
+            settings.IncomingCall.AutoAnswerNumbers = [.. numbers];
         }
     }
 

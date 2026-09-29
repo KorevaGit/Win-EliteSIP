@@ -133,7 +133,7 @@ public sealed class LayoutTests
     [Fact]
     public void Растянутое_окно_увеличивает_только_клавиши() => WpfHost.Run(() =>
     {
-        (double Key, double Bottom, double Controls) Measure(double height)
+        (double Key, double Bottom, double Controls, double Font) Measure(double height)
         {
             var model = new PanelViewModel { MacroColumns = 2, MacroHeight = 44 };
             foreach (var title in Titles)
@@ -144,14 +144,18 @@ public sealed class LayoutTests
             var window = new PanelWindow(model);
             var root = (Grid)((Border)WpfHost.Layout(window, 300, height)).Child;
             var middle = root.Children.OfType<Grid>().Single(grid => Grid.GetRow(grid) == 2);
-            var key = Descendants(root).OfType<ShrinkBox>().Select(Ancestor<Button>).First();
-            return (key.ActualHeight, root.RowDefinitions[4].ActualHeight, middle.RowDefinitions[2].ActualHeight);
+            var box = Descendants(root).OfType<ShrinkBox>().First();
+            var key = Ancestor<Button>(box);
+            var text = (TextBlock)box.Child;
+            Assert.True(text.DesiredSize.Height <= key.ActualHeight, $"подпись {text.DesiredSize.Height:0} при клавише {key.ActualHeight:0}");
+            return (key.ActualHeight, root.RowDefinitions[4].ActualHeight, middle.RowDefinitions[2].ActualHeight, text.FontSize);
         }
 
         var natural = Measure(double.PositiveInfinity);
         var tall = Measure(1000);
 
         Assert.True(tall.Key > natural.Key + 20, $"клавиша {natural.Key:0} → {tall.Key:0}");
+        Assert.True(tall.Font > natural.Font + 4, $"кегль {natural.Font:0.#} → {tall.Font:0.#}");
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
         Assert.Equal(natural.Controls, tall.Controls, 0.5);
     });

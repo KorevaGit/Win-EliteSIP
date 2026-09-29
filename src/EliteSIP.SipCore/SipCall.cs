@@ -136,6 +136,19 @@ public sealed class SipIncomingCall
     public bool RequestsAutoAnswer { get; init; }
 
     /// <summary>
+    /// Просит ли вызов автоответа любым принятым способом: <c>X-Autoanswer</c>,
+    /// <c>Call-Info: answer-after</c>, <c>Alert-Info</c> с автоответом,
+    /// <c>Answer-Mode: Auto</c>.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Снимать трубку или нет, решает режим автоподъёма в настройках (с 0.1.61,
+    /// как на macOS). По умолчанию режим выключен, и тогда верно всё сказанное
+    /// у <see cref="RequestsAutoAnswer"/>: вызов принимает человек.
+    /// </remarks>
+    public bool AsksForAutoAnswer { get; init; }
+
+    /// <summary>
     /// Номер, на который звонили. Отличается от нашего, когда вызов пришёл через
     /// очередь или переадресацию.
     /// </summary>

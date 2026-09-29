@@ -35,6 +35,93 @@ public sealed class IncomingCallSettings : Observable
     private double _requiredCursorTravel = 40;
     private int _requiredCursorSamples = 3;
     private bool _rejectsSyntheticEvents;
+    private string _autoAnswer = AutoAnswerModes.Off;
+    private IReadOnlyList<string> _autoAnswerNumbers = [];
+
+    // MARK: - Автоподъём (с 0.1.61, как на macOS 0.1.53)
+
+    /// <summary>
+    /// Режим автоподъёма строкой, как в предустановке: <c>off</c>,
+    /// <c>always</c>, <c>header</c>, <c>list</c>.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Строкой, а не перечислением, ради одного правила: незнакомое значение
+    /// читается как «выключено». Перечисление с конвертером JSON на незнакомом
+    /// значении роняло бы чтение всего файла настроек.
+    /// </remarks>
+    public string AutoAnswer
+    {
+        get => _autoAnswer;
+        set
+        {
+            Set(ref _autoAnswer, AutoAnswerModes.Normalize(value));
+            foreach (var name in new[] { nameof(AutoAnswerOff), nameof(AutoAnswerAlways), nameof(AutoAnswerHeader), nameof(AutoAnswerList) })
+            {
+                NotifyChanged(name);
+            }
+        }
+    }
+
+    /// <summary>Номера для режима <c>list</c>.</summary>
+    public IReadOnlyList<string> AutoAnswerNumbers
+    {
+        get => _autoAnswerNumbers;
+        set
+        {
+            Set(ref _autoAnswerNumbers, value ?? []);
+            NotifyChanged(nameof(AutoAnswerNumbersText));
+        }
+    }
+
+    [JsonIgnore]
+    public bool AutoAnswerOff
+    {
+        get => _autoAnswer == AutoAnswerModes.Off;
+        set { if (value) { AutoAnswer = AutoAnswerModes.Off; } }
+    }
+
+    [JsonIgnore]
+    public bool AutoAnswerAlways
+    {
+        get => _autoAnswer == AutoAnswerModes.Always;
+        set { if (value) { AutoAnswer = AutoAnswerModes.Always; } }
+    }
+
+    [JsonIgnore]
+    public bool AutoAnswerHeader
+    {
+        get => _autoAnswer == AutoAnswerModes.Header;
+        set { if (value) { AutoAnswer = AutoAnswerModes.Header; } }
+    }
+
+    [JsonIgnore]
+    public bool AutoAnswerList
+    {
+        get => _autoAnswer == AutoAnswerModes.List;
+        set { if (value) { AutoAnswer = AutoAnswerModes.List; } }
+    }
+
+    /// <summary>Список номеров для поля ввода: по номеру в строке, запятые тоже годятся.</summary>
+    [JsonIgnore]
+    public string AutoAnswerNumbersText
+    {
+        get => string.Join(Environment.NewLine, _autoAnswerNumbers);
+        set => AutoAnswerNumbers = (value ?? string.Empty)
+            .Split(['\r', '\n', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Снимать ли трубку самому: режим, просьба в заголовках и номер звонящего.
+    /// </summary>
+    public bool ShouldAutoAnswer(bool asksForAutoAnswer, string callerNumber) => _autoAnswer switch
+    {
+        AutoAnswerModes.Always => true,
+        AutoAnswerModes.Header => asksForAutoAnswer,
+        AutoAnswerModes.List => _autoAnswerNumbers.Any(number => AutoAnswerModes.SameNumber(number, callerNumber)),
+        _ => false,
+    };
 
     public bool IsEnabled
     {
@@ -199,6 +286,8 @@ public sealed class IncomingCallSettings : Observable
         RequiredCursorTravel = other.RequiredCursorTravel;
         RequiredCursorSamples = other.RequiredCursorSamples;
         RejectsSyntheticEvents = other.RejectsSyntheticEvents;
+        AutoAnswer = other.AutoAnswer;
+        AutoAnswerNumbers = other.AutoAnswerNumbers;
     }
 
     /// <summary>То, что уходит в пакет.</summary>
@@ -217,4 +306,48 @@ public sealed class IncomingCallSettings : Observable
         RequiredCursorSamples = _requiredCursorSamples,
         RejectsSyntheticEvents = _rejectsSyntheticEvents,
     };
+}
+
+/// <summary>Режимы автоподъёма и сравнение номеров для режима «по списку».</summary>
+public static class AutoAnswerModes
+{
+    public const string Off = "off";
+    public const string Always = "always";
+    public const string Header = "header";
+    public const string List = "list";
+
+    /// <summary>Знакомый ли режим. Незнакомое из предустановки не применяется.</summary>
+    public static bool IsKnown(string? mode) => mode?.Trim().ToLowerInvariant() is Off or Always or Header or List;
+
+    /// <summary>Незнакомое — «выключено».</summary>
+    public static string Normalize(string? mode) => IsKnown(mode) ? mode!.Trim().ToLowerInvariant() : Off;
+
+    /// <summary>
+    /// Один ли это номер: по цифрам, у длинных — по последним десяти.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// «+7 (999) 123-45-67», «89991234567» и «9991234567» — один номер: у
+    /// длинных сравниваются последние десять цифр, и код страны с восьмёркой
+    /// не мешает. Короткие внутренние сравниваются целиком: «176» не совпадёт
+    /// с «1176».
+    /// </remarks>
+    public static bool SameNumber(string? listed, string? caller)
+    {
+        var a = Digits(listed);
+        var b = Digits(caller);
+        if (a.Length == 0 || b.Length == 0)
+        {
+            return false;
+        }
+
+        if (a.Length >= 10 && b.Length >= 10)
+        {
+            return a[^10..] == b[^10..];
+        }
+
+        return a == b;
+    }
+
+    private static string Digits(string? value) => new((value ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
 }
