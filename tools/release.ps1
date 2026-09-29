@@ -172,18 +172,19 @@ try {
 
     if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
 
-    # Самодостаточная публикация: рантайм едет внутри выпуска.
+    # Публикация, зависимая от рантайма: .NET Desktop Runtime 10 стоит на машине
+    # отдельно, в `C:\Program Files\dotnet`, который SRP разрешает.
     #
-    # Решено 10 сентября 2026. Машины заказчика заперты политикой SRP и готовятся
-    # по инструкции, которая уже согласована; зависимая от рантайма публикация
-    # потребовала бы дописать в неё установку .NET Desktop Runtime отдельным
-    # пунктом — и машина, где этот пункт пропустили, встречала бы оператора
-    # молча не запускающейся программой. Цена известна и принята: выпуск вместо
-    # пяти мегабайт весит под сотню, и столько же качает каждое обновление.
+    # С 10 по 29 сентября 2026 рантайм ехал внутри выпуска: 316 файлов и 173 МБ
+    # в каждом обновлении, и антивирус старой машины проверял их все при
+    # установке и первом запуске. Теперь около 50 файлов и 30 МБ. Довод
+    # прежнего решения — машина без рантайма молча не запустит программу —
+    # закрыт установщиком: он ставит рантайм сам, а не сумев, отказывается
+    # ставиться и оставляет прежнюю версию нетронутой (см. installer.iss).
     dotnet publish (Join-Path $root 'src\EliteSIP.App\EliteSIP.App.csproj') `
         --configuration Release `
         --runtime win-x64 `
-        --self-contained true `
+        --self-contained false `
         --output $publish `
         --nologo `
         -p:NuGetAudit=false `
@@ -195,7 +196,7 @@ try {
     dotnet publish (Join-Path $root 'tools\Updater\EliteSIP.Updater.csproj') `
         --configuration Release `
         --runtime win-x64 `
-        --self-contained true `
+        --self-contained false `
         --output $publish `
         --nologo `
         -p:NuGetAudit=false `

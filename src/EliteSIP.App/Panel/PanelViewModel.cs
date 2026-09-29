@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -160,6 +160,7 @@ public sealed class PanelViewModel : Observable
     private bool _canSendDtmf;
     private int _macroColumns = Theme.Metrics.MacroColumns;
     private double _macroHeight = Theme.Metrics.MacroMinHeight;
+    private double _macroHeightLimit = double.PositiveInfinity;
     private RelayCommand? _goOnline;
     private RelayCommand? _goOffline;
 
@@ -517,8 +518,44 @@ public sealed class PanelViewModel : Observable
     public double MacroHeight
     {
         get => _macroHeight;
-        set => Set(ref _macroHeight, value);
+        set
+        {
+            Set(ref _macroHeight, value);
+            NotifyChanged(nameof(EffectiveMacroHeight));
+            NotifyChanged(nameof(MacroLabelMaxHeight));
+        }
     }
+
+    /// <summary>Предел высоты клавиши, который ставит окно, когда сетка не влезает в экран.</summary>
+    ///
+    /// <remarks>
+    /// 0.1.58 на живой машине: двенадцать клавиш в два ряда при заданной
+    /// администратором высоте просили больше экрана — окно уходило верхом за
+    /// край, а подписи обрезались. Высота из настроек — пожелание, экран —
+    /// предел. Отдельным свойством, а не правкой <see cref="MacroHeight"/>:
+    /// на большем мониторе клавиши должны вернуться к заданной высоте.
+    /// </remarks>
+    public double MacroHeightLimit
+    {
+        get => _macroHeightLimit;
+        set
+        {
+            Set(ref _macroHeightLimit, value);
+            NotifyChanged(nameof(EffectiveMacroHeight));
+            NotifyChanged(nameof(MacroLabelMaxHeight));
+        }
+    }
+
+    public double EffectiveMacroHeight => Math.Min(_macroHeight, _macroHeightLimit);
+
+    /// <summary>Сколько высоты у подписи клавиши — по ней подпись ужимает кегль.</summary>
+    ///
+    /// <remarks>
+    /// Окно по высоте подстраивается под содержимое, и клавиша получает от
+    /// разметки бесконечную высоту: сама подпись не узнает, что вылезла. Предел
+    /// приходит отсюда — высота клавиши за вычетом полей, не больше двух строк.
+    /// </remarks>
+    public double MacroLabelMaxHeight => Math.Max(16, Math.Min(54, EffectiveMacroHeight - 8));
 
     // --- Неподвижный низ --------------------------------------------------
 

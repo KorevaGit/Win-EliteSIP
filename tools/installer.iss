@@ -105,6 +105,30 @@ UninstallDisplayIcon={app}\{#AppExe}
 [Languages]
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
+[InstallDelete]
+; Остатки встроенного рантайма от выпусков до 0.1.60.
+;
+; Не уборка ради порядка. Запускатель .NET, найдя `hostfxr.dll` рядом с exe,
+; считает программу самодостаточной и берёт рантайм оттуда, а не из
+; `Program Files\dotnet`, — со старыми библиотеками и конфигурацией, в которой
+; их больше нет, программа не стартует. Наши библиотеки кладутся заново
+; разделом [Files] ниже.
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.deps.json"
+Type: files; Name: "{app}\*.runtimeconfig.json"
+Type: filesandordirs; Name: "{app}\cs"
+Type: filesandordirs; Name: "{app}\de"
+Type: filesandordirs; Name: "{app}\es"
+Type: filesandordirs; Name: "{app}\fr"
+Type: filesandordirs; Name: "{app}\it"
+Type: filesandordirs; Name: "{app}\ja"
+Type: filesandordirs; Name: "{app}\ko"
+Type: filesandordirs; Name: "{app}\pl"
+Type: filesandordirs; Name: "{app}\pt-BR"
+Type: filesandordirs; Name: "{app}\tr"
+Type: filesandordirs; Name: "{app}\zh-Hans"
+Type: filesandordirs; Name: "{app}\zh-Hant"
+
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; \
     Excludes: "{#AppExe},{#UpdaterExe}"; \
@@ -332,10 +356,69 @@ begin
   Result := ExpandConstant('{app}\{#AppExe}.updating');
 end;
 
+{
+  .NET Desktop Runtime 10 — до всего остального.
+
+  С 0.1.60 рантайм не едет внутри выпуска (было 316 файлов и 173 МБ в каждом
+  обновлении). Ставится он в `Program Files\dotnet`, который SRP разрешает.
+
+  Проверка идёт первой, до переименования софтфона и снятия процессов: не
+  встал рантайм — установка отказывается, и на машине не тронуто ничего.
+  Иначе обновление от SYSTEM оставило бы новые файлы, которым не на чем
+  работать, — вместе с обновляльщиком, то есть навсегда.
+}
+function DesktopRuntimeInstalled(): Boolean;
+var
+  Found: TFindRec;
+begin
+  Result := FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\10.*'), Found);
+  if Result then
+    FindClose(Found);
+end;
+
+function InstallDesktopRuntime(): String;
+var
+  Installer: String;
+  ResultCode: Integer;
+begin
+  Result := '';
+  if DesktopRuntimeInstalled() then
+    Exit;
+
+  Log('.NET Desktop Runtime 10 не найден, ставится');
+  try
+    DownloadTemporaryFile('https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe',
+      'windowsdesktop-runtime-win-x64.exe', '', nil);
+  except
+    Result := 'Не удалось скачать .NET Desktop Runtime 10: ' + GetExceptionMessage();
+    Exit;
+  end;
+
+  Installer := ExpandConstant('{tmp}\windowsdesktop-runtime-win-x64.exe');
+  if not Exec(Installer, '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result := 'Не удалось запустить установщик .NET Desktop Runtime 10';
+    Exit;
+  end;
+
+  Log(Format('Установщик рантайма завершился с кодом %d', [ResultCode]));
+
+  { 3010 — поставлено, нужна перезагрузка: рантайму она не нужна, чтобы работать. }
+  if not DesktopRuntimeInstalled() then
+    Result := Format('.NET Desktop Runtime 10 не встал (код %d). Прежняя версия EliteSIP не тронута.', [ResultCode]);
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
+  Result := InstallDesktopRuntime();
+  if Result <> '' then
+  begin
+    Log(Result);
+    Exit;
+  end;
+
   AppMovedAside := False;
   if FileExists(AppPath()) then
   begin

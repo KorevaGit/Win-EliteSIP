@@ -1,4 +1,4 @@
-<Window x:Class="EliteSIP.App.Panel.PanelWindow"
+﻿<Window x:Class="EliteSIP.App.Panel.PanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
@@ -62,14 +62,12 @@
   <!--
       Панель тянется за край (11 сентября 2026).
 
-      Ширина масштабирует всё окно равномерно: содержимое раскладывается на
-      исходных 270 точках и увеличивается целиком, вместе с кеглем, — см.
-      `Zoom` в code-behind. Иначе растянутая панель давала бы длинные узкие
-      клавиши с мелкими подписями.
-
-      Высота, оставшаяся сверх нужной, раздаётся рядам со звёздочкой: макросам,
-      кнопкам управления и нижнему ряду «Позвонить / История». Поле набора и
-      строка состояния от высоты не растут — в них нечему расти.
+      С 0.1.60 растягивание увеличивает только горячие клавиши: окно тянут
+      ради них (29 сентября 2026, владелец). Масштаба всего окна больше нет —
+      он растил и поле номера, и «Позвонить», а клавишам доставалась та же
+      доля. Лишняя высота уходит сетке клавиш; без клавиш — кнопкам
+      управления, чтобы не оставалось пустоты. Выше экрана окно не бывает:
+      не влезает — клавиши ниже (см. `FitMacroHeight`).
   -->
   <Border x:Name="Frame">
   <Grid x:Name="Root" Margin="12">
@@ -86,10 +84,9 @@
       -->
       <RowDefinition Height="5*" />
       <RowDefinition Height="16" />
-      <!-- Неподвижный низ: звонок и история. Растёт вместе с окном, но
-           впятеро медленнее середины: крупнее всего должны становиться
-           макросы и кнопки управления. -->
-      <RowDefinition Height="*" MinHeight="46" />
+      <!-- Неподвижный низ: звонок и история. С 0.1.60 от окна не растёт —
+           лишняя высота вся уходит клавишам. -->
+      <RowDefinition Height="Auto" MinHeight="46" />
     </Grid.RowDefinitions>
 
     <!--
@@ -280,7 +277,24 @@
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
-        <RowDefinition Height="2*" MinHeight="70" />
+        <RowDefinition MinHeight="70">
+          <!-- Кнопки управления растут, только когда клавиш нет: окно
+               растягивают ради клавиш, и вся лишняя высота — им. -->
+          <RowDefinition.Style>
+            <Style TargetType="RowDefinition">
+              <Setter Property="Height" Value="*" />
+              <Style.Triggers>
+                <MultiDataTrigger>
+                  <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding HasMacros}" Value="True" />
+                    <Condition Binding="{Binding ShowsMacros}" Value="True" />
+                  </MultiDataTrigger.Conditions>
+                  <Setter Property="Height" Value="Auto" />
+                </MultiDataTrigger>
+              </Style.Triggers>
+            </Style>
+          </RowDefinition.Style>
+        </RowDefinition>
         <RowDefinition Height="Auto" />
         <RowDefinition>
           <!-- Макросы растут, только когда видны: пустой ряд со звёздочкой
@@ -649,7 +663,7 @@
           <DataTemplate DataType="{x:Type panel:MacroViewModel}">
             <Button Style="{StaticResource MacroKeyStyle}"
                     Margin="0,0,6,6"
-                    MinHeight="{Binding DataContext.MacroHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                    MinHeight="{Binding DataContext.EffectiveMacroHeight,RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     IsEnabled="{Binding DataContext.CanSendDtmf, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     Command="{Binding DataContext.SendMacro, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     CommandParameter="{Binding}">
@@ -666,7 +680,8 @@
                   хвост здесь нельзя: «Бухгалтер» вместо «Бухгалтерии» читается
                   как другое слово, а не как обрезанное.
               -->
-              <theme:ShrinkBox BaseFontSize="16" Margin="4,0" MaxHeight="54">
+              <theme:ShrinkBox BaseFontSize="16" Margin="4,0"
+                               MaxHeight="{Binding DataContext.MacroLabelMaxHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                 <TextBlock Text="{Binding Title}"
                            FontWeight="Medium"
                            TextAlignment="Center"

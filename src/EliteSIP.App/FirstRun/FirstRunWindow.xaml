@@ -10,7 +10,7 @@
         d:DataContext="{d:DesignInstance Type=firstrun:FirstRunViewModel}"
         Title="{res:Loc FirstRunTitle}"
         Width="460"
-        Height="500"
+        Height="440"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
@@ -25,11 +25,46 @@
       подряд, и кнопка, переезжающая между шагами, ловит четвёртый щелчок мимо.
       Тот же закон, по которому не двигается «Завершить» на панели.
 
-      Высота 500, а не прежние 420: на 420 шаг ручной настройки не помещался —
-      шесть строк, разделитель и две сноски, — и нижние поля просто срезались.
-      Заметить это по разметке нельзя: `Grid` молча отдаёт содержимому меньше
-      места, чем оно просит, и ничего не сообщает.
+      Высота 440 и шаги по центру. На 500 с шагами у верха (0.1.59) под
+      приветствием и оформлением стояла пустота в полокна. Самый высокий шаг —
+      ручная настройка: шесть строк, разделитель и две сноски; он начинается
+      у верха без отступа, и в 440 помещается. Если текст окажется длиннее
+      (другой язык, будущий шаг), появится прокрутка, а не срезанные поля —
+      `Grid` молча отдаёт содержимому меньше места и ничего не сообщает.
+      Проверяется тестом FirstRunLayoutTests.
   -->
+
+  <Window.Resources>
+    <!--
+        Строки мастера — подписью слева, а не сверху, как в «Управлении».
+        Сверху шесть полей занимали 360 точек и не влезали ни в 440, ни в
+        прежние 500: шаг ручной настройки уходил под прокрутку, и нижние поля
+        с паролем администратора оказывались за краем. Поле здесь короткое,
+        и места слева под подпись хватает.
+    -->
+    <Style TargetType="{x:Type theme:SettingsRow}">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type theme:SettingsRow}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="{TemplateBinding Header}"
+                         Margin="0,0,10,0"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource TextPrimaryBrush}" />
+              <ContentPresenter Grid.Column="1" />
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
 
   <Grid Margin="16">
     <Grid.RowDefinitions>
@@ -55,7 +90,7 @@
       <Grid MinHeight="{Binding ViewportHeight, ElementName=StepScroll}">
 
       <!-- 1. Приветствие и язык. -->
-      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
+      <StackPanel VerticalAlignment="Center"
                   Visibility="{Binding ShowsWelcome, Converter={StaticResource BoolToVisibility}}">
         <theme:Icon Glyph="phone.fill" Size="40" HorizontalAlignment="Center"
                     Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -100,7 +135,7 @@
           его сканируют с метра. «Далее» неактивно до привязки, уводит отсюда
           без неё только «Настроить вручную».
       -->
-      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
+      <StackPanel VerticalAlignment="Center"
                   Visibility="{Binding ShowsPair, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{res:Loc FirstRunPairTitle}"
                    FontSize="16"
@@ -199,7 +234,7 @@
       </StackPanel>
 
       <!-- 3. Первый пользователь. -->
-      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
+      <StackPanel VerticalAlignment="Top"
                   Visibility="{Binding ShowsUser, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{res:Loc FirstRunUserTitle}" FontSize="16" FontWeight="SemiBold" TextAlignment="Center" />
         <TextBlock Text="{res:Loc FirstRunUserSubtitle}"
@@ -275,7 +310,7 @@
       </StackPanel>
 
       <!-- 3. Оформление. -->
-      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
+      <StackPanel VerticalAlignment="Center"
                   Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{res:Loc SectionAppearance}" FontSize="16" FontWeight="SemiBold" TextAlignment="Center" />
         <TextBlock Text="{res:Loc FirstRunAppearanceSubtitle}"
@@ -299,7 +334,7 @@
       </StackPanel>
 
       <!-- 4. Готово. -->
-      <StackPanel VerticalAlignment="Top" Margin="0,20,0,0"
+      <StackPanel VerticalAlignment="Center"
                   Visibility="{Binding ShowsFinale, Converter={StaticResource BoolToVisibility}}">
         <theme:Icon Glyph="checkmark.circle" Size="40" HorizontalAlignment="Center"
                     Foreground="{DynamicResource StatusRegisteredBrush}" />

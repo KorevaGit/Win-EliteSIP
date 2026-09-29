@@ -66,8 +66,17 @@ public partial class PanelWindow : Window
     /// <summary>Идёт ли растягивание мышью прямо сейчас.</summary>
     private bool _isUserSizing;
 
-    /// <summary>Самый крупный масштаб: дальше клавиши становятся плакатом.</summary>
-    private const double MaximumZoom = 2.5;
+    /// <summary>Самый крупный масштаб.</summary>
+    ///
+    /// <remarks>
+    /// С 0.1.60 — единица: масштаба больше нет. Окно растягивают ради горячих
+    /// клавиш (29 сентября 2026, владелец), а масштаб растил всё сразу — поле
+    /// номера, кнопки управления, «Позвонить», — и на экране ноутбука клавиш
+    /// от этого не прибавлялось, зато окно уходило за край. Теперь лишняя
+    /// ширина и высота достаются только сетке клавиш. Механизм оставлен: он
+    /// же делает чёткой разметку при масштабе единица.
+    /// </remarks>
+    private const double MaximumZoom = 1.0;
 
     /// <summary>Высота содержимого без масштаба и растяжения.</summary>
     private double _baseContentHeight;
@@ -191,6 +200,11 @@ public partial class PanelWindow : Window
                 Dispatcher.BeginInvoke(UpdateMinimumHeight, DispatcherPriority.Loaded);
             }
         };
+
+        // Число клавиш меняет число рядов, а `HasMacros` при этом может и не
+        // измениться: предустановка на двенадцать клавиш вместо шести.
+        Model.Macros.CollectionChanged += (_, _) =>
+            Dispatcher.BeginInvoke(UpdateMinimumHeight, DispatcherPriority.Loaded);
 
         Restore();
 
@@ -320,22 +334,87 @@ public partial class PanelWindow : Window
         // в замер уже входит: у элемента с `LayoutTransform` желаемый размер
         // — размер после преобразования.
         var width = Frame.ActualWidth > 0 ? Frame.ActualWidth : _baseFrameWidth;
-        Root.Measure(new Size(width, double.PositiveInfinity));
-        var content = Root.DesiredSize.Height;
+
+        // Сначала — без предела: на большем мониторе клавиши возвращаются к
+        // высоте из настроек.
+        Model.MacroHeightLimit = double.PositiveInfinity;
+        var content = MeasureContent(width);
+
+        // Рамка и полоса заголовка — всё, что вне содержимого.
+        var chrome = ActualHeight - Frame.ActualHeight;
+        if (chrome <= 0 || double.IsNaN(chrome))
+        {
+            _baseContentHeight = content / Zoom.ScaleY;
+            Root.InvalidateMeasure();
+            return;
+        }
+
+        // Выше экрана окну быть нельзя. Не влезает — убавляется высота клавиш,
+        // а не срезается низ: «Позвонить» и «Завершить» обязаны оставаться на
+        // экране при любом числе клавиш (0.1.58: двенадцать клавиш в два ряда
+        // уводили окно верхом за край).
+        var room = WorkArea().Height - chrome;
+        var rows = MacroRows();
+        if (FitMacroHeight(content, room, rows, Zoom.ScaleY, Model.MacroHeight) is { } limit)
+        {
+            Model.MacroHeightLimit = limit;
+            content = MeasureContent(width);
+        }
+
         _baseContentHeight = content / Zoom.ScaleY;
 
         // Следующий проход разметки обязан перемерить по-настоящему, а не
         // взять замер на бесконечной высоте.
         Root.InvalidateMeasure();
 
-        // Рамка и полоса заголовка — всё, что вне содержимого.
-        var chrome = ActualHeight - Frame.ActualHeight;
-        if (chrome <= 0 || double.IsNaN(chrome))
+        MinHeight = Math.Ceiling(Math.Min(content, room) + chrome);
+        MaxHeight = Math.Max(MinHeight, room + chrome);
+    }
+
+    /// <summary>Ниже этого клавиша перестаёт быть мишенью для мыши.</summary>
+    internal const double MinimumMacroHeight = 30;
+
+    /// <summary>
+    /// Высота клавиши, при которой содержимое влезает в экран; <c>null</c> —
+    /// влезает и так.
+    /// </summary>
+    ///
+    /// <param name="content">Высота содержимого в точках экрана, с масштабом.</param>
+    /// <param name="room">Сколько высоты у содержимого на мониторе.</param>
+    /// <param name="rows">Рядов клавиш.</param>
+    /// <param name="zoom">Масштаб панели: клавиша задана в точках до него.</param>
+    /// <param name="macroHeight">Высота клавиши из настроек.</param>
+    internal static double? FitMacroHeight(double content, double room, int rows, double zoom, double macroHeight)
+    {
+        if (content <= room || rows <= 0 || zoom <= 0)
         {
-            return;
+            return null;
         }
 
-        MinHeight = Math.Ceiling(content + chrome);
+        var excess = (content - room) / zoom;
+        return Math.Max(MinimumMacroHeight, macroHeight - Math.Ceiling(excess / rows));
+    }
+
+    /// <summary>
+    /// Сколько содержимому нужно без растяжения — замер на бесконечной высоте
+    /// при нынешней ширине.
+    /// </summary>
+    private double MeasureContent(double width)
+    {
+        Root.Measure(new Size(width, double.PositiveInfinity));
+        return Root.DesiredSize.Height;
+    }
+
+    /// <summary>Рядов в видимой сетке клавиш; 0 — сетки не видно.</summary>
+    private int MacroRows()
+    {
+        if (!Model.HasMacros || !Model.ShowsMacros)
+        {
+            return 0;
+        }
+
+        var columns = Math.Max(1, Model.MacroColumns);
+        return (Model.Macros.Count + columns - 1) / columns;
     }
 
     protected override void OnClosed(EventArgs e)

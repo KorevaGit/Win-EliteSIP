@@ -73,7 +73,24 @@ public sealed class ShrinkBox : Decorator
             return default;
         }
 
-        child.SetValue(TextElement.FontSizeProperty, ScaledSize(child, constraint.Width));
+        var size = ScaledSize(child, constraint.Width);
+        child.SetValue(TextElement.FontSizeProperty, size);
+        child.Measure(new Size(constraint.Width, double.PositiveInfinity));
+
+        // По высоте — тоже. Клавиша, которой окно убавило высоту, чтобы сетка
+        // влезла в экран, срезала вторую строку подписи («Кнопка для
+        // промаха» без низа — 0.1.58 на живой машине). Ужимается ступенями до
+        // того же предела: ниже честнее срезать, чем показать нечитаемое.
+        var floor = BaseFontSize * MinimumScale;
+        while (!double.IsInfinity(constraint.Height)
+               && child.DesiredSize.Height > constraint.Height
+               && size > floor)
+        {
+            size = Math.Max(floor, size * 0.92);
+            child.SetValue(TextElement.FontSizeProperty, size);
+            child.Measure(new Size(constraint.Width, double.PositiveInfinity));
+        }
+
         child.Measure(constraint);
         return child.DesiredSize;
     }
