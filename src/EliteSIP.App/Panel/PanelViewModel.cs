@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -172,7 +172,11 @@ public sealed class PanelViewModel : Observable
             NotifyCallControls();
         };
 
-        Macros.CollectionChanged += (_, _) => NotifyChanged(nameof(HasMacros));
+        Macros.CollectionChanged += (_, _) =>
+        {
+            NotifyChanged(nameof(HasMacros));
+            NotifyChanged(nameof(MacroGridMinHeight));
+        };
     }
 
     // --- Строка состояния -------------------------------------------------
@@ -523,6 +527,7 @@ public sealed class PanelViewModel : Observable
             Set(ref _macroHeight, value);
             NotifyChanged(nameof(EffectiveMacroHeight));
             NotifyChanged(nameof(MacroLabelMaxHeight));
+            NotifyChanged(nameof(MacroGridMinHeight));
         }
     }
 
@@ -543,10 +548,26 @@ public sealed class PanelViewModel : Observable
             Set(ref _macroHeightLimit, value);
             NotifyChanged(nameof(EffectiveMacroHeight));
             NotifyChanged(nameof(MacroLabelMaxHeight));
+            NotifyChanged(nameof(MacroGridMinHeight));
         }
     }
 
     public double EffectiveMacroHeight => Math.Min(_macroHeight, _macroHeightLimit);
+
+    /// <summary>
+    /// Высота сетки клавиш без растяжения: ряды по высоте клавиши и промежутки
+    /// по 6. Нижний предел ряда сетки — растянутое окно отдаёт высоту кнопкам
+    /// управления первыми, и сетке нельзя получить меньше себя.
+    /// </summary>
+    public double MacroGridMinHeight
+    {
+        get
+        {
+            var columns = Math.Max(1, _macroColumns);
+            var rows = (Macros.Count + columns - 1) / columns;
+            return rows == 0 ? 0 : rows * (EffectiveMacroHeight + 6) - 6;
+        }
+    }
 
     /// <summary>Сколько высоты у подписи клавиши — по ней подпись ужимает кегль.</summary>
     ///

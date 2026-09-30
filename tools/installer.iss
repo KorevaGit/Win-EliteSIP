@@ -116,6 +116,12 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Type: files; Name: "{app}\*.dll"
 Type: files; Name: "{app}\*.deps.json"
 Type: files; Name: "{app}\*.runtimeconfig.json"
+; Ресурсы и служебный exe встроенного рантайма: живая машина после 0.1.60
+; держала 16 русских ресурсов WPF 10.0.x и createdump.exe — старше рантайма
+; из Program Files\dotnet. Своего каталога `ru` у выпуска нет.
+Type: files; Name: "{app}\createdump.exe"
+Type: files; Name: "{app}\is-*.tmp"
+Type: filesandordirs; Name: "{app}\ru"
 Type: filesandordirs; Name: "{app}\cs"
 Type: filesandordirs; Name: "{app}\de"
 Type: filesandordirs; Name: "{app}\es"

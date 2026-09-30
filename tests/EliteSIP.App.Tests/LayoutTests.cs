@@ -130,36 +130,76 @@ public sealed class LayoutTests
         }
     });
 
-    [Fact]
-    public void Растянутое_окно_увеличивает_только_клавиши() => WpfHost.Run(() =>
+    private static (double Key, double Bottom, double Controls, double Font) MeasurePanel(double height, bool withMacros)
     {
-        (double Key, double Bottom, double Controls, double Font) Measure(double height)
+        var model = new PanelViewModel { MacroColumns = 2, MacroHeight = 44 };
+        if (withMacros)
         {
-            var model = new PanelViewModel { MacroColumns = 2, MacroHeight = 44 };
             foreach (var title in Titles)
             {
                 model.Macros.Add(new MacroViewModel(title, "1"));
             }
-
-            var window = new PanelWindow(model);
-            var root = (Grid)((Border)WpfHost.Layout(window, 300, height)).Child;
-            var middle = root.Children.OfType<Grid>().Single(grid => Grid.GetRow(grid) == 2);
-            var box = Descendants(root).OfType<ShrinkBox>().First();
-            var key = Ancestor<Button>(box);
-            var text = (TextBlock)box.Child;
-            Assert.True(text.DesiredSize.Height <= key.ActualHeight, $"подпись {text.DesiredSize.Height:0} при клавише {key.ActualHeight:0}");
-            return (key.ActualHeight, root.RowDefinitions[4].ActualHeight, middle.RowDefinitions[2].ActualHeight, text.FontSize);
         }
 
-        var natural = Measure(double.PositiveInfinity);
-        var tall = Measure(1000);
+        var window = new PanelWindow(model);
+        var root = (Grid)((Border)WpfHost.Layout(window, 300, height)).Child;
+        var middle = root.Children.OfType<Grid>().Single(grid => Grid.GetRow(grid) == 2);
+        var controls = middle.RowDefinitions[2].ActualHeight;
+        var bottom = root.RowDefinitions[4].ActualHeight;
 
+        var box = Descendants(root).OfType<ShrinkBox>().FirstOrDefault(item => item.ActualHeight > 0);
+        if (box is null)
+        {
+            return (0, bottom, controls, 0);
+        }
+
+        var key = Ancestor<Button>(box);
+        var text = (TextBlock)box.Child;
+        Assert.True(text.DesiredSize.Height <= key.ActualHeight, $"подпись {text.DesiredSize.Height:0} при клавише {key.ActualHeight:0}");
+        Assert.True(key.ActualHeight >= 44 - 0.5, $"клавиша срезана до {key.ActualHeight:0}");
+        return (key.ActualHeight, bottom, controls, text.FontSize);
+    }
+
+    [Fact]
+    public void Растянутое_окно_с_клавишами_растит_управление_на_половину_остальное_клавишам() => WpfHost.Run(() =>
+    {
+        var natural = MeasurePanel(double.PositiveInfinity, withMacros: true);
+        var tall = MeasurePanel(1000, withMacros: true);
+
+        Assert.Equal(70, natural.Controls, 0.5);
+        Assert.Equal(105, tall.Controls, 0.5);
         Assert.True(tall.Key > natural.Key + 20, $"клавиша {natural.Key:0} → {tall.Key:0}");
         Assert.True(tall.Font > natural.Font + 4, $"кегль {natural.Font:0.#} → {tall.Font:0.#}");
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
-        Assert.Equal(natural.Controls, tall.Controls, 0.5);
     });
 
+    [Fact]
+    public void Окно_минимальной_высоты_не_срезает_клавиши() => WpfHost.Run(() =>
+    {
+        // Высота ровно по содержимому, но заданная числом — как у окна,
+        // которое растянули и сжали обратно до упора.
+        var model = new PanelViewModel { MacroColumns = 2, MacroHeight = 44 };
+        foreach (var title in Titles)
+        {
+            model.Macros.Add(new MacroViewModel(title, "1"));
+        }
+
+        var frame = (Border)WpfHost.Layout(new PanelWindow(model), 300, double.PositiveInfinity);
+        var natural = frame.DesiredSize.Height;
+
+        var tight = MeasurePanel(natural, withMacros: true);
+        Assert.Equal(70, tight.Controls, 0.5);
+    });
+
+    [Fact]
+    public void Без_клавиш_растягивание_целиком_уходит_кнопкам_управления() => WpfHost.Run(() =>
+    {
+        var natural = MeasurePanel(double.PositiveInfinity, withMacros: false);
+        var tall = MeasurePanel(700, withMacros: false);
+
+        Assert.True(tall.Controls > natural.Controls + 200, $"управление {natural.Controls:0} → {tall.Controls:0}");
+        Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
+    });
     private static readonly string[] Titles =
     [
         "Квартиры 8+", "Квартиры 8+ ТОП", "Квартиры 15 +", "Квартиры 15 + ТОП",

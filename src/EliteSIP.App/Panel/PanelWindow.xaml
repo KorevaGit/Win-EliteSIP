@@ -277,9 +277,18 @@
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <!--
+            Кто получает высоту растянутого окна (30 сентября 2026, владелец).
+
+            Клавиш нет — всю получают кнопки управления.
+
+            Клавиши есть — кнопки управления растут на половину своей высоты
+            (70 → 105), остальное уходит клавишам. Звёздочки с пределами, а не
+            расчёт в коде: у кнопок вес в сто раз больше, и они первыми
+            добирают до своего потолка; у сетки клавиш нижний предел — её
+            собственная высота, так что срезаться ей некуда.
+        -->
         <RowDefinition MinHeight="70">
-          <!-- Кнопки управления растут, только когда клавиш нет: окно
-               растягивают ради клавиш, и вся лишняя высота — им. -->
           <RowDefinition.Style>
             <Style TargetType="RowDefinition">
               <Setter Property="Height" Value="*" />
@@ -289,7 +298,8 @@
                     <Condition Binding="{Binding HasMacros}" Value="True" />
                     <Condition Binding="{Binding ShowsMacros}" Value="True" />
                   </MultiDataTrigger.Conditions>
-                  <Setter Property="Height" Value="Auto" />
+                  <Setter Property="Height" Value="100*" />
+                  <Setter Property="MaxHeight" Value="105" />
                 </MultiDataTrigger>
               </Style.Triggers>
             </Style>
@@ -308,7 +318,8 @@
                     <Condition Binding="{Binding HasMacros}" Value="True" />
                     <Condition Binding="{Binding ShowsMacros}" Value="True" />
                   </MultiDataTrigger.Conditions>
-                  <Setter Property="Height" Value="3*" />
+                  <Setter Property="Height" Value="*" />
+                  <Setter Property="MinHeight" Value="{Binding MacroGridMinHeight}" />
                 </MultiDataTrigger>
               </Style.Triggers>
             </Style>

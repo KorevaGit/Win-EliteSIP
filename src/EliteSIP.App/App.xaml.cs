@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
@@ -47,6 +47,25 @@ public partial class App : Application, IDisposable
 
     /// <summary>Часы запуска: от входа в OnStartup — для строки «запуск» в журнале.</summary>
     private readonly System.Diagnostics.Stopwatch _startup = new();
+
+    /// <summary>
+    /// Этапы запуска с длительностью каждого — в строку замера.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Сводной «нашей подготовки» мало: 0.1.61 показал 2,6–3,5 с на машине
+    /// разработчика, и понять, что из этого история, звук или окно, было не по
+    /// чему.
+    /// </remarks>
+    private readonly List<string> _marks = [];
+    private long _lastMark;
+
+    private void Mark(string stage)
+    {
+        var now = _startup.ElapsedMilliseconds;
+        _marks.Add($"{stage} {now - _lastMark}");
+        _lastMark = now;
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -120,6 +139,7 @@ public partial class App : Application, IDisposable
         }
 
         _instance.Watch(() => Dispatcher.Invoke(ShowPanel));
+        Mark("экземпляр");
 
         // Порядок важен: настройки читаются до языка, язык — до палитры, палитра
         // — до первого окна. Иначе панель успевает нарисоваться английской и
@@ -139,6 +159,7 @@ public partial class App : Application, IDisposable
         // полосой заголовка нужного тона, а не перекраситься на глазах.
         SystemCaption.Watch(() => _appearance!.IsDark);
         _appearance.Apply();
+        Mark("настройки и палитра");
 
         // Решение о мастере пишется в журнал до мастера, а не после.
         //
@@ -172,6 +193,7 @@ public partial class App : Application, IDisposable
             Path.Combine(
                 Path.GetDirectoryName(AppSettings.DefaultPath)!,
                 e.Args.Contains("--demo") ? "history-demo.db" : "history.db")));
+        Mark("история");
 
         _panel = new PanelViewModel
         {
@@ -187,6 +209,7 @@ public partial class App : Application, IDisposable
 
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
         _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
+        Mark("телефон");
 
         // Рингтон входящего. Настройка его обещала с самого начала, а играть
         // было нечем: звонок на Windows не звонил вовсе, и входящий выдавала
@@ -321,6 +344,7 @@ public partial class App : Application, IDisposable
         };
 
         _panelWindow.Show();
+        Mark("панель");
 
         // Значок в области уведомлений — второй вход к панели и единственный
         // выход из приложения при спрятанной панели.
@@ -335,6 +359,7 @@ public partial class App : Application, IDisposable
         // Прятать панель за значок можно только если значок встал: иначе
         // приложение окажется запущенным, невидимым и без выхода.
         _panelWindow.AllowsClosing = !_tray.IsAdded;
+        Mark("значок");
 
         // Линия панели (W10): предустановки раз в два часа, отзыв раз в
         // пятнадцать минут. Заводится после панели и телефона, потому что
@@ -358,6 +383,7 @@ public partial class App : Application, IDisposable
         };
 
         _panelLine.Start();
+        Mark("линия панели");
 
         // Линия обновлений (W12). Будильник у неё общий с предустановками: канал
         // один, и два независимых срока на нём разошлись бы через полгода.
@@ -374,6 +400,7 @@ public partial class App : Application, IDisposable
         };
 
         _updates.Start();
+        Mark("обновления");
 
         // Помеха ушла — доложить отложенное. Разговор кончился виден по той же
         // отметке, по которой линия его и ждала.
@@ -490,6 +517,7 @@ public partial class App : Application, IDisposable
         // Регистрация поднимается сама при запуске — как в оригинале
         // (автоподключение). Ждать нажатия оператора нельзя: софтфон, который
         // после включения машины молчит, пропускает первые звонки смены.
+        Mark("сеть");
         var beforeConnect = _startup.ElapsedMilliseconds;
         _ = _phone.ConnectAsync();
         var afterConnect = _startup.ElapsedMilliseconds;
@@ -502,7 +530,8 @@ public partial class App : Application, IDisposable
         var sinceProcess = (int)(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
         Log($"запуск: панель готова через {sinceProcess} мс от старта процесса "
             + $"(рантайм до OnStartup {sinceProcess - (int)_startup.ElapsedMilliseconds} мс, "
-            + $"наша подготовка {beforeConnect} мс, подъём регистрации {afterConnect - beforeConnect} мс)");
+            + $"наша подготовка {beforeConnect} мс, подъём регистрации {afterConnect - beforeConnect} мс; "
+            + $"этапы: {string.Join(", ", _marks)})");
 
         _panelWindow.ContentRendered += (_, _) =>
         {
@@ -977,6 +1006,7 @@ public partial class App : Application, IDisposable
         if (!_panelWindow.IsVisible)
         {
             _panelWindow.Show();
+        Mark("панель");
         }
 
         if (_panelWindow.WindowState is WindowState.Minimized)
@@ -1001,6 +1031,7 @@ public partial class App : Application, IDisposable
         }
 
         _panelWindow.Show();
+        Mark("панель");
 
         // Показанная из области уведомлений панель обязана оказаться сверху:
         // без этого она поднимается за тем окном, из которого её позвали, и
@@ -1030,13 +1061,15 @@ public partial class App : Application, IDisposable
         // оказывался позади: оператор видел его, только вернувшись на экран
         // звонка. Спрятанная панель сначала показывается — вопрос об
         // обновлении телефона задаётся из окна телефона.
-        if (_panelWindow is { IsVisible: false } or { WindowState: WindowState.Minimized })
-        {
-            ShowPanel();
-        }
-
-        var owner = Windows.OfType<Window>().FirstOrDefault(window => window.IsActive && window.IsVisible)
-            ?? _panelWindow;
+        //
+        // 30 сентября 2026: и владелец выбирался «активное окно, иначе панель».
+        // Нажали «Проверить» в настройках, пока шла закачка, фокус ушёл — и
+        // вопрос вешался на панель, лежащую под окном настроек: оператор его не
+        // видел, пока сам не возвращался на экран звонка. Теперь панель всегда
+        // выводится наверх — поверх настроек и «Управления», оба не модальные, —
+        // и вопрос задаётся из неё.
+        ShowPanel();
+        var owner = _panelWindow;
 
         var answer = Theme.Dialog.Ask(
             owner,
