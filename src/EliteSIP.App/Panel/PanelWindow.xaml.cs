@@ -725,7 +725,7 @@ public partial class PanelWindow : Window
             var choice = choices[i];
             var item = new System.Windows.Controls.MenuItem
             {
-                Header = choice.Title,
+                Header = Theme.Emoji.Block(choice.Title),
                 IsChecked = choice.IsActive,
                 Tag = "profile",
             };

@@ -196,7 +196,7 @@
               нет.
           -->
           <TextBlock Grid.Column="2"
-                     Text="{Binding StatusLabel}"
+                     theme:Emoji.Text="{Binding StatusLabel}"
                      Margin="4,0,0,0"
                      FontSize="12"
                      VerticalAlignment="Center"
@@ -251,7 +251,7 @@
               Style="{StaticResource ChromeButtonStyle}"
               Command="{Binding DismissNotice}"
               Visibility="{Binding ShowsNotice, Converter={StaticResource BoolToVisibility}}">
-        <TextBlock Text="{Binding Notice}"
+        <TextBlock theme:Emoji.Text="{Binding Notice}"
                    FontSize="12"
                    TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -389,7 +389,7 @@
                   ещё нет, и шапка оставалась пустой — панель показывала, что
                   идёт разговор, и не говорила с кем.
               -->
-              <TextBlock Text="{Binding CallTitle}"
+              <TextBlock theme:Emoji.Text="{Binding CallTitle}"
                          FontSize="18"
                          FontWeight="Medium"
                          TextTrimming="CharacterEllipsis"
@@ -471,7 +471,7 @@
                   </Ellipse>
 
                   <TextBlock Grid.Column="1"
-                             Text="{Binding Title}"
+                             theme:Emoji.Text="{Binding Title}"
                              Margin="6,0,4,0"
                              FontSize="13"
                              FontWeight="Medium"
@@ -693,7 +693,7 @@
               -->
               <theme:ShrinkBox BaseFontSize="16" Margin="4,0" GrowsWithHeight="True"
                                FallbackHeight="{Binding DataContext.MacroLabelMaxHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
-                <TextBlock Text="{Binding Title}"
+                <TextBlock theme:Emoji.Text="{Binding Title}"
                            FontWeight="Medium"
                            TextAlignment="Center"
                            TextWrapping="WrapWithOverflow" />

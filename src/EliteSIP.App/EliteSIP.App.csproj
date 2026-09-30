@@ -37,6 +37,14 @@
         меняет то, что оператор видит, что программа запускается.
     -->
     <SplashScreen Include="Assets\Splash.png" />
+
+    <!--
+        Смайлики Apple для подписей (0.1.66): один файл рядом с exe, 64×64,
+        zip без сжатия. Собран из набора apple-emoji-pack-160 (3944 картинки,
+        62 МБ) уменьшением до 64 точек — на экране они по 20, с запасом до
+        масштаба 200 %. Россыпью было бы 3944 файла на каждое обновление.
+    -->
+    <Content Include="Assets\emoji.pak" Link="emoji.pak" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

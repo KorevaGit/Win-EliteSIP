@@ -183,10 +183,19 @@ public sealed class ShrinkBox : Decorator
     /// «Отдел продаж» ужимать не нужно вовсе, он переносится. Ужимать надо
     /// ровно то, что не переносится ни при какой ширине.
     /// </remarks>
+    /// <summary>
+    /// Текст подписи без картинок: у блока со смайликами в <c>Text</c> пусто, и
+    /// подгонка по ширине видела бы подпись из одних пробелов.
+    /// </summary>
+    private static string PlainText(TextBlock text)
+        => text.Inlines.Count == 0
+            ? text.Text
+            : string.Concat(text.Inlines.OfType<System.Windows.Documents.Run>().Select(run => run.Text));
+
     private double ScaledSize(UIElement child, double available, double start)
     {
         if (child is not TextBlock text
-            || string.IsNullOrEmpty(text.Text)
+            || string.IsNullOrEmpty(PlainText(text))
             || double.IsInfinity(available)
             || available <= 0)
         {
@@ -197,7 +206,7 @@ public sealed class ShrinkBox : Decorator
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var longest = 0d;
 
-        foreach (var word in text.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        foreach (var word in PlainText(text).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
             var measured = new FormattedText(
                 word,

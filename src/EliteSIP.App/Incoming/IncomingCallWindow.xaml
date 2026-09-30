@@ -111,7 +111,7 @@
         не имеет права двигать высоту окна.
     -->
     <StackPanel Margin="0,8,0,0" HorizontalAlignment="Stretch">
-      <TextBlock Text="{Binding Headline}"
+      <TextBlock theme:Emoji.Text="{Binding Headline}"
                  HorizontalAlignment="Center"
                  TextAlignment="Center"
                  TextTrimming="CharacterEllipsis"
