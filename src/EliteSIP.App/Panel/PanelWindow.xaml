@@ -70,7 +70,7 @@
       не влезает — клавиши ниже (см. `FitMacroHeight`).
   -->
   <Border x:Name="Frame">
-  <Grid x:Name="Root" Margin="12">
+  <Grid x:Name="Root" Margin="8">
     <Grid.LayoutTransform>
       <ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1" />
     </Grid.LayoutTransform>
@@ -83,7 +83,7 @@
           поле перевода, число макросов, — живёт здесь.
       -->
       <RowDefinition Height="5*" />
-      <RowDefinition Height="16" />
+      <RowDefinition Height="10" />
       <!-- Неподвижный низ: звонок и история. С 0.1.60 от окна не растёт —
            лишняя высота вся уходит клавишам. -->
       <RowDefinition Height="Auto" MinHeight="46" />
@@ -283,12 +283,12 @@
             Клавиш нет — всю получают кнопки управления.
 
             Клавиши есть — кнопки управления растут на половину своей высоты
-            (70 → 105), остальное уходит клавишам. Звёздочки с пределами, а не
+            (68 → 102), остальное уходит клавишам. Звёздочки с пределами, а не
             расчёт в коде: у кнопок вес в сто раз больше, и они первыми
             добирают до своего потолка; у сетки клавиш нижний предел — её
             собственная высота, так что срезаться ей некуда.
         -->
-        <RowDefinition MinHeight="70">
+        <RowDefinition MinHeight="68">
           <RowDefinition.Style>
             <Style TargetType="RowDefinition">
               <Setter Property="Height" Value="*" />
@@ -299,7 +299,7 @@
                     <Condition Binding="{Binding ShowsMacros}" Value="True" />
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Height" Value="100*" />
-                  <Setter Property="MaxHeight" Value="105" />
+                  <Setter Property="MaxHeight" Value="102" />
                 </MultiDataTrigger>
               </Style.Triggers>
             </Style>
@@ -504,12 +504,12 @@
       <Grid Grid.Row="2">
         <Grid.RowDefinitions>
           <RowDefinition Height="*" MinHeight="32" />
-          <RowDefinition Height="6" />
+          <RowDefinition Height="4" />
           <RowDefinition Height="*" MinHeight="32" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="6" />
+          <ColumnDefinition Width="4" />
           <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -613,7 +613,7 @@
           Ряд управления → то, что под ним. Единственная граница между ними —
           воздух; когда снизу пусто, нет и его.
       -->
-      <Border Grid.Row="3" Height="16">
+      <Border Grid.Row="3" Height="10">
         <Border.Style>
           <Style TargetType="Border">
             <Setter Property="Visibility" Value="Collapsed" />
@@ -663,17 +663,17 @@
             <!--
                 Промежуток между клавишами задан полем справа и снизу у каждой,
                 а лишнее поле по краю снято отрицательным полем самой сетки. Так
-                ряды и колонки получают одинаковые 6 точек, а сетка не отступает
+                ряды и колонки получают одинаковые 4 точки, а сетка не отступает
                 от краёв панели.
             -->
-            <UniformGrid Columns="{Binding MacroColumns}" Margin="0,0,-6,-6" />
+            <UniformGrid Columns="{Binding MacroColumns}" Margin="0,0,-4,-4" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
 
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="{x:Type panel:MacroViewModel}">
             <Button Style="{StaticResource MacroKeyStyle}"
-                    Margin="0,0,6,6"
+                    Margin="0,0,4,4"
                     MinHeight="{Binding DataContext.EffectiveMacroHeight,RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     IsEnabled="{Binding DataContext.CanSendDtmf, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     Command="{Binding DataContext.SendMacro, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -721,10 +721,10 @@
                    IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}" />
         </Border>
 
-        <Grid Margin="0,6,0,0">
+        <Grid Margin="0,4,0,0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="4" />
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
 
@@ -757,7 +757,7 @@
     <Grid Grid.Row="4">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="6" />
+        <ColumnDefinition Width="4" />
         <ColumnDefinition Width="64" />
       </Grid.ColumnDefinitions>
 

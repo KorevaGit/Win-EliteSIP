@@ -565,7 +565,7 @@ public sealed class PanelViewModel : Observable
         {
             var columns = Math.Max(1, _macroColumns);
             var rows = (Macros.Count + columns - 1) / columns;
-            return rows == 0 ? 0 : rows * (EffectiveMacroHeight + 6) - 6;
+            return rows == 0 ? 0 : rows * (EffectiveMacroHeight + 4) - 4;
         }
     }
 

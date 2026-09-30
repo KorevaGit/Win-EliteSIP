@@ -560,7 +560,38 @@ public partial class PanelWindow : Window
             return;
         }
 
+        // Низ держится только за содержимым — поле перевода, вторая линия.
+        // Высоту ручного окна меняет не содержимое, а Windows: восстановление
+        // после «Развернуть», двойной щелчок по верхней или нижней грани
+        // (растянуть на всю высоту экрана). Удержание низа в этих случаях
+        // сдвигало окно на разницу высот — за верх экрана, и с каждым
+        // «Развернуть — Восстановить» всё дальше (0.1.63 на живой машине).
+        if (SizeToContent is SizeToContent.Manual)
+        {
+            _bottomEdge = Top + sizeInfo.NewSize.Height;
+            return;
+        }
+
         Top = _bottomEdge - sizeInfo.NewSize.Height;
+        KeepOnScreen();
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+
+        // Вернулись из развёрнутого или свёрнутого — положение задала система,
+        // и держать надо новый низ, а не тот, что был до разворота. Позже, а не
+        // сразу: размер и место восстановленного окна приходят следующими
+        // сообщениями.
+        if (WindowState is WindowState.Normal)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                KeepOnScreen();
+                _bottomEdge = Top + ActualHeight;
+            }, DispatcherPriority.Loaded);
+        }
     }
 
     protected override void OnLocationChanged(EventArgs e)

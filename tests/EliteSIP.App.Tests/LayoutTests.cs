@@ -166,8 +166,8 @@ public sealed class LayoutTests
         var natural = MeasurePanel(double.PositiveInfinity, withMacros: true);
         var tall = MeasurePanel(1000, withMacros: true);
 
-        Assert.Equal(70, natural.Controls, 0.5);
-        Assert.Equal(105, tall.Controls, 0.5);
+        Assert.Equal(68, natural.Controls, 0.5);
+        Assert.Equal(102, tall.Controls, 0.5);
         Assert.True(tall.Key > natural.Key + 20, $"клавиша {natural.Key:0} → {tall.Key:0}");
         Assert.True(tall.Font > natural.Font + 4, $"кегль {natural.Font:0.#} → {tall.Font:0.#}");
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
@@ -188,7 +188,7 @@ public sealed class LayoutTests
         var natural = frame.DesiredSize.Height;
 
         var tight = MeasurePanel(natural, withMacros: true);
-        Assert.Equal(70, tight.Controls, 0.5);
+        Assert.Equal(68, tight.Controls, 0.5);
     });
 
     [Fact]

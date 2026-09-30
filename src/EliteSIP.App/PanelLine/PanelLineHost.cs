@@ -89,7 +89,11 @@ internal sealed class PanelLineHost : IDisposable
         // обновлениями (`UpdateService`): канал один, и два независимых срока
         // на нём разошлись бы через полгода.
         _machineTimer = new DispatcherTimer { Interval = MachineService.RevocationInterval };
-        _machineTimer.Tick += async (_, _) => await CheckMachineAsync().ConfigureAwait(true);
+        _machineTimer.Tick += async (_, _) =>
+        {
+            _log($"такт конфигурации и отзыва; следующий через {MachineService.RevocationInterval.TotalMinutes:0} мин");
+            await CheckMachineAsync().ConfigureAwait(true);
+        };
     }
 
     internal Action<bool, string?>? Report

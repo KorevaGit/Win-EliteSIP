@@ -344,6 +344,10 @@ internal sealed class UpdateService : IDisposable
     {
         Reschedule();
 
+        // Строка на каждый такт, даже пустой: иначе проверить по журналу, что
+        // такт вообще идёт и с каким шагом, было не по чему.
+        _log($"такт обновлений и предустановок; следующий через {_cycle.Interval.TotalMinutes:0} мин");
+
         await CheckAsync(userInitiated: false).ConfigureAwait(true);
 
         // Предустановки — тем же тактом и после обновлений: если сейчас
