@@ -71,6 +71,30 @@ public sealed record MachineConfig
     /// <summary>Номер из списка <c>lines</c>.</summary>
     public sealed record Line(string ID, string Number, string SipPassword, string Label);
 
+    /// <summary>
+    /// Отпечаток содержимого: всё, что применяется, без ревизии и времени выпуска.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Нужен клиенту, чтобы заметить правку, вышедшую с той же ревизией: Spark
+    /// ограничивает смену номера, и правка без подъёма ревизии иначе не
+    /// доезжала бы никогда. Пароли входят хэшем в хэш и наружу не выходят.
+    /// </remarks>
+    public string Fingerprint()
+    {
+        var text = new System.Text.StringBuilder()
+            .Append(Employee).Append('\n').Append(Number).Append('\n').Append(SipPassword).Append('\n')
+            .Append(WorkFormat).Append('\n').Append(PresetID).Append('\n').Append(PresetName).Append('\n')
+            .Append(AdminPassword).Append('\n');
+        foreach (var line in Lines)
+        {
+            text.Append(line.ID).Append('\t').Append(line.Number).Append('\t')
+                .Append(line.SipPassword).Append('\t').Append(line.Label).Append('\n');
+        }
+
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString())));
+    }
+
     /// <summary>Идентификатор основного номера в <c>lines</c>.</summary>
     public const string MainLineID = "main";
 

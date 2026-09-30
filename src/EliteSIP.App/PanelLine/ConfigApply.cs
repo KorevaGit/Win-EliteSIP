@@ -81,6 +81,7 @@ internal static class ConfigApply
 
         settings.Panel.Mode = PanelMode.Managed;
         settings.Panel.AppliedConfigRevision = config.Revision;
+        settings.Panel.AppliedConfigFingerprint = config.Fingerprint();
         settings.Panel.LastContactAt = DateTimeOffset.UtcNow;
 
         if (newNumber is not null)

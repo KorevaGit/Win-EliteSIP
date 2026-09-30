@@ -554,3 +554,7 @@ public sealed class AppSettings : Observable
         }
     }
 }
+
+/// <summary>Сериализатор настроек, собранный при компиляции. См. <c>AppSettings.Format</c>.</summary>
+[JsonSerializable(typeof(AppSettings))]
+internal sealed partial class AppSettingsJson : JsonSerializerContext;

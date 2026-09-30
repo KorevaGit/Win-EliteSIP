@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\EliteSIP.SipCore\EliteSIP.SipCore.csproj" />
@@ -28,6 +28,15 @@
         значок собран, и из них же его пересоберут, когда рисунок сменится.
     -->
     <None Include="Assets\AppIcon\*.png" />
+
+    <!--
+        Заставка при запуске (0.1.65). Показывает её сама Windows, ещё до
+        загрузки WPF, — через доли секунды после щелчка по ярлыку, а не через
+        две с половиной, когда поднимется панель. Закрывается сама, как только
+        приложение начнёт отвечать. Время до готовой панели она не меняет —
+        меняет то, что оператор видит, что программа запускается.
+    -->
+    <SplashScreen Include="Assets\Splash.png" />
   </ItemGroup>
 
   <PropertyGroup>

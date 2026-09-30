@@ -200,6 +200,32 @@ public sealed class LayoutTests
         Assert.True(tall.Controls > natural.Controls + 200, $"управление {natural.Controls:0} → {tall.Controls:0}");
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
     });
+    [Fact]
+    public void Пробный_замер_окна_не_сбрасывает_выросший_кегль() => WpfHost.Run(() =>
+    {
+        // Окно после растягивания мерит содержимое на бесконечной высоте, чтобы
+        // узнать свой нижний предел. В 0.1.64 этот замер возвращал подписям
+        // исходный кегль: они росли под мышью и съёживались по отпусканию.
+        var model = new PanelViewModel { MacroColumns = 2, MacroHeight = 44 };
+        foreach (var title in Titles)
+        {
+            model.Macros.Add(new MacroViewModel(title, "1"));
+        }
+
+        var frame = (Border)WpfHost.Layout(new PanelWindow(model), 300, 1000);
+        var text = (TextBlock)Descendants(frame).OfType<ShrinkBox>().First(box => box.ActualHeight > 0).Child;
+        var grown = text.FontSize;
+
+        frame.Measure(new Size(300, double.PositiveInfinity));
+        frame.InvalidateMeasure();
+        frame.Measure(new Size(300, 1000));
+        frame.Arrange(new Rect(0, 0, 300, 1000));
+        frame.UpdateLayout();
+
+        Assert.True(grown > 20, $"кегль не вырос: {grown:0.#}");
+        Assert.Equal(grown, text.FontSize, 0.5);
+    });
+
     private static readonly string[] Titles =
     [
         "Квартиры 8+", "Квартиры 8+ ТОП", "Квартиры 15 +", "Квартиры 15 + ТОП",

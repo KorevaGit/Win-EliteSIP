@@ -91,8 +91,15 @@ internal sealed class PanelLineHost : IDisposable
         _machineTimer = new DispatcherTimer { Interval = MachineService.RevocationInterval };
         _machineTimer.Tick += async (_, _) =>
         {
-            _log($"такт конфигурации и отзыва; следующий через {MachineService.RevocationInterval.TotalMinutes:0} мин");
+            _log($"такт конфигурации, предустановки и отзыва; следующий через {MachineService.RevocationInterval.TotalMinutes:0} мин");
             await CheckMachineAsync().ConfigureAwait(true);
+
+            // Предустановка — тем же тактом. Клавиши, адреса и автоподъём живут
+            // в ней, а не в конфигурации машины, и с двухчасовым тактом правка в
+            // Spark доезжала до двух часов: 30 сентября 2026 убранная кнопка
+            // осталась на панели после такта конфигурации. Запрос дешёвый —
+            // файл не меняется, и ответ приходит тем же, что уже применён.
+            await _presets.CheckAsync().ConfigureAwait(true);
         };
     }
 
@@ -271,10 +278,29 @@ internal sealed class PanelLineHost : IDisposable
             return;
         }
 
-        if (config.Revision <= panel.AppliedConfigRevision)
+        // Старше применённой — никогда: это откат. Та же ревизия — только если
+        // поменялось содержимое: Spark ограничивает смену номера, и правка,
+        // вышедшая без подъёма ревизии, иначе не доезжала бы вовсе. У файла,
+        // записанного до 0.1.65, отпечатка нет — запоминаем, не применяя.
+        var fingerprint = config.Fingerprint();
+        var sameRevisionEdited = config.Revision == panel.AppliedConfigRevision
+            && panel.AppliedConfigFingerprint.Length > 0
+            && panel.AppliedConfigFingerprint != fingerprint;
+
+        if (config.Revision <= panel.AppliedConfigRevision && !sameRevisionEdited)
         {
+            if (config.Revision == panel.AppliedConfigRevision && panel.AppliedConfigFingerprint.Length == 0)
+            {
+                panel.AppliedConfigFingerprint = fingerprint;
+            }
+
             panel.LastContactAt = DateTimeOffset.UtcNow;
             return;
+        }
+
+        if (sameRevisionEdited)
+        {
+            _log($"конфигурация {config.Revision}: содержимое сменилось без подъёма ревизии — применяется");
         }
 
         if (_isBlocked())

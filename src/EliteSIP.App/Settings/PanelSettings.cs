@@ -40,6 +40,7 @@ public sealed class PanelSettings : Observable
     private bool _wantsResync;
     private string? _protectedMachineKey;
     private int _appliedConfigRevision;
+    private string _appliedConfigFingerprint = string.Empty;
     private bool _machineKeyRegistered;
     private Guid? _mainProfileId;
     private string _lastNumberNotice = string.Empty;
@@ -252,6 +253,16 @@ public sealed class PanelSettings : Observable
     {
         get => _appliedConfigRevision;
         set => Set(ref _appliedConfigRevision, value);
+    }
+
+    /// <summary>
+    /// Отпечаток применённой конфигурации — чтобы заметить правку, вышедшую с
+    /// той же ревизией. Пусто — записан до 0.1.65.
+    /// </summary>
+    public string AppliedConfigFingerprint
+    {
+        get => _appliedConfigFingerprint;
+        set => Set(ref _appliedConfigFingerprint, value ?? string.Empty);
     }
 
     /// <summary>

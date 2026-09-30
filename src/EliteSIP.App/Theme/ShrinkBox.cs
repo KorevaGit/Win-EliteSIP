@@ -115,6 +115,9 @@ public sealed class ShrinkBox : Decorator
         set => SetValue(FallbackHeightProperty, value);
     }
 
+    /// <summary>Подобран ли кегль хоть раз — до этого пробный замер обязан его подобрать.</summary>
+    private bool _sized;
+
     /// <summary>Доля высоты подписи, которую занимает кегль: две строки с полями.</summary>
     private const double HeightToFont = 0.3;
 
@@ -125,6 +128,19 @@ public sealed class ShrinkBox : Decorator
             return default;
         }
 
+        // Замер на бесконечной высоте — пробный: окно так узнаёт, сколько
+        // места нужно содержимому без растяжения. Кегль при нём не трогается.
+        // Прежде пробный замер после каждого растягивания сбрасывал выросший
+        // кегль к исходному, и подписи на глазах росли, а потом съёживались
+        // (0.1.64 на живой машине). Размер он сообщает не больше запасной
+        // высоты: иначе крупный кегль раздул бы нижний предел окна.
+        if (GrowsWithHeight && double.IsInfinity(constraint.Height) && _sized)
+        {
+            child.Measure(new Size(constraint.Width, FallbackHeight));
+            return new Size(child.DesiredSize.Width, Math.Min(child.DesiredSize.Height, FallbackHeight));
+        }
+
+        _sized = true;
         var height = double.IsInfinity(constraint.Height) ? FallbackHeight : constraint.Height;
         var start = BaseFontSize;
         if (GrowsWithHeight && !double.IsInfinity(height))
