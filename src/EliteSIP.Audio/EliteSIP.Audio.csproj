@@ -8,6 +8,7 @@
       обесценило бы все замеры W0.
     -->
     <PackageReference Include="NAudio" Version="3.0.1" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
 
     <!--
       Эхоподавление, шумодав и АРУ. На macOS всё это давал один флаг системы;

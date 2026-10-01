@@ -230,6 +230,9 @@
   <data name="RingtoneMissingSuffix" xml:space="preserve">
     <value> — файл не найден</value>
   </data>
+  <data name="RingtoneUnreadable" xml:space="preserve">
+    <value>файл не воспроизводится — прозвучит стандартный</value>
+  </data>
   <data name="SupportArchiveNote" xml:space="preserve">
     <value>Архив с журналом и сведениями о системе: по нему в поддержке разбирают, что случилось со звонком.</value>
   </data>

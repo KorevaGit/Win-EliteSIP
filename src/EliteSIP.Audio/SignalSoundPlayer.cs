@@ -91,32 +91,92 @@ public sealed class SignalSoundPlayer : IDisposable
     /// </param>
     public void StartRingtone(string? filePath, double volume, string? deviceId)
     {
-        ISampleProvider provider;
+        // Прослушивание в настройках уступает настоящему звонку: иначе занятый
+        // им вывод не дал бы зазвонить входящему вовсе.
+        Stop(Signal.Preview);
+
+        Start(RingtoneSource(filePath, volume, loop: true), deviceId, Signal.Ringtone);
+    }
+
+    /// <summary>
+    /// Прослушивание рингтона в настройках — один проход тем же путём, что и звонок.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// До 0.1.68 окно настроек играло файл своим <c>MediaPlayer</c>, а при
+    /// стандартном рингтоне не играло ничего: стандартный звук рисовался здесь,
+    /// и окну его было взять неоткуда. Теперь звучит ровно то, что зазвонит на
+    /// входящем, тем же декодером и на том же устройстве.
+    /// </remarks>
+    /// <returns><see langword="false"/> — свой файл не читается, играет стандартный.</returns>
+    public bool PreviewRingtone(string? filePath, double volume, string? deviceId)
+    {
+        Stop(Signal.Preview);
+
+        var source = RingtoneSource(filePath, volume, loop: false, out var fileFailed);
+        Start(source, deviceId, Signal.Preview);
+        return !fileFailed;
+    }
+
+    /// <summary>Снимает прослушивание, если играет оно.</summary>
+    public void StopPreview() => Stop(Signal.Preview);
+
+    /// <summary>
+    /// Стандартный рингтон — файл рядом с программой. Отсутствует — рисованный звонок.
+    /// </summary>
+    public static string DefaultRingtonePath { get; } = Path.Combine(AppContext.BaseDirectory, "ringtone.wav");
+
+    /// <summary>Форматы своего рингтона.</summary>
+    public static IReadOnlyList<string> SupportedRingtoneExtensions { get; } = [".wav", ".mp3", ".ogg"];
+
+    private ISampleProvider RingtoneSource(string? filePath, double volume, bool loop)
+        => RingtoneSource(filePath, volume, loop, out _);
+
+    /// <summary>
+    /// Что играть: свой файл, иначе стандартный файл, иначе рисованный звонок.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// На каждой ступени отказ ведёт на следующую, а не в тишину: тишина вместо
+    /// звонка — это пропущенный вызов.
+    /// </remarks>
+    private ISampleProvider RingtoneSource(string? filePath, double volume, bool loop, out bool fileFailed)
+    {
+        fileFailed = false;
 
         if (filePath is { Length: > 0 } path && File.Exists(path))
         {
-            try
+            if (TryOpen(path, volume, loop) is { } own)
             {
-                // Файл читается целиком и зацикливается: `AudioFileReader`
-                // сам по себе доиграет до конца и замолчит, а звонок обязан
-                // звонить, пока трубку не сняли.
-                provider = new LoopingFileProvider(path, volume);
+                return own;
             }
-            catch (Exception error) when (error is IOException or FormatException
-                                              or ArgumentException)
-            {
-                // Файл был и испортился, или это не звук вовсе. Молчать нельзя:
-                // тишина вместо звонка — это пропущенный вызов.
-                _log?.Invoke($"рингтон «{path}» не читается ({error.Message}) — звоню стандартным");
-                provider = new RingtoneProvider(volume);
-            }
-        }
-        else
-        {
-            provider = new RingtoneProvider(volume);
+
+            fileFailed = true;
         }
 
-        Start(provider, deviceId, Signal.Ringtone);
+        if (File.Exists(DefaultRingtonePath) && TryOpen(DefaultRingtonePath, volume, loop) is { } standard)
+        {
+            return standard;
+        }
+
+        return new RingtoneProvider(volume);
+    }
+
+    private FileSoundProvider? TryOpen(string path, double volume, bool loop)
+    {
+        try
+        {
+            return FileSoundProvider.Open(path, volume, loop);
+        }
+        catch (Exception error) when (error is IOException or FormatException or ArgumentException
+                                          or InvalidOperationException or NotSupportedException
+                                          or UnauthorizedAccessException
+                                          or System.Runtime.InteropServices.COMException)
+        {
+            // Файл был и испортился, или это не звук вовсе.
+            _log?.Invoke($"рингтон «{path}» не читается ({error.Message}) — беру стандартный");
+            return null;
+        }
     }
 
     /// <summary>Снимает то, что играет. Тишина — обычное состояние, молча.</summary>
@@ -198,7 +258,7 @@ public sealed class SignalSoundPlayer : IDisposable
         {
             // Отсутствие служебного звука не должно ронять звонок: без гудка
             // разговор состоится, без исключения в потоке сигнализации — нет.
-            _log?.Invoke($"{(signal is Signal.Ringback ? "гудки" : "рингтон")} не играют: {error.Message}");
+            _log?.Invoke($"{signal switch { Signal.Ringback => "гудки", Signal.Preview => "прослушивание", _ => "рингтон" }} не играют: {error.Message}");
         }
     }
 
@@ -388,6 +448,7 @@ public sealed class SignalSoundPlayer : IDisposable
     {
         Ringback,
         Ringtone,
+        Preview,
     }
 
     /// <summary>Общее у всех рисованных сигналов: моно, 48 кГц.</summary>
@@ -562,21 +623,59 @@ public sealed class SignalSoundPlayer : IDisposable
         }
     }
 
-    /// <summary>Файл оператора, зацикленный: звонок звонит, пока не снимут.</summary>
-    private sealed class LoopingFileProvider : ISampleProvider, IDisposable
+    /// <summary>
+    /// Звуковой файл рингтона: WAV и MP3 через NAudio, OGG через NVorbis.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Звонок зацикливается — звонит, пока не сняли. Прослушивание играет один
+    /// проход и дальше отдаёт тишину, а не конец потока: короткий кадр WASAPI
+    /// понимает как «источник кончился» и останавливает вывод, а вывод
+    /// снимается только нашим <c>Stop</c>.
+    /// </remarks>
+    private sealed class FileSoundProvider : ISampleProvider, IDisposable
     {
-        private readonly AudioFileReader _reader;
         private readonly ISampleProvider _source;
+        private readonly IDisposable _owner;
+        private readonly Action _rewind;
+        private readonly bool _loop;
+        private bool _ended;
 
-        public LoopingFileProvider(string path, double volume)
+        private FileSoundProvider(ISampleProvider source, IDisposable owner, Action rewind, bool loop)
         {
-            _reader = new AudioFileReader(path) { Volume = (float)Math.Clamp(volume, 0, 1) };
-
             // В моно, если файл стерео: устройство звонка может быть каким
             // угодно, а сводить каналы умеет NAudio, а не мы.
-            _source = _reader.WaveFormat.Channels > 1
-                ? new StereoToMonoSampleProvider(_reader)
-                : _reader;
+            _source = source.WaveFormat.Channels == 2 ? new StereoToMonoSampleProvider(source) : source;
+            _owner = owner;
+            _rewind = rewind;
+            _loop = loop;
+        }
+
+        public static FileSoundProvider Open(string path, double volume, bool loop)
+        {
+            float gain = (float)Math.Clamp(volume, 0, 1);
+
+            if (string.Equals(Path.GetExtension(path), ".ogg", StringComparison.OrdinalIgnoreCase))
+            {
+                var vorbis = new NVorbis.VorbisReader(path);
+                try
+                {
+                    var samples = new VorbisSampleProvider(vorbis);
+                    return new FileSoundProvider(
+                        new VolumeSampleProvider(samples) { Volume = gain },
+                        vorbis,
+                        () => vorbis.SamplePosition = 0,
+                        loop);
+                }
+                catch
+                {
+                    vorbis.Dispose();
+                    throw;
+                }
+            }
+
+            var reader = new AudioFileReader(path) { Volume = gain };
+            return new FileSoundProvider(reader, reader, () => reader.Position = 0, loop);
         }
 
         public WaveFormat WaveFormat => _source.WaveFormat;
@@ -584,33 +683,57 @@ public sealed class SignalSoundPlayer : IDisposable
         public int Read(Span<float> buffer)
         {
             int filled = 0;
+            bool readSinceRewind = true;
 
-            while (filled < buffer.Length)
+            while (filled < buffer.Length && !_ended)
             {
                 int read = _source.Read(buffer[filled..]);
-                if (read == 0)
+                if (read > 0)
                 {
-                    if (_reader.Position == 0)
-                    {
-                        // Файл пуст: крутить его в пустом цикле — это занятый
-                        // поток звука и тишина в динамике.
-                        break;
-                    }
-
-                    _reader.Position = 0;
+                    filled += read;
+                    readSinceRewind = true;
                     continue;
                 }
 
-                filled += read;
+                // Конец файла. Пустой файл крутить в цикле нельзя — это занятый
+                // поток звука и тишина в динамике.
+                if (!_loop || !readSinceRewind)
+                {
+                    _ended = true;
+                    break;
+                }
+
+                _rewind();
+                readSinceRewind = false;
             }
 
-            // Хвост добивается тишиной, а не коротким кадром: короткий кадр
-            // WASAPI понимает как «источник кончился» и останавливает вывод.
             buffer[filled..].Clear();
-
             return buffer.Length;
         }
 
-        public void Dispose() => _reader.Dispose();
+        public void Dispose() => _owner.Dispose();
+    }
+
+    /// <summary>OGG Vorbis как источник отсчётов NAudio.</summary>
+    private sealed class VorbisSampleProvider(NVorbis.VorbisReader reader) : ISampleProvider
+    {
+        private float[] _scratch = [];
+
+        public WaveFormat WaveFormat { get; } =
+            WaveFormat.CreateIeeeFloatWaveFormat(reader.SampleRate, reader.Channels);
+
+        public int Read(Span<float> buffer)
+        {
+            if (_scratch.Length < buffer.Length)
+            {
+                _scratch = new float[buffer.Length];
+            }
+
+            // Целым числом кадров: оборванный кадр перепутал бы каналы на стыке.
+            int count = buffer.Length - (buffer.Length % reader.Channels);
+            int read = reader.ReadSamples(_scratch, 0, count);
+            _scratch.AsSpan(0, read).CopyTo(buffer);
+            return read;
+        }
     }
 }

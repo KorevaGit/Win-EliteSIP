@@ -248,6 +248,9 @@
   <data name="RingtoneMissingSuffix" xml:space="preserve">
     <value> — file not found</value>
   </data>
+  <data name="RingtoneUnreadable" xml:space="preserve">
+    <value>file can't be played, the standard ringtone will ring</value>
+  </data>
   <data name="SupportArchiveNote" xml:space="preserve">
     <value>An archive with the log and system details: support uses it to work out what happened to a call.</value>
   </data>

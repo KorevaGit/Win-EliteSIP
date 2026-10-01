@@ -677,7 +677,7 @@ public partial class App : Application, IDisposable
 
         var settings = model;
 
-        _settingsWindow = new SettingsWindow(settings, _appearance!);
+        _settingsWindow = new SettingsWindow(settings, _appearance!, _phone!.Sounds);
         _settingsWindow.AdministrationRequested += ShowAdministration;
 
         // Машину увели в оффлайн из «Управления» или вернули в онлайн, пока

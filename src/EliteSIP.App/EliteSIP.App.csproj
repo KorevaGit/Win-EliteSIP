@@ -45,6 +45,13 @@
         масштаба 200 %. Россыпью было бы 3944 файла на каждое обновление.
     -->
     <Content Include="Assets\emoji.pak" Link="emoji.pak" CopyToOutputDirectory="PreserveNewest" />
+
+    <!--
+      Стандартный рингтон (с 0.1.68) — файл рядом с программой, а не рисованный
+      звонок. Читает его `SignalSoundPlayer.DefaultRingtonePath`; не нашёл —
+      звонит рисованным, а не молчит.
+    -->
+    <Content Include="Assets\ringtone.wav" Link="ringtone.wav" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

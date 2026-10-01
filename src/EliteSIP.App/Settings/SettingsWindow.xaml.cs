@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using EliteSIP.App.Resources;
 using EliteSIP.App.Theme;
+using EliteSIP.Audio;
 using Microsoft.Win32;
 
 namespace EliteSIP.App.Settings;
@@ -13,16 +14,18 @@ namespace EliteSIP.App.Settings;
 public partial class SettingsWindow : Window
 {
     /// <summary>
-    /// Проигрыватель прослушивания рингтона. Один на окно: два нажатия подряд
-    /// не должны давать два голоса поверх друг друга.
+    /// Проигрыватель прослушивания — тот же, что звонит на входящем. Своего
+    /// <c>MediaPlayer</c> у окна больше нет: он не умел ни стандартный звук, ни
+    /// OGG и звучал не на том устройстве, что звонок.
     /// </summary>
-    private readonly MediaPlayer _preview = new();
+    private readonly SignalSoundPlayer _sounds;
 
     private readonly AppearanceService _appearance;
 
-    public SettingsWindow(SettingsViewModel model, AppearanceService appearance)
+    public SettingsWindow(SettingsViewModel model, AppearanceService appearance, SignalSoundPlayer sounds)
     {
         InitializeComponent();
+        _sounds = sounds;
         Model = model;
         _appearance = appearance;
         DataContext = model;
@@ -56,8 +59,7 @@ public partial class SettingsWindow : Window
 
         // Иначе рингтон продолжает звонить после того, как окно закрыли, и
         // остановить его нечем.
-        _preview.Stop();
-        _preview.Close();
+        _sounds.StopPreview();
 
         base.OnClosed(e);
     }
@@ -74,7 +76,7 @@ public partial class SettingsWindow : Window
     /// <summary>Выбор файла рингтона.</summary>
     private void OnChooseRingtoneClick(object sender, RoutedEventArgs e)
     {
-        _preview.Stop();
+        _sounds.StopPreview();
 
         var dialog = new OpenFileDialog
         {
@@ -84,7 +86,7 @@ public partial class SettingsWindow : Window
             // Тот же набор, что и в оригинале, минус форматы Apple: CAF и AIFF
             // на Windows не читает ни один системный проигрыватель, и предлагать
             // их значило бы обещать то, чего не будет.
-            Filter = "WAV, MP3, WMA, M4A|*.wav;*.mp3;*.wma;*.m4a",
+            Filter = "MP3, WAV, OGG|*.mp3;*.wav;*.ogg",
         };
 
         if (dialog.ShowDialog(this) is not true)
@@ -99,7 +101,7 @@ public partial class SettingsWindow : Window
 
     private void OnDefaultRingtoneClick(object sender, RoutedEventArgs e)
     {
-        _preview.Stop();
+        _sounds.StopPreview();
         Model.Settings.Ringtone.CustomSoundPath = null;
         Model.NotifyRingtoneName();
         ShowRingtoneProblem(null);
@@ -108,28 +110,33 @@ public partial class SettingsWindow : Window
     /// <summary>Прослушивание — тем же файлом и той же громкостью, что и звонок.</summary>
     private void OnPreviewRingtoneClick(object sender, RoutedEventArgs e)
     {
-        _preview.Stop();
+        _sounds.StopPreview();
 
+        // До 0.1.68 при стандартном рингтоне здесь ничего не играло: окно
+        // показывало надпись «Стандартный» вместо звука. Теперь играет тот же
+        // проигрыватель, что и на входящем: тот же файл, громкость и устройство.
         var path = Model.Settings.Ringtone.CustomSoundPath;
-        if (string.IsNullOrEmpty(path))
+        if (!string.IsNullOrEmpty(path) && !File.Exists(path))
         {
-            // Стандартный звук приедет вместе со слоем приложения — он же
-            // играет входящий. Своей копии у окна настроек быть не должно:
-            // прослушивание обязано звучать ровно так же, как звонок.
-            ShowRingtoneProblem(Strings.Get("RingtoneDefault"));
-            return;
-        }
-
-        if (!File.Exists(path))
-        {
+            // Звонок в этом случае зазвонит стандартным — его и даём услышать,
+            // но причину говорим.
             ShowRingtoneProblem(Model.RingtoneName);
-            return;
+        }
+        else
+        {
+            ShowRingtoneProblem(null);
         }
 
-        _preview.Volume = Model.Settings.Ringtone.Volume;
-        _preview.Open(new Uri(path));
-        _preview.Play();
-        ShowRingtoneProblem(null);
+        var ringtone = Model.Settings.Ringtone;
+        var readable = _sounds.PreviewRingtone(
+            path,
+            ringtone.Volume,
+            ringtone.Output is RingtoneOutput.CallDevice ? Model.Settings.Audio.OutputDeviceId : null);
+
+        if (!readable)
+        {
+            ShowRingtoneProblem(Strings.Get("RingtoneUnreadable"));
+        }
     }
 
     private void ShowRingtoneProblem(string? text)
