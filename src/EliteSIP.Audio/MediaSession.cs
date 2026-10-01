@@ -1062,15 +1062,24 @@ public sealed class MediaSession : IDisposable
     ///
     /// На живом звонке это стоило 425 выброшенных пакетов из 738 и 432
     /// сокрытий на пятнадцати секундах речи — разговор слышен, но больше
-    /// половины его повторы. Единица сверху — на неровность прихода;
-    /// адаптация по джиттеру дальше подстроит сама.
+    /// половины его повторы. Сверх запаса кольца — ещё два кадра, и нижняя
+    /// граница подстройки там же; выше адаптация по джиттеру поднимет сама.
+    ///
+    /// <b>Почему нижняя граница — два кадра сверх кольца, а не один.</b> Пока
+    /// глубина была только целью начала выдачи, граница ни на что не влияла.
+    /// С 0.1.69 по ней держит запас регулятор темпа, и при одном кадре он сам
+    /// загонял буфер в недоборы: глубина в среднем на полкадра ниже цели, то
+    /// есть буферу оставалось полкадра сверх кольца. Звонок 1 октября на 0.1.69:
+    /// «темп приёма −4273 ppm», 10 недоборов за минуту при джиттере 0,7 мс.
+    /// Модель (<c>PlaybackModelTests</c>) это воспроизводит и при двух кадрах
+    /// даёт ноль сокрытий на любом уходе часов.
     /// </remarks>
-    private static JitterBuffer MakeJitter(NegotiatedMedia negotiated, VoiceAudioConfiguration audio)
+    internal static JitterBuffer MakeJitter(NegotiatedMedia negotiated, VoiceAudioConfiguration audio)
     {
         int lead = audio.PlaybackLeadFrames;
         return new JitterBuffer(
             targetDepth: lead + 2,
-            minimumDepth: lead + 1,
+            minimumDepth: lead + 2,
             codec: negotiated.Codec,
             packetTimeMilliseconds: negotiated.PacketTimeMilliseconds);
     }

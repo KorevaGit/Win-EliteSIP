@@ -1874,10 +1874,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
-        int target = (backlog.TargetFrames * frameSamples) - (frameSamples / 2);
-        controller.Retarget(Math.Max(1, target));
+        controller.Retarget(BacklogTarget(backlog, frameSamples));
         controller.Observe(ringFill + (backlog.Frames * frameSamples), elapsed);
     }
+
+    /// <summary>Цель регулятора темпа в отсчётах вывода. Отдельно — ради модели в тестах.</summary>
+    internal static int BacklogTarget(PlaybackBacklog backlog, int frameSamples) =>
+        Math.Max(1, (backlog.TargetFrames * frameSamples) - (frameSamples / 2));
 
     /// <summary>
     /// Проба часов обоих устройств для оценки их расхождения.
