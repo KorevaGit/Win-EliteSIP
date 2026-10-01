@@ -147,6 +147,12 @@ public sealed class JitterBuffer
 
     public bool IsEmpty => _frames.Count == 0;
 
+    /// <summary>
+    /// Запас набран и буфер выдаёт кадры. До этого его глубина — накопление, а
+    /// не задержка разговора, и регулировать темп по ней нельзя.
+    /// </summary>
+    public bool IsPlaying => _isPrimed;
+
     /// <summary>Доля потерь с прошлого отчёта, 0…1.</summary>
     public double FractionLostSinceLastReport()
     {
@@ -242,6 +248,20 @@ public sealed class JitterBuffer
             if (_frames.Count < TargetDepth)
             {
                 return null;
+            }
+
+            // Набралось больше цели — выдача начинается с запаса, а не со
+            // всего накопленного. Лишнее здесь не страховка, а задержка
+            // навсегда: буфер выдаёт кадр на кадр и сам глубину не сбрасывает.
+            //
+            // Так бывает на каждом звонке: Asterisk шлёт RTP по 200 OK, а
+            // тракт поднимается ещё 200–600 мс, — и после каждой пересборки
+            // тракта посреди разговора. Без этого собеседник с первой секунды
+            // слышен на 100–300 мс позже, чем мог бы.
+            while (_frames.Count > TargetDepth && OldestSequence() is ushort stale)
+            {
+                _frames.Remove(stale);
+                Statistics = Statistics with { Dropped = Statistics.Dropped + 1 };
             }
 
             _isPrimed = true;

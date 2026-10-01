@@ -256,6 +256,81 @@ public sealed class ResamplerTests
         }
     }
 
+    [Theory]
+    [InlineData(1.000179)]
+    [InlineData(0.999821)]
+    [InlineData(0.995)]
+    public void Поправка_темпа_выдаёт_ровно_назначенное_число_отсчётов(double correction)
+    {
+        // Настоящее расхождение кварцев — десятки ppm. Поправка, которая
+        // теряется в округлении на каждом кадре, не делает ничего — так было с
+        // первым вариантом поправки (см. W4-AUDIO.md). Здесь шаг дробный и
+        // копится в позиции, а значит теряться нечему.
+        const int Frames = 1000;
+        Resampler resampler = new(8000, 48000, adjustable: true);
+        resampler.SetRateCorrection(correction);
+
+        float[] input = new float[160];
+        float[] output = new float[2048];
+        long total = 0;
+        for (int i = 0; i < Frames; i++)
+        {
+            total += resampler.Process(input, output);
+        }
+
+        // Из выхода вычитается задержка ядра: последние её отсчёты ещё ждут
+        // правых соседей.
+        double expected = ((960.0 * Frames) - (resampler.LatencySamples * 6)) * correction;
+        Assert.True(
+            Math.Abs(total - expected) <= 2,
+            $"выдано {total}, ожидалось {expected:F0} — поправка не дошла до звука");
+    }
+
+    [Fact]
+    public void Поправка_темпа_не_рвёт_волну()
+    {
+        // Ради этого поправка и переехала в пересчёт. Прежняя выбрасывала
+        // отсчёты с конца каждого кадра, и на поправке в полпроцента это
+        // ступенька на каждом шве — пятьдесят щелчков в секунду. Ступенька
+        // видна как скачок между соседними отсчётами, которого у гладкого
+        // тона быть не может: для 1 кГц на 48 кГц он не больше 2π·1000/48000.
+        Resampler resampler = new(8000, 48000, adjustable: true);
+        resampler.SetRateCorrection(0.995);
+
+        float[] tone = Tone(8000, 1000, 2);
+        float[] output = new float[tone.Length * 7];
+        int written = 0;
+        for (int offset = 0; offset + 160 <= tone.Length; offset += 160)
+        {
+            written += resampler.Process(tone.AsSpan(offset, 160), output.AsSpan(written));
+        }
+
+        double limit = 2 * Math.PI * 1000 / 48000 * 1.1;
+        for (int i = 4800; i < written; i++)
+        {
+            Assert.True(
+                Math.Abs(output[i] - output[i - 1]) <= limit,
+                $"скачок {output[i] - output[i - 1]:F3} на отсчёте {i}");
+        }
+    }
+
+    [Fact]
+    public void Подстраиваемый_пересчёт_на_равных_частотах_не_проход_насквозь()
+    {
+        // Гарнитура в режиме связи и кодек — оба 8 кГц. Проход насквозь
+        // растянуть нельзя, поэтому для вывода работает настоящий фильтр, и
+        // поправка до звука доходит.
+        Resampler resampler = new(8000, 8000, adjustable: true);
+        resampler.SetRateCorrection(0.99);
+
+        float[] input = new float[8000];
+        float[] output = new float[9000];
+        int written = resampler.Process(input, output);
+
+        Assert.True(resampler.LatencySamples > 0);
+        Assert.InRange(written, 7880, 7910);
+    }
+
     private static float[] Run(int inputRate, int outputRate, double frequency, int seconds)
     {
         Resampler resampler = new(inputRate, outputRate);

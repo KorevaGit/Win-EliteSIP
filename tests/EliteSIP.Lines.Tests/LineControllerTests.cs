@@ -119,6 +119,31 @@ public sealed class LineControllerTests
     }
 
     [Fact]
+    public async Task ПовторноеПредложениеСервераДоходитДоМедиаЛинии()
+    {
+        // До 1 октября 2026 приложение отвечало на повторный INVITE прежним
+        // SDP, и медиа о нём не узнавало вовсе: ни нового адреса, ни
+        // удержания станции.
+        FakeLineMedia media = await AttachAsync("a");
+        media.ReofferMedia = Negotiated("10.0.0.1", MediaDirection.RecvOnly);
+
+        RemoteReofferAnswer? answer = _controller.AnswerRemoteReoffer("a", new byte[] { 9 });
+
+        Assert.NotNull(answer);
+        Assert.Contains("a: повторное предложение сервера", _journal);
+        Assert.True(media.MicrophoneMuted);
+        Assert.True(Assert.Single(_controller.Lines).IsHeldByServer);
+    }
+
+    [Fact]
+    public void ПовторноеПредложениеБезЛинииНеОтвечаетсяНаугад()
+    {
+        // Линия ещё не заведена — ответ отдаётся сигнализации, и та
+        // подтверждает прежнее описание.
+        Assert.Null(_controller.AnswerRemoteReoffer("нет", new byte[] { 9 }));
+    }
+
+    [Fact]
     public async Task КнопкаМикрофонаНеВозвращаетВРазговорУдержаннуюЛинию()
     {
         FakeLineMedia media = await AttachAsync("a");

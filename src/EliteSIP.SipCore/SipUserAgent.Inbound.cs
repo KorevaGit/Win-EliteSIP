@@ -257,6 +257,15 @@ public sealed partial class SipUserAgent
             // Линия называется явно: у оператора их до трёх, и ответить описанием
             // активной на предложение по удержанной значит переехать звуком не туда.
             answer = await renegotiator(call.CallId, request.Body).ConfigureAwait(false);
+
+            // Пустой ответ — «медиа этой линии ещё не поднято»: повторный
+            // INVITE пришёл раньше, чем приложение завело поток. Подтверждаем
+            // прежнее описание, как и без пересогласователя.
+            if (answer is ReadOnlyMemory<byte> { IsEmpty: true })
+            {
+                answer = call.LocalSdp;
+                Log(SipLogLevel.Warning, "<- повторный INVITE подтверждён прежним SDP: медиа линии ещё не поднято");
+            }
         }
         else
         {

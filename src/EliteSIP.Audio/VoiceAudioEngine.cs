@@ -46,6 +46,16 @@ public abstract record VoiceAudioEvent
 public readonly record struct PlaybackFrame(ReadOnlyMemory<byte> Payload, bool IsConcealment);
 
 /// <summary>
+/// Сколько принятого ждёт своей очереди до кольца воспроизведения.
+/// </summary>
+/// <param name="Frames">Кадров в джиттер-буфере сейчас.</param>
+/// <param name="TargetFrames">
+/// Сколько их там должно быть: глубина, на которой буфер начал выдачу. Вместе
+/// с запасом кольца это и есть вся задержка приёма, которую держит тракт.
+/// </param>
+public readonly record struct PlaybackBacklog(int Frames, int TargetFrames);
+
+/// <summary>
 /// Обработчики разговора. Переезжают вместе с владением трактом.
 ///
 /// <b>Одной записью, а не пятью свойствами.</b> В оригинале они лежали под
@@ -91,6 +101,19 @@ public sealed record VoiceAudioHandlers
     /// играть».
     /// </summary>
     public Func<PlaybackFrame?>? NeedsFrame { get; init; }
+
+    /// <summary>
+    /// Запас джиттер-буфера — по нему тракт держит темп воспроизведения.
+    ///
+    /// <b>Кольцо для этого не годится, и проверено это дорого.</b> Кольцо
+    /// наполняется по запросу (<see cref="NeedsFrame"/>) до одного и того же
+    /// уровня, и расхождения часов в нём не видно вовсе: оно стоит там, где его
+    /// держит цикл подачи. Расхождение копится там, где кадры ждут, — между
+    /// часами отправителя и часами нашей звуковой карты, то есть в
+    /// джиттер-буфере. <c>null</c> — буфер ещё не начал выдачу или звук не наш:
+    /// мерить нечего.
+    /// </summary>
+    public Func<PlaybackBacklog?>? Backlog { get; init; }
 
     /// <summary>Пустой набор. Ставится тракту, когда его отпустили.</summary>
     public static VoiceAudioHandlers None { get; } = new();

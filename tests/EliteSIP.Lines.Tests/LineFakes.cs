@@ -62,6 +62,23 @@ internal sealed class FakeLineMedia(string name, List<string> journal) : ILineMe
         return MediaRenegotiation.DirectionOnly;
     }
 
+    /// <summary>Чем ответит на повторное предложение сервера.</summary>
+    public NegotiatedMedia ReofferMedia { get; set; } = new(
+        AudioCodec.Pcmu,
+        0,
+        "192.0.2.1",
+        4000,
+        TelephoneEvent.DefaultPayloadType,
+        MediaDirection.SendRecv,
+        20,
+        MediaSecurity.None);
+
+    public RemoteReofferAnswer AnswerReoffer(ReadOnlyMemory<byte> offer)
+    {
+        journal.Add($"{Name}: повторное предложение сервера");
+        return new RemoteReofferAnswer(new byte[] { 2 }, ReofferMedia, MediaRenegotiation.DirectionOnly);
+    }
+
     public Task<bool> SendDtmfAndWaitAsync(DtmfSequence sequence)
     {
         SentTones.Add(sequence);

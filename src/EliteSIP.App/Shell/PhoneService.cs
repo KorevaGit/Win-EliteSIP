@@ -397,6 +397,11 @@ public sealed class PhoneService : IDisposable
 
         _lines = new LineController(new SipUserAgentSignaling(_agent), _log);
 
+        // Повторные INVITE сервера — в медиа линии. До 1 октября 2026 этой
+        // строки не было: SipCore отвечал прежним SDP, а звук продолжал идти
+        // на прежний адрес при любом переезде медиа (см. AnswerRemoteReoffer).
+        _agent.SetMediaRenegotiator(AnswerRemoteReofferAsync);
+
         _running = new CancellationTokenSource();
         _pump = Task.Run(() => PumpAsync(_agent, _running.Token));
 
@@ -1418,6 +1423,51 @@ public sealed class PhoneService : IDisposable
 
         _sessions[callId] = session;
         return session;
+    }
+
+    /// <summary>Отвечает на повторный INVITE сервера медиа нужной линии.</summary>
+    ///
+    /// <remarks>
+    /// Линию приходится подождать. Asterisk присылает повторный INVITE сразу
+    /// по ответу — в журнале 1 октября через 13 мс после нашего 200 OK, — а
+    /// тракт в это время ещё поднимается, и линия не заведена. 100 Trying уже
+    /// ушёл, поэтому три секунды ожидания сервер переносит спокойно. Не
+    /// дождались — подтверждаем прежнее описание, как и раньше: разговор от
+    /// этого не страдает, а 488 на обновление сессии станция могла бы счесть
+    /// поломкой.
+    /// </remarks>
+    private async Task<ReadOnlyMemory<byte>?> AnswerRemoteReofferAsync(string callId, ReadOnlyMemory<byte> offer)
+    {
+        for (int waited = 0; waited <= 3000; waited += 50)
+        {
+            if (_lines is not LineController lines)
+            {
+                break;
+            }
+
+            try
+            {
+                if (lines.AnswerRemoteReoffer(callId, offer) is RemoteReofferAnswer answer)
+                {
+                    _log($"сервер пересогласовал медиа: {answer.Outcome}, "
+                        + $"{answer.Media.Direction.AttributeName()}, {answer.Media.RemoteAddress}:{answer.Media.RemotePort}"
+                        + (answer.Media.IsHeld ? ", удержание станции" : string.Empty));
+                    return answer.Answer;
+                }
+            }
+            catch (Exception failure) when (failure is SdpParseException
+                                                or SdpNegotiationException
+                                                or MediaCodecChangedException
+                                                or InvalidOperationException)
+            {
+                _log($"повторное предложение сервера не принято: {failure.Message}");
+                return null;
+            }
+
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        return ReadOnlyMemory<byte>.Empty;
     }
 
     /// <summary>Срез звука через пять секунд разговора.</summary>

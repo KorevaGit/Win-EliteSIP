@@ -171,6 +171,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// <summary>Вывод без пути до микрофона — наушники или гарнитура.</summary>
     private bool _echoFree;
 
+    /// <summary>Микрофон и наушники — одна USB- или Bluetooth-гарнитура.</summary>
+    private bool _inputIsHeadset;
+
     private VoiceAudioConfiguration _configuration;
     private VoiceAudioHandlers _handlers = VoiceAudioHandlers.None;
 
@@ -210,7 +213,6 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private int _capturePendingSamples;
     private int _latencyFrames;
     private int _lastDelayMilliseconds;
-    private double _correctionCarry;
     private double _lastClockSample;
     private AudioDeviceWatch? _watch;
     private RestartSupervisor? _supervisor;
@@ -773,8 +775,18 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 ? $", микрофон у потолка {overloads} отсч. — убавьте громкость входа в Windows"
                 : string.Empty;
 
+            // Темп приёма — в ту же строку: поправка в упоре (±5000 ppm)
+            // значит, что дело не в часах, и на слух это сокрытия и провалы.
+            // До 1 октября 2026 его в журнале звонка не было, и дефект, при
+            // котором он стоял в упоре весь разговор, был не виден.
+            string rate = _rateController is PlaybackRateController controller
+                ? string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $", темп приёма {controller.CorrectionPpm:+0;-0;0} ppm{(controller.IsSaturated ? " (В УПОРЕ)" : string.Empty)}")
+                : string.Empty;
+
             return $"пики: микрофон {Decibels(_capturePeak)}{perChannel}, в линию {Decibels(_sentPeak)}, "
-                + $"в наушники {Decibels(_playedPeak)}{overload}";
+                + $"в наушники {Decibels(_playedPeak)}{overload}{rate}";
         }
     }
 
@@ -867,7 +879,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int processingRate = VoiceProcessor.NearestSupportedRate(_captureFormat.SampleRate);
         int codecRate = (int)_configuration.Codec.SampleRate();
 
-        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
+        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice, _inputDevice);
+        _inputIsHeadset = AudioDeviceCatalog.IsHeadsetPair(
+            AudioDeviceCatalog.TransportOf(_inputDevice),
+            _inputDeviceName,
+            AudioDeviceCatalog.TransportOf(_outputDevice),
+            _outputDeviceName);
         _processor = new VoiceProcessor(
             processingRate,
             _configuration.AutomaticGainControl,
@@ -876,7 +893,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         _captureToProcessing = new Resampler(_captureFormat.SampleRate, processingRate);
         _processingToCodec = new Resampler(processingRate, codecRate);
-        _codecToRender = new Resampler(codecRate, _renderFormat.SampleRate);
+        _codecToRender = new Resampler(codecRate, _renderFormat.SampleRate, adjustable: true);
         _renderToProcessing = new Resampler(_renderFormat.SampleRate, processingRate);
 
         int targetFill = _configuration.TargetPlaybackFrames
@@ -941,7 +958,6 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _stop = new CancellationTokenSource();
         CancellationToken token = _stop.Token;
 
-        _correctionCarry = 0;
         _lastClockSample = 0;
         _capturePeak = _sentPeak = _playedPeak = 0;
         _captureChannelPeaks = new float[_captureFormat.Channels];
@@ -1116,6 +1132,25 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
+        // Молчит микрофон той самой гарнитуры, в которую идёт звук, — это
+        // не мёртвый вход, а выключенный: поднятая штанга, кнопка на чашке,
+        // гарнитура ещё просыпается. Уезжать с неё нельзя.
+        //
+        // До 1 октября 2026 тракт уезжал: журнал звонка в 14:58 — «Микрофон
+        // (JBL Quantum350 Wireless) молчит — переключаемся на Набор микрофонов
+        // (Realtek)». Оператор говорил в гарнитуру, а в линию шёл микрофон
+        // ноутбука с метра: тихо, с комнатой и через эхоподавитель. Хуже того,
+        // запоминалось это до перезапуска программы — все следующие звонки
+        // шли на тот же встроенный микрофон, — а человек, выключивший
+        // микрофон кнопкой, оказывался в эфире через другой.
+        if (_inputIsHeadset)
+        {
+            Diagnostic(
+                $"микрофон гарнитуры «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта"
+                + " — проверьте кнопку выключения микрофона и штангу на гарнитуре");
+            return;
+        }
+
         SilentInputs[current] = 0;
 
         if (_configuration.InputDeviceId is not null)
@@ -1201,11 +1236,23 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
                     if (frames > 0 && frames <= mono.Length)
                     {
-                        MixToMono(buffer, mono, frames, channels, layout);
-
                         // Флаг «тишина» означает, что буфер читать не надо:
-                        // система отдаёт в нём что угодно.
-                        if ((flags & AudioClientBufferFlags.Silent) == 0)
+                        // система отдаёт в нём что угодно. До 1 октября 2026
+                        // это соблюдалось только для пиков в журнале, а сам
+                        // буфер шёл в обработку и в линию — на драйверах,
+                        // которые оставляют там прежние данные, собеседник
+                        // слышал обрывки и треск вместо тишины.
+                        bool silent = (flags & AudioClientBufferFlags.Silent) != 0;
+                        if (silent)
+                        {
+                            Array.Clear(mono, 0, frames);
+                        }
+                        else
+                        {
+                            MixToMono(buffer, mono, frames, channels, layout);
+                        }
+
+                        if (!silent)
                         {
                             _capturePeak = PeakOf(mono.AsSpan(0, frames), _capturePeak);
                             ChannelPeaks(buffer, frames, channels, layout, channelPeaks);
@@ -1568,15 +1615,32 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     {
         nint buffer = render.GetBuffer(frames);
 
+        // Голос — только в передние левый и правый, остальные каналы молчат.
+        //
+        // До 1 октября 2026 моно копировалось во все каналы устройства. На
+        // стереогарнитуре это безразлично, но JBL Quantum350 заявляет восемь
+        // каналов (7.1 с виртуальным объёмом), и голос уезжал одновременно в
+        // центр, сабвуфер и шесть «колонок» вокруг головы. Виртуализатор
+        // сводит их обратно в два уха со своими задержками — фазовая каша,
+        // «робот» в голосе собеседника, а канал сабвуфера ещё и бубнит.
+        // Передняя пара в WAVEFORMATEXTENSIBLE всегда идёт первой.
+        int voiced = Math.Min(channels, 2);
+
         if (layout is SampleLayout.Float32)
         {
             float* destination = (float*)buffer;
             for (int i = 0; i < frames; i++)
             {
                 float sample = source[i];
-                for (int c = 0; c < channels; c++)
+                int c = 0;
+                for (; c < voiced; c++)
                 {
                     destination[(i * channels) + c] = sample;
+                }
+
+                for (; c < channels; c++)
+                {
+                    destination[(i * channels) + c] = 0f;
                 }
             }
         }
@@ -1590,9 +1654,15 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 // тихий щелчок вместо громкого звука.
                 float sample = Math.Clamp(source[i], -1f, 1f);
                 short value = (short)(sample * short.MaxValue);
-                for (int c = 0; c < channels; c++)
+                int c = 0;
+                for (; c < voiced; c++)
                 {
                     destination[(i * channels) + c] = value;
+                }
+
+                for (; c < channels; c++)
+                {
+                    destination[(i * channels) + c] = 0;
                 }
             }
         }
@@ -1677,6 +1747,10 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         double lastObserved = _uptime.Elapsed.TotalSeconds;
         bool silenceChecked = false;
 
+        // Кадр кодека в отсчётах вывода: в них считаются и кольцо, и запас
+        // джиттер-буфера.
+        int frameSamples = ring.TargetFill / Math.Max(_configuration.TargetPlaybackFrames, 1);
+
         while (!token.IsCancellationRequested)
         {
             int fill;
@@ -1686,15 +1760,23 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             }
 
             double now = _uptime.Elapsed.TotalSeconds;
-            controller.Observe(fill, now - lastObserved);
+            ObserveBacklog(controller, fill, frameSamples, now - lastObserved);
             lastObserved = now;
+            toRender.SetRateCorrection(controller.Correction);
 
             SampleClocks(now);
 
             if (!silenceChecked && now >= SilenceWatch.TotalSeconds)
             {
                 silenceChecked = true;
-                CheckSilentInput();
+
+                // Разбор — не на этом потоке: он перебирает устройства и
+                // открывает их, а это десятки и сотни миллисекунд, за которые
+                // кольцо успевает опустеть, — щелчок на третьей секунде.
+                if (_capturePeak < SilentPeak)
+                {
+                    ThreadPool.QueueUserWorkItem(_ => CheckSilentInput());
+                }
             }
 
             bool fed = false;
@@ -1733,16 +1815,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     decoded[i] = samples[i] / 32768f;
                 }
 
+                // Поправка темпа уже внутри пересчёта (SetRateCorrection выше):
+                // фильтр шагает по входу на доли процента быстрее или медленнее.
                 int produced = toRender.Process(decoded.AsSpan(0, length), converted);
-
-                // Поправка темпа — вот здесь она и работает: лишний или
-                // недостающий отсчёт добавляется не в звук, а в счёт того,
-                // сколько мы кладём в кольцо.
-                produced = ApplyRateCorrection(
-                    converted,
-                    produced,
-                    controller.Correction,
-                    ref _correctionCarry);
 
                 lock (_ring)
                 {
@@ -1763,68 +1838,45 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     }
 
     /// <summary>
-    /// Растягивает или укорачивает кусок на доли процента.
-    ///
-    /// Поправка мала — единицы отсчётов на кадр, — и делать ради неё второй
-    /// проход фильтра незачем: разница между отбросить один отсчёт из тысячи и
-    /// правильно его интерполировать лежит на 60 дБ ниже разговора. Отсчёт
-    /// снимается с конца куска, а не из середины, чтобы не рвать волну там, где
-    /// она громче всего.
-    ///
-    /// <b>Дробный остаток обязан переноситься между кусками, и это не
-    /// придирка.</b> Первый вариант округлял <c>count × correction</c> на каждом
-    /// куске — и первый же прогон на живом железе показал, что поправка не
-    /// делает ничего: кадр это 960 отсчётов, поправка вышла 179 ppm, произведение
-    /// 960,17 округляется обратно в 960. Регулятор при этом исправно наматывал
-    /// интеграл, потому что ошибка никуда не девалась, и в журнале стояли
-    /// честные 179 ppm компенсации, которой на самом деле не было. Настоящее
-    /// расхождение кварцев — десятки ppm, то есть <b>любая</b> поправка меньше
-    /// тысячи ppm терялась бы в округлении целиком.
-    ///
-    /// С переносом остатка лишний отсчёт добавляется раз в несколько кадров, и
-    /// в среднем темп получается ровно тот, который назначил регулятор.
+    /// Сообщает регулятору темпа, сколько принятого ещё не прозвучало.
     /// </summary>
-    internal static int ApplyRateCorrection(
-        float[] samples,
-        int count,
-        double correction,
-        ref double carry)
+    ///
+    /// <remarks>
+    /// <para>
+    /// <b>Мерится весь запас приёма — кольцо плюс джиттер-буфер, а не одно
+    /// кольцо.</b> До 1 октября 2026 регулятор смотрел на кольцо, и это было
+    /// унаследовано от стенда W4, где кольцо наполнял захват. В разговоре его
+    /// наполняет цикл подачи по запросу — всегда до опережения в четыре кадра,
+    /// — а цель регулятора стояла на двух. Ошибка не уходила никогда, поправка
+    /// упиралась в −5000 ppm на первых секундах и стояла там весь разговор:
+    /// джиттер-буфер выбирался на полпроцента быстрее, чем приходили пакеты,
+    /// пустел раз в четыре секунды и затыкался синтезом. Журнал звонка 1
+    /// октября: 30 сокрытий и 8 недоборов за 47 секунд при нулевых потерях и
+    /// джиттере 0,6 мс — то есть на идеальной сети.
+    /// </para>
+    /// <para>
+    /// Кольцо расхождения часов не видит в принципе: оно стоит там, где его
+    /// держит подача. Расхождение копится между часами отправителя и нашей
+    /// звуковой картой — в джиттер-буфере. Сумма двух запасов при этом не
+    /// зависит от того, когда подача переложила кадр из одного в другой.
+    /// </para>
+    /// <para>
+    /// Цель — глубина, с которой буфер начал выдачу, минус полкадра: между
+    /// приходами пакетов запас равномерно тает на кадр и в среднем стоит на
+    /// полкадра ниже, чем в момент прихода. Пока буфер не выдаёт — копит запас
+    /// или звук не наш, — мерить нечего, и поправка остаётся прежней.
+    /// </para>
+    /// </remarks>
+    private void ObserveBacklog(PlaybackRateController controller, int ringFill, int frameSamples, double elapsed)
     {
-        if (count <= 0)
+        if (Handlers.Backlog?.Invoke() is not PlaybackBacklog backlog)
         {
-            return count;
+            return;
         }
 
-        carry += count * (correction - 1.0);
-
-        if (carry >= 1.0)
-        {
-            int extra = Math.Min((int)carry, samples.Length - count);
-            if (extra > 0)
-            {
-                for (int i = 0; i < extra; i++)
-                {
-                    samples[count + i] = samples[count - 1];
-                }
-
-                carry -= extra;
-                return count + extra;
-            }
-
-            return count;
-        }
-
-        if (carry <= -1.0)
-        {
-            int drop = Math.Min((int)(-carry), count - 1);
-            if (drop > 0)
-            {
-                carry += drop;
-                return count - drop;
-            }
-        }
-
-        return count;
+        int target = (backlog.TargetFrames * frameSamples) - (frameSamples / 2);
+        controller.Retarget(Math.Max(1, target));
+        controller.Observe(ringFill + (backlog.Frames * frameSamples), elapsed);
     }
 
     /// <summary>

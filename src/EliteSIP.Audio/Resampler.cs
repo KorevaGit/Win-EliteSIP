@@ -45,27 +45,36 @@ public sealed class Resampler
 
     private readonly float[] _table;
     private readonly int _halfWidth;
-    private readonly double _step;
+    private readonly double _nominalStep;
     private readonly bool _passthrough;
+    private double _step;
 
     private float[] _history;
     private int _historyCount;
     private double _position;
 
-    public Resampler(int inputRate, int outputRate)
+    /// <param name="inputRate">Частота входа.</param>
+    /// <param name="outputRate">Частота выхода.</param>
+    /// <param name="adjustable">
+    /// Темп будут подправлять на ходу (<see cref="SetRateCorrection"/>). Тогда
+    /// и при равных частотах работает настоящий фильтр, а не проход насквозь:
+    /// растянуть звук на доли процента проходом нельзя.
+    /// </param>
+    public Resampler(int inputRate, int outputRate, bool adjustable = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(inputRate);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(outputRate);
 
         InputRate = inputRate;
         OutputRate = outputRate;
-        _step = (double)inputRate / outputRate;
+        _nominalStep = (double)inputRate / outputRate;
+        _step = _nominalStep;
 
         // Равные частоты — не повод гонять свёртку. Это не оптимизация ради
         // оптимизации: на гарнитуре в режиме связи устройство и кодек оба
         // работают на 8 кГц, и лишний фильтр там только съел бы верх полосы,
         // которой и так осталось мало.
-        _passthrough = inputRate == outputRate;
+        _passthrough = inputRate == outputRate && !adjustable;
         if (_passthrough)
         {
             _table = [];
@@ -113,6 +122,28 @@ public sealed class Resampler
     /// <see cref="SampleBalance"/>.
     /// </summary>
     public double Ratio => (double)OutputRate / InputRate;
+
+    /// <summary>
+    /// Подправляет темп: сколько отсчётов выхода выдавать на каждый ожидаемый.
+    /// Единица — номинал; 0,999 — на тысячную меньше, то есть вход
+    /// расходуется на тысячную быстрее.
+    ///
+    /// <b>Зачем здесь, а не выбросом отсчёта.</b> До 1 октября 2026 поправка
+    /// темпа выбрасывала или повторяла отсчёты с конца каждого куска. Отсчёт,
+    /// выброшенный из волны, — это ступенька, и на поправке в половину
+    /// процента ступенька стояла на каждом кадре: пятьдесят щелчков в секунду
+    /// поверх голоса собеседника. Свёртка с дробной позицией растягивает звук
+    /// без единого шва — тот же фильтр, только шаг по входу другой.
+    /// </summary>
+    public void SetRateCorrection(double correction)
+    {
+        if (_passthrough || !(correction > 0))
+        {
+            return;
+        }
+
+        _step = _nominalStep / correction;
+    }
 
     /// <summary>
     /// Пересчитывает, сколько поместится.

@@ -12,10 +12,8 @@ namespace EliteSIP.Audio.Tests;
 /// отсчётов и разбор задержки печатаются самим трактом.
 ///
 /// <b>Что здесь есть.</b> То, что от железа не зависит: выбор частоты
-/// обработки и поправка темпа. Второе — не про полноту, а про конкретный
-/// дефект: первый вариант поправки округлял её на каждом куске и потому не
-/// делал ничего вовсе. Прогон на живом железе показал в журнале честные
-/// 179 ppm компенсации, которой не было.
+/// обработки и поведение незапущенного тракта. Поправка темпа живёт в
+/// пересчёте частоты и проверяется там (<see cref="ResamplerTests"/>).
 /// </summary>
 public sealed class WasapiVoiceAudioEngineTests
 {
@@ -41,99 +39,6 @@ public sealed class WasapiVoiceAudioEngineTests
         // Вверх, а не вниз: понижение резало бы полосу до обработки, то есть
         // выбрасывало бы часть разговора ещё до эхоподавителя.
         Assert.Equal(expected, VoiceProcessor.NearestSupportedRate(deviceRate));
-    }
-
-    [Fact]
-    public void Поправка_темпа_накапливается_а_не_теряется_в_округлении()
-    {
-        // Главная проверка файла, и она написана по следам дефекта. Кадр — 960
-        // отсчётов, поправка — 179 миллионных: произведение 960,17 округляется
-        // обратно в 960, и без переноса остатка компенсация не делает ничего.
-        // Настоящее расхождение кварцев — десятки ppm, то есть терялась бы
-        // ЛЮБАЯ поправка меньше тысячи ppm.
-        const double Correction = 1.000179;
-        const int ChunkSamples = 960;
-        const int Chunks = 1000;
-
-        float[] buffer = new float[ChunkSamples + 16];
-        double carry = 0;
-        long total = 0;
-
-        for (int i = 0; i < Chunks; i++)
-        {
-            total += WasapiVoiceAudioEngine.ApplyRateCorrection(
-                buffer,
-                ChunkSamples,
-                Correction,
-                ref carry);
-        }
-
-        long expected = (long)Math.Round(ChunkSamples * Chunks * Correction);
-        Assert.True(
-            Math.Abs(total - expected) <= 1,
-            $"выдано {total}, ожидалось {expected} — поправка потерялась в округлении");
-    }
-
-    [Fact]
-    public void Отрицательная_поправка_укорачивает_ровно_настолько_же()
-    {
-        const double Correction = 0.999821;
-        const int ChunkSamples = 960;
-        const int Chunks = 1000;
-
-        float[] buffer = new float[ChunkSamples + 16];
-        double carry = 0;
-        long total = 0;
-
-        for (int i = 0; i < Chunks; i++)
-        {
-            total += WasapiVoiceAudioEngine.ApplyRateCorrection(
-                buffer,
-                ChunkSamples,
-                Correction,
-                ref carry);
-        }
-
-        long expected = (long)Math.Round(ChunkSamples * Chunks * Correction);
-        Assert.True(
-            Math.Abs(total - expected) <= 1,
-            $"выдано {total}, ожидалось {expected}");
-    }
-
-    [Fact]
-    public void Единичная_поправка_не_трогает_кусок()
-    {
-        float[] buffer = new float[976];
-        double carry = 0;
-
-        Assert.Equal(960, WasapiVoiceAudioEngine.ApplyRateCorrection(buffer, 960, 1.0, ref carry));
-        Assert.Equal(0, carry);
-    }
-
-    [Fact]
-    public void Добавленный_отсчёт_повторяет_последний_а_не_обнуляет()
-    {
-        // Ноль в середине волны — это щелчок. Повтор последнего отсчёта на
-        // такой доле процента не слышен вовсе.
-        float[] buffer = new float[8];
-        buffer[3] = 0.5f;
-        double carry = 0.99;
-
-        int written = WasapiVoiceAudioEngine.ApplyRateCorrection(buffer, 4, 1.01, ref carry);
-
-        Assert.Equal(5, written);
-        Assert.Equal(0.5f, buffer[4]);
-    }
-
-    [Fact]
-    public void Кусок_не_укорачивается_в_ничто()
-    {
-        // Пустой кусок — это провал в звуке. Даже при упёршейся в предел
-        // поправке должен остаться хотя бы один отсчёт.
-        float[] buffer = new float[8];
-        double carry = -100;
-
-        Assert.Equal(1, WasapiVoiceAudioEngine.ApplyRateCorrection(buffer, 4, 1.0, ref carry));
     }
 
     [Fact]

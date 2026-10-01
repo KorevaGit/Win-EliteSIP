@@ -336,8 +336,56 @@ public static class AudioDeviceCatalog
     /// Устройство, у которого нет пути от динамика до микрофона: наушники,
     /// гарнитура, трубка. Эхоподавителю на нём вычитать нечего.
     /// </summary>
-    internal static bool IsEchoFree(MMDevice render) =>
-        ReadFormFactor(render) is FormFactorHeadphones or FormFactorHeadset or FormFactorHandset;
+    ///
+    /// <remarks>
+    /// Форм-фактора мало: беспроводные гарнитуры с донглом заявляют выход как
+    /// «Динамики». Так делает JBL Quantum350 — и на ней до 1 октября 2026
+    /// работали эхоподавитель и сильный шумодав, то есть ровно то, что на
+    /// гарнитуре приседает и «роботизирует» голос оператора (см.
+    /// <see cref="VoiceProcessor"/>). Поэтому вторым признаком — микрофон и
+    /// выход одной USB- или Bluetooth-гарнитуры.
+    /// </remarks>
+    internal static bool IsEchoFree(MMDevice render, MMDevice capture)
+    {
+        if (ReadFormFactor(render) is FormFactorHeadphones or FormFactorHeadset or FormFactorHandset)
+        {
+            return true;
+        }
+
+        try
+        {
+            return IsHeadsetPair(TransportOf(capture), capture.FriendlyName, TransportOf(render), render.FriendlyName);
+        }
+        catch (Exception e) when (IsAudioFailure(e))
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Тип подключения точки — без открытия потока, в отличие от <see cref="Describe"/>.</summary>
+    internal static AudioTransport TransportOf(MMDevice endpoint) =>
+        Classify(ReadEnumeratorName(endpoint), ReadFormFactor(endpoint));
+
+    /// <summary>
+    /// Микрофон и выход — одна гарнитура: USB или Bluetooth, одна и та же
+    /// карта по имени.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Встроенная карта сюда не попадает намеренно: «Микрофон (Realtek)» и
+    /// «Динамики (Realtek)» — это микрофон ноутбука и его же динамики, между
+    /// которыми эхо как раз есть. USB-спикерфон (Jabra Speak и подобные)
+    /// признак пройдёт, но у них эхоподавитель свой, аппаратный.
+    /// </remarks>
+    internal static bool IsHeadsetPair(
+        AudioTransport captureTransport,
+        string? captureName,
+        AudioTransport renderTransport,
+        string? renderName) =>
+        captureTransport is AudioTransport.Usb or AudioTransport.BluetoothHandsFree
+        && captureTransport == renderTransport
+        && AdapterOf(captureName) is string adapter
+        && string.Equals(adapter, AdapterOf(renderName), StringComparison.OrdinalIgnoreCase);
 
     // Форм-факторы из `EndpointFormFactor` (mmdeviceapi.h).
     private const int FormFactorHeadphones = 3;

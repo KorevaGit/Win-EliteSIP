@@ -53,7 +53,7 @@ public sealed class PlaybackRateController
     /// </summary>
     public const double MaximumCorrection = 0.005;
 
-    private readonly int _targetFill;
+    private int _targetFill;
     private readonly double _smoothingSeconds;
     private readonly double _proportional;
     private readonly double _integral;
@@ -110,6 +110,19 @@ public sealed class PlaybackRateController
 
     /// <summary>Целевой запас кольца.</summary>
     public int TargetFill => _targetFill;
+
+    /// <summary>
+    /// Меняет цель на ходу.
+    ///
+    /// Цель — не константа тракта, а глубина джиттер-буфера, и он сам её
+    /// подстраивает под сеть. Регулятор при этом не сбрасывается: интеграл —
+    /// это уход часов, и от смены цели он не меняется.
+    /// </summary>
+    public void Retarget(int targetFill)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(targetFill);
+        _targetFill = targetFill;
+    }
 
     /// <summary>Сглаженное заполнение — то, по чему регулятор на самом деле судит.</summary>
     public double SmoothedFill => _smoothedFill;
@@ -171,6 +184,6 @@ public sealed class PlaybackRateController
     }
 
     public string Summary =>
-        $"темп пересчёта: {CorrectionPpm:+#;-#;0} ppm, запас кольца {_smoothedFill:F0} из {_targetFill}"
+        $"темп пересчёта: {CorrectionPpm:+#;-#;0} ppm, запас приёма {_smoothedFill:F0} из {_targetFill}"
         + (IsSaturated ? " — ПОПРАВКА В УПОРЕ, дело не в часах" : string.Empty);
 }

@@ -50,6 +50,17 @@ public interface ILineMedia
     public MediaRenegotiation ApplyAnswer(ReadOnlyMemory<byte> answer);
 
     /// <summary>
+    /// Отвечает на повторное предложение сервера и применяет его к идущему
+    /// разговору: новый адрес, направление, кодек.
+    ///
+    /// Ответ — правка прежнего описания, как и наше повторное предложение: тот
+    /// же порт, тот же ключ, та же сессия, выросшая версия.
+    /// </summary>
+    /// <exception cref="SdpParseException">Предложение не разобралось.</exception>
+    /// <exception cref="SdpNegotiationException">Общего кодека или профиля нет.</exception>
+    public RemoteReofferAnswer AnswerReoffer(ReadOnlyMemory<byte> offer);
+
+    /// <summary>
     /// Отправляет тоны и дожидается, пока они выйдут в поток.
     ///
     /// Именно «вышли», а не «поставлены в очередь»: конференция и коды перевода
@@ -61,3 +72,12 @@ public interface ILineMedia
     /// <summary>Останавливает медиа линии.</summary>
     public Task StopAsync();
 }
+
+/// <summary>Наш ответ на повторное предложение сервера и то, о чём договорились.</summary>
+/// <param name="Answer">Описание SDP для 200 OK.</param>
+/// <param name="Media">Договорённость — по ней слой линий узнаёт серверное удержание.</param>
+/// <param name="Outcome">Что пришлось сделать с потоком.</param>
+public sealed record RemoteReofferAnswer(
+    ReadOnlyMemory<byte> Answer,
+    NegotiatedMedia Media,
+    MediaRenegotiation Outcome);

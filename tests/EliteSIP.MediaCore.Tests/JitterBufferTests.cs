@@ -84,9 +84,29 @@ public sealed class JitterBufferTests
     }
 
     [Fact]
+    public void Накопленное_сверх_цели_до_начала_выдачи_не_становится_задержкой()
+    {
+        // Asterisk шлёт RTP по 200 OK, а тракт поднимается ещё сотни
+        // миллисекунд. Всё накопленное за это время, отданное подряд, — это
+        // задержка до конца разговора: буфер выдаёт кадр на кадр.
+        JitterBuffer buffer = MakeBuffer(target: 3);
+        for (ushort sequence = 10; sequence < 20; sequence++)
+        {
+            buffer.Push(Packet(sequence));
+        }
+
+        JitterFrame? first = buffer.Pop();
+
+        Assert.Equal((ushort)17, first?.SequenceNumber);
+        Assert.Equal(2, buffer.Depth);
+        Assert.Equal(7, buffer.Statistics.Dropped);
+        Assert.True(buffer.IsPlaying);
+    }
+
+    [Fact]
     public void Отдаёт_кадры_по_порядку()
     {
-        JitterBuffer buffer = MakeBuffer(2);
+        JitterBuffer buffer = MakeBuffer(5);
         for (ushort sequence = 10; sequence <= 14; sequence++)
         {
             buffer.Push(Packet(sequence));
@@ -112,7 +132,7 @@ public sealed class JitterBufferTests
     [Fact]
     public void Потерянный_кадр_заменяется_повтором_последнего_а_не_тишиной()
     {
-        JitterBuffer buffer = MakeBuffer(2);
+        JitterBuffer buffer = MakeBuffer(3);
         buffer.Push(Packet(1, value: 0x7A));
         buffer.Push(Packet(3)); // второй потерян
         buffer.Push(Packet(4));
@@ -216,7 +236,7 @@ public sealed class JitterBufferTests
     {
         // Наивное сравнение a < b ломается раз на 65536 пакетов — примерно раз
         // в 22 минуты разговора. Проявляется как секунда тишины на ровном месте.
-        JitterBuffer buffer = MakeBuffer(3);
+        JitterBuffer buffer = MakeBuffer(4);
         buffer.Push(Packet(65_534));
         buffer.Push(Packet(65_535));
         buffer.Push(Packet(0));

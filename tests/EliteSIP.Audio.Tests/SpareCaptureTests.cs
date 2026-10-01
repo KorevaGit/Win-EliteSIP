@@ -81,6 +81,26 @@ public sealed class SpareCaptureTests
     public void Имя_карты_берётся_из_последних_скобок_с_учётом_вложенных(string? endpoint, string? adapter)
         => Assert.Equal(adapter, AudioDeviceCatalog.AdapterOf(endpoint));
 
+    [Theory]
+    // Журнал 1 октября 2026: донгл JBL заявляет выход «Динамиками», и по
+    // форм-фактору гарнитура в нём не видна.
+    [InlineData(AudioTransport.Usb, "Микрофон (JBL Quantum350 Wireless)", AudioTransport.Usb, "Динамики (JBL Quantum350 Wireless)", true)]
+    [InlineData(AudioTransport.BluetoothHandsFree, "Головной телефон (AirPods Pro)", AudioTransport.BluetoothHandsFree, "Головной телефон (AirPods Pro)", true)]
+    // Микрофон и динамики ноутбука — как раз та пара, между которыми эхо есть.
+    [InlineData(AudioTransport.BuiltIn, "Микрофон (Realtek(R) Audio)", AudioTransport.BuiltIn, "Динамики (Realtek(R) Audio)", false)]
+    // Микрофон ноутбука при наушниках-донгле — разные устройства.
+    [InlineData(AudioTransport.BuiltIn, "Набор микрофонов (Realtek(R) Audio)", AudioTransport.Usb, "Динамики (JBL Quantum350 Wireless)", false)]
+    [InlineData(AudioTransport.Usb, "Микрофон (Logitech Webcam)", AudioTransport.Usb, "Динамики (JBL Quantum350 Wireless)", false)]
+    public void Гарнитура_опознаётся_по_общей_карте_микрофона_и_выхода(
+        AudioTransport captureTransport,
+        string captureName,
+        AudioTransport renderTransport,
+        string renderName,
+        bool expected)
+        => Assert.Equal(
+            expected,
+            AudioDeviceCatalog.IsHeadsetPair(captureTransport, captureName, renderTransport, renderName));
+
     private static AudioDevice Capture(string id, string name, AudioTransport transport) => new(
         id,
         name,

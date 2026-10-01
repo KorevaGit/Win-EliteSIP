@@ -369,6 +369,45 @@ public sealed class LineController(ILineSignaling signaling, Action<string>? onD
         }
     }
 
+    /// <summary>
+    /// Отвечает на повторный INVITE сервера и применяет договорённость к линии.
+    /// </summary>
+    ///
+    /// <returns>
+    /// Ответ для 200 OK; <c>null</c>, если такой линии нет — медиа ещё не
+    /// заведено или звонок уже снят.
+    /// </returns>
+    ///
+    /// <remarks>
+    /// До 1 октября 2026 повторные INVITE сервера в приложении не доходили до
+    /// медиа вовсе: обработчик стоял только в стенде, а приложение отвечало
+    /// прежним SDP и продолжало слать звук на прежний адрес. Перевод с
+    /// переездом медиа, прямой поток Asterisk между аппаратами, удержание со
+    /// стороны станции и смена кодека оставались без последствий — то есть
+    /// без звука в одну сторону или с голосом оператора в музыке ожидания.
+    /// </remarks>
+    /// <exception cref="SdpParseException">Предложение не разобралось.</exception>
+    /// <exception cref="SdpNegotiationException">Общего кодека или профиля нет.</exception>
+    public RemoteReofferAnswer? AnswerRemoteReoffer(string callId, ReadOnlyMemory<byte> offer)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(callId);
+
+        CallLine line;
+        lock (_gate)
+        {
+            if (Find(callId) is not CallLine found)
+            {
+                return null;
+            }
+
+            line = found;
+        }
+
+        RemoteReofferAnswer answer = line.Media.AnswerReoffer(offer);
+        ApplyRemoteMedia(callId, answer.Media);
+        return answer;
+    }
+
     /// <summary>Отправляет тоны по активной линии.</summary>
     public async Task<DtmfOutcome> SendDtmfAsync(DtmfSequence sequence, string? callId = null)
     {

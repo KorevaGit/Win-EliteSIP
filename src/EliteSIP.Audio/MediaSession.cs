@@ -1515,6 +1515,21 @@ public sealed class MediaSession : IDisposable
             Interlocked.Increment(ref _playedFrames);
             return new PlaybackFrame(frame.Payload, frame.IsConcealment);
         },
+
+        Backlog = () =>
+        {
+            if (!_ownsAudio)
+            {
+                return null;
+            }
+
+            lock (_bufferGate)
+            {
+                return _jitter.IsPlaying
+                    ? new PlaybackBacklog(_jitter.Depth, _jitter.TargetDepth)
+                    : null;
+            }
+        },
     };
 
     private void ClaimAudio()

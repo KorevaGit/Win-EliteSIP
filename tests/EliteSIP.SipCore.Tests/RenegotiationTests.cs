@@ -241,6 +241,29 @@ public sealed class RenegotiationTests
     }
 
     [Fact]
+    public async Task Медиа_ещё_не_поднято_повторный_INVITE_подтверждается_прежним_описанием()
+    {
+        // Asterisk присылает повторный INVITE через десятки миллисекунд после
+        // нашего 200 OK, когда тракт ещё поднимается. 488 на это — лишний
+        // повод станции считать разговор сломанным.
+        ScriptedSipServer server = AcceptingServer();
+        using SipUserAgent agent = await RegisteredAgentAsync(server);
+        agent.SetMediaRenegotiator((_, _) => Task.FromResult<ReadOnlyMemory<byte>?>(ReadOnlyMemory<byte>.Empty));
+
+        string toTag = await AnsweredCallAsync(agent, server);
+        int before = server.SentResponses.Count;
+
+        server.Inject(MakeReinvite(toTag));
+        Assert.True(await TestSupport.WaitUntilAsync(
+            () => server.SentResponses.Skip(before).Any(response => response.StatusCode == 200)));
+        await agent.StopAsync();
+
+        SipResponse ok = server.SentResponses.Last(
+            response => response.StatusCode == 200 && response.CSeq?.Method == SipMethod.Invite);
+        Assert.Equal(AnswerSdp, Encoding.UTF8.GetString(ok.Body.Span));
+    }
+
+    [Fact]
     public async Task Повторный_INVITE_без_предложения_подтверждается_прежним_описанием()
     {
         ScriptedSipServer server = AcceptingServer();
