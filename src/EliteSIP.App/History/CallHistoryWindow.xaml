@@ -294,13 +294,33 @@
                                                 IsIncoming="{Binding Converter={StaticResource IsIncoming}}" />
 
                           <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title}"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Converter={StaticResource CallSubtitle}}"
-                                       Margin="0,2,0,0"
+                            <!--
+                                Заголовок и нижняя строка — по правилу окна
+                                входящего (HistoryPresentation): раздача и
+                                звонок по сделке словами, мобильный под маской.
+                                Свой добавочный — у модели окна.
+                            -->
+                            <TextBlock TextTrimming="CharacterEllipsis">
+                              <TextBlock.Text>
+                                <MultiBinding Converter="{StaticResource CallTitle}">
+                                  <Binding />
+                                  <Binding Path="DataContext.OwnNumber"
+                                           RelativeSource="{RelativeSource AncestorType=Window}" />
+                                </MultiBinding>
+                              </TextBlock.Text>
+                            </TextBlock>
+                            <TextBlock Margin="0,2,0,0"
                                        FontSize="12"
                                        TextTrimming="CharacterEllipsis"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                       Foreground="{DynamicResource TextSecondaryBrush}">
+                              <TextBlock.Text>
+                                <MultiBinding Converter="{StaticResource CallSubtitle}">
+                                  <Binding />
+                                  <Binding Path="DataContext.OwnNumber"
+                                           RelativeSource="{RelativeSource AncestorType=Window}" />
+                                </MultiBinding>
+                              </TextBlock.Text>
+                            </TextBlock>
                           </StackPanel>
 
                           <!--

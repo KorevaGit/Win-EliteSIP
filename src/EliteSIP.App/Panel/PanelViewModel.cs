@@ -27,6 +27,21 @@ public enum RegistrationState
 /// </remarks>
 public sealed record Trouble(string Text, string? Glyph, bool IsFailure, bool OpensSettings);
 
+/// <summary>Что софтфон делает прямо сейчас, одним-двумя словами.</summary>
+///
+/// <param name="Text">«Подключаюсь…», «Перезапускаю звук…», «Нет звука собеседника».</param>
+/// <param name="Glyph">Значок слева.</param>
+/// <param name="IsWarning">Неполадка, а не просто работа: другим цветом.</param>
+///
+/// <remarks>
+/// Отдельно от беды: беда — это «сломалось, чините», и висит, пока не
+/// починят. Здесь — переходные состояния и предупреждения о разговоре,
+/// которые гаснут сами. В стабильной работе и в полном отключении слот пуст:
+/// обычное положение дел несёт цвет точки, и строка поверх неё не сообщала бы
+/// ничего.
+/// </remarks>
+public sealed record PanelActivity(string Text, string Glyph, bool IsWarning);
+
 /// <summary>Клавиша DTMF-макроса.</summary>
 ///
 /// <remarks>
@@ -236,8 +251,30 @@ public sealed class PanelViewModel : Observable
         {
             Set(ref _trouble, value);
             NotifyChanged(nameof(ShowsNotice));
+            NotifyChanged(nameof(ShowsActivity));
         }
     }
+
+    private PanelActivity? _activity;
+
+    /// <summary>Короткий статус в слоте беды. Беда его перекрывает.</summary>
+    public PanelActivity? Activity
+    {
+        get => _activity;
+        set
+        {
+            if (Equals(_activity, value))
+            {
+                return;
+            }
+
+            Set(ref _activity, value);
+            NotifyChanged(nameof(ShowsActivity));
+            NotifyChanged(nameof(ShowsNotice));
+        }
+    }
+
+    public bool ShowsActivity => _activity is not null && _trouble is null;
 
     private string? _notice;
 
@@ -261,7 +298,7 @@ public sealed class PanelViewModel : Observable
         }
     }
 
-    public bool ShowsNotice => _notice is not null && _trouble is null;
+    public bool ShowsNotice => _notice is not null && _trouble is null && _activity is null;
 
     public RelayCommand DismissNotice => new(_ => Notice = null);
 

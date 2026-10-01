@@ -1022,8 +1022,20 @@ public partial class App : Application, IDisposable
         }
 
         Log($"{reason}: поднимаем регистрацию заново");
-        _ = _phone.ConnectAsync();
+        _ = _phone.ConnectAsync(ReconnectStatus(reason));
     }
+
+    /// <summary>
+    /// Что написать на панели, пока регистрация поднимается заново, — по
+    /// поводу. Оператору важно отличить «сеть сменилась, сейчас вернусь» от
+    /// «меняю номер», а журнальная строка повода для панели длинна.
+    /// </summary>
+    private static string ReconnectStatus(string reason) => reason switch
+    {
+        "сеть сменилась" or "исправление сети" => "StatusFixingNetwork",
+        "смена профиля" or "учётная запись изменена в «Управлении»" => "StatusSwitchingNumber",
+        _ => "StatusReconnecting",
+    };
 
     /// <summary>Показать панель и поднять её наверх.</summary>
     ///

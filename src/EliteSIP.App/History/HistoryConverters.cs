@@ -1,7 +1,5 @@
 using System.Globalization;
-using System.Text;
 using System.Windows.Data;
-using EliteSIP.App.Resources;
 using EliteSIP.CallHistory;
 
 namespace EliteSIP.App.History;
@@ -57,41 +55,31 @@ public sealed class CallStampConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
-/// <summary>Нижняя строка: сам номер и пометки перевода и конференции.</summary>
+/// <summary>Главная строка звонка. Значения: запись и свой добавочный.</summary>
 ///
-/// <remarks>
-/// Номер стоит внизу всегда, даже когда он же написан наверху. Повтор выбран
-/// сознательно: имён почти нет — сервер кладёт в <c>From</c> тот же номер, — и
-/// без него нижняя строка у большинства звонков пустая. Строка при этом
-/// выглядит наполовину отвалившейся, а высоту всё равно занимает, потому что
-/// справа под ней стоит дата. Пустое место, которое нельзя убрать, хуже
-/// повтора.
-/// </remarks>
-public sealed class CallSubtitleConverter : IValueConverter
+/// <remarks>Правило — в <see cref="HistoryPresentation"/>.</remarks>
+public sealed class CallTitleConverter : IMultiValueConverter
 {
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is not CallRecord record)
-        {
-            return string.Empty;
-        }
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+        => values.Length > 0 && values[0] is CallRecord record
+            ? HistoryPresentation.Title(record, values.Length > 1 ? values[1] as string ?? string.Empty : string.Empty)
+            : string.Empty;
 
-        var text = new StringBuilder(record.Number);
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
 
-        if (record.WasTransferred)
-        {
-            text.Append(" · ").Append(Strings.Get("HistoryTransferred"));
-        }
+/// <summary>Нижняя строка звонка. Значения: запись и свой добавочный.</summary>
+///
+/// <remarks>Правило — в <see cref="HistoryPresentation"/>.</remarks>
+public sealed class CallSubtitleConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+        => values.Length > 0 && values[0] is CallRecord record
+            ? HistoryPresentation.Subtitle(record, values.Length > 1 ? values[1] as string ?? string.Empty : string.Empty)
+            : string.Empty;
 
-        if (record.WasConference)
-        {
-            text.Append(" · ").Append(Strings.Get("HistoryConference"));
-        }
-
-        return text.ToString();
-    }
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
 

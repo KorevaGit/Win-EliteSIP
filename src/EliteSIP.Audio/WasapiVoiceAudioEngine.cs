@@ -1148,6 +1148,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             Diagnostic(
                 $"микрофон гарнитуры «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта"
                 + " — проверьте кнопку выключения микрофона и штангу на гарнитуре");
+            Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
             return;
         }
 
@@ -1158,6 +1159,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             Diagnostic(
                 $"микрофон «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта"
                 + " — проверьте, тот ли вход выбран в настройках");
+            Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
             return;
         }
 
@@ -1166,6 +1168,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             Diagnostic(
                 $"микрофон «{_inputDeviceName}» молчит, а другого живого нет"
                 + " — проверьте доступ к микрофону в параметрах Windows");
+            Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
             return;
         }
 

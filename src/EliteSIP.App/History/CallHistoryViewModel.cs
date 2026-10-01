@@ -66,6 +66,7 @@ public sealed class CallHistoryViewModel : Observable
         _store = store;
         _profileId = profileId;
         ProfileTitle = profileTitle;
+        OwnNumber = profileTitle;
 
         Calendar = new HistoryCalendar(
             () => _store.DaysWithCalls(new HistoryScope(_profileId)),
@@ -105,6 +106,12 @@ public sealed class CallHistoryViewModel : Observable
     /// В строках профиля больше нет — повторять метку двести раз незачем.
     /// </remarks>
     public string ProfileTitle { get; }
+
+    /// <summary>
+    /// Свой добавочный — по нему вызов по сделке узнаётся в строке истории.
+    /// Метка профиля и есть добавочный: профиль называется номером.
+    /// </summary>
+    public string OwnNumber { get; }
 
     public IReadOnlyList<HistoryFilterItem> Filters { get; }
 

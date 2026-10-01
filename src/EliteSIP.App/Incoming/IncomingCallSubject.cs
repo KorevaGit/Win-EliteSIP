@@ -88,6 +88,13 @@ public sealed record IncomingCallSubject
     /// </remarks>
     public static string DealTitle => Strings.Get("IncomingDeal");
 
+    /// <summary>
+    /// Кто вызов по сделке породил — нижней строкой в истории, вместо номера:
+    /// номер там — свой же добавочный, одинаковый от вызова к вызову.
+    /// </summary>
+    // Не переводится: имя продукта.
+    public const string DealSource = "Bitrix";
+
     /// <summary>Что стоит на главном месте — в окне входящего и в шапке панели.</summary>
     ///
     /// <remarks>

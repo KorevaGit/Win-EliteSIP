@@ -35,6 +35,13 @@ public abstract record VoiceAudioEvent
 
     /// <summary>Маршрут изменился: другое устройство или другой режим.</summary>
     public sealed record RouteChanged(AudioRoute Route) : VoiceAudioEvent;
+
+    /// <summary>
+    /// Микрофон отдаёт цифровой ноль, и подменять его тракт не стал: это
+    /// гарнитура с выключенным микрофоном или вход, выбранный в настройках.
+    /// Чинит человек — значит, сказать ему надо на панели, а не в журнале.
+    /// </summary>
+    public sealed record InputSilent(string DeviceName) : VoiceAudioEvent;
 }
 
 /// <summary>Кадр для воспроизведения вместе с признаком, настоящий он или спрятанный.</summary>

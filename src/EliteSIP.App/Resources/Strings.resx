@@ -335,6 +335,9 @@
   <data name="HistoryTransferred" xml:space="preserve">
     <value>transferred</value>
   </data>
+  <data name="HistoryConsultation" xml:space="preserve">
+    <value>consultation</value>
+  </data>
   <data name="HistoryConference" xml:space="preserve">
     <value>conference</value>
   </data>
@@ -1208,5 +1211,44 @@
   </data>
   <data name="AdminAutoAnswerAlwaysNote" xml:space="preserve">
     <value>Every incoming call will be answered even if nobody is at the workplace.</value>
+  </data>
+  <data name="StatusConnecting" xml:space="preserve">
+    <value>Connecting…</value>
+  </data>
+  <data name="StatusReconnecting" xml:space="preserve">
+    <value>Reconnecting…</value>
+  </data>
+  <data name="StatusFixingNetwork" xml:space="preserve">
+    <value>Fixing network…</value>
+  </data>
+  <data name="StatusSwitchingNumber" xml:space="preserve">
+    <value>Switching number…</value>
+  </data>
+  <data name="StatusDisconnecting" xml:space="preserve">
+    <value>Disconnecting…</value>
+  </data>
+  <data name="StatusWaitingServer" xml:space="preserve">
+    <value>Waiting for server…</value>
+  </data>
+  <data name="StatusAudioRestarting" xml:space="preserve">
+    <value>Restarting audio…</value>
+  </data>
+  <data name="StatusAudioLost" xml:space="preserve">
+    <value>Audio lost</value>
+  </data>
+  <data name="StatusMicSilent" xml:space="preserve">
+    <value>Microphone is silent</value>
+  </data>
+  <data name="StatusNoInbound" xml:space="preserve">
+    <value>No audio from caller</value>
+  </data>
+  <data name="StatusInboundStalled" xml:space="preserve">
+    <value>Caller dropped out</value>
+  </data>
+  <data name="StatusPoorNetwork" xml:space="preserve">
+    <value>Poor connection</value>
+  </data>
+  <data name="StatusMediaNetworkError" xml:space="preserve">
+    <value>Audio network error</value>
   </data>
 </root>

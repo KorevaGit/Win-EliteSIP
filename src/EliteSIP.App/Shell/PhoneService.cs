@@ -131,6 +131,17 @@ public sealed class PhoneService : IDisposable
         SelfTest = new AudioSelfTest(configuration => new WasapiVoiceAudioEngine(configuration), log);
 
         _settings.Audio.PropertyChanged += OnAudioSettingsChanged;
+
+        // Такт статусов: раз в секунду, в потоке окна — статусы читают записи
+        // звонков, а те живут там же. Работы на такте — сравнить пару
+        // счётчиков, так что держать его включённым весь день дешевле, чем
+        // следить, когда его включать.
+        _monitor = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+        {
+            Interval = TimeSpan.FromSeconds(1),
+        };
+        _monitor.Tick += (_, _) => MonitorTick();
+        _monitor.Start();
     }
 
     /// <summary>
@@ -286,13 +297,32 @@ public sealed class PhoneService : IDisposable
     /// не молчанием: панель без адреса или пароля выглядит сломанной, и оператор
     /// в этот момент звонит в поддержку вместо того, чтобы открыть настройки.
     /// </remarks>
-    public async Task ConnectAsync()
+    /// <param name="statusKey">
+    /// Что написать на панели, пока регистрация поднимается: «Правлю сеть…»
+    /// после смены сети, «Меняю номер…» после смены учётки. По умолчанию —
+    /// «Подключаюсь…».
+    /// </param>
+    public async Task ConnectAsync(string? statusKey = null)
     {
         await _connection.WaitAsync().ConfigureAwait(true);
         try
         {
+            if (_agent is not null)
+            {
+                ShowStatus(StatusSlot.Connection, "StatusDisconnecting", "clock");
+            }
+
             await DisconnectCoreAsync().ConfigureAwait(true);
+
+            ShowStatus(StatusSlot.Connection, statusKey ?? "StatusConnecting", "clock");
             await ConnectCoreAsync().ConfigureAwait(true);
+
+            // Регистрация не поднималась вовсе — нет учётки или пароля: про
+            // это говорит беда, а «подключаюсь» висел бы вечно.
+            if (_agent is null)
+            {
+                ClearStatus(StatusSlot.Connection);
+            }
         }
         finally
         {
@@ -447,10 +477,17 @@ public sealed class PhoneService : IDisposable
         await _connection.WaitAsync().ConfigureAwait(true);
         try
         {
+            if (_agent is not null)
+            {
+                ShowStatus(StatusSlot.Connection, "StatusDisconnecting", "clock");
+            }
+
             await DisconnectCoreAsync().ConfigureAwait(true);
         }
         finally
         {
+            // Полное отключение — состояние без статуса: его несёт серая точка.
+            ClearStatus(StatusSlot.Connection);
             _connection.Release();
         }
     }
@@ -1410,7 +1447,12 @@ public sealed class PhoneService : IDisposable
         var session = new MediaSession(negotiated, reservation, _bus!, AudioConfiguration())
         {
             OnDiagnostic = message => _log($"медиа: {message}"),
-            OnTransportFailure = reason => _log($"транспорт медиа: {reason}"),
+            OnTransportFailure = reason =>
+            {
+                _log($"транспорт медиа: {reason}");
+                ShowStatus(StatusSlot.MediaError, "StatusMediaNetworkError", "exclamationmark.triangle",
+                    isWarning: true, lifetime: TimeSpan.FromSeconds(6));
+            },
 
             // События тракта: подъём, перезапуск, поломка.
             //
@@ -1418,7 +1460,11 @@ public sealed class PhoneService : IDisposable
             // падал на каждом звонке, докладывал о поломке — и доклад уходил в
             // пустоту. В журнале оставался разговор без единой строки о звуке,
             // а у собеседника тишина без объяснения.
-            OnAudioEvent = value => _log($"звук: {value}"),
+            OnAudioEvent = value =>
+            {
+                _log($"звук: {value}");
+                ShowAudioStatus(value);
+            },
         };
 
         _sessions[callId] = session;
@@ -1552,16 +1598,48 @@ public sealed class PhoneService : IDisposable
                 _panel.Registration = RegistrationState.Registered;
                 _panel.CanPlaceCall = true;
                 _panel.Trouble = null;
+                _wasRegistered = true;
+                _registeringSince = null;
+                ClearStatus(StatusSlot.Connection);
                 break;
 
             case SipRegistrationState.Registering:
+                _panel.Registration = RegistrationState.Registering;
+
+                // Обновление идущей регистрации — раз в три с половиной
+                // минуты и занимает десяток миллисекунд: писать про него
+                // нечего. Затянулось — сервер молчит, и это уже новость
+                // (см. MonitorTick). Первая регистрация и повтор после отказа
+                // — «подключаюсь», если причину не назвали раньше.
+                _registeringSince = DateTimeOffset.Now;
+                if (!_wasRegistered && !_statuses.ContainsKey(StatusSlot.Connection))
+                {
+                    ShowStatus(StatusSlot.Connection, "StatusConnecting", "clock");
+                }
+
+                break;
+
             case SipRegistrationState.Unregistering:
                 _panel.Registration = RegistrationState.Registering;
+                _registeringSince = null;
+
+                // Событие приходит через очередь окна и может опоздать к уже
+                // объявленному «подключаюсь» — затирать его нельзя.
+                if (!_statuses.ContainsKey(StatusSlot.Connection))
+                {
+                    ShowStatus(StatusSlot.Connection, "StatusDisconnecting", "clock");
+                }
+
                 break;
 
             case SipRegistrationState.Failed failed:
                 _panel.Registration = RegistrationState.Failed;
                 _panel.CanPlaceCall = false;
+                _wasRegistered = false;
+                _registeringSince = null;
+
+                // Отказ говорит беда — у неё причина словами.
+                ClearStatus(StatusSlot.Connection);
 
                 // Причина отказа — та, что разобрал SipCore: «неверный пароль»
                 // и «сервер не отвечает» чинятся разным, и слот беды обязан их
@@ -1576,6 +1654,8 @@ public sealed class PhoneService : IDisposable
             default:
                 _panel.Registration = RegistrationState.Idle;
                 _panel.CanPlaceCall = false;
+                _wasRegistered = false;
+                _registeringSince = null;
                 break;
         }
 
@@ -1617,14 +1697,30 @@ public sealed class PhoneService : IDisposable
         CallLineViewModel? active = null;
         foreach (var line in _lines.Lines)
         {
+            var record = _records.Values.FirstOrDefault(candidate => candidate.CallId == line.CallId);
+
+            // Входящий в шапке — тем же правилом, что в окне входящего и в
+            // истории: раздача и звонок по сделке словами, мобильный под
+            // маской. До 1 октября 2026 здесь стоял номер как есть, и
+            // мобильный лида, скрытый в окне входящего, через секунду
+            // показывался в панели крупно. Исходящий набрал сам оператор —
+            // его номер показывается как есть.
+            var subject = record is { Direction: CallDirection.Incoming }
+                ? IncomingCallSubject.Classify(
+                    record.Number,
+                    record.DisplayName,
+                    record.WasDistribution,
+                    _settings.Account.Username,
+                    QueueTitle(record.Number))
+                : null;
+
             var view = new CallLineViewModel
             {
-                Title = line.Peer,
-                SecondaryNumber = line.Peer,
+                Title = subject?.Headline ?? line.Peer,
+                SecondaryNumber = subject is null ? line.Peer : subject.SecondaryNumber,
                 IsActive = line.IsActive,
                 IsOnHold = line.IsHeldByOperator || line.IsHeldByServer,
-                ConnectedAt = _records.Values
-                    .FirstOrDefault(record => record.CallId == line.CallId)?.AnsweredAt,
+                ConnectedAt = record?.AnsweredAt,
             };
 
             view.Status = view.IsOnHold
@@ -1650,6 +1746,238 @@ public sealed class PhoneService : IDisposable
         UpdatePreAnswerAudio();
     }
 
+    // --- Короткие статусы панели ------------------------------------------
+
+    /// <summary>
+    /// Слоты статусов в порядке важности: показывается первый занятый.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Слоты, а не одна строка: источники независимы — регистрация, тракт,
+    /// поток собеседника, — и последний записавший не должен затирать
+    /// важное. «Перезапускаю звук» посреди «Нет звука собеседника» — это два
+    /// факта, и когда тракт поднимется, второй обязан остаться на месте.
+    /// </remarks>
+    private enum StatusSlot
+    {
+        Connection,
+        Audio,
+        Microphone,
+        Inbound,
+        MediaError,
+        Network,
+    }
+
+    private readonly DispatcherTimer _monitor;
+    private readonly Dictionary<StatusSlot, (string Key, string Glyph, bool IsWarning, DateTimeOffset? Until)> _statuses = [];
+    private bool _wasRegistered;
+    private DateTimeOffset? _registeringSince;
+    private MediaSession? _watchedSession;
+    private readonly InboundStreamWatch _inboundWatch = new();
+    private readonly Queue<(int Concealed, int Received)> _qualityWindow = new();
+
+    /// <summary>
+    /// Сколько регистрация вправе молчать, прежде чем панель скажет «жду
+    /// ответа сервера». Ответ в офисной сети приходит за десятки
+    /// миллисекунд; две секунды — это уже ретрансмиссии, то есть потери.
+    /// </summary>
+    private static readonly TimeSpan RegistrationPatience = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Доля сокрытых кадров, с которой связь объявляется плохой: пять
+    /// процентов — это синтез каждую секунду, и на слух это уже «робот».
+    /// </summary>
+    private const double PoorConcealment = 0.05;
+
+    /// <summary>То же по потерям у собеседника, из его отчётов RTCP.</summary>
+    private const double PoorRemoteLoss = 0.05;
+
+    private void ShowStatus(
+        StatusSlot slot,
+        string key,
+        string glyph,
+        bool isWarning = false,
+        TimeSpan? lifetime = null)
+        => OnUi(() =>
+        {
+            _statuses[slot] = (key, glyph, isWarning, lifetime is { } span ? DateTimeOffset.Now + span : null);
+            PublishStatus();
+        });
+
+    private void ClearStatus(StatusSlot slot)
+        => OnUi(() =>
+        {
+            if (_statuses.Remove(slot))
+            {
+                PublishStatus();
+            }
+        });
+
+    private void OnUi(Action action)
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            _dispatcher.BeginInvoke(action);
+        }
+    }
+
+    private void PublishStatus()
+    {
+        var now = DateTimeOffset.Now;
+        foreach (var expired in _statuses.Where(entry => entry.Value.Until <= now).Select(entry => entry.Key).ToList())
+        {
+            _statuses.Remove(expired);
+        }
+
+        // Отключён решением оператора — статусов нет: это полное отключение,
+        // и его несёт серая точка.
+        if (_panel.IsOfflineByChoice || _statuses.Count == 0)
+        {
+            _panel.Activity = null;
+            return;
+        }
+
+        var top = _statuses.OrderBy(entry => entry.Key).First().Value;
+        _panel.Activity = new PanelActivity(Strings.Get(top.Key), top.Glyph, top.IsWarning);
+    }
+
+    /// <summary>События тракта — в статусы.</summary>
+    private void ShowAudioStatus(VoiceAudioEvent value)
+    {
+        switch (value)
+        {
+            case VoiceAudioEvent.Restarting:
+                ShowStatus(StatusSlot.Audio, "StatusAudioRestarting", "speaker.wave.2");
+                break;
+
+            case VoiceAudioEvent.Restarted:
+                // Новый тракт — заново неизвестно, молчит ли микрофон: его
+                // проверка идёт на каждом подъёме и скажет сама.
+                ClearStatus(StatusSlot.Audio);
+                ClearStatus(StatusSlot.Microphone);
+                break;
+
+            case VoiceAudioEvent.Broken:
+                ShowStatus(StatusSlot.Audio, "StatusAudioLost", "speaker.slash", isWarning: true);
+                break;
+
+            case VoiceAudioEvent.InputSilent:
+                ShowStatus(StatusSlot.Microphone, "StatusMicSilent", "mic.slash.fill", isWarning: true);
+                break;
+        }
+    }
+
+    /// <summary>Такт статусов: регистрация, поток собеседника, качество связи.</summary>
+    private void MonitorTick()
+    {
+        if (_registeringSince is { } since
+            && _wasRegistered
+            && DateTimeOffset.Now - since >= RegistrationPatience)
+        {
+            ShowStatus(StatusSlot.Connection, "StatusWaitingServer", "clock", isWarning: true);
+        }
+
+        // Разговор, который сейчас в ухе: звук наш и уже ответили. Пока идут
+        // гудки, станция вправе молчать, и «нет звука собеседника» там было
+        // бы неправдой.
+        MediaSession? session = null;
+        foreach (var (callId, candidate) in _sessions)
+        {
+            if (candidate.OwnsAudio
+                && candidate.IsReceivingAudio
+                && _records.TryGetValue(callId, out var record)
+                && record.AnsweredAt is not null)
+            {
+                session = candidate;
+                break;
+            }
+        }
+
+        if (session is null)
+        {
+            if (_watchedSession is not null)
+            {
+                _watchedSession = null;
+                ClearStatus(StatusSlot.Inbound);
+                ClearStatus(StatusSlot.Network);
+            }
+
+            if (_sessions.IsEmpty)
+            {
+                // Разговоров нет — про звук сказать нечего.
+                ClearStatus(StatusSlot.Audio);
+                ClearStatus(StatusSlot.Microphone);
+            }
+
+            PublishStatus();
+            return;
+        }
+
+        if (!ReferenceEquals(session, _watchedSession))
+        {
+            _watchedSession = session;
+            _inboundWatch.Reset();
+            _qualityWindow.Clear();
+        }
+
+        var statistics = session.Statistics;
+        var inbound = _inboundWatch.Update(statistics.Received);
+        switch (inbound.Kind)
+        {
+            case InboundStreamKind.NeverStarted:
+                ShowStatus(StatusSlot.Inbound, "StatusNoInbound", "speaker.slash", isWarning: true);
+                break;
+
+            case InboundStreamKind.Stalled:
+                ShowStatus(StatusSlot.Inbound, "StatusInboundStalled", "speaker.slash", isWarning: true);
+                break;
+
+            default:
+                ClearStatus(StatusSlot.Inbound);
+                break;
+        }
+
+        // Качество — по окну в пять секунд: доля спрятанных кадров у нас и
+        // потери, о которых сообщает собеседник. Одиночная потеря не повод
+        // пугать оператора, полсекунды синтеза за пять секунд — повод.
+        _qualityWindow.Enqueue((statistics.Concealed, statistics.Received));
+        while (_qualityWindow.Count > 5)
+        {
+            _qualityWindow.Dequeue();
+        }
+
+        var poor = false;
+        if (_qualityWindow.Count == 5 && inbound.Kind is InboundStreamKind.Flowing)
+        {
+            var (firstConcealed, firstReceived) = _qualityWindow.Peek();
+            var concealed = statistics.Concealed - firstConcealed;
+            var received = statistics.Received - firstReceived;
+            poor = concealed > 0 && (double)concealed / Math.Max(concealed + received, 1) >= PoorConcealment;
+        }
+
+        if (session.RemoteView is { } remote
+            && DateTimeOffset.UtcNow - remote.UpdatedAt.ToUniversalTime() < TimeSpan.FromSeconds(15)
+            && remote.FractionLost >= PoorRemoteLoss)
+        {
+            poor = true;
+        }
+
+        if (poor)
+        {
+            ShowStatus(StatusSlot.Network, "StatusPoorNetwork", "exclamationmark.triangle", isWarning: true);
+        }
+        else
+        {
+            ClearStatus(StatusSlot.Network);
+        }
+
+        PublishStatus();
+    }
+
     private void Trouble(string key, bool opensSettings)
         => _panel.Trouble = new Trouble(
             Strings.Get(key),
@@ -1662,6 +1990,7 @@ public sealed class PhoneService : IDisposable
         // Синхронно: приложение закрывается, и ждать снятия регистрации дольше
         // мгновения нельзя — иначе выход выглядит зависанием.
         _settings.Audio.PropertyChanged -= OnAudioSettingsChanged;
+        _monitor.Stop();
         SelfTest.Dispose();
         _lines = null;
         _running?.Cancel();

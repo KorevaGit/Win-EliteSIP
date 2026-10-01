@@ -7,6 +7,7 @@
 
   <history:OutcomeTextConverter x:Key="OutcomeText" />
   <history:CallStampConverter x:Key="CallStamp" />
+  <history:CallTitleConverter x:Key="CallTitle" />
   <history:CallSubtitleConverter x:Key="CallSubtitle" />
   <history:IsIncomingConverter x:Key="IsIncoming" />
   <history:EqualityConverter x:Key="Equality" />

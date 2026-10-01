@@ -501,10 +501,17 @@ public sealed partial class SipUserAgent : IDisposable
             try
             {
                 await RegisterAsync(0, limit.Token).ConfigureAwait(false);
+                Log(SipLogLevel.Info, $"{_account.Username}: регистрация снята");
             }
             catch (Exception error) when (error is SipRegistrationException or SipTransactionException or OperationCanceledException)
             {
-                // Сервер недоступен — регистрация истечёт сама.
+                // Сервер недоступен — регистрация истечёт сама. В журнал — с
+                // номером: пока она не истекла, сервер считает этот номер
+                // живым и шлёт вызовы на закрытый сокет, и при смене номера
+                // это первое, что надо увидеть.
+                Log(
+                    SipLogLevel.Warning,
+                    $"{_account.Username}: снять регистрацию не удалось ({error.Message}) — сервер считает номер живым до истечения срока");
             }
         }
 
@@ -665,7 +672,7 @@ public sealed partial class SipUserAgent : IDisposable
                 SetState(new SipRegistrationState.Registered(
                     DateTimeOffset.UtcNow.AddSeconds(granted),
                     contact));
-                Log(SipLogLevel.Info, $"зарегистрирован на {granted.ToString(CultureInfo.InvariantCulture)} с, Contact {contact}");
+                Log(SipLogLevel.Info, $"{_account.Username} зарегистрирован на {granted.ToString(CultureInfo.InvariantCulture)} с, Contact {contact}");
 
                 int refreshAfter = RefreshInterval(granted);
                 Log(SipLogLevel.Debug, $"обновление регистрации через {refreshAfter.ToString(CultureInfo.InvariantCulture)} с");

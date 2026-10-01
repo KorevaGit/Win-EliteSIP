@@ -242,6 +242,54 @@
                    Foreground="{DynamicResource CautionBrush}" />
       </StackPanel>
 
+      <!--
+          Короткий статус в том же месте: «Подключаюсь…», «Перезапускаю
+          звук…», «Нет звука собеседника». Пуст в стабильной работе и в полном
+          отключении. Беда его перекрывает, спокойное сообщение уступает ему.
+      -->
+      <Grid Grid.Column="1"
+            Margin="6,0,6,0"
+            VerticalAlignment="Center"
+            Visibility="{Binding ShowsActivity, Converter={StaticResource BoolToVisibility}}">
+        <!-- Сеткой, а не строкой: в строке текст получает бесконечную ширину
+             и обрезается краем без многоточия. -->
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <theme:Icon Glyph="{Binding Activity.Glyph}"
+                    Size="10"
+                    VerticalAlignment="Center">
+          <theme:Icon.Style>
+            <Style TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
+              <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Activity.IsWarning}" Value="True">
+                  <Setter Property="Foreground" Value="{DynamicResource CautionBrush}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </theme:Icon.Style>
+        </theme:Icon>
+        <TextBlock Grid.Column="1"
+                   Text="{Binding Activity.Text}"
+                   Margin="4,0,0,0"
+                   FontSize="12"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Activity.IsWarning}" Value="True">
+                  <Setter Property="Foreground" Value="{DynamicResource CautionBrush}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+      </Grid>
+
       <!-- Спокойное сообщение в том же месте: «Администратор сменил номер: 205».
            Уходит по щелчку; беда его перекрывает. -->
       <Button Grid.Column="1"

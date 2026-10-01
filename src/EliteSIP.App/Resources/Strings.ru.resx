@@ -317,6 +317,9 @@
   <data name="HistoryTransferred" xml:space="preserve">
     <value>переведён</value>
   </data>
+  <data name="HistoryConsultation" xml:space="preserve">
+    <value>консультация</value>
+  </data>
   <data name="HistoryConference" xml:space="preserve">
     <value>конференция</value>
   </data>
@@ -1186,5 +1189,44 @@
   </data>
   <data name="AdminAutoAnswerAlwaysNote" xml:space="preserve">
     <value>Трубка будет сниматься на любой входящий, даже если за рабочим местом никого нет.</value>
+  </data>
+  <data name="StatusConnecting" xml:space="preserve">
+    <value>Подключаюсь…</value>
+  </data>
+  <data name="StatusReconnecting" xml:space="preserve">
+    <value>Переподключаюсь…</value>
+  </data>
+  <data name="StatusFixingNetwork" xml:space="preserve">
+    <value>Правлю сеть…</value>
+  </data>
+  <data name="StatusSwitchingNumber" xml:space="preserve">
+    <value>Меняю номер…</value>
+  </data>
+  <data name="StatusDisconnecting" xml:space="preserve">
+    <value>Отключаюсь…</value>
+  </data>
+  <data name="StatusWaitingServer" xml:space="preserve">
+    <value>Жду ответа сервера…</value>
+  </data>
+  <data name="StatusAudioRestarting" xml:space="preserve">
+    <value>Перезапускаю звук…</value>
+  </data>
+  <data name="StatusAudioLost" xml:space="preserve">
+    <value>Звук пропал</value>
+  </data>
+  <data name="StatusMicSilent" xml:space="preserve">
+    <value>Микрофон молчит</value>
+  </data>
+  <data name="StatusNoInbound" xml:space="preserve">
+    <value>Нет звука собеседника</value>
+  </data>
+  <data name="StatusInboundStalled" xml:space="preserve">
+    <value>Собеседник пропал</value>
+  </data>
+  <data name="StatusPoorNetwork" xml:space="preserve">
+    <value>Плохая связь</value>
+  </data>
+  <data name="StatusMediaNetworkError" xml:space="preserve">
+    <value>Сбой сети звука</value>
   </data>
 </root>
