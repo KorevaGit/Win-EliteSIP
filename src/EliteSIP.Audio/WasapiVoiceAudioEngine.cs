@@ -879,7 +879,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int processingRate = VoiceProcessor.NearestSupportedRate(_captureFormat.SampleRate);
         int codecRate = (int)_configuration.Codec.SampleRate();
 
-        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice, _inputDevice);
+        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
         _inputIsHeadset = AudioDeviceCatalog.IsHeadsetPair(
             AudioDeviceCatalog.TransportOf(_inputDevice),
             _inputDeviceName,

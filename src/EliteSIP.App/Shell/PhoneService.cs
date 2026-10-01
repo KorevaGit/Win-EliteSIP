@@ -739,10 +739,7 @@ public sealed class PhoneService : IDisposable
                 .ConfigureAwait(true);
             WatchMedia(call.CallId, session);
 
-            if (_records.TryGetValue(call.CallId, out var record))
-            {
-                _history.MarkAnswered(record.Id);
-            }
+            MarkAnswered(call.CallId);
 
             SyncLines();
         }
@@ -1083,10 +1080,7 @@ public sealed class PhoneService : IDisposable
                         answered = true;
                         await _dispatcher.InvokeAsync(() =>
                         {
-                            if (_records.TryGetValue(call.CallId, out var record))
-                            {
-                                _history.MarkAnswered(record.Id);
-                            }
+                            MarkAnswered(call.CallId);
 
                             // Ответили — вызов перестал быть ожидаемым и стал
                             // линией; дальше состояние держит `SyncLines`.
@@ -1572,6 +1566,27 @@ public sealed class PhoneService : IDisposable
             ClearPending(callId);
             SyncLines();
         }).Task;
+
+    /// <summary>Отмечает ответ — и в истории, и в записи, которую держит панель.</summary>
+    ///
+    /// <remarks>
+    /// До 0.1.72 ответ уходил только в базу истории, а запись в памяти
+    /// оставалась без времени ответа. По ней панель считает таймер разговора
+    /// (<c>SyncLines</c>), и длительности во время разговора не было вовсе;
+    /// по ней же статусы отличают разговор от гудков, и «нет звука
+    /// собеседника» не срабатывал никогда. Время одно на оба места — то, что
+    /// записано в истории, и то, что идёт на панели, обязаны совпадать.
+    /// </remarks>
+    private void MarkAnswered(string callId)
+    {
+        if (!_records.TryGetValue(callId, out var record))
+        {
+            return;
+        }
+
+        record.AnsweredAt ??= DateTimeOffset.Now;
+        _history.MarkAnswered(record.Id, record.AnsweredAt);
+    }
 
     /// <summary>Снимает отметку о неотвеченном исходящем, если она про этот вызов.</summary>
     ///

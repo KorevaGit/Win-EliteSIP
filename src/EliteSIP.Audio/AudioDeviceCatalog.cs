@@ -338,29 +338,24 @@ public static class AudioDeviceCatalog
     /// </summary>
     ///
     /// <remarks>
-    /// Форм-фактора мало: беспроводные гарнитуры с донглом заявляют выход как
-    /// «Динамики». Так делает JBL Quantum350 — и на ней до 1 октября 2026
-    /// работали эхоподавитель и сильный шумодав, то есть ровно то, что на
-    /// гарнитуре приседает и «роботизирует» голос оператора (см.
-    /// <see cref="VoiceProcessor"/>). Поэтому вторым признаком — микрофон и
-    /// выход одной USB- или Bluetooth-гарнитуры.
+    /// <para>
+    /// Только по форм-фактору, который заявляет сама Windows.
+    /// </para>
+    /// <para>
+    /// В 0.1.69–0.1.71 был второй признак — микрофон и выход «одной
+    /// USB-гарнитуры» по общему имени карты, — ради JBL Quantum350, у которой
+    /// выход заявлен «Динамиками». Он отменён после жалобы «собеседник слышит
+    /// себя»: тем же признаком выглядят USB-звуковая карта с колонками и
+    /// спикерфон, и гарнитура с громкими чашками тоже возвращает звук в
+    /// микрофон. Ошибка в эту сторону — эхо у клиента, которое оператор не
+    /// слышит и не может ни заметить, ни исправить; ошибка в другую —
+    /// эхоподавитель на гарнитуре, где вычитать нечего. Вторая дешевле.
+    /// Опознание гарнитуры по карте осталось там, где ошибка безвредна, — у
+    /// проверки молчащего микрофона (<see cref="IsHeadsetPair"/>).
+    /// </para>
     /// </remarks>
-    internal static bool IsEchoFree(MMDevice render, MMDevice capture)
-    {
-        if (ReadFormFactor(render) is FormFactorHeadphones or FormFactorHeadset or FormFactorHandset)
-        {
-            return true;
-        }
-
-        try
-        {
-            return IsHeadsetPair(TransportOf(capture), capture.FriendlyName, TransportOf(render), render.FriendlyName);
-        }
-        catch (Exception e) when (IsAudioFailure(e))
-        {
-            return false;
-        }
-    }
+    internal static bool IsEchoFree(MMDevice render) =>
+        ReadFormFactor(render) is FormFactorHeadphones or FormFactorHeadset or FormFactorHandset;
 
     /// <summary>Тип подключения точки — без открытия потока, в отличие от <see cref="Describe"/>.</summary>
     internal static AudioTransport TransportOf(MMDevice endpoint) =>
