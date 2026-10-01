@@ -49,7 +49,7 @@
     выпускался без одного из них, и обычно это была версия.
   -->
   <PropertyGroup>
-    <Version>0.1.66</Version>
+    <Version>0.1.67</Version>
     <Company>EliteSIP</Company>
     <Product>EliteSIP</Product>
   </PropertyGroup>
