@@ -40,6 +40,9 @@ public partial class App : Application, IDisposable
     private PanelLineHost? _panelLine;
     private UpdateService? _updates;
     private SingleInstance? _instance;
+
+    /// <summary>Решает, переживать ли непойманное исключение интерфейса.</summary>
+    private readonly Shell.CrashGuard _crashGuard = new();
     private NetworkWatch? _networkWatch;
 
     /// <summary>Повод переподключиться, отложенный до конца разговора.</summary>
@@ -88,7 +91,14 @@ public partial class App : Application, IDisposable
         // окно исчезает, в системном журнале остаётся только код 0xE0434352.
         // Оператор в этот момент видит, что телефон пропал, и звонить в
         // поддержку ему не с чего — поэтому падение обязано оставлять след.
-        DispatcherUnhandledException += (_, failure) => Record(failure.Exception);
+        //
+        // И с 0.1.67 — по возможности переживается: какое исключение стоит
+        // падения, а какое нет, решает `CrashGuard`.
+        DispatcherUnhandledException += (_, failure) =>
+        {
+            failure.Handled = _crashGuard.ShouldSurvive(failure.Exception);
+            Record(failure.Exception, failure.Handled);
+        };
 
         // Падение фоновой работы — тоже падение, и до сих пор оно не оставляло
         // ни строки. Работ вида `_ = ЧтоТоAsync()` в приложении с десяток —
@@ -152,6 +162,9 @@ public partial class App : Application, IDisposable
 
         _instance.Watch(() => Dispatcher.Invoke(ShowPanel));
         Mark("экземпляр");
+
+        // Только у экземпляра, который остаётся работать: второй выходит сразу.
+        Shell.CrashGuard.RegisterRestart(EarlyLog);
 
         // Порядок важен: настройки читаются до языка, язык — до палитры, палитра
         // — до первого окна. Иначе панель успевает нарисоваться английской и
@@ -539,6 +552,18 @@ public partial class App : Application, IDisposable
         // оператора на старом ПК, и сравнить нечем. Отдельно — время до
         // `OnStartup` (загрузка рантайма и сборок, на свежеустановленных файлах
         // сюда же ложится проверка антивирусом), отдельно — наша работа.
+        // «Выпуск жив» — не сразу, а через минуту: падение в первые секунды
+        // после подъёма панели тоже означает выпуск, который не работает.
+        // Отметку ждёт аварийный путь обновляльщика.
+        var alive = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        alive.Tick += (_, _) =>
+        {
+            alive.Stop();
+            PanelLine.UpdateHandoff.MarkStarted(
+                typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0), Log);
+        };
+        alive.Start();
+
         var sinceProcess = (int)(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
         Log($"запуск: панель готова через {sinceProcess} мс от старта процесса "
             + $"(рантайм до OnStartup {sinceProcess - (int)_startup.ElapsedMilliseconds} мс, "
@@ -1343,15 +1368,27 @@ public partial class App : Application, IDisposable
     }
 
     /// <summary>Кладёт падение рядом с настройками — там же, где журнал.</summary>
-    private static void Record(Exception failure)
+    /// <param name="failure">Что случилось.</param>
+    /// <param name="survived">
+    /// Пережито ли. <c>null</c> — источник не позволяет выбирать (фоновый поток,
+    /// финализатор), и строка про исход не пишется.
+    /// </param>
+    private static void Record(Exception failure, bool? survived = null)
     {
         try
         {
+            var outcome = survived switch
+            {
+                true => " — пережито, софтфон работает дальше",
+                false => " — софтфон закрывается",
+                null => string.Empty,
+            };
+
             var directory = System.IO.Path.GetDirectoryName(AppSettings.DefaultPath)!;
             System.IO.Directory.CreateDirectory(directory);
             System.IO.File.AppendAllText(
                 System.IO.Path.Combine(directory, "crash.log"),
-                DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture)
+                DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture) + outcome
                     + Environment.NewLine + failure + Environment.NewLine + Environment.NewLine);
         }
         catch (System.IO.IOException)

@@ -690,7 +690,7 @@ public sealed partial class SipUserAgent : IDisposable
                 }
 
                 LastRegistrationFailure = error as SipRegistrationException;
-                int delay = BackoffDelay(failures);
+                int delay = RetryDelay(failures, error);
                 string reason = Describe(error);
 
                 // Проверка признака повторяется внутри записи состояния: между
@@ -1113,6 +1113,43 @@ public sealed partial class SipUserAgent : IDisposable
         }
         return Math.Max(grantedExpires - 30, grantedExpires / 2);
     }
+
+    /// <summary>Задержка перед повтором — по тому, чем кончилась попытка.</summary>
+    ///
+    /// <remarks>
+    /// <para>
+    /// Две причины отказа требуют противоположного. Сервер <b>ответил</b> отказом
+    /// (неверный пароль, 403, 404) — частые повторы ничего не исправят, а
+    /// FreePBX с fail2ban за серию неудачных входов банит адрес целиком, то есть
+    /// весь офис за NAT. Тут откат долгий, до 300 с.
+    /// </para>
+    /// <para>
+    /// Сервер <b>не ответил</b> (молчание, обрыв, ICMP) или ответил временным
+    /// отказом (408, 480, 5xx) — так выглядит перезапуск Asterisk или моргнувшая
+    /// сеть. До 0.1.67 и этот случай уходил на 300 с: сервер поднимался, а
+    /// рабочие места ещё до пяти минут не принимали звонков из очереди — в
+    /// журнале 29 сентября 2026 видна ровно такая серия. Здесь потолок
+    /// <see cref="UnreachableBackoffLimit"/>; нагрузка от этого на сервер —
+    /// один REGISTER в полминуты-минуту с места, то есть никакая.
+    /// </para>
+    /// </remarks>
+    internal static int RetryDelay(int attempt, Exception error) =>
+        IsServerRefusal(error)
+            ? BackoffDelay(attempt)
+            : Math.Min(BackoffDelay(attempt), UnreachableBackoffLimit);
+
+    /// <summary>Потолок отката, пока сервер недоступен, в секундах.</summary>
+    internal const int UnreachableBackoffLimit = 15;
+
+    /// <summary>
+    /// Сервер ответил окончательным отказом, а не промолчал и не отказал временно.
+    /// </summary>
+    internal static bool IsServerRefusal(Exception error) => error switch
+    {
+        SipRegistrationException { Kind: SipRegistrationErrorKind.Rejected, Status: 408 or 480 or >= 500 } => false,
+        SipRegistrationException => true,
+        _ => false,
+    };
 
     /// <summary>Задержка перед повтором: 5, 10, 20, 40, 80, 160, дальше 300.</summary>
     internal static int BackoffDelay(int attempt)

@@ -62,6 +62,21 @@ public sealed class PhoneService : IDisposable
     private CancellationTokenSource? _running;
     private Task? _pump;
 
+    /// <summary>
+    /// Подъём и снятие регистрации — строго по одному.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Их зовут сразу несколько источников: запуск, «сеть сменилась» и «машина
+    /// проснулась» (после сна приходят оба), предустановка, «Не беспокоить». Оба
+    /// метода ждут внутри, и без очереди второй вызов входил посреди первого: в
+    /// `crash.log` 30 сентября 2026 дважды `NullReferenceException` в
+    /// `DisconnectAsync` — первый уже обнулил агента, второй его освобождал. При
+    /// другом порядке хуже: второй молча освобождал агента, только что поднятого
+    /// первым, и софтфон показывал регистрацию, которой нет.
+    /// </remarks>
+    private readonly SemaphoreSlim _connection = new(1, 1);
+
     /// <summary>Записи истории по Call-ID: их дописывают по ходу разговора.</summary>
     private readonly Dictionary<string, CallRecord> _records = [];
 
@@ -273,8 +288,20 @@ public sealed class PhoneService : IDisposable
     /// </remarks>
     public async Task ConnectAsync()
     {
-        await DisconnectAsync().ConfigureAwait(true);
+        await _connection.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            await DisconnectCoreAsync().ConfigureAwait(true);
+            await ConnectCoreAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            _connection.Release();
+        }
+    }
 
+    private async Task ConnectCoreAsync()
+    {
         var account = _settings.Account;
         var pbx = _settings.Pbx;
         var address = account.Domain.Length > 0 ? account.Domain : pbx.OfficeAddress;
@@ -411,6 +438,19 @@ public sealed class PhoneService : IDisposable
 
     /// <summary>Снимает регистрацию и отпускает всё, что держит.</summary>
     public async Task DisconnectAsync()
+    {
+        await _connection.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            await DisconnectCoreAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            _connection.Release();
+        }
+    }
+
+    private async Task DisconnectCoreAsync()
     {
         if (_agent is null)
         {

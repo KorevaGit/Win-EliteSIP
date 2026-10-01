@@ -132,6 +132,7 @@ public sealed class RtcpSession : IDisposable
             ExclusiveAddressUse = true,
         };
         _socket.Bind(new IPEndPoint(IPAddress.Any, localPort));
+        UdpSocketOptions.IgnoreIcmpResets(_socket);
     }
 
     /// <summary>Переводит отчёты на другое плечо собеседника, не трогая сокет.</summary>

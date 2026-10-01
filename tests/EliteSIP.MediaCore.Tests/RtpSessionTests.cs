@@ -26,6 +26,64 @@ public sealed class RtpSessionTests
     }
 
     [Fact]
+    public void ICMP_отказ_не_становится_ошибкой_приёма()
+    {
+        // Без `SIO_UDP_CONNRESET` Windows отдаёт ConnectionReset на приёме за
+        // каждый ICMP «порт недоступен», и шестнадцать таких подряд
+        // останавливали приём RTP до конца звонка.
+        using RtpPortReservation reservation = RtpPortReservation.Reserve(localAddress: "127.0.0.1");
+        using Socket rtp = reservation.TakeRtpSocket();
+
+        SocketException? failure = SendToClosedPortThenReceive(rtp);
+
+        var socketFailure = Assert.IsType<SocketException>(failure);
+        Assert.Equal(SocketError.TimedOut, socketFailure.SocketErrorCode);
+    }
+
+    [Fact]
+    public void Без_настройки_Windows_отдаёт_ICMP_ошибкой_приёма()
+    {
+        // Контроль к проверке выше: показывает, что та ловит именно то, ради
+        // чего настройка заведена, а не проходит на любом сокете.
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using Socket plain = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        plain.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+
+        SocketException? failure = SendToClosedPortThenReceive(plain);
+
+        var socketFailure = Assert.IsType<SocketException>(failure);
+        Assert.Equal(SocketError.ConnectionReset, socketFailure.SocketErrorCode);
+    }
+
+    private static SocketException? SendToClosedPortThenReceive(Socket socket)
+    {
+        int closedPort;
+        using (Socket probe = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
+        {
+            probe.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            closedPort = ((IPEndPoint)probe.LocalEndPoint!).Port;
+        }
+
+        socket.SendTo(new byte[12], new IPEndPoint(IPAddress.Loopback, closedPort));
+        socket.ReceiveTimeout = 500;
+
+        EndPoint from = new IPEndPoint(IPAddress.Any, 0);
+        try
+        {
+            socket.ReceiveFrom(new byte[64], ref from);
+            return null;
+        }
+        catch (SocketException error)
+        {
+            return error;
+        }
+    }
+
+    [Fact]
     public void Две_подготовленные_линии_удерживают_разные_пары_портов()
     {
         using RtpPortReservation first = RtpPortReservation.Reserve();

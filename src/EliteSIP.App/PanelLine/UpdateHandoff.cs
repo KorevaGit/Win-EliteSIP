@@ -36,6 +36,34 @@ internal static class UpdateHandoff
 
     private static string RequestPath => Path.Combine(SharedDirectory, "update-requested");
 
+    private static string StartedPath => Path.Combine(SharedDirectory, "started");
+
+    /// <summary>
+    /// Отмечает, что этот выпуск запустился и прожил минуту.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// По этой отметке обновляльщик отличает выпуск, который не запускается
+    /// вовсе. Такой выпуск согласия на исправление дать не может, и обновляльщик
+    /// ставит исправление без него (<c>Recovery</c> в обновляльщике). Отметка
+    /// одна на машину: её смысл — «этот выпуск жив», а не «жив у этого
+    /// оператора».
+    /// </remarks>
+    internal static void MarkStarted(Version version, Action<string> log)
+    {
+        try
+        {
+            Directory.CreateDirectory(SharedDirectory);
+            File.WriteAllText(StartedPath, version.ToString(3));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Не беда для работы, но обновляльщик сочтёт выпуск не запускавшимся
+            // и, пока софтфон закрыт, поставит следующий без вопроса.
+            log($"отметка о запуске не записана: {error.Message}");
+        }
+    }
+
     /// <summary>
     /// Оставляет отметку «оператор согласился на эту версию».
     /// </summary>

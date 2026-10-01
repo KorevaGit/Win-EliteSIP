@@ -137,7 +137,7 @@ try {
 
     # Через XPath, а не через точки: PropertyGroup в файле несколько, и обход
     # точками отдаёт массив, у которого свойства Version нет вовсе.
-    $current = ([xml](Get-Content $propsPath)).SelectSingleNode('//Version').InnerText
+    $current = ([xml](Get-Content $propsPath -Raw -Encoding UTF8)).SelectSingleNode('//Version').InnerText
 
     if ([version]$Version -le [version]$current) {
         # Версия обязана расти: линия обновлений предлагает только вперёд, и
@@ -148,9 +148,16 @@ try {
     Write-Host "  версия: $current -> $Version"
 
     if (-not $DryRun) {
-        (Get-Content $propsPath -Raw) `
-            -replace '<Version>[^<]+</Version>', "<Version>$Version</Version>" |
-            Set-Content $propsPath -Encoding UTF8 -NoNewline
+        # Читать и писать — явно UTF-8, и без BOM. `Get-Content` без кодировки
+        # в Windows PowerShell читает файл без BOM как ANSI (cp1251), а
+        # `Set-Content -Encoding UTF8` записывает прочитанное обратно уже
+        # перекодированным. Стоило редактору сохранить файл без BOM — и каждый
+        # выпуск добавлял комментариям слой «кракозябр»: к 0.1.66 их было три.
+        $props = [System.IO.File]::ReadAllText($propsPath, [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText(
+            $propsPath,
+            ($props -replace '<Version>[^<]+</Version>', "<Version>$Version</Version>"),
+            (New-Object System.Text.UTF8Encoding $false))
     }
 
     # --- 2. Сборка и проверки ------------------------------------------------

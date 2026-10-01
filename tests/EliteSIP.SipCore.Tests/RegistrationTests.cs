@@ -315,6 +315,43 @@ public sealed class RegistrationTests
         Assert.Equal(300, SipUserAgent.BackoffDelay(100));
     }
 
+    [Fact]
+    public void Сервер_молчит_повтор_не_реже_потолка_недоступности()
+    {
+        var silence = new SipTransactionException(SipTransactionErrorKind.Timeout, "сервер не ответил");
+
+        Assert.Equal(5, SipUserAgent.RetryDelay(1, silence));
+        Assert.Equal(10, SipUserAgent.RetryDelay(2, silence));
+        Assert.Equal(SipUserAgent.UnreachableBackoffLimit, SipUserAgent.RetryDelay(3, silence));
+        Assert.Equal(SipUserAgent.UnreachableBackoffLimit, SipUserAgent.RetryDelay(100, silence));
+    }
+
+    [Theory]
+    [InlineData(408)]
+    [InlineData(480)]
+    [InlineData(500)]
+    [InlineData(503)]
+    public void Временный_отказ_сервера_как_недоступность(int status)
+    {
+        var refusal = new SipRegistrationException(SipRegistrationErrorKind.Rejected, status, "временно");
+
+        Assert.Equal(SipUserAgent.UnreachableBackoffLimit, SipUserAgent.RetryDelay(100, refusal));
+    }
+
+    [Theory]
+    [InlineData(SipRegistrationErrorKind.AuthenticationFailed, 0)]
+    [InlineData(SipRegistrationErrorKind.Rejected, 403)]
+    [InlineData(SipRegistrationErrorKind.Rejected, 404)]
+    [InlineData(SipRegistrationErrorKind.TooManyAttempts, 0)]
+    public void Окончательный_отказ_сервера_откатывается_долго(SipRegistrationErrorKind kind, int status)
+    {
+        // Неверный пароль раз в 15 с — это бан fail2ban на весь офис.
+        var refusal = new SipRegistrationException(kind, status, "отказ");
+
+        Assert.Equal(300, SipUserAgent.RetryDelay(100, refusal));
+        Assert.Equal(40, SipUserAgent.RetryDelay(4, refusal));
+    }
+
     /// <summary>
     /// Срок из ответа сервера идёт прямо в интервал сна. Очень большое значение
     /// уводит обновление регистрации на годы, и софтфон молча перестаёт принимать

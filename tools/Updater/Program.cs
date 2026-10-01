@@ -74,12 +74,14 @@ if (args.Contains("--relaunch"))
 }
 
 // Задача просыпается каждые десять минут, а установка идёт минуты. Второй
-// экземпляр посреди первого — это два установщика на одних файлах.
-using var single = new Mutex(initiallyOwned: true, @"Global\EliteSIP.Updater", out var mine);
-if (!mine)
+// экземпляр посреди первого — это два установщика на одних файлах. Почему
+// чужой мьютекс не считается «занято» — у `UpdaterInstance`.
+if (!UpdaterInstance.TryClaim(log, out var single))
 {
     return 0;
 }
+
+using var singleInstance = single;
 
 try
 {
@@ -96,8 +98,13 @@ async Task<int> RunAsync()
     RelaunchIfPending();
 
     // Отметки нет — обычное состояние, и молчать о нём надо тоже обычно: строка
-    // в журнале каждые десять минут утопила бы в себе всё остальное.
-    var wanted = Request.Read(Paths.Request);
+    // в журнале каждые десять минут утопила бы в себе всё остальное. Так же
+    // молча пропускается уже обработанная: удалить её SYSTEM не вправе (см.
+    // `Paths`), и она лежит в общем каталоге, пока приложение не перепишет её.
+    var consent = Request.Read(Paths.Request);
+    var wanted = consent is { } fresh && !Request.IsHandled(fresh, Paths.RequestHandled)
+        ? fresh.Version
+        : null;
 
     // Уборка идёт на такте, а не сразу после установки, и это не лень.
     // Обновляльщик, начавший установку, до её конца не доживает: установщик
@@ -106,12 +113,21 @@ async Task<int> RunAsync()
     // следующий такт уже видит, какой выпуск встал.
     PruneUpdates(wanted);
 
-    if (wanted is null)
+    // Отсчёт для аварийного пути — на каждом такте, а не только когда он
+    // понадобился: иначе «впервые увиден» означало бы «впервые проверен».
+    var stuck = IsInstalledReleaseStuck();
+
+    Consent? pending = consent is { } fresher && wanted is not null ? fresher : null;
+    var emergency = pending is null && stuck;
+    if (pending is null && !emergency)
     {
         return 0;
     }
 
-    log.Write($"оператор согласился на {wanted}");
+    if (pending is not null)
+    {
+        log.Write($"оператор согласился на {wanted}");
+    }
 
     var secrets = Provisioning.Read(AppContext.BaseDirectory);
     if (secrets?.Updates is null)
@@ -135,19 +151,34 @@ async Task<int> RunAsync()
     // Ставится ровно то, на что согласился оператор. Если на канале успел
     // появиться выпуск новее, отметка не подходит: спросить о нём должно
     // приложение, а не этот код, у которого спрашивать не у кого.
-    if (manifest.Version != wanted)
+    //
+    // Аварийному пути сверять не с чем: спросить некому по определению, и
+    // ставится то, что на канале, — если оно новее установленного.
+    if (pending is { } mismatched && manifest.Version != wanted)
     {
         log.Write($"на канале {manifest.Version}, а согласие было на {wanted} — жду нового согласия");
-        Request.Clear(Paths.Request);
+        Request.MarkHandled(mismatched, Paths.RequestHandled);
         return 0;
     }
 
     var installed = InstalledVersion();
     if (installed is not null && !manifest.IsNewerThan(installed))
     {
-        log.Write($"уже стоит {installed} — ставить нечего");
-        Request.Clear(Paths.Request);
+        // Аварийный путь молчит: исправления на канале ещё нет, и строка
+        // каждые десять минут ничего бы не добавила к уже сказанному.
+        if (pending is { } current)
+        {
+            log.Write($"уже стоит {installed} — ставить нечего");
+            Request.MarkHandled(current, Paths.RequestHandled);
+        }
+
         return 0;
+    }
+
+    if (emergency)
+    {
+        log.Write($"АВАРИЙНАЯ установка {manifest.Version} поверх {installed}: "
+            + "установленный выпуск не запускается, согласия спросить не у кого");
     }
 
     var payload = await AcquireAsync(manifest, secrets.Updates).ConfigureAwait(false);
@@ -163,11 +194,15 @@ async Task<int> RunAsync()
     Directory.CreateDirectory(Paths.TrustedUpdates);
     await File.WriteAllBytesAsync(trusted, payload).ConfigureAwait(false);
 
-    // Отметка снимается до установки, а не после. Установка заменяет файлы под
-    // нами и может кончиться чем угодно, вплоть до перезагрузки; уцелевшая
-    // отметка означала бы установку по кругу каждые десять минут. Что выпуск не
-    // встал, приложение увидит по своей версии и предложит снова.
-    Request.Clear(Paths.Request);
+    // Отметка помечается обработанной до установки, а не после. Установка
+    // заменяет файлы под нами и может кончиться чем угодно, вплоть до
+    // перезагрузки; необработанная отметка означала бы установку по кругу каждые
+    // десять минут. Что выпуск не встал, приложение увидит по своей версии и
+    // предложит снова — новая запись отметки снова станет необработанной.
+    if (pending is { } accepted)
+    {
+        Request.MarkHandled(accepted, Paths.RequestHandled);
+    }
 
     // Отметка «поднять после установки» — до установки: установщик закроет
     // софтфон, и вернуть его обязан кто-то, кто переживёт установку.
@@ -185,6 +220,44 @@ async Task<int> RunAsync()
     // из установщика).
     log.Write($"выпуск {manifest.Version} передан задаче установки");
     return 0;
+}
+
+/// <summary>Не запускается ли установленный выпуск — см. <see cref="Recovery"/>.</summary>
+bool IsInstalledReleaseStuck()
+{
+    if (InstalledVersion() is not { } installed)
+    {
+        return false;
+    }
+
+    var now = DateTime.UtcNow;
+    var firstSeen = Recovery.FirstSeen(installed, Paths.InstalledSeen, now);
+    var started = Request.Read(Paths.Started)?.Version;
+
+    if (!Recovery.IsStuck(installed, started, firstSeen, now, IsAppRunning()))
+    {
+        return false;
+    }
+
+    if (Recovery.NoteOnce(installed, Paths.RecoveryNoted))
+    {
+        log.Write($"выпуск {installed.ToString(3)} стоит больше {Recovery.Grace.TotalMinutes:0} мин и ни разу "
+            + "не запустился — следующий выпуск с канала встанет без согласия оператора");
+    }
+
+    return true;
+}
+
+/// <summary>Запущен ли софтфон хоть в каком-то сеансе.</summary>
+static bool IsAppRunning()
+{
+    var processes = Process.GetProcessesByName("EliteSIP.App");
+    foreach (var process in processes)
+    {
+        process.Dispose();
+    }
+
+    return processes.Length > 0;
 }
 
 /// <summary>Страховочный подъём софтфона после установки.</summary>
@@ -577,7 +650,15 @@ async Task<byte[]?> AcquireAsync(ReleaseManifest manifest, Provisioning.UpdateCh
 {
     var staged = Path.Combine(Paths.SharedUpdates, $"EliteSIP-{manifest.Version.ToString(3)}.exe");
 
-    if (File.Exists(staged))
+    // Размер сверяется до чтения: файл лежит в общем каталоге, и через
+    // подменённый путь SYSTEM иначе можно заставить загрузить в память чужой
+    // файл любого размера. Манифест без размера ограничен потолком.
+    const long maximumInstallerBytes = 512L * 1024 * 1024;
+    var stagedInfo = new FileInfo(staged);
+
+    if (stagedInfo.Exists
+        && stagedInfo.Length <= maximumInstallerBytes
+        && (manifest.Size <= 0 || stagedInfo.Length == manifest.Size))
     {
         try
         {
@@ -592,10 +673,14 @@ async Task<byte[]?> AcquireAsync(ReleaseManifest manifest, Provisioning.UpdateCh
             // незачем: качаем сами.
             log.Write("скачанное приложением не сошлось по отпечатку — качаю сам");
         }
-        catch (IOException error)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             log.Write($"скачанное приложением не прочиталось: {error.Message}");
         }
+    }
+    else if (stagedInfo.Exists)
+    {
+        log.Write("скачанное приложением не сошлось по размеру — качаю сам");
     }
 
     // Пару Basic — только хосту манифеста (разбор у `ReleaseManifest.IsServedFrom`).

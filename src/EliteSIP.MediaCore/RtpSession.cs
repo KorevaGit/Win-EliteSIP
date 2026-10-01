@@ -199,6 +199,7 @@ public sealed class RtpSession : IDisposable
         // Привязка к конкретному локальному порту — то, что делает RTP
         // симметричным: ответный поток придёт на этот же сокет.
         _socket.Bind(new IPEndPoint(IPAddress.Any, localPort));
+        UdpSocketOptions.IgnoreIcmpResets(_socket);
     }
 
     /// <summary>
@@ -817,6 +818,7 @@ public sealed class RtpPortReservation : IDisposable
         try
         {
             socket.Bind(new IPEndPoint(address, port));
+            UdpSocketOptions.IgnoreIcmpResets(socket);
             return socket;
         }
         catch (SocketException)

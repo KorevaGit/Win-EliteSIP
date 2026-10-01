@@ -279,3 +279,34 @@ finally {
 Write-Host ''
 Write-Host "Канал $Channel отдаёт $Version." -ForegroundColor Green
 Write-Host 'Подпись манифеста проверена при сборке (releasekit verify); отдаётся он байт в байт.'
+
+# --- Метка выпуска в git -----------------------------------------------------
+#
+# До 0.1.67 у выпусков не было ни одной метки, а собирались они из другой
+# рабочей копии: сопоставить установщик с коммитом можно было только по дате.
+# Метка ставится здесь, а не в release.ps1: тот собирает из дерева с ещё не
+# сохранённой новой версией, а здесь выпуск уже на канале и коммит с версией
+# обязан существовать. Отправка метки на сервер — руками: это действие наружу.
+if ($Channel -eq 'update' -and -not $VerifyOnly) {
+    Push-Location $root
+    try {
+        $dirty = (git status --porcelain) | Where-Object { $_ }
+        $propsVersion = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw -Encoding UTF8)).SelectSingleNode('//Version').InnerText
+        $tag = "v$Version"
+
+        if (git tag --list $tag) {
+            Write-Host "  метка $tag уже есть" -ForegroundColor Yellow
+        }
+        elseif ($dirty -or $propsVersion -ne $Version) {
+            Write-Host "  внимание: метка $tag не поставлена — сохраните коммит с версией $Version и выполните:" -ForegroundColor Yellow
+            Write-Host "    git tag -a $tag -m 'EliteSIP $Version'; git push origin $tag"
+        }
+        else {
+            git tag -a $tag -m "EliteSIP $Version" | Out-Null
+            Ok "метка $tag на $(git rev-parse --short HEAD); отправить: git push origin $tag"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
