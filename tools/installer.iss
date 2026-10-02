@@ -80,6 +80,11 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 
+; Журнал установки всегда: %TEMP%\Setup Log <дата> #NNN.txt. По отметкам
+; «Подготовка: …» в нём видно, на каком шаге ушло время, — без него жалобу
+; «установщик висит» нечем разобрать (2 октября 2026).
+SetupLogging=yes
+
 ; Закрыть работающий софтфон перед заменой файлов — иначе файлы заняты.
 CloseApplications=yes
 
@@ -420,28 +425,69 @@ begin
     FindClose(Found);
 end;
 
-function InstallDesktopRuntime(): String;
+{
+  Видимость загрузки и установки рантайма (с 0.1.74).
+
+  До этого всё шло молча из PrepareToInstall: после «Установить» мастер на
+  минуты замирал на странице «Всё готово» — 60 МБ с серверов Microsoft и
+  установка рантайма без единого признака жизни. Оператор и администратор
+  принимали это за зависание.
+
+  Теперь при обычной установке это делается по нажатию «Установить», до
+  подготовки: загрузка — на странице с индикатором (мегабайты, скорость,
+  «Прервать»), установка — на своей странице с пояснением, а сам установщик
+  Microsoft запущен с /passive и показывает свой ход. Не встало — мастер
+  остаётся на странице «Всё готово» с объяснением, на машине не тронуто
+  ничего.
+
+  Тихая установка (обновление от SYSTEM) идёт прежним путём из
+  PrepareToInstall: смотреть там не на что, а как страница загрузки ведёт
+  себя без окна, документация Inno не обещает.
+}
+const
+  RuntimeUrl = 'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe';
+  RuntimeFile = 'windowsdesktop-runtime-win-x64.exe';
+
 var
-  Installer: String;
+  RuntimeDownloadPage: TDownloadWizardPage;
+  RuntimeInstallPage: TOutputProgressWizardPage;
+
+procedure InitializeWizard();
+begin
+  RuntimeDownloadPage := CreateDownloadPage(
+    'Загрузка .NET Desktop Runtime 10',
+    'EliteSIP работает на платформе .NET от Microsoft. На этом компьютере её ещё нет — скачивается около 60 МБ.',
+    nil);
+  RuntimeDownloadPage.ShowBaseNameInsteadOfUrl := True;
+
+  RuntimeInstallPage := CreateOutputProgressPage(
+    'Установка .NET Desktop Runtime 10',
+    'Обычно это одна-три минуты. Ход установки показывает окно Microsoft — закрывать его не нужно.');
+end;
+
+{ Ставит скачанный рантайм. Interactive — показывать ли окно установщика Microsoft. }
+function RunRuntimeInstaller(Interactive: Boolean): String;
+var
+  Params: String;
+  ShowCmd: Integer;
   ResultCode: Integer;
 begin
   Result := '';
-  if DesktopRuntimeInstalled() then
-    Exit;
-
-  Log('.NET Desktop Runtime 10 не найден, ставится');
-  try
-    DownloadTemporaryFile('https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe',
-      'windowsdesktop-runtime-win-x64.exe', '', nil);
-  except
-    Result := 'Не удалось скачать .NET Desktop Runtime 10: ' + GetExceptionMessage();
-    Exit;
+  if Interactive then
+  begin
+    Params := '/install /passive /norestart';
+    ShowCmd := SW_SHOW;
+  end
+  else
+  begin
+    Params := '/install /quiet /norestart';
+    ShowCmd := SW_HIDE;
   end;
 
-  Installer := ExpandConstant('{tmp}\windowsdesktop-runtime-win-x64.exe');
-  if not Exec(Installer, '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  Log('Установка .NET Desktop Runtime 10: ' + Params);
+  if not Exec(ExpandConstant('{tmp}\' + RuntimeFile), Params, '', ShowCmd, ewWaitUntilTerminated, ResultCode) then
   begin
-    Result := 'Не удалось запустить установщик .NET Desktop Runtime 10';
+    Result := 'Не удалось запустить установщик .NET Desktop Runtime 10: ' + SysErrorMessage(ResultCode);
     Exit;
   end;
 
@@ -452,10 +498,75 @@ begin
     Result := Format('.NET Desktop Runtime 10 не встал (код %d). Прежняя версия EliteSIP не тронута.', [ResultCode]);
 end;
 
+{ Обычная установка: рантайм по нажатию «Установить», с видимым ходом. }
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Error: String;
+begin
+  Result := True;
+  if (CurPageID <> wpReady) or WizardSilent() or DesktopRuntimeInstalled() then
+    Exit;
+
+  Log('.NET Desktop Runtime 10 не найден: загрузка со страницей хода');
+  RuntimeDownloadPage.Clear;
+  RuntimeDownloadPage.Add(RuntimeUrl, RuntimeFile, '');
+  RuntimeDownloadPage.Show;
+  try
+    try
+      RuntimeDownloadPage.Download;
+    except
+      if RuntimeDownloadPage.AbortedByUser then
+        Error := 'Загрузка .NET Desktop Runtime 10 прервана. EliteSIP без неё не запустится.'
+      else
+        Error := 'Не удалось скачать .NET Desktop Runtime 10: ' + GetExceptionMessage() + #13#10#13#10 +
+          'Нужен доступ в интернет к серверам Microsoft (aka.ms, download.visualstudio.microsoft.com).';
+      Log(Error);
+      MsgBox(Error, mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+  finally
+    RuntimeDownloadPage.Hide;
+  end;
+
+  RuntimeInstallPage.Show;
+  try
+    Error := RunRuntimeInstaller(True);
+  finally
+    RuntimeInstallPage.Hide;
+  end;
+
+  if Error <> '' then
+  begin
+    Log(Error);
+    MsgBox(Error, mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+{ Тихая установка (и запасной путь): прежняя, молчаливая. }
+function InstallDesktopRuntime(): String;
+begin
+  Result := '';
+  if DesktopRuntimeInstalled() then
+    Exit;
+
+  Log('.NET Desktop Runtime 10 не найден, ставится без окна');
+  try
+    DownloadTemporaryFile(RuntimeUrl, RuntimeFile, '', nil);
+  except
+    Result := 'Не удалось скачать .NET Desktop Runtime 10: ' + GetExceptionMessage();
+    Exit;
+  end;
+
+  Result := RunRuntimeInstaller(False);
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
+  Log('Подготовка: проверка рантайма');
   Result := InstallDesktopRuntime();
   if Result <> '' then
   begin
@@ -474,6 +585,7 @@ begin
       Log('Софтфон переименовать не удалось');
   end;
 
+  Log('Подготовка: снятие софтфона, обновляльщика и прежних установщиков');
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#AppExe}', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#UpdaterExe}', '',
@@ -486,6 +598,7 @@ begin
 
   { Процесс уходит не мгновенно: дескрипторы файлов закрываются после него. }
   Sleep(1500);
+  Log('Подготовка завершена');
   Result := '';
 end;
 
