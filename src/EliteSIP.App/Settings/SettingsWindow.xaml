@@ -239,7 +239,7 @@
                 </ComboBox>
               </theme:SettingsRow>
 
-              <!-- Выше единицы не идёт: микшер громче не умеет. -->
+              <!-- До 200 %: умножение в тракте, после него мягкий ограничитель. -->
               <theme:SettingsRow Header="{res:Loc AudioVolume}">
                 <Grid>
                   <Grid.ColumnDefinitions>
@@ -247,7 +247,7 @@
                     <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <Slider Grid.Column="0"
-                          Minimum="0" Maximum="1"
+                          Minimum="0" Maximum="2"
                           SmallChange="0.05" LargeChange="0.1"
                           VerticalAlignment="Center"
                           Value="{Binding Settings.Audio.PlaybackVolume}" />
@@ -260,6 +260,12 @@
                              Text="{Binding Settings.Audio.PlaybackVolume, Converter={StaticResource Percent}}" />
                 </Grid>
               </theme:SettingsRow>
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AudioReceiveGain}"
+                        IsChecked="{Binding Settings.Audio.ReceiveGainControl}" />
+
+              <theme:SettingsNote Text="{res:Loc AudioReceiveGainNote}" />
 
               <theme:SettingsNote Text="{res:Loc AudioLevelsNote}" />
 
@@ -277,6 +283,12 @@
                         IsChecked="{Binding Settings.Audio.NoiseSuppression}" />
 
               <theme:SettingsNote Text="{res:Loc AudioNoiseSuppressionNote}" />
+
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AudioBackgroundVoices}"
+                        IsChecked="{Binding Settings.Audio.BackgroundVoiceSuppression}" />
+
+              <theme:SettingsNote Text="{res:Loc AudioBackgroundVoicesNote}" />
 
               <CheckBox Style="{StaticResource SettingsSwitchStyle}"
                         Content="{res:Loc AudioRelease}"

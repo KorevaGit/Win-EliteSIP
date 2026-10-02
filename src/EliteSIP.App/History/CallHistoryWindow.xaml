@@ -306,6 +306,8 @@
                                   <Binding />
                                   <Binding Path="DataContext.OwnNumber"
                                            RelativeSource="{RelativeSource AncestorType=Window}" />
+                                  <Binding Path="DataContext.MasksMobileNumbers"
+                                           RelativeSource="{RelativeSource AncestorType=Window}" />
                                 </MultiBinding>
                               </TextBlock.Text>
                             </TextBlock>
@@ -317,6 +319,8 @@
                                 <MultiBinding Converter="{StaticResource CallSubtitle}">
                                   <Binding />
                                   <Binding Path="DataContext.OwnNumber"
+                                           RelativeSource="{RelativeSource AncestorType=Window}" />
+                                  <Binding Path="DataContext.MasksMobileNumbers"
                                            RelativeSource="{RelativeSource AncestorType=Window}" />
                                 </MultiBinding>
                               </TextBlock.Text>

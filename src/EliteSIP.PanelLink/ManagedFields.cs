@@ -89,6 +89,13 @@ public sealed record ManagedFields
     /// </summary>
     public IReadOnlyList<string>? AutoAnswerNumbers { get; init; }
 
+    /// <summary>
+    /// Прятать ли мобильные номера звонящих. <c>null</c> — панель этим не
+    /// управляет, место оставляет своё. Полем верхнего уровня, как автоподъём:
+    /// в приложении это настройка входящих, а не часть политики защиты.
+    /// </summary>
+    public bool? MasksMobileNumbers { get; init; }
+
     // MARK: - Блоки
     //
     // Приставка `Fields` у половины из них — вынужденная: в C# вложенный тип не
@@ -259,6 +266,7 @@ public sealed record ManagedFields
                 Transport = Text(root, "transport"),
                 AutoAnswer = Text(root, "autoAnswer"),
                 AutoAnswerNumbers = TextList(root, "autoAnswerNumbers"),
+                MasksMobileNumbers = Flag(root, "masksMobileNumbers"),
             };
         }
     }

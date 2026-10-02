@@ -189,7 +189,19 @@
     <value>Noise suppression</value>
   </data>
   <data name="AudioNoiseSuppressionNote" xml:space="preserve">
-    <value>Removes room noise from your voice. Turn it off only on a headset: on laptop speakers it also removes the echo the other side would hear. Applies immediately, during a call too.</value>
+    <value>Removes steady room noise — hum, fans, hiss. It leaves other people's speech alone: use the switch below for that. Turn it off only on a headset: on laptop speakers it also removes the echo the other side would hear. Applies immediately, during a call too.</value>
+  </data>
+  <data name="AudioReceiveGain" xml:space="preserve">
+    <value>Level the other side's volume</value>
+  </data>
+  <data name="AudioReceiveGainNote" xml:space="preserve">
+    <value>Raises a quiet line by up to +10 dB and lowers a loud one by up to −6 dB — on speech; in pauses the gain holds. Volume above 100 % and levelling run through a soft limiter and do not crackle; on a very quiet line its noise becomes more audible along with the voice.</value>
+  </data>
+  <data name="AudioBackgroundVoices" xml:space="preserve">
+    <value>Reduce voices around you</value>
+  </data>
+  <data name="AudioBackgroundVoicesNote" xml:space="preserve">
+    <value>Anything noticeably quieter than your own voice — colleagues nearby, a TV — is turned down in pauses. Works best on a headset with the microphone at your mouth; on a laptop microphone a loud neighbour will still be heard. If the other side says the start or end of your phrases drops out, turn it off.</value>
   </data>
   <data name="AudioLevelsNote" xml:space="preserve">
     <value>Levels appear here during a call and during the check below: they show what goes into the line and what comes out of it.</value>
@@ -1190,6 +1202,15 @@
   <!-- Автоподъём (0.1.61). -->
   <data name="AdminAutoAnswerTitle" xml:space="preserve">
     <value>Auto answer</value>
+  </data>
+  <data name="AdminNumbersTitle" xml:space="preserve">
+    <value>Caller numbers</value>
+  </data>
+  <data name="AdminMasksMobileNumbers" xml:space="preserve">
+    <value>Hide mobile numbers</value>
+  </data>
+  <data name="AdminMasksMobileNumbersNote" xml:space="preserve">
+    <value>A mobile number is shown as +7 and asterisks — in the incoming call window, on the panel during a call and in history. Landline and internal numbers are always visible. Turn it off for departments that need the client's number in the clear.</value>
   </data>
   <data name="AdminAutoAnswerOff" xml:space="preserve">
     <value>Off — calls are answered by the operator</value>

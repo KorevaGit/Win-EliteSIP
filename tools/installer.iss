@@ -105,6 +105,13 @@ UninstallDisplayIcon={app}\{#AppExe}
 [Languages]
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
+[Registry]
+; Чтобы политика QoS из раздела [Run] применялась и вне домена (см. там).
+; При удалении не снимается: значение общее для машины, и на него может
+; опираться чужая политика.
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\Tcpip\QoS"; \
+    ValueType: string; ValueName: "Do not use NLA"; ValueData: "1"
+
 [InstallDelete]
 ; Остатки встроенного рантайма от выпусков до 0.1.60.
 ;
@@ -188,6 +195,28 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Filename: "{sys}\netsh.exe"; \
     Parameters: "advfirewall firewall add rule name=""{#AppName}"" dir=in action=allow program=""{app}\{#AppExe}"" enable=yes profile=any"; \
     Flags: runhidden; StatusMsg: "Правило межсетевого экрана..."
+
+; --- Приоритет голоса в сети (QoS, с 0.1.73) ----------------------------------
+;
+; Без метки голос идёт в офисной сети наравне с загрузками и видео: на занятом
+; канале это провалы и «робот», которые сеть не видит как потери. Пакеты
+; помечаются по DSCP — коммутатор и маршрутизатор с QoS пропускают их первыми,
+; без QoS метка ничего не меняет и ничего не ломает.
+;
+;   голос (RTP и RTCP, порты 16384–16483, см. RtpPortReservation) — EF, 46;
+;   сигнализация SIP (на порты сервера 5060–5061)                — CS3, 24.
+;
+; Политикой Windows, а не из кода: метку на сокете Windows ставит только
+; администратору, а оператор прав не имеет. Политика ставится здесь, с правами
+; установщика, и действует на процесс по имени — переживает обновления.
+; Сначала снимается прежняя — повторная установка не должна падать на дубле.
+;
+; «Do not use NLA»: без него локальная политика QoS на машине вне домена не
+; применяется (так Windows ведёт себя с Vista), а машины заказчика в домене не
+; все.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetQosPolicy -Name '{#AppName} *' -ErrorAction SilentlyContinue | Remove-NetQosPolicy -Confirm:$false; New-NetQosPolicy -Name '{#AppName} Voice' -AppPathNameMatchCondition '{#AppExe}' -IPProtocolMatchCondition UDP -IPSrcPortStartMatchCondition 16384 -IPSrcPortEndMatchCondition 16483 -DSCPAction 46 -NetworkProfile All | Out-Null; New-NetQosPolicy -Name '{#AppName} Signaling' -AppPathNameMatchCondition '{#AppExe}' -IPDstPortStartMatchCondition 5060 -IPDstPortEndMatchCondition 5061 -DSCPAction 24 -NetworkProfile All | Out-Null"""; \
+    Flags: runhidden; StatusMsg: "Приоритет голоса в сети..."
 
 ; --- Задача планировщика ------------------------------------------------------
 ;
@@ -312,6 +341,10 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/IM ""{#AppExe}"" /F"; \
 Filename: "{sys}\netsh.exe"; \
     Parameters: "advfirewall firewall delete rule name=""{#AppName}"""; \
     Flags: runhidden; RunOnceId: "RemoveFirewallRule"
+
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetQosPolicy -Name '{#AppName} *' -ErrorAction SilentlyContinue | Remove-NetQosPolicy -Confirm:$false"""; \
+    Flags: runhidden; RunOnceId: "RemoveQosPolicy"
 
 [UninstallDelete]
 ; Перенесённые установщики — наши файлы, и оставлять их незачем. Настройки,

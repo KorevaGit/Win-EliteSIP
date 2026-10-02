@@ -171,7 +171,19 @@
     <value>Шумоподавление</value>
   </data>
   <data name="AudioNoiseSuppressionNote" xml:space="preserve">
-    <value>Убирает шум комнаты из вашего голоса. Выключайте только на гарнитуре: на динамиках ноутбука он же гасит эхо, которое услышит собеседник. Меняется сразу, и посреди разговора тоже.</value>
+    <value>Убирает ровный шум комнаты — гул, вентилятор, шипение. Чужую речь он не трогает: для неё переключатель ниже. Выключайте только на гарнитуре: на динамиках ноутбука он же гасит эхо, которое услышит собеседник. Меняется сразу, и посреди разговора тоже.</value>
+  </data>
+  <data name="AudioReceiveGain" xml:space="preserve">
+    <value>Выравнивать громкость собеседника</value>
+  </data>
+  <data name="AudioReceiveGainNote" xml:space="preserve">
+    <value>Тихую линию поднимает до +10 дБ, громкую убавляет до −6 дБ — по голосу, в паузах прибавка замирает. Громкость выше 100 % и выравнивание работают поверх мягкого ограничителя и не дают хрипа; на очень тихой линии вместе с голосом становится слышнее и её шум.</value>
+  </data>
+  <data name="AudioBackgroundVoices" xml:space="preserve">
+    <value>Приглушать голоса вокруг</value>
+  </data>
+  <data name="AudioBackgroundVoicesNote" xml:space="preserve">
+    <value>Всё, что заметно тише вашего голоса, — коллеги рядом, телевизор — в паузах приглушается. Лучше всего работает на гарнитуре с микрофоном у рта; на микрофоне ноутбука громкий сосед рядом всё равно будет слышен. Если собеседник жалуется, что у вас пропадают начала или концы фраз, выключите.</value>
   </data>
   <data name="AudioLevelsNote" xml:space="preserve">
     <value>Уровни появятся здесь в разговоре и во время проверки ниже: по ним видно, что уходит в линию и что приходит из неё.</value>
@@ -1168,6 +1180,15 @@
   <!-- Автоподъём (0.1.61). -->
   <data name="AdminAutoAnswerTitle" xml:space="preserve">
     <value>Автоподъём</value>
+  </data>
+  <data name="AdminNumbersTitle" xml:space="preserve">
+    <value>Номера звонящих</value>
+  </data>
+  <data name="AdminMasksMobileNumbers" xml:space="preserve">
+    <value>Скрывать мобильные номера</value>
+  </data>
+  <data name="AdminMasksMobileNumbersNote" xml:space="preserve">
+    <value>Мобильный номер показывается как +7 и звёздочки — в окне входящего, в панели во время разговора и в истории. Городские и внутренние номера видны всегда. Выключайте для отделов, которым номер клиента нужен открытым.</value>
   </data>
   <data name="AdminAutoAnswerOff" xml:space="preserve">
     <value>Выключен — вызов принимает оператор</value>

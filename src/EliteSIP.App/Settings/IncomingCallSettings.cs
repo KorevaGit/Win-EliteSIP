@@ -37,6 +37,27 @@ public sealed class IncomingCallSettings : Observable
     private bool _rejectsSyntheticEvents;
     private string _autoAnswer = AutoAnswerModes.Off;
     private IReadOnlyList<string> _autoAnswerNumbers = [];
+    private bool _masksMobileNumbers = true;
+
+    // MARK: - Номера (с 0.1.73)
+
+    /// <summary>
+    /// Прятать ли мобильные номера звонящих: <c>+7</c> и звёздочки.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// До 0.1.73 маска стояла у всех без исключения. Отделам, которые
+    /// перезванивают клиенту сами, номер нужен открытым, — поэтому выключатель,
+    /// и он же управляется предустановкой Spark (поле <c>masksMobileNumbers</c>).
+    /// Умолчание — прятать: забытый выключатель не должен открыть лидов всем.
+    /// Действует на окно входящего, шапку панели и историю разом — правило одно,
+    /// см. <see cref="Incoming.IncomingCallSubject"/>.
+    /// </remarks>
+    public bool MasksMobileNumbers
+    {
+        get => _masksMobileNumbers;
+        set => Set(ref _masksMobileNumbers, value);
+    }
 
     // MARK: - Автоподъём (с 0.1.61, как на macOS 0.1.53)
 
@@ -288,6 +309,7 @@ public sealed class IncomingCallSettings : Observable
         RejectsSyntheticEvents = other.RejectsSyntheticEvents;
         AutoAnswer = other.AutoAnswer;
         AutoAnswerNumbers = other.AutoAnswerNumbers;
+        MasksMobileNumbers = other.MasksMobileNumbers;
     }
 
     /// <summary>То, что уходит в пакет.</summary>

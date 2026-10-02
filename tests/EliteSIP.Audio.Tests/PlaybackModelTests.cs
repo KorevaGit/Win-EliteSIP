@@ -23,33 +23,43 @@ public sealed class PlaybackModelTests
     private const int FrameSamples = 960;
 
     [Theory]
-    [InlineData(0, 0.0)]
-    [InlineData(100, 0.7)]
-    [InlineData(-100, 0.7)]
-    [InlineData(60, 3.0)]
-    [InlineData(-60, 8.0)]
-    public void На_ровной_сети_тракт_не_прячет_ни_кадра_и_темп_не_в_упоре(int driftPpm, double jitterMs)
+    [InlineData(0, 0.0, 0, 0)]
+    [InlineData(100, 0.7, 0, 0)]
+    [InlineData(-100, 0.7, 0, 0)]
+    [InlineData(60, 3.0, 0, 0)]
+    [InlineData(-60, 8.0, 0, 0)]
+
+    // Подача зависла (сборка мусора, загруженный процессор): кольцо обязано
+    // пережить это без пустого такта вывода. При двух кадрах запаса вместо
+    // трёх эти строки дают десятки пустых тактов — щелчков.
+    [InlineData(100, 0.7, 2000, 30)]
+    [InlineData(-100, 0.7, 3000, 45)]
+    [InlineData(100, 8.0, 1500, 40)]
+    public void На_ровной_сети_тракт_не_прячет_ни_кадра_и_темп_не_в_упоре(
+        int driftPpm, double jitterMs, int stallEveryMs, int stallMs)
     {
-        ModelResult result = Run(seconds: 180, driftPpm, jitterMs);
+        ModelResult result = Run(seconds: 180, driftPpm, jitterMs, stallEveryMs, stallMs);
 
         Assert.True(
-            result.Concealed == 0,
-            $"спрятано {result.Concealed}, недоборов {result.Underruns}, темп {result.FinalPpm:F0} ppm");
+            result.Concealed == 0 && result.EmptyTicks == 0,
+            $"спрятано {result.Concealed}, недоборов {result.Underruns}, пустых тактов вывода {result.EmptyTicks}, темп {result.FinalPpm:F0} ppm");
         Assert.True(
             Math.Abs(result.FinalPpm) < 1000,
             $"темп {result.FinalPpm:F0} ppm — регулятор тянет не туда");
     }
 
-    private sealed record ModelResult(int Concealed, int Underruns, double FinalPpm);
+    private sealed record ModelResult(int Concealed, int Underruns, int EmptyTicks, double FinalPpm);
 
     /// <summary>
     /// Шаг модели — миллисекунда. Сеть шлёт кадр раз в 20 мс по часам
     /// отправителя (с уходом <paramref name="driftPpm"/> относительно карты) и
     /// случайной задержкой до <paramref name="jitterMs"/>; вывод забирает по
-    /// 10 мс; подача просыпается раз в 15,6 мс — столько на деле даёт ожидание
-    /// в 5 мс при системном таймере Windows.
+    /// 10 мс и будит подачу; подача просыпается через 0–2 мс после такта вывода
+    /// (с 2 октября 2026 её будит сам вывод, а не таймер в 15,6 мс), а не
+    /// дождавшись — через 20 мс. Раз в <paramref name="stallEveryMs"/> подача
+    /// замирает на <paramref name="stallMs"/>, вывод при этом идёт дальше.
     /// </summary>
-    private static ModelResult Run(int seconds, int driftPpm, double jitterMs)
+    private static ModelResult Run(int seconds, int driftPpm, double jitterMs, int stallEveryMs, int stallMs)
     {
         VoiceAudioConfiguration configuration = new();
         int lead = FrameSamples * configuration.PlaybackLeadFrames;
@@ -67,6 +77,10 @@ public sealed class PlaybackModelTests
         ushort sequence = 0;
         double nextFeed = 0;
         double lastObserved = 0;
+        bool woken = false;
+        int emptyTicks = 0;
+        double stallUntil = -1;
+        double nextStall = stallEveryMs;
         List<(double At, RtpPacket Packet)> inFlight = [];
 
         for (double now = 0; now < seconds * 1000.0; now += 1)
@@ -90,15 +104,34 @@ public sealed class PlaybackModelTests
             }
 
             // Вывод: 480 отсчётов раз в 10 мс.
+            // Пустой такт после первой секунды — это щелчок у оператора.
             if (((int)now % 10) == 0)
             {
+                if (jitter.IsPlaying && now > 1000 && ring < 480)
+                {
+                    emptyTicks++;
+                }
+
                 ring = Math.Max(0, ring - 480);
+                woken = true;
+            }
+
+            if (stallEveryMs > 0 && now >= nextStall)
+            {
+                stallUntil = now + stallMs;
+                nextStall += stallEveryMs;
+            }
+
+            if (now < stallUntil)
+            {
+                continue;
             }
 
             // Подача.
-            if (now >= nextFeed)
+            if ((woken && now >= nextFeed) || now >= nextFeed + 20)
             {
-                nextFeed = now + 15.6;
+                woken = false;
+                nextFeed = now + (random.NextDouble() * 2);
 
                 if (jitter.IsPlaying)
                 {
@@ -116,6 +149,6 @@ public sealed class PlaybackModelTests
             }
         }
 
-        return new ModelResult(jitter.Statistics.Concealed, jitter.Statistics.Underruns, controller.CorrectionPpm);
+        return new ModelResult(jitter.Statistics.Concealed, jitter.Statistics.Underruns, emptyTicks, controller.CorrectionPpm);
     }
 }

@@ -854,8 +854,8 @@ public partial class App : Application, IDisposable
 
         var own = _settings.Account.Username;
         var subject = asDealCall
-            ? IncomingCallSubject.Classify(own, callerName: null, requestsAutoAnswer: false, ownNumber: own)
-            : IncomingCallSubject.Classify("712", "Call_Center", requestsAutoAnswer: true, ownNumber: own);
+            ? IncomingCallSubject.Classify(own, callerName: null, requestsAutoAnswer: false, ownNumber: own, masksMobileNumbers: _settings.IncomingCall.MasksMobileNumbers)
+            : IncomingCallSubject.Classify("712", "Call_Center", requestsAutoAnswer: true, ownNumber: own, masksMobileNumbers: _settings.IncomingCall.MasksMobileNumbers);
 
         _incoming.Show(
             subject,
@@ -1299,6 +1299,7 @@ public partial class App : Application, IDisposable
             _history!,
             _settings!.Account.ProfileId,
             _settings.Account.Username,
+            _settings.IncomingCall.MasksMobileNumbers,
 
             // Срок хранения спрашивается у настроек каждый раз, а не берётся
             // копией: администратор мог сменить его, пока окно было закрыто.

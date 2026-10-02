@@ -13,13 +13,16 @@ public sealed class HistoryPresentationTests
 {
     private const string Own = "176";
 
+    /// <summary>Умолчание места: мобильные под маской.</summary>
+    private const bool Masks = true;
+
     [Fact]
     public void Мобильный_входящий_под_маской_и_наверху_и_внизу()
     {
         CallRecord record = Incoming("79615362641");
 
-        Assert.Equal("+7**********", HistoryPresentation.Title(record, Own));
-        Assert.Equal("+7**********", HistoryPresentation.Subtitle(record, Own));
+        Assert.Equal("+7**********", HistoryPresentation.Title(record, Own, Masks));
+        Assert.Equal("+7**********", HistoryPresentation.Subtitle(record, Own, Masks));
     }
 
     [Fact]
@@ -27,8 +30,8 @@ public sealed class HistoryPresentationTests
     {
         CallRecord record = Incoming("712", name: "Call_Center", distribution: true);
 
-        Assert.Equal(IncomingCallSubject.DistributionTitle, HistoryPresentation.Title(record, Own));
-        Assert.Equal("712", HistoryPresentation.Subtitle(record, Own));
+        Assert.Equal(IncomingCallSubject.DistributionTitle, HistoryPresentation.Title(record, Own, Masks));
+        Assert.Equal("712", HistoryPresentation.Subtitle(record, Own, Masks));
     }
 
     [Fact]
@@ -36,8 +39,8 @@ public sealed class HistoryPresentationTests
     {
         CallRecord record = Incoming("89181234567", distribution: true);
 
-        Assert.Equal(IncomingCallSubject.DistributionTitle, HistoryPresentation.Title(record, Own));
-        Assert.Equal("+7**********", HistoryPresentation.Subtitle(record, Own));
+        Assert.Equal(IncomingCallSubject.DistributionTitle, HistoryPresentation.Title(record, Own, Masks));
+        Assert.Equal("+7**********", HistoryPresentation.Subtitle(record, Own, Masks));
     }
 
     [Fact]
@@ -45,8 +48,8 @@ public sealed class HistoryPresentationTests
     {
         CallRecord record = Incoming(Own);
 
-        Assert.Equal(IncomingCallSubject.DealTitle, HistoryPresentation.Title(record, Own));
-        Assert.Equal(IncomingCallSubject.DealSource, HistoryPresentation.Subtitle(record, Own));
+        Assert.Equal(IncomingCallSubject.DealTitle, HistoryPresentation.Title(record, Own, Masks));
+        Assert.Equal(IncomingCallSubject.DealSource, HistoryPresentation.Subtitle(record, Own, Masks));
     }
 
     [Fact]
@@ -54,8 +57,8 @@ public sealed class HistoryPresentationTests
     {
         CallRecord record = Incoming("132", name: "Semenov_Artyom");
 
-        Assert.Equal("Semenov_Artyom", HistoryPresentation.Title(record, Own));
-        Assert.Equal("132", HistoryPresentation.Subtitle(record, Own));
+        Assert.Equal("Semenov_Artyom", HistoryPresentation.Title(record, Own, Masks));
+        Assert.Equal("132", HistoryPresentation.Subtitle(record, Own, Masks));
     }
 
     [Fact]
@@ -69,8 +72,8 @@ public sealed class HistoryPresentationTests
             Number = "89181234567",
         };
 
-        Assert.Equal("89181234567", HistoryPresentation.Title(record, Own));
-        Assert.Equal("89181234567", HistoryPresentation.Subtitle(record, Own));
+        Assert.Equal("89181234567", HistoryPresentation.Title(record, Own, Masks));
+        Assert.Equal("89181234567", HistoryPresentation.Subtitle(record, Own, Masks));
     }
 
     [Fact]
@@ -78,7 +81,7 @@ public sealed class HistoryPresentationTests
     {
         CallRecord record = Incoming("74952223344");
 
-        Assert.Equal("74952223344", HistoryPresentation.Title(record, Own));
+        Assert.Equal("74952223344", HistoryPresentation.Title(record, Own, Masks));
     }
 
     private static CallRecord Incoming(string number, string? name = null, bool distribution = false) => new()

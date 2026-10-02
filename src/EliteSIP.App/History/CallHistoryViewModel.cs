@@ -61,12 +61,14 @@ public sealed class CallHistoryViewModel : Observable
         CallHistoryStore store,
         Guid profileId,
         string profileTitle,
+        bool masksMobileNumbers,
         Func<int> retentionDays)
     {
         _store = store;
         _profileId = profileId;
         ProfileTitle = profileTitle;
         OwnNumber = profileTitle;
+        MasksMobileNumbers = masksMobileNumbers;
 
         Calendar = new HistoryCalendar(
             () => _store.DaysWithCalls(new HistoryScope(_profileId)),
@@ -112,6 +114,13 @@ public sealed class CallHistoryViewModel : Observable
     /// Метка профиля и есть добавочный: профиль называется номером.
     /// </summary>
     public string OwnNumber { get; }
+
+    /// <summary>
+    /// Прятать ли мобильные — настройка места на момент открытия окна, как и
+    /// срез списка: строки, перерисованные под уже открытым окном, читались бы
+    /// как ошибка.
+    /// </summary>
+    public bool MasksMobileNumbers { get; }
 
     public IReadOnlyList<HistoryFilterItem> Filters { get; }
 

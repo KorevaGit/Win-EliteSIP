@@ -55,28 +55,28 @@ public sealed class CallStampConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
-/// <summary>Главная строка звонка. Значения: запись и свой добавочный.</summary>
+/// <summary>Главная строка звонка. Значения: запись, свой добавочный, прятать ли мобильные.</summary>
 ///
 /// <remarks>Правило — в <see cref="HistoryPresentation"/>.</remarks>
 public sealed class CallTitleConverter : IMultiValueConverter
 {
     public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
         => values.Length > 0 && values[0] is CallRecord record
-            ? HistoryPresentation.Title(record, values.Length > 1 ? values[1] as string ?? string.Empty : string.Empty)
+            ? HistoryPresentation.Title(record, CallRowValues.OwnNumber(values), CallRowValues.MasksMobileNumbers(values))
             : string.Empty;
 
     public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
 
-/// <summary>Нижняя строка звонка. Значения: запись и свой добавочный.</summary>
+/// <summary>Нижняя строка звонка. Значения: запись, свой добавочный, прятать ли мобильные.</summary>
 ///
 /// <remarks>Правило — в <see cref="HistoryPresentation"/>.</remarks>
 public sealed class CallSubtitleConverter : IMultiValueConverter
 {
     public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
         => values.Length > 0 && values[0] is CallRecord record
-            ? HistoryPresentation.Subtitle(record, values.Length > 1 ? values[1] as string ?? string.Empty : string.Empty)
+            ? HistoryPresentation.Subtitle(record, CallRowValues.OwnNumber(values), CallRowValues.MasksMobileNumbers(values))
             : string.Empty;
 
     public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
@@ -106,4 +106,16 @@ public sealed class EqualityConverter : IMultiValueConverter
 
     public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
+}
+
+/// <summary>Разбор значений строки истории — общий у заголовка и нижней строки.</summary>
+file static class CallRowValues
+{
+    public static string OwnNumber(object?[] values) => values.Length > 1 ? values[1] as string ?? string.Empty : string.Empty;
+
+    /// <remarks>
+    /// Не пришло — прятать: строка без третьего значения не должна открыть
+    /// номер, который место велело скрывать.
+    /// </remarks>
+    public static bool MasksMobileNumbers(object?[] values) => values.Length <= 2 || values[2] is not false;
 }

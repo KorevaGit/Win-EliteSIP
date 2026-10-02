@@ -49,6 +49,11 @@ internal static class PresetApply
         ApplyTransport(settings, fields.Transport);
         ApplyAutoAnswer(settings, fields.AutoAnswer, fields.AutoAnswerNumbers);
 
+        if (fields.MasksMobileNumbers is bool masks)
+        {
+            settings.IncomingCall.MasksMobileNumbers = masks;
+        }
+
         // Признак «этим управляет сервер» выводится из режима машины, а не из
         // файла, и ставится здесь — в одном месте на все управляемые поля.
         settings.IncomingCall.IsServerManaged = settings.Panel.IsManaged;
@@ -89,6 +94,7 @@ internal static class PresetApply
             || settings.Pbx.Transport != other.Pbx.Transport
             || !string.Equals(settings.IncomingCall.AutoAnswer, other.IncomingCall.AutoAnswer, StringComparison.Ordinal)
             || !settings.IncomingCall.AutoAnswerNumbers.SequenceEqual(other.IncomingCall.AutoAnswerNumbers, StringComparer.Ordinal)
+            || settings.IncomingCall.MasksMobileNumbers != other.IncomingCall.MasksMobileNumbers
             || DiffersInKnock(settings.PortKnock, other.PortKnock);
     }
 

@@ -183,6 +183,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private AudioClient? _renderClient;
     private EventWaitHandle? _captureReady;
     private EventWaitHandle? _renderReady;
+
+    /// <summary>
+    /// Вывод забрал из кольца — подаче пора доложить. Будит поток подачи по такту
+    /// устройства (10 мс), а не по системному таймеру (15,6 мс).
+    /// </summary>
+    private readonly AutoResetEvent _feedWake = new(false);
     private CancellationTokenSource? _stop;
     private Thread? _captureThread;
     private Thread? _renderThread;
@@ -254,6 +260,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// только по каналам.
     /// </summary>
     private float[] _captureChannelPeaks = [];
+
+    /// <summary>Выравнивание приёма. <c>null</c> — выключено. Пишет только поток подачи.</summary>
+    private SpeechGainControl? _receiveGain;
 
     /// <summary>
     /// Сколько отсчётов микрофон отдал у самого потолка. Перегруз случается
@@ -389,7 +398,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 restartReason = "в настройках выбрано другое устройство";
             }
             else if (previous.AutomaticGainControl != configuration.AutomaticGainControl
-                || previous.NoiseSuppression != configuration.NoiseSuppression)
+                || previous.NoiseSuppression != configuration.NoiseSuppression
+                || previous.BackgroundVoiceSuppression != configuration.BackgroundVoiceSuppression)
             {
                 ReplaceProcessor();
                 Diagnostic(ProcessingSummary());
@@ -422,7 +432,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             current.SampleRate,
             _configuration.AutomaticGainControl,
             _configuration.NoiseSuppression,
-            echoCancellation: !_echoFree);
+            echoCancellation: !_echoFree,
+            backgroundVoiceSuppression: _configuration.BackgroundVoiceSuppression);
 
         lock (_processing)
         {
@@ -437,6 +448,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         "обработка: "
         + (_echoFree ? "эхоподавление выкл. (вывод в наушники), " : "эхоподавление вкл., ")
         + (_configuration.NoiseSuppression ? (_echoFree ? "шумодав умеренный, " : "шумодав сильный, ") : "шумодав выкл., ")
+        + (_configuration.BackgroundVoiceSuppression ? "голоса вокруг приглушаются, " : "голоса вокруг не приглушаются, ")
         + (_configuration.AutomaticGainControl ? "АРУ вкл." : "АРУ выкл.");
 
     /// <inheritdoc/>
@@ -737,6 +749,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             _disposed = true;
             _running = false;
             Teardown();
+            _feedWake.Dispose();
         }
     }
 
@@ -785,8 +798,18 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     $", темп приёма {controller.CorrectionPpm:+0;-0;0} ppm{(controller.IsSaturated ? " (В УПОРЕ)" : string.Empty)}")
                 : string.Empty;
 
+            // Итог обработки — в ту же строку: по нему видно, шла ли она
+            // на этом устройстве вообще (жалоба 2 октября 2026, USB-гарнитура).
+            string processing = _processor is VoiceProcessor processor
+                ? "; " + processor.Summary
+                : string.Empty;
+
+            string receive = _receiveGain is SpeechGainControl leveling
+                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $", выравнивание приёма {leveling.GainDb:+0;-0;0} дБ")
+                : string.Empty;
+
             return $"пики: микрофон {Decibels(_capturePeak)}{perChannel}, в линию {Decibels(_sentPeak)}, "
-                + $"в наушники {Decibels(_playedPeak)}{overload}{rate}";
+                + $"в наушники {Decibels(_playedPeak)}{overload}{rate}{receive}{processing}";
         }
     }
 
@@ -889,7 +912,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             processingRate,
             _configuration.AutomaticGainControl,
             _configuration.NoiseSuppression,
-            echoCancellation: !_echoFree);
+            echoCancellation: !_echoFree,
+            backgroundVoiceSuppression: _configuration.BackgroundVoiceSuppression);
 
         _captureToProcessing = new Resampler(_captureFormat.SampleRate, processingRate);
         _processingToCodec = new Resampler(processingRate, codecRate);
@@ -1454,6 +1478,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     taken = ring.Read(scratch.AsSpan(0, free));
                 }
 
+                _feedWake.Set();
+
                 // Звук возвращается после тишины — плавно, а не ступенькой.
                 if (taken > 0 && starving)
                 {
@@ -1749,6 +1775,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         float[] converted = new float[renderRate];
         double lastObserved = _uptime.Elapsed.TotalSeconds;
         bool silenceChecked = false;
+        WaitHandle[] wake = [token.WaitHandle, _feedWake];
+
+        // Выравнивание приёма меряет уровень кадрами по 10 мс — на них
+        // рассчитаны скорости регулятора.
+        int receiveChunk = Math.Max(1, (int)_configuration.Codec.SampleRate() / 100);
+        _receiveGain = null;
 
         // Кадр кодека в отсчётах вывода: в них считаются и кольцо, и запас
         // джиттер-буфера.
@@ -1818,6 +1850,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     decoded[i] = samples[i] / 32768f;
                 }
 
+                LevelReceived(decoded.AsSpan(0, length), receiveChunk);
+
                 // Поправка темпа уже внутри пересчёта (SetRateCorrection выше):
                 // фильтр шагает по входу на доли процента быстрее или медленнее.
                 int produced = toRender.Process(decoded.AsSpan(0, length), converted);
@@ -1833,12 +1867,62 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
             if (!fed)
             {
-                // Спросить было нечего. Ждём такт устройства, а не крутим цикл:
-                // сеть отдаёт кадры не чаще, чем раз в двадцать миллисекунд.
-                token.WaitHandle.WaitOne(5);
+                // Спросить было нечего. Ждём, пока вывод заберёт из кольца, — то
+                // есть такт устройства, 10 мс. До 2 октября 2026 здесь стояло
+                // ожидание 5 мс, которое на системном таймере Windows длится
+                // 15,6 мс, и кольцо держало четыре кадра запаса, чтобы его
+                // пережить. По такту устройства хватает трёх: минус 20 мс задержки
+                // приёма без единого сокрытия на модели (PlaybackModelTests),
+                // включая зависания подачи на 45 мс. Предел ожидания — на случай,
+                // если вывод замолчал: тогда подача всё равно проверяет кольцо.
+                WaitHandle.WaitAny(wake, 20);
             }
         }
     }
+
+    /// <summary>
+    /// Выравнивание громкости собеседника (с 2 октября 2026), если оно
+    /// включено. Зовётся только с потока подачи.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Стоит до пересчёта в частоту вывода и до громкости: регулятор меряет
+    /// голос линии, а ползунок оператора остаётся поверх него. Опорный сигнал
+    /// эхоподавителю берётся после всего этого, на выводе, — то есть ровно то,
+    /// что прозвучало. Регулятор заводится при включении и сбрасывается при
+    /// выключении, поэтому переключатель работает посреди разговора.
+    /// </remarks>
+    private void LevelReceived(Span<float> samples, int chunk)
+    {
+        if (!Volatile.Read(ref _configuration).ReceiveGainControl)
+        {
+            _receiveGain = null;
+            return;
+        }
+
+        SpeechGainControl control = _receiveGain ??= new SpeechGainControl(
+            ReceiveTargetDb, ReceiveMaximumBoostDb, ReceiveMaximumCutDb);
+
+        for (int offset = 0; offset < samples.Length; offset += chunk)
+        {
+            control.Process(samples.Slice(offset, Math.Min(chunk, samples.Length - offset)));
+        }
+    }
+
+    /// <summary>
+    /// Куда выравнивать голос собеседника, дБ RMS. На пару децибел громче, чем
+    /// микрофон: приём слушают в одно ухо поверх шума кабинета.
+    /// </summary>
+    internal const double ReceiveTargetDb = -20;
+
+    /// <summary>
+    /// Подъём тихой линии не больше +10 дБ: вместе с голосом поднимается шум
+    /// линии, и в паузах он стоит на той же прибавке.
+    /// </summary>
+    internal const double ReceiveMaximumBoostDb = 10;
+
+    /// <summary>Громкую линию убавлять не больше чем на 6 дБ.</summary>
+    internal const double ReceiveMaximumCutDb = 6;
 
     /// <summary>
     /// Сообщает регулятору темпа, сколько принятого ещё не прозвучало.

@@ -57,6 +57,28 @@ internal sealed class SpeechGainControl
     /// <summary>С какого уровня начинает мягко сжиматься пик.</summary>
     private const float LimiterKnee = 0.9f;
 
+    private readonly double _targetDb;
+    private readonly double _maximumBoostDb;
+    private readonly double _maximumCutDb;
+
+    /// <summary>Регулятор микрофона: цель и пределы — константы выше.</summary>
+    public SpeechGainControl()
+        : this(TargetDb, MaximumBoostDb, MaximumCutDb)
+    {
+    }
+
+    /// <summary>
+    /// Регулятор с другой целью и пределами. Нужен приёму (с 2 октября 2026):
+    /// там подъём скромнее, потому что вместе с тихим голосом поднимается шум
+    /// линии, который в паузах замирает на той же прибавке.
+    /// </summary>
+    public SpeechGainControl(double targetDb, double maximumBoostDb, double maximumCutDb)
+    {
+        _targetDb = targetDb;
+        _maximumBoostDb = maximumBoostDb;
+        _maximumCutDb = maximumCutDb;
+    }
+
     /// <summary>Оценка шума, дБ. С нуля: первый же кадр опустит её до себя.</summary>
     private double _noiseDb;
     private double? _speechDb;
@@ -87,7 +109,7 @@ internal sealed class SpeechGainControl
                 ? speech + ((levelDb - speech) * SpeechSmoothing)
                 : levelDb;
 
-            double wanted = Math.Clamp(TargetDb - _speechDb.Value, -MaximumCutDb, MaximumBoostDb);
+            double wanted = Math.Clamp(_targetDb - _speechDb.Value, -_maximumCutDb, _maximumBoostDb);
             _gainDb = wanted > _gainDb
                 ? Math.Min(wanted, _gainDb + RiseDbPerFrame)
                 : Math.Max(wanted, _gainDb - FallDbPerFrame);

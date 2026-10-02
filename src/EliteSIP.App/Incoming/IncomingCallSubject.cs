@@ -69,6 +69,9 @@ public sealed record IncomingCallSubject
 
     private string? Name { get; }
 
+    /// <summary>Прятать ли мобильный под маской — настройка места, см. <c>IncomingCallSettings.MasksMobileNumbers</c>.</summary>
+    private bool MasksMobileNumbers { get; init; } = true;
+
     /// <summary>Заголовок раздачи.</summary>
     ///
     /// <remarks>
@@ -107,7 +110,7 @@ public sealed record IncomingCallSubject
     {
         IncomingCallKind.Queue => Title,
         IncomingCallKind.SelfCall => DealTitle,
-        _ => string.IsNullOrEmpty(Name) ? Shown(Number) : Name,
+        _ => string.IsNullOrEmpty(Name) ? ShownNumber(Number) : Name,
     };
 
     /// <summary>Номер мелкой строкой под заголовком. <c>null</c> — показывать нечего.</summary>
@@ -120,8 +123,8 @@ public sealed record IncomingCallSubject
     public string? SecondaryNumber => Kind switch
     {
         IncomingCallKind.SelfCall => null,
-        IncomingCallKind.Queue => Number.Length == 0 ? null : Shown(Number),
-        _ => string.IsNullOrEmpty(Name) || Number.Length == 0 ? null : Shown(Number),
+        IncomingCallKind.Queue => Number.Length == 0 ? null : ShownNumber(Number),
+        _ => string.IsNullOrEmpty(Name) || Number.Length == 0 ? null : ShownNumber(Number),
     };
 
     /// <summary>Прячет ли этот вызов номер собеседника целиком.</summary>
@@ -140,7 +143,17 @@ public sealed record IncomingCallSubject
         string? callerName,
         bool requestsAutoAnswer,
         string ownNumber,
+        bool masksMobileNumbers,
         string? queueTitle = null)
+        => Sort(callerNumber, callerName, requestsAutoAnswer, ownNumber, queueTitle)
+            with { MasksMobileNumbers = masksMobileNumbers };
+
+    private static IncomingCallSubject Sort(
+        string callerNumber,
+        string? callerName,
+        bool requestsAutoAnswer,
+        string ownNumber,
+        string? queueTitle)
     {
         var own = Digits(ownNumber);
         var caller = Digits(callerNumber);
@@ -183,8 +196,11 @@ public sealed record IncomingCallSubject
     /// панели в разговоре и история. Три отдельных правила разошлись бы — это
     /// уже случилось однажды, когда окно номер прятало, а панель через секунду
     /// показывала его крупно.
+    ///
+    /// Маска с 0.1.73 выключается настройкой места: тогда номер показывается
+    /// как пришёл, тоже во всех трёх местах сразу.
     /// </remarks>
-    public static string Shown(string number) => Masked(number) ?? number;
+    public string ShownNumber(string number) => MasksMobileNumbers ? Masked(number) ?? number : number;
 
     /// <summary>Мобильный номер под маской: <c>+7</c> и звёздочки.</summary>
     ///

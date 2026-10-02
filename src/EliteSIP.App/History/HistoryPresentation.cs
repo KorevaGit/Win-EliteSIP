@@ -27,9 +27,9 @@ namespace EliteSIP.App.History;
 public static class HistoryPresentation
 {
     /// <summary>Главная строка.</summary>
-    public static string Title(CallRecord record, string ownNumber)
+    public static string Title(CallRecord record, string ownNumber, bool masksMobileNumbers)
     {
-        if (Subject(record, ownNumber) is not IncomingCallSubject subject)
+        if (Subject(record, ownNumber, masksMobileNumbers) is not IncomingCallSubject subject)
         {
             return record.Title;
         }
@@ -52,10 +52,10 @@ public static class HistoryPresentation
     /// занимает. На звонке по сделке номера нет — там это свой же добавочный,
     /// — и вместо него стоит источник, «Bitrix».
     /// </remarks>
-    public static string Subtitle(CallRecord record, string ownNumber)
+    public static string Subtitle(CallRecord record, string ownNumber, bool masksMobileNumbers)
     {
         List<string> parts = [];
-        IncomingCallSubject? subject = Subject(record, ownNumber);
+        IncomingCallSubject? subject = Subject(record, ownNumber, masksMobileNumbers);
 
         if (subject?.Kind is IncomingCallKind.SelfCall)
         {
@@ -63,7 +63,7 @@ public static class HistoryPresentation
         }
         else if (record.Number.Length > 0)
         {
-            parts.Add(subject is null ? record.Number : IncomingCallSubject.Shown(record.Number));
+            parts.Add(subject is null ? record.Number : subject.ShownNumber(record.Number));
         }
 
         if (record.Role is CallRole.Consultation)
@@ -96,8 +96,8 @@ public static class HistoryPresentation
     /// звонка коллеги не отличить. Свой добавочный — из активного профиля:
     /// список и так отобран по нему.
     /// </remarks>
-    private static IncomingCallSubject? Subject(CallRecord record, string ownNumber) =>
+    private static IncomingCallSubject? Subject(CallRecord record, string ownNumber, bool masksMobileNumbers) =>
         record.Direction is CallDirection.Incoming
-            ? IncomingCallSubject.Classify(record.Number, record.DisplayName, record.WasDistribution, ownNumber)
+            ? IncomingCallSubject.Classify(record.Number, record.DisplayName, record.WasDistribution, ownNumber, masksMobileNumbers)
             : null;
 }

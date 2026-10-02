@@ -443,6 +443,22 @@
               <theme:SettingsNote Text="{res:Loc AdminGuardWhyNote}" />
             </theme:SettingsSection>
 
+            <!--
+                Маска мобильных (с 0.1.73). Не под выключателем защиты: номер
+                прячется от того, кто смотрит на экран, а защита — от того, кто
+                жмёт за человека; одно с другим не связано.
+            -->
+            <theme:SettingsSection Header="{res:Loc AdminNumbersTitle}">
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
+                        Content="{res:Loc AdminMasksMobileNumbers}"
+                        IsChecked="{Binding Guard.MasksMobileNumbers}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminGuardManagedNote}"
+                                  Visibility="{Binding Guard.IsServerManaged, Converter={StaticResource BoolToVisibility}}" />
+
+              <theme:SettingsNote Text="{res:Loc AdminMasksMobileNumbersNote}" />
+            </theme:SettingsSection>
+
             <!-- Автоподъём (с 0.1.61, как на macOS). -->
             <theme:SettingsSection Header="{res:Loc AdminAutoAnswerTitle}">
               <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"

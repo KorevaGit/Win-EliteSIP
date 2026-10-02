@@ -57,6 +57,8 @@ public sealed class AudioSettings : Observable
     private double _playbackVolume = 1.0;
     private bool _automaticGainControl;
     private bool _noiseSuppression = true;
+    private bool _backgroundVoiceSuppression = true;
+    private bool _receiveGainControl;
     private bool _releasesDeviceWhenIdle = true;
 
     /// <summary>Постоянный идентификатор конечной точки. <c>null</c> — системное.</summary>
@@ -97,7 +99,7 @@ public sealed class AudioSettings : Observable
         set => Set(ref _microphoneGain, value);
     }
 
-    /// <summary>Выше единицы не идёт: микшер громче не умеет.</summary>
+    /// <summary>До 200 %: умножение в тракте, после него мягкий ограничитель (с 2 октября 2026).</summary>
     ///
     /// <remarks>
     /// Ручка, которая двигается и ничего не меняет, хуже её отсутствия.
@@ -108,6 +110,13 @@ public sealed class AudioSettings : Observable
     {
         get => _playbackVolume;
         set => Set(ref _playbackVolume, value);
+    }
+
+    /// <summary>Выравнивать громкость собеседника. По умолчанию выключено.</summary>
+    public bool ReceiveGainControl
+    {
+        get => _receiveGainControl;
+        set => Set(ref _receiveGainControl, value);
     }
 
     /// <summary>Единственное, что в обработке голоса действительно спорно.</summary>
@@ -143,6 +152,20 @@ public sealed class AudioSettings : Observable
     {
         get => _noiseSuppression;
         set => Set(ref _noiseSuppression, value);
+    }
+
+    /// <summary>Приглушать голоса вокруг — то, чего шумодав не делает.</summary>
+    ///
+    /// <remarks>
+    /// Отдельный переключатель, а не часть шумодава: блок решает по уровню, и
+    /// у оператора с очень тихой манерой речи или с микрофоном ноутбука он
+    /// может задевать его самого. Тогда выключается он один, а шумодав и
+    /// эхоподавление остаются.
+    /// </remarks>
+    public bool BackgroundVoiceSuppression
+    {
+        get => _backgroundVoiceSuppression;
+        set => Set(ref _backgroundVoiceSuppression, value);
     }
 
     /// <summary>Отпускать ли устройство между звонками.</summary>

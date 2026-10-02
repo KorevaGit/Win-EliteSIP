@@ -197,8 +197,10 @@ public sealed class PhoneService : IDisposable
         nameof(AudioSettings.OutputDeviceId),
         nameof(AudioSettings.MicrophoneGain),
         nameof(AudioSettings.PlaybackVolume),
+        nameof(AudioSettings.ReceiveGainControl),
         nameof(AudioSettings.AutomaticGainControl),
         nameof(AudioSettings.NoiseSuppression),
+        nameof(AudioSettings.BackgroundVoiceSuppression),
         nameof(AudioSettings.ReleasesDeviceWhenIdle),
     ];
 
@@ -618,6 +620,7 @@ public sealed class PhoneService : IDisposable
             call.CallerName,
             call.RequestsAutoAnswer,
             _settings.Account.Username,
+            _settings.IncomingCall.MasksMobileNumbers,
             QueueTitle(call.CallerNumber));
 
         var record = new CallRecord
@@ -891,9 +894,11 @@ public sealed class PhoneService : IDisposable
         OutputDeviceId = _settings.Audio.OutputDeviceId,
         AutomaticGainControl = _settings.Audio.AutomaticGainControl,
         NoiseSuppression = _settings.Audio.NoiseSuppression,
+        BackgroundVoiceSuppression = _settings.Audio.BackgroundVoiceSuppression,
         ReleasesDeviceWhenIdle = _settings.Audio.ReleasesDeviceWhenIdle,
         MicrophoneGain = (float)_settings.Audio.MicrophoneGain,
         PlaybackVolume = (float)_settings.Audio.PlaybackVolume,
+        ReceiveGainControl = _settings.Audio.ReceiveGainControl,
     };
 
     public void ToggleMicrophone()
@@ -1726,6 +1731,7 @@ public sealed class PhoneService : IDisposable
                     record.DisplayName,
                     record.WasDistribution,
                     _settings.Account.Username,
+                    _settings.IncomingCall.MasksMobileNumbers,
                     QueueTitle(record.Number))
                 : null;
 
