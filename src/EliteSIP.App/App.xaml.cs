@@ -670,6 +670,7 @@ public partial class App : Application, IDisposable
             OnCollectLogs = () => CollectSupportArchive(model!),
             OnRunSelfTest = () => _ = RunAudioSelfTestAsync(model!),
             OnStopSelfTest = () => _phone?.SelfTest.Abort(),
+            OnSaveRecording = () => SaveSelfTestRecording(model!),
             ReadMeters = () => _phone is null
                 ? default
                 : new AudioMeterReading(
@@ -931,11 +932,54 @@ public partial class App : Application, IDisposable
             var outcome = await test.RunAsync(phone.AudioConfiguration()).ConfigureAwait(true);
 
             model.ReportSelfTest(outcome.Summary);
+            model.ReportRecording(test.HasRecording);
             Log($"самопроверка звука: {outcome.Summary}");
         }
         finally
         {
             test.Progress -= OnProgress;
+        }
+    }
+
+    /// <summary>
+    /// «Сохранить запись»: последняя проверка в WAV, куда укажет человек.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// В имени файла — время и положение «Обработки Windows»: записи для
+    /// сравнения настроек делаются подряд, и без этого их не различить.
+    /// </remarks>
+    private void SaveSelfTestRecording(Settings.SettingsViewModel model)
+    {
+        if (_phone is not { } phone || !phone.SelfTest.HasRecording)
+        {
+            return;
+        }
+
+        var mode = _settings?.Audio.WindowsProcessing.ToString() ?? "Auto";
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = Strings.Get("AudioSelfTestSaveTitle"),
+            Filter = "WAV|*.wav",
+            DefaultExt = ".wav",
+            FileName = $"EliteSIP-{DateTime.Now.ToString("yyyy-MM-dd-HHmmss", CultureInfo.InvariantCulture)}-{mode}.wav",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        };
+
+        if (dialog.ShowDialog(_settingsWindow) is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            phone.SelfTest.SaveLastRecording(dialog.FileName);
+            model.ReportSelfTest(Strings.Format("AudioSelfTestSaved", dialog.FileName));
+            Log($"самопроверка звука: запись сохранена ({mode})");
+        }
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
+        {
+            model.ReportSelfTest(Strings.Format("AudioSelfTestSaveFailed", error.Message));
         }
     }
 

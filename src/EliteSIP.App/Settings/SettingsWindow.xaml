@@ -362,6 +362,18 @@
               <theme:SettingsNote Text="{Binding SelfTestResult}"
                                   Visibility="{Binding HasSelfTestResult,
                                                        Converter={StaticResource BoolToVisibility}}" />
+
+              <!--
+                  Запись проверки — в файл, только по кнопке: то, что ушло бы в
+                  линию, для сравнения настроек и для жалобы.
+              -->
+              <theme:SettingsIndented Visibility="{Binding CanSaveRecording,
+                                                           Converter={StaticResource BoolToVisibility}}">
+                <Button Style="{StaticResource SettingsButtonStyle}"
+                        HorizontalAlignment="Left"
+                        Content="{res:Loc AudioSelfTestSave}"
+                        Command="{Binding SaveRecording}" />
+              </theme:SettingsIndented>
             </theme:SettingsSection>
           </StackPanel>
 

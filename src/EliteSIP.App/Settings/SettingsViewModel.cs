@@ -80,6 +80,7 @@ public sealed class SettingsViewModel : Observable
                 OnRunSelfTest?.Invoke();
             }
         });
+        SaveRecording = new RelayCommand(_ => OnSaveRecording?.Invoke());
 
         ReturnOnline = new RelayCommand(async _ =>
         {
@@ -183,6 +184,26 @@ public sealed class SettingsViewModel : Observable
         NotifyChanged(nameof(HasSelfTestResult));
     }
 
+    private bool _hasRecording;
+
+    /// <summary>
+    /// Сохранить последнюю запись проверки в файл. Видна, только когда запись
+    /// есть и проверка не идёт.
+    /// </summary>
+    public RelayCommand SaveRecording { get; }
+
+    internal Action? OnSaveRecording { get; init; }
+
+    /// <summary>Есть ли запись, которую можно сохранить.</summary>
+    public bool CanSaveRecording => _hasRecording && !_isSelfTestRunning;
+
+    /// <summary>Отметить, что запись появилась. Зовёт приложение по концу проверки.</summary>
+    internal void ReportRecording(bool available)
+    {
+        _hasRecording = available;
+        NotifyChanged(nameof(CanSaveRecording));
+    }
+
     // --- Шкалы «Голос» и «Звук» ---------------------------------------------
     //
     // Шкалы не открывают ничего сами: они читают тракт проверки или тракт
@@ -263,6 +284,7 @@ public sealed class SettingsViewModel : Observable
             NotifyChanged(nameof(IsSelfTestBlockedByCall));
             NotifyChanged(nameof(SelfTestButtonText));
             NotifyChanged(nameof(ShowsMeters));
+            NotifyChanged(nameof(CanSaveRecording));
         }
 
         _voiceLevel = levels?.Voice ?? 0;

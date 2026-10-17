@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using EliteSIP.MediaCore;
 
 namespace EliteSIP.Audio;
 
@@ -20,8 +21,12 @@ public readonly record struct AudioSelfTestResult(bool IsSuccess, string Summary
 /// <b>Кадры хранятся кодированными и только в памяти.</b> Не из экономии:
 /// разговор уходит в линию именно такими, и если голос портит кодер — а с ним и
 /// G.711 на восьми килогерцах, — оператор обязан услышать ровно это, а не
-/// чистую запись, по которой всё хорошо. На диск не попадает ничего: голос
-/// оператора — не то, что стоит оставлять в каталоге настроек.
+/// чистую запись, по которой всё хорошо. Сам по себе на диск не попадает
+/// ничего: голос оператора — не то, что стоит оставлять в каталоге настроек.
+/// Последняя запись держится в памяти до следующей проверки, и сохранить её
+/// можно только по просьбе человека (<see cref="SaveLastRecording"/>) — туда,
+/// куда он сам укажет. Затем это и заведено (0.1.77): сравнивать записи с
+/// разными настройками обработки и прикладывать их к жалобе.
 ///
 /// <b>Устройство занято только на время проверки.</b> Первая попытка на macOS
 /// держала микрофон открытым всё время, пока открыт раздел настроек, — ради
@@ -60,6 +65,57 @@ public sealed class AudioSelfTest : IDisposable
     private CancellationTokenSource? _cancellation;
     private IVoiceAudioEngine? _engine;
     private bool _isRunning;
+
+    /// <summary>Кадры последней удачной записи и кодек, которым они закодированы.</summary>
+    private (IReadOnlyList<byte[]> Frames, AudioCodec Codec)? _lastRecording;
+
+    /// <summary>Есть ли что сохранить: последняя проверка что-то записала.</summary>
+    public bool HasRecording
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _lastRecording is not null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Сохраняет последнюю запись в WAV: моно, 16 бит, на частоте кодека.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Раскодируется тем же декодером, что и в разговоре: в файле ровно то,
+    /// что услышал бы собеседник, — с обработкой, усилением и кодеком, — а не
+    /// чистый микрофон.
+    /// </remarks>
+    /// <returns><c>false</c> — сохранять нечего.</returns>
+    public bool SaveLastRecording(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        (IReadOnlyList<byte[]> Frames, AudioCodec Codec)? recording;
+        lock (_gate)
+        {
+            recording = _lastRecording;
+        }
+
+        if (recording is not { } taken)
+        {
+            return false;
+        }
+
+        AudioFrameDecoder decoder = new(taken.Codec);
+        List<short> samples = [];
+        foreach (byte[] frame in taken.Frames)
+        {
+            samples.AddRange(decoder.Decode(frame));
+        }
+
+        WaveFile.WriteMono16(path, (int)taken.Codec.SampleRate(), samples);
+        return true;
+    }
 
     /// <param name="open">Как поднять тракт. Тот же способ, что и у разговора.</param>
     /// <param name="log">Журнал приложения.</param>
@@ -288,6 +344,13 @@ public sealed class AudioSelfTest : IDisposable
             }
 
             int frames = recorded.Count;
+
+            // Снимок до воспроизведения: оно выбирает очередь до дна.
+            byte[][] kept = [.. recorded.Select(frame => frame.ToArray())];
+            lock (_gate)
+            {
+                _lastRecording = (kept, configuration.Codec);
+            }
 
             Progress?.Invoke("слушайте");
             engine.Handlers = new VoiceAudioHandlers
