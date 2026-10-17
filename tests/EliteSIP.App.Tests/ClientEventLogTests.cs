@@ -68,12 +68,12 @@ public sealed class ClientEventLogTests : IDisposable
         var log = Make();
 
         // Снятие без регистрации — не событие.
-        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered());
+        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered(ByOperator: false));
         log.NoteRegistration(new ClientEventLog.RegistrationSummary.Registered());
 
         // Продление идущей регистрации — тоже.
         log.NoteRegistration(new ClientEventLog.RegistrationSummary.Registered());
-        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered());
+        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered(ByOperator: false));
         log.NoteRegistration(new ClientEventLog.RegistrationSummary.Failed("неверный пароль", 403));
 
         Assert.Collection(
@@ -159,6 +159,76 @@ public sealed class ClientEventLogTests : IDisposable
     }
 
     [Fact]
+    public void OperatorGoingOfflineIsInfoNotWarning()
+    {
+        var log = Make();
+
+        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Registered());
+        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered(ByOperator: true));
+
+        var item = log.Pending[^1];
+        Assert.Equal(ClientEventLog.Level.Info, item.Level);
+        Assert.Equal("Оператор отключился от АТС", item.Message);
+    }
+
+    [Fact]
+    public void ShutdownReasonSignsTheUnregistration()
+    {
+        var log = Make();
+
+        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Registered());
+
+        // Первая названная причина главнее: обновление закрывает приложение
+        // тем же выходом, что и кнопка.
+        log.NoteShutdown("установка обновления");
+        log.NoteShutdown("выход из приложения");
+        log.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered(ByOperator: false));
+
+        var item = log.Pending[^1];
+        Assert.Equal(ClientEventLog.Level.Info, item.Level);
+        Assert.Equal("Регистрация снята: установка обновления", item.Message);
+    }
+
+    [Fact]
+    public void BatchRespectsCountAndSize()
+    {
+        var log = Make();
+        var text = new string('ж', ClientEventLog.MessageLimit);
+        for (var index = 0; index < ClientEventLog.MaxBatchEvents; index++)
+        {
+            _now = _now.AddMinutes(2);
+            log.NoteError(text + index);
+        }
+
+        var pending = log.Pending;
+
+        // Пятьсот сообщений по пятьсот знаков кириллицы — вдвое больше предела
+        // сервера: пачка обязана остановиться по объёму, а не по счёту.
+        var batch = ClientEventLog.Batch(pending, ClientEventLog.MaxBatchEvents, ClientEventLog.MaxBatchBytes);
+        Assert.InRange(batch.Count, 1, ClientEventLog.MaxBatchEvents - 1);
+        Assert.True(JsonSerializer.SerializeToUtf8Bytes(batch).Length <= 256 << 10);
+
+        Assert.Equal(3, ClientEventLog.Batch(pending, 3, ClientEventLog.MaxBatchBytes).Count);
+
+        // Первое событие берётся всегда, иначе буфер не продвинется.
+        Assert.Single(ClientEventLog.Batch(pending, ClientEventLog.MaxBatchEvents, maxBytes: 1));
+    }
+
+    [Fact]
+    public void ForgetStopsWritingTheFile()
+    {
+        var log = Make();
+        log.NoteError("до сброса");
+
+        log.Forget();
+        File.Delete(FilePath);
+        log.NoteError("после сброса");
+
+        Assert.Empty(log.Pending);
+        Assert.False(File.Exists(FilePath));
+    }
+
+    [Fact]
     public async Task SendWithoutStartDoesNothing()
     {
         var calls = 0;
@@ -167,7 +237,7 @@ public sealed class ClientEventLogTests : IDisposable
             Transport = (_, _) =>
             {
                 calls++;
-                return Task.FromResult<HttpStatusCode?>(HttpStatusCode.NoContent);
+                return Task.FromResult(new ClientEventLog.SendResult(HttpStatusCode.NoContent, null));
             },
         };
 

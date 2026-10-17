@@ -597,6 +597,7 @@
 
         <ToggleButton Grid.Row="0" Grid.Column="2"
                       Style="{StaticResource ControlKeyStyle}"
+                      Tag="Warning"
                       IsChecked="{Binding IsMicrophoneMuted, Mode=OneWay}"
                       IsEnabled="{Binding CanMuteMicrophone}"
                       Command="{Binding ToggleMicrophone}">
@@ -614,7 +615,22 @@
                 </Style>
               </theme:Icon.Style>
             </theme:Icon>
-            <TextBlock Text="{res:Loc PanelMicrophone}" Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center" />
+            <!--
+                Подпись меняется вместе с состоянием, как у «Удержать»: всегда
+                «Микрофон» при подсветке выключенного читалось ровно наоборот.
+            -->
+            <TextBlock Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Text" Value="{res:Loc PanelMicrophone}" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMicrophoneMuted}" Value="True">
+                      <Setter Property="Text" Value="{res:Loc PanelMicrophoneOff}" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
           </StackPanel>
         </ToggleButton>
 

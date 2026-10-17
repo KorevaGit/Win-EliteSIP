@@ -11,7 +11,8 @@ using EliteSIP.Diagnostics;
 namespace EliteSIP.App.PanelLine;
 
 /// <summary>
-/// Журнал машины для Spark: регистрация, звонки и критические ошибки.
+/// Журнал машины для Spark: регистрация, звонки, конфигурация и критические
+/// ошибки.
 /// </summary>
 ///
 /// <remarks>
@@ -19,17 +20,17 @@ namespace EliteSIP.App.PanelLine;
 /// Не путать с журналом приложения (<c>elitesip.log</c>): тот подробный и живёт
 /// на машине, этот — десяток строк в час, которые администратор видит в
 /// карточке места в Spark. События копятся в <c>client-events.json</c> рядом с
-/// настройками и раз в пять минут уходят пачкой на канал (<c>POST /logs</c>)
-/// помашинной парой, откуда их забирает Spark.
+/// настройками и уходят пачкой на канал (<c>POST /logs</c>) помашинной парой,
+/// откуда их забирает Spark.
 /// </para>
 /// <para>
-/// <b>Номеров телефонов здесь нет намеренно:</b> журнал читает не только тот,
-/// кому положено видеть историю звонков. Секреты маскирует
+/// <b>Номеров собеседников здесь нет намеренно:</b> журнал читает не только
+/// тот, кому положено видеть историю звонков. Секреты маскирует
 /// <see cref="LogRedaction"/> — так же, как в файле журнала.
 /// </para>
 /// <para>
 /// Перенесено из macOS-версии (<c>EliteSIP/Services/ClientEventLog.swift</c>,
-/// 0.1.60): формат события, сроки и правила отправки те же — сервер у обеих
+/// 0.1.66): формат события, сроки и правила отправки те же — сервер у обеих
 /// версий один. Пишут сюда несколько потоков (сигнализация, окно), поэтому
 /// состояние под замком, а не на главном акторе, как в оригинале.
 /// </para>
@@ -41,21 +42,41 @@ internal sealed class ClientEventLog : IDisposable
     /// <summary>Сколько событий держим, пока сервер недоступен. Старые вытесняются.</summary>
     internal const int Capacity = 1000;
 
-    /// <summary>Сколько событий в одной пачке — потолок сервера.</summary>
-    internal const int BatchSize = 500;
+    /// <summary>Больше событий в пачке сервер не примет (<c>maxLogEvents</c>).</summary>
+    internal const int MaxBatchEvents = 500;
+
+    /// <summary>
+    /// Предел пачки по объёму — с запасом под сервер (<c>maxLogBatch</c>, 256 КБ).
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Счёта событий мало: сообщение до 500 знаков кириллицы — около килобайта,
+    /// и пятьсот таких дают пачку вдвое больше предела. На macOS до 17 октября
+    /// 2026 сервер отвечал на неё 413, а клиент повторял ту же пачку без конца —
+    /// журнал машины вставал навсегда.
+    /// </remarks>
+    internal const int MaxBatchBytes = 200 << 10;
 
     /// <summary>Сколько символов сообщения уходит на сервер.</summary>
     internal const int MessageLimit = 500;
 
+    /// <summary>Общий такт: подбирает то, что не ушло само.</summary>
     internal static readonly TimeSpan SendInterval = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Событие уходит через несколько секунд, а не с общим тактом: тот, кто
+    /// смотрит журнал в Spark, проверяет то, что только что сделал. Пауза
+    /// собирает в одну пачку то, что идёт подряд, — снятие и новую регистрацию.
+    /// </summary>
+    internal static readonly TimeSpan FlushDelay = TimeSpan.FromSeconds(10);
 
     /// <summary>Одинаковая ошибка чаще раза в минуту — шум, а не новое событие.</summary>
     internal static readonly TimeSpan ErrorRepeatWindow = TimeSpan.FromMinutes(1);
 
+    internal const string FileName = "client-events.json";
+
     internal static string DefaultPath
         => Path.Combine(Path.GetDirectoryName(AppSettings.DefaultPath)!, FileName);
-
-    internal const string FileName = "client-events.json";
 
     private static readonly JsonSerializerOptions Format = new()
     {
@@ -71,9 +92,27 @@ internal sealed class ClientEventLog : IDisposable
     private readonly Dictionary<string, Call> _calls = [];
 
     private Func<AppSettings>? _settings;
+    private Action<string>? _log;
     private Timer? _timer;
+    private IDisposable? _flush;
     private bool _sending;
     private bool _wasRegistered;
+    private bool _forgotten;
+
+    /// <summary>Пауза перед повтором после неудачной отправки; растёт до такта.</summary>
+    private TimeSpan _retryDelay = TimeSpan.Zero;
+
+    /// <summary>
+    /// Сколько событий пробовать в следующей пачке. Делится пополам на 413 и
+    /// возвращается к полному после удачной отправки.
+    /// </summary>
+    private int _batchLimit = MaxBatchEvents;
+
+    /// <summary>
+    /// Почему приложение само снимает регистрацию: обновление или выход. Без
+    /// подписи такое снятие выглядело в Spark как сбой.
+    /// </summary>
+    private string? _shutdownReason;
 
     internal ClientEventLog(string? path, Func<DateTimeOffset>? now = null)
     {
@@ -102,6 +141,7 @@ internal sealed class ClientEventLog : IDisposable
     {
         Registration,
         Call,
+        Config,
         Error,
     }
 
@@ -140,6 +180,9 @@ internal sealed class ClientEventLog : IDisposable
         public int? DurationSeconds { get; init; }
     }
 
+    /// <summary>Чем кончилась отправка: код ответа (<c>null</c> — ответа нет) и просьба сервера подождать.</summary>
+    internal readonly record struct SendResult(HttpStatusCode? Status, TimeSpan? RetryAfter);
+
     private sealed class Call(string direction)
     {
         public string Direction { get; } = direction;
@@ -158,7 +201,8 @@ internal sealed class ClientEventLog : IDisposable
 
         internal sealed record Failed(string Reason, int? Code) : RegistrationSummary;
 
-        internal sealed record Unregistered : RegistrationSummary;
+        /// <param name="ByOperator">Оператор сам ушёл с линии, а не АТС или сеть его сняли.</param>
+        internal sealed record Unregistered(bool ByOperator) : RegistrationSummary;
     }
 
     /// <summary>Все события, ещё не принятые сервером. Для проверок.</summary>
@@ -177,16 +221,32 @@ internal sealed class ClientEventLog : IDisposable
     /// Отправка — через этот вызов. Подменяется в проверках; по умолчанию
     /// общий клиент канала.
     /// </summary>
-    internal Func<HttpRequestMessage, CancellationToken, Task<HttpStatusCode?>> Transport { get; init; } = SendOverChannelAsync;
+    internal Func<HttpRequestMessage, CancellationToken, Task<SendResult>> Transport { get; init; } = SendOverChannelAsync;
+
+    /// <summary>
+    /// Откладывает отправку на срок. Подменяется в проверках, чтобы не ждать
+    /// настоящих секунд; по умолчанию одноразовый таймер.
+    /// </summary>
+    internal Func<TimeSpan, Action, IDisposable> Schedule { get; init; } =
+        (delay, action) => new Timer(_ => action(), null, delay, Timeout.InfiniteTimeSpan);
 
     /// <summary>Запустить такт отправки. Зовётся один раз при запуске приложения.</summary>
-    internal void Start(Func<AppSettings> settings)
+    /// <param name="settings">настройки машины: ключ канала и номер.</param>
+    /// <param name="log">куда писать исход отправки — в журнал приложения.</param>
+    internal void Start(Func<AppSettings> settings, Action<string> log)
     {
         lock (_gate)
         {
             _settings = settings;
+            _log = log;
             _timer?.Dispose();
             _timer = new Timer(_ => _ = SendAsync(), null, SendInterval, SendInterval);
+
+            // Накопленное до запуска (или пока сервер был недоступен) — не ждать такта.
+            if (_pending.Count > 0)
+            {
+                ScheduleFlush(FlushDelay);
+            }
         }
     }
 
@@ -196,10 +256,43 @@ internal sealed class ClientEventLog : IDisposable
         {
             _timer?.Dispose();
             _timer = null;
+            _flush?.Dispose();
+            _flush = null;
+        }
+    }
+
+    /// <summary>
+    /// Сброс машины: забыть всё и больше не писать файл.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Файл стирает <see cref="MachineReset"/>, но буфер в памяти пережил бы
+    /// чистку: отправка, вернувшаяся после неё, записала бы его обратно, и
+    /// события прежней машины ушли бы от имени новой.
+    /// </remarks>
+    internal void Forget()
+    {
+        Dispose();
+
+        lock (_gate)
+        {
+            _pending.Clear();
+            _calls.Clear();
+            _settings = null;
+            _forgotten = true;
         }
     }
 
     // События
+
+    /// <summary>Почему регистрацию сейчас снимет само приложение. Первая причина главнее.</summary>
+    internal void NoteShutdown(string reason)
+    {
+        lock (_gate)
+        {
+            _shutdownReason ??= reason;
+        }
+    }
 
     internal void NoteRegistration(RegistrationSummary state)
     {
@@ -214,22 +307,34 @@ internal sealed class ClientEventLog : IDisposable
                     }
 
                     _wasRegistered = true;
-                    Record(Kind.Registration, Level.Info, "Регистрация на АТС прошла");
+                    RecordLocked(Kind.Registration, Level.Info, "Регистрация на АТС прошла");
                     break;
 
                 case RegistrationSummary.Failed failed:
                     _wasRegistered = false;
-                    Record(Kind.Registration, Level.Error, $"Регистрация не прошла: {failed.Reason}", sipCode: failed.Code);
+                    RecordLocked(Kind.Registration, Level.Error, $"Регистрация не прошла: {failed.Reason}", sipCode: failed.Code);
                     break;
 
-                case RegistrationSummary.Unregistered:
+                case RegistrationSummary.Unregistered unregistered:
                     if (!_wasRegistered)
                     {
                         return;
                     }
 
                     _wasRegistered = false;
-                    Record(Kind.Registration, Level.Warning, "Снята регистрация на АТС");
+                    if (_shutdownReason is { } reason)
+                    {
+                        RecordLocked(Kind.Registration, Level.Info, $"Регистрация снята: {reason}");
+                    }
+                    else if (unregistered.ByOperator)
+                    {
+                        RecordLocked(Kind.Registration, Level.Info, "Оператор отключился от АТС");
+                    }
+                    else
+                    {
+                        RecordLocked(Kind.Registration, Level.Warning, "Снята регистрация на АТС");
+                    }
+
                     break;
             }
         }
@@ -266,7 +371,7 @@ internal sealed class ClientEventLog : IDisposable
             var title = call.Direction == "in" ? "Входящий звонок" : "Исходящий звонок";
             if (call.AnsweredAt is { } answered)
             {
-                Record(
+                RecordLocked(
                     Kind.Call,
                     Level.Info,
                     $"{title} завершён",
@@ -275,7 +380,7 @@ internal sealed class ClientEventLog : IDisposable
             }
             else
             {
-                Record(
+                RecordLocked(
                     Kind.Call,
                     failed ? Level.Warning : Level.Info,
                     $"{title} без ответа: {reason}",
@@ -303,12 +408,20 @@ internal sealed class ClientEventLog : IDisposable
                 }
             }
 
-            Record(Kind.Error, Level.Error, message);
+            RecordLocked(Kind.Error, Level.Error, message);
         }
     }
 
-    /// <summary>Под замком.</summary>
-    private void Record(
+    /// <summary>Записать событие. Для конфигурации и прочего, у чего своей формы нет.</summary>
+    internal void Record(Kind kind, Level level, string message)
+    {
+        lock (_gate)
+        {
+            RecordLocked(kind, level, message);
+        }
+    }
+
+    private void RecordLocked(
         Kind kind,
         Level level,
         string message,
@@ -316,6 +429,11 @@ internal sealed class ClientEventLog : IDisposable
         string? direction = null,
         int? duration = null)
     {
+        if (_forgotten)
+        {
+            return;
+        }
+
         var text = LogRedaction.Redact(message);
         if (text.Length > MessageLimit)
         {
@@ -342,9 +460,60 @@ internal sealed class ClientEventLog : IDisposable
         }
 
         Persist();
+        ScheduleFlush(FlushDelay);
     }
 
     // Отправка
+
+    /// <summary>Под замком. Уже назначенная отправка не переназначается.</summary>
+    private void ScheduleFlush(TimeSpan delay)
+    {
+        if (_flush is not null || _settings is null)
+        {
+            return;
+        }
+
+        _flush = Schedule(delay, () =>
+        {
+            lock (_gate)
+            {
+                _flush?.Dispose();
+                _flush = null;
+            }
+
+            _ = SendAsync();
+        });
+    }
+
+    /// <summary>
+    /// Начало буфера, которое влезает в пачку и по числу, и по объёму.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Объём считается по тем же байтам, что уйдут в теле, плюс запятая на
+    /// событие. Первое событие берётся всегда: пустая пачка не продвинула бы
+    /// буфер, а одно событие предела не превысит — сообщение обрезано до 500
+    /// знаков ещё при записи.
+    /// </remarks>
+    internal static List<Event> Batch(IReadOnlyList<Event> pending, int limit, int maxBytes)
+    {
+        var batch = new List<Event>();
+        var bytes = 0;
+
+        foreach (var item in pending.Take(Math.Max(1, limit)))
+        {
+            var size = JsonSerializer.SerializeToUtf8Bytes(item, Format).Length + 1;
+            if (batch.Count > 0 && bytes + size > maxBytes)
+            {
+                break;
+            }
+
+            batch.Add(item);
+            bytes += size;
+        }
+
+        return batch;
+    }
 
     /// <summary>Отправить накопленное одной пачкой. Повторный вызов во время отправки — пустой.</summary>
     internal async Task SendAsync()
@@ -372,7 +541,7 @@ internal sealed class ClientEventLog : IDisposable
                 return;
             }
 
-            batch = _pending.Take(BatchSize).ToList();
+            batch = Batch(_pending, _batchLimit, MaxBatchBytes);
             url = address;
             installationID = panel.InstallationID;
             channelKey = key;
@@ -381,7 +550,7 @@ internal sealed class ClientEventLog : IDisposable
             _sending = true;
         }
 
-        HttpStatusCode? status = null;
+        SendResult result = default;
         try
         {
             using HttpRequestMessage request = new(HttpMethod.Post, url);
@@ -393,48 +562,121 @@ internal sealed class ClientEventLog : IDisposable
                 "application/json");
 
             using CancellationTokenSource deadline = new(ChannelRequest.Timeout);
-            status = await Transport(request, deadline.Token).ConfigureAwait(false);
+            result = await Transport(request, deadline.Token).ConfigureAwait(false);
         }
         finally
         {
-            DidSend(batch.Count, status);
+            DidSend(batch.Count, result);
         }
     }
 
-    private void DidSend(int count, HttpStatusCode? status)
+    private void DidSend(int count, SendResult result)
     {
+        string? note;
+
         lock (_gate)
         {
             _sending = false;
+            note = Settle(count, result);
+        }
 
-            // 204 — пачка принята. 400 — её не примут никогда, держать незачем.
-            // Остальное (сеть, 429, 5xx) — попробуем в следующий раз.
-            if (status is HttpStatusCode.NoContent or HttpStatusCode.BadRequest)
-            {
-                _pending.RemoveRange(0, Math.Min(count, _pending.Count));
-                Persist();
-            }
+        if (note is not null)
+        {
+            _log?.Invoke(note);
         }
     }
 
-    private static async Task<HttpStatusCode?> SendOverChannelAsync(HttpRequestMessage request, CancellationToken token)
+    /// <summary>Под замком. Отдаёт строку для журнала приложения, если о чём сказать.</summary>
+    private string? Settle(int count, SendResult result)
+    {
+        var status = result.Status;
+
+        // 413 — пачка велика. Делим пополам и шлём сразу, без паузы: сеть жива,
+        // сервер ответил. Одно событие, которое всё равно не влезло, держать
+        // незачем — оно не пройдёт никогда.
+        if (status is HttpStatusCode.RequestEntityTooLarge)
+        {
+            if (count > 1)
+            {
+                _batchLimit = Math.Max(1, count / 2);
+                ScheduleFlush(TimeSpan.FromSeconds(1));
+                return $"журнал машины: пачка из {count} велика (413), следующая — {_batchLimit}";
+            }
+
+            Drop(count);
+            if (_pending.Count > 0)
+            {
+                ScheduleFlush(TimeSpan.FromSeconds(1));
+            }
+
+            return "журнал машины: событие не влезает в пачку (413) и выброшено";
+        }
+
+        // 204 — пачка принята. 400 — её не примут никогда, держать незачем.
+        if (status is HttpStatusCode.NoContent or HttpStatusCode.BadRequest)
+        {
+            Drop(count);
+            _retryDelay = TimeSpan.Zero;
+            _batchLimit = MaxBatchEvents;
+
+            // Пока шла отправка, могли прийти новые.
+            if (_pending.Count > 0)
+            {
+                ScheduleFlush(FlushDelay);
+            }
+
+            return status is HttpStatusCode.BadRequest
+                ? $"журнал машины: сервер отверг пачку (400), событий выброшено: {count}"
+                : null;
+        }
+
+        // Сеть, 429, 5xx — повтор с нарастающей паузой, а не через пять минут.
+        var doubled = _retryDelay + _retryDelay;
+        _retryDelay = doubled < TimeSpan.FromSeconds(30) ? TimeSpan.FromSeconds(30) : doubled;
+        if (_retryDelay > SendInterval)
+        {
+            _retryDelay = SendInterval;
+        }
+
+        // Сервер сам говорит, когда приходить (429 при переполненной очереди
+        // сайта — 900 с). Раньше этого срока повтор только тратит трафик.
+        if (result.RetryAfter is { } wait && wait > _retryDelay)
+        {
+            _retryDelay = wait > TimeSpan.FromHours(1) ? TimeSpan.FromHours(1) : wait;
+        }
+
+        ScheduleFlush(_retryDelay);
+
+        var code = status is { } known ? ((int)known).ToString(CultureInfo.InvariantCulture) : "нет ответа";
+        return $"журнал машины: отправка не прошла ({code}), повтор через {(int)_retryDelay.TotalSeconds} с, в буфере {_pending.Count}";
+    }
+
+    /// <summary>Под замком.</summary>
+    private void Drop(int count)
+    {
+        _pending.RemoveRange(0, Math.Min(count, _pending.Count));
+        Persist();
+    }
+
+    private static async Task<SendResult> SendOverChannelAsync(HttpRequestMessage request, CancellationToken token)
     {
         try
         {
             using var response = await ChannelRequest.Client.SendAsync(request, token).ConfigureAwait(false);
-            return response.StatusCode;
+            var retryAfter = response.Headers.RetryAfter?.Delta;
+            return new SendResult(response.StatusCode, retryAfter);
         }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
         {
             // Нет связи — обычное состояние: события подождут в буфере.
-            return null;
+            return new SendResult(null, null);
         }
     }
 
     /// <summary>Под замком.</summary>
     private void Persist()
     {
-        if (_path is null)
+        if (_path is null || _forgotten)
         {
             return;
         }

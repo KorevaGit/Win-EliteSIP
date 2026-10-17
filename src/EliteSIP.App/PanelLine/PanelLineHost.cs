@@ -289,6 +289,8 @@ internal sealed class PanelLineHost : IDisposable
 
         if (config.Revision <= panel.AppliedConfigRevision && !sameRevisionEdited)
         {
+            NoteStaleConfig(config.Revision);
+
             if (config.Revision == panel.AppliedConfigRevision && panel.AppliedConfigFingerprint.Length == 0)
             {
                 panel.AppliedConfigFingerprint = fingerprint;
@@ -310,9 +312,29 @@ internal sealed class PanelLineHost : IDisposable
             return;
         }
 
+        var numberBefore = _settings.Account.Username;
+        var presetBefore = panel.PresetName.Length > 0 ? panel.PresetName : panel.PresetID;
+
         var change = _settings.Apply(config, _access, _log);
         _log($"конфигурация {config.Revision} применена: номер {config.Number}");
         StateChanged?.Invoke();
+
+        if (change.PresetChanged)
+        {
+            ClientEventLog.Shared.Record(
+                ClientEventLog.Kind.Config,
+                ClientEventLog.Level.Info,
+                $"Сменена предустановка: «{presetBefore}» → «{config.PresetName}»");
+        }
+
+        var numberNow = _settings.Account.Username;
+        if (numberBefore.Length > 0 && numberBefore != numberNow)
+        {
+            ClientEventLog.Shared.Record(
+                ClientEventLog.Kind.Config,
+                ClientEventLog.Level.Info,
+                $"Сменён номер: {numberBefore} → {numberNow}");
+        }
 
         if (change.NewNumber is { } number)
         {
@@ -330,6 +352,38 @@ internal sealed class PanelLineHost : IDisposable
             _ = _presets.CheckAsync();
         }
     }
+
+    /// <summary>
+    /// Конфигурация старше применённой: сказать один раз, и в Spark тоже.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Отказ правильный — так старую подписанную конфигурацию нельзя подсунуть
+    /// повторно. Но молча отказывать нельзя: такое бывает и честно, когда
+    /// счётчик в Spark сбросился (восстановление базы, пересозданная запись
+    /// машины), и тогда машина больше не примет ни одной правки, а снаружи
+    /// это не видно. Равная ревизия — обычный повторный опрос, о ней молчим.
+    /// Как на macOS с 0.1.65.
+    /// </remarks>
+    private void NoteStaleConfig(int revision)
+    {
+        var applied = _settings.Panel.AppliedConfigRevision;
+        if (revision >= applied || _reportedStaleRevision == revision)
+        {
+            return;
+        }
+
+        _reportedStaleRevision = revision;
+        _log($"конфигурация из Spark отклонена: ревизия {revision} меньше применённой {applied}");
+        ClientEventLog.Shared.Record(
+            ClientEventLog.Kind.Config,
+            ClientEventLog.Level.Warning,
+            $"Конфигурация отклонена: ревизия {revision} меньше применённой {applied}. "
+                + $"Новые настройки из Spark не применятся, пока ревизия не станет больше {applied}");
+    }
+
+    /// <summary>О какой устаревшей ревизии уже сказали. Только в памяти: после перезапуска — ещё раз.</summary>
+    private int? _reportedStaleRevision;
 
     private void ApplyPreset(PresetBundle.Entry entry)
     {
@@ -369,6 +423,11 @@ internal sealed class PanelLineHost : IDisposable
                 profile.Domain = address;
             }
         }
+
+        ClientEventLog.Shared.Record(
+            ClientEventLog.Kind.Config,
+            ClientEventLog.Level.Info,
+            $"Применена предустановка «{entry.Name}», ревизия {entry.Revision}");
 
         _log(wasResync
             ? $"предустановка переприменена по просьбе машины: «{entry.Name}», ревизия {entry.Revision}"

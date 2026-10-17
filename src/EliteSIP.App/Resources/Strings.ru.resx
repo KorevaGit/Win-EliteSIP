@@ -77,6 +77,9 @@
   <data name="PanelMicrophone" xml:space="preserve">
     <value>Микрофон</value>
   </data>
+  <data name="PanelMicrophoneOff" xml:space="preserve">
+    <value>Микрофон выкл.</value>
+  </data>
   <data name="PanelTransfer" xml:space="preserve">
     <value>Перевести</value>
   </data>

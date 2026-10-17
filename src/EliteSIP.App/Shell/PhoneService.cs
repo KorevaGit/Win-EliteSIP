@@ -539,6 +539,12 @@ public sealed class PhoneService : IDisposable
         _panel.Registration = RegistrationState.Idle;
         _panel.CanPlaceCall = false;
         SyncLines();
+
+        // Насос к этому месту уже остановлен, и событие «снята» от агента
+        // могло не дойти до Apply: снятие пишем сами. Повтор не страшен —
+        // журнал пишет только переход из «зарегистрирован».
+        ClientEventLog.Shared.NoteRegistration(
+            new ClientEventLog.RegistrationSummary.Unregistered(ByOperator: _panel.IsOfflineByChoice));
     }
 
     /// <summary>Звонит по набранному номеру.</summary>
@@ -1638,7 +1644,8 @@ public sealed class PhoneService : IDisposable
                 break;
 
             case SipRegistrationState.Idle:
-                ClientEventLog.Shared.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered());
+                ClientEventLog.Shared.NoteRegistration(
+                    new ClientEventLog.RegistrationSummary.Unregistered(ByOperator: _panel.IsOfflineByChoice));
                 break;
 
             default:

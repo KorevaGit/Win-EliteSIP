@@ -412,7 +412,7 @@ public partial class App : Application, IDisposable
 
         // Журнал машины для Spark: регистрация, звонки, ошибки — раз в пять
         // минут пачкой на канал. Как на macOS с 0.1.60.
-        ClientEventLog.Shared.Start(() => _settings!);
+        ClientEventLog.Shared.Start(() => _settings!, Log);
 
         // Линия обновлений (W12). Будильник у неё общий с предустановками: канал
         // один, и два независимых срока на нём разошлись бы через полгода.
@@ -1143,7 +1143,11 @@ public partial class App : Application, IDisposable
     /// установщик. Своя копия этих трёх шагов разошлась бы с общей на первой же
     /// правке — а разница здесь означает регистрацию, оставленную на сервере.
     /// </remarks>
-    private void PrepareForUpdateRestart() => Quit();
+    private void PrepareForUpdateRestart()
+    {
+        ClientEventLog.Shared.NoteShutdown("установка обновления");
+        Quit();
+    }
 
     /// <summary>
     /// Полная чистка машины по подписанному отзыву.
@@ -1170,6 +1174,7 @@ public partial class App : Application, IDisposable
     /// </remarks>
     private void ResetMachine()
     {
+        ClientEventLog.Shared.NoteShutdown("сброс машины");
         _updates?.Dispose();
         _updates = null;
 
@@ -1186,6 +1191,10 @@ public partial class App : Application, IDisposable
         // переживёт.
         _logFile?.Dispose();
         _logFile = null;
+
+        // Журнал машины для Spark — тоже: иначе его буфер в памяти записал бы
+        // файл обратно после чистки.
+        ClientEventLog.Shared.Forget();
 
         var failures = MachineReset.Wipe();
         if (failures.Count > 0)
@@ -1208,7 +1217,11 @@ public partial class App : Application, IDisposable
     /// <summary>Выход. Единственное место, откуда приложение завершают.</summary>
     private void Quit()
     {
+        // Подпись для Spark: снятие регистрации при выходе — не сбой. Причина,
+        // названная раньше (обновление), главнее.
+        ClientEventLog.Shared.NoteShutdown("выход из приложения");
         LeaveTheAir(TimeSpan.FromSeconds(2));
+        ClientEventLog.Shared.Dispose();
 
         if (_panelWindow is not null)
         {

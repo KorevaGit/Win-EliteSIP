@@ -229,6 +229,18 @@
               <Setter TargetName="Surface" Property="BorderBrush" Value="Transparent" />
               <Setter Property="Foreground" Value="White" />
             </Trigger>
+            <!--
+                Клавиша-предупреждение (Tag="Warning"): выключенный микрофон.
+                Красная, а не цвет удержания — подсветка здесь значит «вас не
+                слышно», а не состояние линии. Как на macOS с 0.1.66.
+            -->
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsChecked" Value="True" />
+                <Condition Property="Tag" Value="Warning" />
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource DeclineFillBrush}" />
+            </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="{DynamicResource DisabledOpacity}" />
             </Trigger>
