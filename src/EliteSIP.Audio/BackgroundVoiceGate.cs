@@ -29,11 +29,20 @@ namespace EliteSIP.Audio;
 ///
 /// <b>Как не съесть самого оператора.</b>
 /// <list type="bullet">
-/// <item>Уровень оператора меряется только по кадрам, близким к нему самому:
-/// чужой голос на 20 дБ тише его не опускает, сколько бы сосед ни говорил.
-/// Громкий щелчок поднимает его не больше чем на полдецибела за кадр.</item>
-/// <item>Пока голос оператора не услышан (первые полсекунды речи), блок не
-/// делает ничего.</item>
+/// <item>Уровень оператора — самые громкие устойчивые отрезки речи: 95-й
+/// процентиль уровней речевых кадров за последние две секунды речи. В
+/// гарнитуре громче всех почти всегда сам оператор. Вверх оценка идёт сразу,
+/// вниз — медленно (<see cref="VoiceDecayDbPerFrame"/>): пока оператор
+/// слушает клиента, а говорит сосед, оценка не сползает к соседу. Щелчок —
+/// один-два кадра из двухсот — до процентиля не дотягивает.
+///
+/// До 0.1.78 уровнем считалась первая услышанная речь, подтягиваемая
+/// медленно. Тестовая группа, 17 октября 2026: за соседним столом
+/// непрерывно играло видео, оно зазвучало раньше оператора, и блок принял
+/// его за оператора (оценка −55 дБ при голосе около −44) — голоса вокруг
+/// не приглушались ни разу.</item>
+/// <item>Пока голос не услышан (треть секунды речи), блок не делает
+/// ничего.</item>
 /// <item>Открывается сразу, в том же кадре; закрывается после
 /// <see cref="HoldFrames"/> тишины и плавно — окончания слов и тихие слоги
 /// между громкими не срезаются.</item>
@@ -65,23 +74,22 @@ internal sealed class BackgroundVoiceGate
     /// <summary>Скорость закрытия, дБ за кадр: вся глубина — за четверть секунды.</summary>
     private const double ReleaseDbPerFrame = 1.0;
 
-    /// <summary>Сколько кадров голоса оператора нужно услышать, прежде чем приглушать.</summary>
-    private const int EstablishFrames = 50;
+    /// <summary>Сколько речевых кадров нужно услышать, прежде чем приглушать: треть секунды.</summary>
+    private const int EstablishFrames = 33;
 
-    /// <summary>Кадр в пределах стольких децибел от голоса оператора — его голос.</summary>
-    private const double OwnVoiceBandDb = 8;
+    /// <summary>Сколько последних речевых кадров помнится для оценки: две секунды речи.</summary>
+    private const int VoiceWindowFrames = 200;
 
-    /// <summary>Доля нового кадра в уровне голоса.</summary>
-    private const double VoiceSmoothing = 0.04;
-
-    /// <summary>Сколько уровень голоса вправе подняться за кадр, дБ.</summary>
-    private const double VoiceRiseLimitDb = 0.5;
+    /// <summary>Какая доля речевых кадров громче оценки: пять процентов.</summary>
+    private const double VoicePercentile = 0.95;
 
     /// <summary>
-    /// Как быстро уровень голоса сползает, когда оператор стал говорить тише
-    /// (отвёл штангу, убавил вход), дБ за кадр: 1 дБ в секунду.
+    /// Как быстро оценка голоса спускается, когда громкие отрезки ушли, дБ за
+    /// речевой кадр: около 0,3 дБ в секунду чужой речи. Оператор, слушающий
+    /// клиента минуту, пока говорит сосед, потеряет в оценке до 18 дБ — и это
+    /// предел: дольше молчащего оператора от соседа по уровню не отличить.
     /// </summary>
-    private const double VoiceDriftDbPerFrame = 0.01;
+    private const double VoiceDecayDbPerFrame = 0.003;
 
     /// <summary>Насколько кадр должен быть громче фона, чтобы считаться чьей-то речью.</summary>
     private const double SpeechOverNoiseDb = 10;
@@ -95,6 +103,12 @@ internal sealed class BackgroundVoiceGate
     private double _noiseDb;
     private double? _voiceDb;
     private int _voiceFrames;
+
+    /// <summary>Уровни последних речевых кадров по кругу, дБ.</summary>
+    private readonly double[] _speech = new double[VoiceWindowFrames];
+    private readonly double[] _sorted = new double[VoiceWindowFrames];
+    private int _speechNext;
+    private int _speechCount;
     private int _hold;
     private double _gainDb;
     private float _appliedGain = 1f;
@@ -162,40 +176,28 @@ internal sealed class BackgroundVoiceGate
 
     private void TrackVoice(double levelDb, bool isSpeech)
     {
-        if (_voiceDb is not double voice)
+        if (!isSpeech)
         {
-            if (isSpeech)
-            {
-                _voiceDb = levelDb;
-                _voiceFrames = 1;
-            }
-
             return;
         }
 
-        if (levelDb > voice - OwnVoiceBandDb)
-        {
-            // Свой голос: уровень тянется к кадру, но вверх не быстрее
-            // ограничения — щелчок по столу не должен закрыть оператора.
-            double step = Math.Min((levelDb - voice) * VoiceSmoothing, VoiceRiseLimitDb);
-            _voiceDb = voice + step;
-            _voiceFrames++;
-        }
-        else if (isSpeech && levelDb > voice - MarginDb - 4)
-        {
-            // Речь заметно тише привычного, но у самого порога — так
-            // выглядит оператор, отодвинувший штангу. Сползаем к ней
-            // медленно. Голоса вдвое дальше порога сюда не попадают и
-            // уровень оператора не трогают.
-            _voiceDb = voice - VoiceDriftDbPerFrame;
-        }
+        _speech[_speechNext] = levelDb;
+        _speechNext = (_speechNext + 1) % VoiceWindowFrames;
+        _speechCount = Math.Min(_speechCount + 1, VoiceWindowFrames);
+        _voiceFrames++;
 
-        // До установления первые кадры могли быть чужими: если оператор
-        // громче, уровень дотянется до него за десятые доли секунды.
-        if (_voiceFrames < EstablishFrames && isSpeech && levelDb > voice)
-        {
-            _voiceDb = Math.Max(_voiceDb.Value, levelDb - OwnVoiceBandDb / 2);
-        }
+        // Процентиль по окну: сортировка двухсот чисел на кадр в 10 мс — это
+        // микросекунды, а окно должно быть честным, без скользящих оценок,
+        // которые и подвели прежнюю версию.
+        Array.Copy(_speech, _sorted, _speechCount);
+        Array.Sort(_sorted, 0, _speechCount);
+        double loud = _sorted[Math.Min(_speechCount - 1, (int)(_speechCount * VoicePercentile))];
+
+        // Вверх — сразу: громкие отрезки и есть оператор. Вниз — медленно:
+        // пока он слушает клиента, окно заполняет чужая речь.
+        _voiceDb = _voiceDb is double voice && loud < voice
+            ? Math.Max(loud, voice - VoiceDecayDbPerFrame)
+            : loud;
     }
 
     private static double RmsDb(ReadOnlySpan<float> frame)

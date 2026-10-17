@@ -213,6 +213,155 @@ public sealed class VoiceProcessorTests
     }
 
     /// <summary>
+    /// Сосед говорит непрерывно и начал раньше оператора — видео за соседним
+    /// столом (тестовая группа, 17 октября 2026).
+    /// </summary>
+    ///
+    /// <remarks>
+    /// До 0.1.78 блок принимал первую услышанную речь за оператора, а речь
+    /// соседа в пределах восьми децибел от оценки тянула её к себе: оценка
+    /// оседала между оператором и соседом, и сосед не приглушался ни разу.
+    /// </remarks>
+    /// <summary>
+    /// Оператор больше слушает, чем говорит, а сосед говорит непрерывно — так
+    /// выглядит почти любой разговор в общем кабинете.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Пять секунд, как у проверки звука; оператор говорит десятую долю
+    /// времени. До 0.1.78 соседская речь в пределах восьми децибел от оценки
+    /// голоса тянула её к себе, и сосед в паузах терял 1,3 дБ; с оценкой по
+    /// громким отрезкам — около 10.
+    /// </remarks>
+    [Fact]
+    public void Сосед_приглушается_когда_оператор_больше_слушает()
+    {
+        BackgroundVoiceGate gate = new();
+        float[] frame = new float[Rate / 100];
+        float[] neighbour = new float[Rate / 100];
+        double operatorPhase = 0;
+        double neighbourPhase = 0;
+        double pausesIn = 0;
+        double pausesOut = 0;
+        double talkIn = 0;
+        double talkOut = 0;
+
+        for (int f = 0; f < 500; f++)
+        {
+            bool talking = f >= 50 && (f - 50) % 300 < 30;
+            operatorPhase = Speech(frame, f, Rate, talking ? -30 : -200, pitch: 125, operatorPhase);
+            neighbourPhase = Speech(neighbour, f, Rate, -56, pitch: 205, neighbourPhase);
+            for (int i = 0; i < frame.Length; i++)
+            {
+                frame[i] += neighbour[i];
+            }
+
+            double before = Energy(frame);
+            gate.Process(frame);
+            double after = Energy(frame);
+            if (f < 150)
+            {
+                continue;
+            }
+
+            if (talking)
+            {
+                talkIn += before;
+                talkOut += after;
+            }
+            else
+            {
+                pausesIn += before;
+                pausesOut += after;
+            }
+        }
+
+        double neighbourCut = 10 * Math.Log10(pausesIn / pausesOut);
+        double operatorChange = 10 * Math.Log10(talkOut / talkIn);
+
+        Assert.True(neighbourCut >= 8, $"сосед в паузах приглушён на {neighbourCut:F1} дБ");
+        Assert.InRange(operatorChange, -1, 0.1);
+
+        static double Energy(float[] samples)
+        {
+            double energy = 0;
+            foreach (float sample in samples)
+            {
+                energy += sample * sample;
+            }
+
+            return energy;
+        }
+    }
+
+    [Fact]
+    public void Непрерывный_сосед_приглушается_в_паузах_при_большой_разнице()
+    {
+        BackgroundVoiceGate gate = new();
+        float[] frame = new float[Rate / 100];
+        float[] neighbour = new float[Rate / 100];
+        double operatorPhase = 0;
+        double neighbourPhase = 0;
+        double pausesIn = 0;
+        double pausesOut = 0;
+        double talkIn = 0;
+        double talkOut = 0;
+
+        for (int f = 0; f < 1500; f++)
+        {
+            // Первая секунда — только сосед. Дальше оператор: полторы секунды
+            // говорит, полторы слушает.
+            bool talking = f >= 100 && (f - 100) % 300 < 150;
+            operatorPhase = Speech(frame, f, Rate, talking ? -30 : -200, pitch: 125, operatorPhase);
+            neighbourPhase = Speech(neighbour, f, Rate, -56, pitch: 205, neighbourPhase);
+            for (int i = 0; i < frame.Length; i++)
+            {
+                frame[i] += neighbour[i];
+            }
+
+            double before = Energy(frame);
+            gate.Process(frame);
+            double after = Energy(frame);
+
+            // Мерим после второй реплики и вдали от краёв реплик.
+            int inCycle = (f - 100) % 150;
+            if (f < 700 || inCycle < 40 || inCycle > 140)
+            {
+                continue;
+            }
+
+            if (talking)
+            {
+                talkIn += before;
+                talkOut += after;
+            }
+            else
+            {
+                pausesIn += before;
+                pausesOut += after;
+            }
+        }
+
+        double neighbourCut = 10 * Math.Log10(pausesIn / pausesOut);
+        double operatorChange = 10 * Math.Log10(talkOut / talkIn);
+
+        Assert.True(gate.VoiceDb > -36, $"оценка голоса оператора {gate.VoiceDb:F1} дБ — это сосед, а не оператор");
+        Assert.True(neighbourCut >= 15, $"сосед в паузах приглушён на {neighbourCut:F1} дБ");
+        Assert.InRange(operatorChange, -1.5, 0.1);
+
+        static double Energy(float[] samples)
+        {
+            double energy = 0;
+            foreach (float sample in samples)
+            {
+                energy += sample * sample;
+            }
+
+            return energy;
+        }
+    }
+
+    /// <summary>
     /// Оператор говорит полторы секунды, полторы молчит; в его паузах говорит
     /// сосед. Возвращает уровень оператора в его репликах и соседа в паузах,
     /// после первых четырёх секунд — когда всё улеглось.
