@@ -461,6 +461,7 @@ internal static class MachineReset
             "activation-draft.dat",
             "elitesip.log",
             "crash.log",
+            ClientEventLog.FileName,
         })
         {
             try

@@ -2,6 +2,7 @@ using EliteSIP.Diagnostics;
 using System.Windows.Threading;
 using EliteSIP.App.Incoming;
 using EliteSIP.App.Panel;
+using EliteSIP.App.PanelLine;
 using EliteSIP.App.Resources;
 using EliteSIP.App.Settings;
 using EliteSIP.Audio;
@@ -584,6 +585,7 @@ public sealed class PhoneService : IDisposable
         // разговора вполне реально.
         _history.Begin(record);
         _records[call.CallId] = record;
+        ClientEventLog.Shared.CallStarted(call.CallId, incoming: false);
 
         // Панель узнаёт о вызове сейчас, а не по «ответили»: до этой строки она
         // выглядела свободной всё время гудков, и «Позвонить» нажималась
@@ -636,6 +638,7 @@ public sealed class PhoneService : IDisposable
 
         _history.Begin(record);
         _records[call.CallId] = record;
+        ClientEventLog.Shared.CallStarted(call.CallId, incoming: true);
 
         // Автоподъём (с 0.1.61, как на macOS): режим разрешает — трубка
         // снимается сразу, без мелодии и окна входящего. Не поверх идущего
@@ -773,6 +776,7 @@ public sealed class PhoneService : IDisposable
         {
             _history.Finish(record.Id, "отклонён оператором", CallOutcome.Declined);
             _records.Remove(call.CallId);
+            ClientEventLog.Shared.CallFinished(call.CallId, "отклонён оператором", failed: false);
         }
     }
 
@@ -836,6 +840,7 @@ public sealed class PhoneService : IDisposable
                 _history.Finish(record.Id, reason, outcome);
             }
 
+            ClientEventLog.Shared.CallFinished(callId, reason, failed: outcome is CallOutcome.Failed);
             SyncLines();
         }).Task;
 
@@ -1009,6 +1014,14 @@ public sealed class PhoneService : IDisposable
                         if (log.Level is not SipLogLevel.Debug || _settings.Maintenance.LogsSipTrace)
                         {
                             _log($"[{log.Level}] {log.Message}");
+                        }
+
+                        // В журнал машины — только ошибки, и мимо выключателя
+                        // файла: Spark должен видеть беду и на машине, где
+                        // журнал приложения не ведут.
+                        if (log.Level is SipLogLevel.Error)
+                        {
+                            ClientEventLog.Shared.NoteError(log.Message);
                         }
 
                         break;
@@ -1568,6 +1581,7 @@ public sealed class PhoneService : IDisposable
                 _history.Finish(record.Id, reason, outcome);
             }
 
+            ClientEventLog.Shared.CallFinished(callId, reason, failed: outcome is CallOutcome.Failed);
             ClearPending(callId);
             SyncLines();
         }).Task;
@@ -1591,6 +1605,7 @@ public sealed class PhoneService : IDisposable
 
         record.AnsweredAt ??= DateTimeOffset.Now;
         _history.MarkAnswered(record.Id, record.AnsweredAt);
+        ClientEventLog.Shared.CallAnswered(callId);
     }
 
     /// <summary>Снимает отметку о неотвеченном исходящем, если она про этот вызов.</summary>
@@ -1612,6 +1627,24 @@ public sealed class PhoneService : IDisposable
     /// <summary>Переводит состояние регистрации в то, что видно на панели.</summary>
     private void Apply(SipRegistrationState state)
     {
+        switch (state)
+        {
+            case SipRegistrationState.Registered:
+                ClientEventLog.Shared.NoteRegistration(new ClientEventLog.RegistrationSummary.Registered());
+                break;
+
+            case SipRegistrationState.Failed failed:
+                ClientEventLog.Shared.NoteRegistration(new ClientEventLog.RegistrationSummary.Failed(failed.Reason, null));
+                break;
+
+            case SipRegistrationState.Idle:
+                ClientEventLog.Shared.NoteRegistration(new ClientEventLog.RegistrationSummary.Unregistered());
+                break;
+
+            default:
+                break;
+        }
+
         switch (state)
         {
             case SipRegistrationState.Registered:

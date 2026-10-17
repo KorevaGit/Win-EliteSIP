@@ -167,6 +167,12 @@ internal static class Provisioning
         public Uri? MachineUrl(string prefix, string installationID)
             => installationID.Length == 0 ? null : Address($"{prefix}/{installationID}");
 
+        /// <summary>
+        /// Куда машина шлёт свой журнал для Spark (<c>POST /logs</c>, см.
+        /// <see cref="ClientEventLog"/>). Машину сервер узнаёт по паре, а не по адресу.
+        /// </summary>
+        public Uri? LogsUrl() => Address("logs");
+
         private Uri? Address(string path) => Address(BaseUrl, path);
 
         private static Uri? Address(string baseUrl, string path)

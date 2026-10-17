@@ -410,6 +410,10 @@ public partial class App : Application, IDisposable
         _panelLine.Start();
         Mark("линия панели");
 
+        // Журнал машины для Spark: регистрация, звонки, ошибки — раз в пять
+        // минут пачкой на канал. Как на macOS с 0.1.60.
+        ClientEventLog.Shared.Start(() => _settings!);
+
         // Линия обновлений (W12). Будильник у неё общий с предустановками: канал
         // один, и два независимых срока на нём разошлись бы через полгода.
         _updates = new UpdateService(
