@@ -27,7 +27,7 @@ namespace EliteSIP.Audio;
 /// <param name="Output">Устройство воспроизведения. <c>null</c> — выхода нет.</param>
 public sealed record AudioRoute(AudioDevice? Input, AudioDevice? Output)
 {
-    /// <summary>Снимок маршрута по системным устройствам для связи.</summary>
+    /// <summary>Снимок маршрута по системным устройствам (см. <see cref="AudioDeviceCatalog.DefaultRole"/>).</summary>
     public static AudioRoute Current() => new(
         AudioDeviceCatalog.Default(AudioDeviceDirection.Capture),
         AudioDeviceCatalog.Default(AudioDeviceDirection.Render));

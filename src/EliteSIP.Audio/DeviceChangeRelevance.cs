@@ -32,7 +32,7 @@ public sealed record AudioRouteBinding(
     /// <summary>Привязки ещё нет: тракт не собран.</summary>
     public static AudioRouteBinding None { get; } = new(null, null, null, null);
 
-    /// <summary>Микрофон не назначен — идём за системным для связи.</summary>
+    /// <summary>Микрофон не назначен — идём за системным по умолчанию.</summary>
     public bool FollowsDefaultInput => string.IsNullOrEmpty(ConfiguredInputId);
 
     /// <summary>Выход не назначен — идём за системным для связи.</summary>
@@ -69,7 +69,7 @@ public static class DeviceChangeRelevance
     public static bool AffectsRoute(AudioDeviceChange change, AudioRouteBinding binding) =>
         change.Kind switch
         {
-            // Умолчание для связи сменилось — но касается это только той
+            // Системное устройство сменилось — но касается это только той
             // стороны, которая за умолчанием и следует. Если микрофон назначен
             // явно, смена системного микрофона нас не трогает.
             AudioDeviceChangeKind.DefaultChanged => change.Direction switch

@@ -64,6 +64,60 @@ public sealed class SpareCaptureTests
         Assert.Equal("lifechat", spare?.Id);
     }
 
+    private static readonly AudioDevice Webcam = Capture(
+        "webcam", "Микрофон (HD Pro Webcam C920)", AudioTransport.Usb);
+
+    [Fact]
+    public void Камера_не_берётся_вровень_с_микрофоном_ноутбука()
+    {
+        // До 0.1.76 USB-камера и встроенный микрофон набирали поровну, и
+        // ничью решал порядок перечисления — камера в списке первая.
+        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([Webcam, Realtek], [], "Динамики (JBL Quantum350 Wireless)");
+
+        Assert.Equal("realtek", spare?.Id);
+    }
+
+    [Fact]
+    public void Камера_ниже_даже_Bluetooth()
+    {
+        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([Webcam, AirPods], [], renderName: null);
+
+        Assert.Equal("airpods", spare?.Id);
+    }
+
+    [Fact]
+    public void Камера_берётся_когда_больше_нечего()
+    {
+        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([Oculus, Webcam], ["oculus"], renderName: null);
+
+        Assert.Equal("webcam", spare?.Id);
+    }
+
+    [Theory]
+    [InlineData("Микрофон (HD Pro Webcam C920)", true)]
+    [InlineData("Microphone (Logitech BRIO)", true)]
+    [InlineData("Микрофон (USB2.0 Camera)", true)]
+    [InlineData("Микрофон (Microsoft® LifeCam HD-3000)", true)]
+    [InlineData("Микрофон (Razer Kiyo)", true)]
+    [InlineData("Микрофон (Logitech C270)", true)]
+    [InlineData("Микрофон гарнитуры (2- Microsoft LifeChat LX-3000)", false)]
+    [InlineData("Микрофон (JBL Quantum350 Wireless)", false)]
+    [InlineData("Набор микрофонов (Realtek(R) Audio)", false)]
+    [InlineData("Microphone (Jabra Evolve2 30)", false)]
+    [InlineData(null, false)]
+    public void Камера_опознаётся_по_имени(string? name, bool expected)
+        => Assert.Equal(expected, AudioDeviceCatalog.IsCamera(name));
+
+    [Fact]
+    public void Микрофон_берётся_обычный_по_умолчанию_а_выход_для_связи()
+    {
+        // Микрофон — тот, что выбран в параметрах Windows: «для связи» Windows
+        // сама отдаёт вебкамере. Выход — «для связи»: у Bluetooth-гарнитуры
+        // обычным стоит стереоточка, которая молчит при открытом микрофоне.
+        Assert.Equal(NAudio.CoreAudioApi.Role.Console, AudioDeviceCatalog.DefaultRole(AudioDeviceDirection.Capture));
+        Assert.Equal(NAudio.CoreAudioApi.Role.Communications, AudioDeviceCatalog.DefaultRole(AudioDeviceDirection.Render));
+    }
+
     [Fact]
     public void Неподключённый_не_берётся()
     {

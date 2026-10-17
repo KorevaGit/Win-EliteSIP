@@ -17,7 +17,7 @@ public enum AudioDeviceChangeKind
     /// </summary>
     DeviceStateChanged,
 
-    /// <summary>Сменилось устройство по умолчанию для связи.</summary>
+    /// <summary>Сменилось системное устройство (см. <see cref="AudioDeviceCatalog.DefaultRole"/>).</summary>
     DefaultChanged,
 }
 
@@ -147,21 +147,23 @@ public sealed class AudioDeviceWatch : IDisposable
 
     private void OnDefaultDeviceChanged(object? sender, DefaultDeviceChangedEventArgs e)
     {
-        // Роли «консоль» и «мультимедиа» нас не касаются: человек может увести
-        // музыку на телевизор, не трогая гарнитуру для разговоров.
-        // Пересобирать из-за этого живой тракт значило бы рвать разговор на
-        // ровном месте.
-        if (e.Role != Role.Communications)
-        {
-            return;
-        }
-
         AudioDeviceDirection? direction = e.Flow switch
         {
             DataFlow.Capture => AudioDeviceDirection.Capture,
             DataFlow.Render => AudioDeviceDirection.Render,
             _ => null,
         };
+
+        // Только та роль, по которой тракт берёт системное устройство этого
+        // направления (AudioDeviceCatalog.DefaultRole): у микрофона — обычная,
+        // у выхода — «для связи». Windows шлёт уведомление на каждую роль
+        // отдельно; прочие нас не касаются — человек может увести музыку на
+        // телевизор, и пересобирать из-за этого живой тракт значило бы рвать
+        // разговор на ровном месте.
+        if (direction is not AudioDeviceDirection known || e.Role != AudioDeviceCatalog.DefaultRole(known))
+        {
+            return;
+        }
 
         Report(AudioDeviceChangeKind.DefaultChanged, e.DeviceId, direction, null);
     }

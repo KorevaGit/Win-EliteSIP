@@ -73,7 +73,7 @@ public sealed record VoiceAudioConfiguration
     /// </summary>
     public int PlaybackLeadFrames => TargetPlaybackFrames + 1;
 
-    /// <summary>Микрофон. <c>null</c> — системный для связи.</summary>
+    /// <summary>Микрофон. <c>null</c> — системный по умолчанию.</summary>
     public string? InputDeviceId { get; init; }
 
     /// <summary>

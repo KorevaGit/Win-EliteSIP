@@ -73,18 +73,44 @@ public static class AudioDeviceCatalog
     }
 
     /// <summary>
-    /// Устройство, которое человек назначил для связи.
+    /// Роль, по которой берётся системное устройство этого направления.
+    /// </summary>
     ///
-    /// Роль «связь», а не «мультимедиа»: софтфон обязан ехать на том
-    /// устройстве, которое выбрано для разговоров, а не на том, где играет
-    /// музыка. Это то же решение, что в стенде W0.
+    /// <remarks>
+    /// <para>
+    /// <b>Микрофон — обычное «Устройство по умолчанию».</b> До 0.1.76 и он брался
+    /// по роли «связь» — решение стенда W0: софтфон едет на том, что выбрано для
+    /// разговоров. На живых машинах вышло наоборот. В параметрах Windows 10/11
+    /// человек выбирает только обычное устройство; «для связи» живёт в старой
+    /// панели звука, и его никто не трогает. Зато Windows сама назначает «для
+    /// связи» новые USB-устройства, чаще всего вебкамеру. Тестовая группа
+    /// 17 октября 2026: в системе выбрана гарнитура, а программа говорит через
+    /// камеру или микрофон ноутбука. macOS-версия берёт обычный системный
+    /// микрофон (<c>kAudioHardwarePropertyDefaultInputDevice</c>) — теперь и
+    /// здесь так. «Консоль», а не «мультимедиа»: в параметрах Windows они
+    /// меняются разом, а следить нужно за одной, иначе каждая смена
+    /// пересобирает тракт дважды.
+    /// </para>
+    /// <para>
+    /// <b>Выход остаётся «для связи», и это не недосмотр.</b> У
+    /// Bluetooth-гарнитуры обычным выходом по умолчанию стоят стерео-«Наушники»
+    /// (A2DP), а «для связи» — точка Hands-Free. Открыв микрофон гарнитуры, мы
+    /// переводим её в режим связи, и звук, отправленный в стереоточку, в этот
+    /// момент пропадает. Жалобы на выход не было, а камера звук не выводит.
+    /// </para>
+    /// </remarks>
+    public static Role DefaultRole(AudioDeviceDirection direction) =>
+        direction == AudioDeviceDirection.Capture ? Role.Console : Role.Communications;
+
+    /// <summary>
+    /// Устройство, выбранное в системе по умолчанию (<see cref="DefaultRole"/>).
     /// </summary>
     public static AudioDevice? Default(AudioDeviceDirection direction)
     {
         try
         {
             using MMDeviceEnumerator enumerator = new();
-            if (!enumerator.TryGetDefaultAudioEndpoint(Flow(direction), Role.Communications, out MMDevice? endpoint)
+            if (!enumerator.TryGetDefaultAudioEndpoint(Flow(direction), DefaultRole(direction), out MMDevice? endpoint)
                 || endpoint is null)
             {
                 return null;
@@ -275,9 +301,14 @@ public static class AudioDeviceCatalog
     /// цифровой ноль, а гарнитура была воткнута в Realtek. Наушники при этом
     /// системными были «Наушники (Realtek(R) Audio)» — то есть подсказка, где
     /// настоящий микрофон, лежала рядом. Отсюда порядок: сначала та же карта,
-    /// что и вывод, потом любая проводная или USB, последним — Bluetooth в
-    /// режиме гарнитуры (он переводит наушники в моно 8 кГц). Виртуальные и
-    /// HDMI не берутся вовсе.
+    /// что и вывод, потом любая проводная или USB, затем Bluetooth в режиме
+    /// гарнитуры (он переводит наушники в моно 8 кГц), последней — вебкамера.
+    /// Виртуальные и HDMI не берутся вовсе.
+    ///
+    /// Камера — ниже всех, даже Bluetooth: она стоит на мониторе в полуметре
+    /// и дальше, и в линию с неё идут комната и соседи (тестовая группа,
+    /// 17 октября 2026). До 0.1.76 USB-камера шла вровень с микрофоном
+    /// ноутбука, и ничью решал порядок перечисления.
     /// </remarks>
     internal static AudioDevice? PickSpareCapture(
         IReadOnlyList<AudioDevice> candidates,
@@ -291,14 +322,37 @@ public static class AudioDeviceCatalog
                 && !excluding.Contains(device.Id)
                 && device.Transport is not (AudioTransport.Virtual or AudioTransport.Hdmi))
             .Select((device, order) => (device, order, score:
-                (renderAdapter is not null && AdapterOf(device.Name) == renderAdapter ? 4 : 0)
-                + (device.Transport is AudioTransport.Usb or AudioTransport.BuiltIn ? 2 : 0)
-                + (device.Transport is AudioTransport.BluetoothHandsFree ? 0 : 1)))
+                IsCamera(device.Name)
+                    ? -1
+                    : (renderAdapter is not null && AdapterOf(device.Name) == renderAdapter ? 4 : 0)
+                        + (device.Transport is AudioTransport.Usb or AudioTransport.BuiltIn ? 2 : 0)
+                        + (device.Transport is AudioTransport.BluetoothHandsFree ? 0 : 1)))
             .OrderByDescending(entry => entry.score)
             .ThenBy(entry => entry.order)
             .Select(entry => entry.device)
             .FirstOrDefault();
     }
+
+    /// <summary>
+    /// Микрофон вебкамеры — по имени конечной точки.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// По имени, потому что другого признака у Windows нет: камера заявляет
+    /// микрофон обычным USB-устройством с форм-фактором «микрофон», как и
+    /// гарнитура. Имена — то, что пишут драйверы: «Микрофон (HD Pro Webcam
+    /// C920)», «Microphone (Logitech BRIO)», «Микрофон (USB2.0 Camera)». Ошибка
+    /// здесь дешёвая: камера, не узнанная по имени, просто идёт вровень с
+    /// прочими USB, как раньше.
+    /// </remarks>
+    internal static bool IsCamera(string? name) =>
+        !string.IsNullOrEmpty(name) && CameraName.IsMatch(name);
+
+    private static readonly System.Text.RegularExpressions.Regex CameraName = new(
+        @"web\s?cam|camera|камер|веб-?кам|lifecam|streamcam|facecam|\bbrio\b|\bkiyo\b|\bc(270|310|505|615|920|922|925|930|960|980)\w*\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            | System.Text.RegularExpressions.RegexOptions.CultureInvariant
+            | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
     /// Имя карты из имени конечной точки: то, что в последних скобках.

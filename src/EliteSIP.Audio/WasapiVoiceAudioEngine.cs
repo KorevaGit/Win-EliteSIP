@@ -100,17 +100,32 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private const float SilentPeak = 1e-5f;
 
     /// <summary>
-    /// Микрофоны, замолчавшие за время работы программы. Общие на все тракты:
-    /// следующий звонок идёт сразу на рабочий микрофон, а не молчит заново
-    /// две с половиной секунды.
+    /// Запасные микрофоны, которые молчали, когда тракт сам на них уходил. Общие
+    /// на все тракты: следующая подмена не берёт их снова.
     /// </summary>
+    ///
+    /// <remarks>
+    /// Пометка не вечная. До 0.1.76 она держалась до выхода из программы:
+    /// микрофон, на секунду выключенный кнопкой или ещё не проснувшийся, больше
+    /// не выбирался никогда. Теперь она снимается, как только микрофон дал
+    /// сигнал, и при любой смене устройств в системе — воткнули, выдернули,
+    /// включили, сменили умолчание.
+    /// </remarks>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> SilentInputs = new();
 
     /// <summary>
-    /// Микрофон, на который тракт переключился сам. Держится, пока жив этот
-    /// тракт, — пересборка после смены устройств его не забывает.
+    /// Микрофон, на который тракт переключился сам, взамен виртуального
+    /// системного. Держится, пока системным остаётся тот же виртуальный
+    /// (<see cref="_inputOverrideFor"/>): сменил человек умолчание — подмена
+    /// забывается, и тракт идёт за его выбором.
     /// </summary>
     private string? _inputOverrideId;
+
+    /// <summary>Виртуальный системный микрофон, вместо которого взят <see cref="_inputOverrideId"/>.</summary>
+    private string? _inputOverrideFor;
+
+    /// <summary>Открытый сейчас микрофон — наша подмена, а не выбор человека или системы.</summary>
+    private bool _inputIsSubstitute;
 
     private string? _inputDeviceId;
     private string? _inputDeviceName;
@@ -393,6 +408,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 if (previous.InputDeviceId != configuration.InputDeviceId)
                 {
                     _inputOverrideId = null;
+                    _inputOverrideFor = null;
                 }
 
                 restartReason = "в настройках выбрано другое устройство";
@@ -715,6 +731,17 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// </summary>
     private void OnDeviceChanged(AudioDeviceChange change)
     {
+        // Любая перемена в системе — повод заново поверить замолчавшим
+        // микрофонам: их могли включить, переткнуть или вернуть из сна. Это до
+        // фильтра: пометки общие и касаются не только нашего маршрута.
+        if (change.Kind is AudioDeviceChangeKind.DeviceAdded
+            or AudioDeviceChangeKind.DeviceRemoved
+            or AudioDeviceChangeKind.DeviceStateChanged
+            or AudioDeviceChangeKind.DefaultChanged)
+        {
+            SilentInputs.Clear();
+        }
+
         AudioRouteBinding binding = Volatile.Read(ref _binding);
         if (!DeviceChangeRelevance.AffectsRoute(change, binding))
         {
@@ -728,7 +755,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     {
         AudioDeviceChangeKind.DeviceAdded => "устройство вернулось",
         AudioDeviceChangeKind.DeviceRemoved => "устройство исчезло",
-        AudioDeviceChangeKind.DefaultChanged => "сменилось устройство для связи",
+        AudioDeviceChangeKind.DefaultChanged => change.Direction == AudioDeviceDirection.Capture
+            ? "сменился микрофон по умолчанию"
+            : "сменилось устройство вывода для связи",
         _ => change.Availability == AudioDeviceAvailability.Active
             ? "устройство снова доступно"
             : "устройство сменило состояние",
@@ -999,13 +1028,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         // Имена устройств — первым делом. Жалоба «микрофон не идёт» 11 сентября
         // 2026 оказалась гарнитурой, которая лежала на столе: тракт открывал
-        // системное устройство для связи, а говорили в другое, и по журналу,
-        // где были одни форматы, этого было не видно вовсе.
+        // системное устройство, а говорили в другое, и по журналу, где были
+        // одни форматы, этого было не видно вовсе. Откуда взят каждый —
+        // рядом с именем: это первое, что спрашивают при разборе.
         Diagnostic(
-            $"тракт поднят: микрофон «{_inputDevice.FriendlyName}», наушники «{_outputDevice.FriendlyName}»"
-            + (_configuration.InputDeviceId is null || _configuration.OutputDeviceId is null
-                ? " (системные для связи)"
-                : string.Empty));
+            $"тракт поднят: микрофон «{_inputDevice.FriendlyName}» ({InputOrigin()}), "
+            + $"наушники «{_outputDevice.FriendlyName}» "
+            + (_configuration.OutputDeviceId is null ? "(системные для связи)" : "(из настроек)"));
 
         Diagnostic(ProcessingSummary());
 
@@ -1095,22 +1124,26 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     }
 
     /// <summary>
-    /// Открывает микрофон с поправкой на виртуальные и молчащие устройства.
+    /// Открывает микрофон с поправкой на виртуальный системный.
     /// </summary>
     ///
     /// <remarks>
-    /// Поправка — только когда микрофон в настройках не выбран. Выбор человека
-    /// не перебивается: он мог выбрать вход с аппаратным выключателем, и
-    /// молча уехать на встроенный микрофон ноутбука было бы хуже тишины. Для
-    /// «системного» же подмена — единственный способ заговорить на машине, где
-    /// системным для связи назначен виртуальный Oculus.
+    /// <para>
+    /// Подмена — только когда микрофон в настройках не выбран <b>и</b> системный
+    /// виртуальный: на нём заговорить нельзя вовсе (Oculus, 11 сентября 2026).
+    /// </para>
+    /// <para>
+    /// Настоящий микрофон не подменяется никогда, даже молчащий. До 0.1.76
+    /// подменялся и он: молчание 2,5 с — выключенный в Windows доступ, кнопка на
+    /// аналоговой гарнитуре, вход, который ещё просыпается, — уводило тракт на
+    /// микрофон ноутбука или вебкамеры до выхода из программы. Оператор
+    /// говорил в гарнитуру, а в линию шли комната и соседи. Тишина с подсказкой
+    /// «проверьте микрофон» честнее: её видно, а чужой микрофон — нет.
+    /// </para>
     /// </remarks>
     private MMDevice? OpenInput(string? renderName)
     {
-        if (_inputOverrideId is string forced && AudioDeviceCatalog.Open(forced) is MMDevice overridden)
-        {
-            return overridden;
-        }
+        _inputIsSubstitute = false;
 
         MMDevice? chosen = OpenDevice(_configuration.InputDeviceId, AudioDeviceDirection.Capture);
         if (_configuration.InputDeviceId is not null || chosen is null)
@@ -1118,27 +1151,60 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return chosen;
         }
 
-        bool isSilent = SilentInputs.ContainsKey(chosen.ID);
         bool isVirtual = AudioDeviceCatalog.Describe(chosen, AudioDeviceDirection.Capture)?.Transport
             is AudioTransport.Virtual;
-        if (!isSilent && !isVirtual)
+        if (!isVirtual)
         {
+            // Системный стал настоящим — человек сменил умолчание, и прежняя
+            // подмена ему больше не нужна.
+            _inputOverrideId = _inputOverrideFor = null;
             return chosen;
+        }
+
+        // Тот же виртуальный, что и в прошлый раз, — держимся найденной замены,
+        // если она ещё на месте и не замолчала.
+        if (_inputOverrideFor == chosen.ID
+            && _inputOverrideId is string forced
+            && !SilentInputs.ContainsKey(forced)
+            && AudioDeviceCatalog.Open(forced) is MMDevice overridden)
+        {
+            chosen.Dispose();
+            _inputIsSubstitute = true;
+            return overridden;
         }
 
         string[] excluding = [.. SilentInputs.Keys, chosen.ID];
         if (AudioDeviceCatalog.SpareCapture(excluding, renderName) is not AudioDevice spare
             || AudioDeviceCatalog.Open(spare.Id) is not MMDevice replacement)
         {
+            Diagnostic($"системный микрофон «{chosen.FriendlyName}» виртуальный, а настоящего нет — говорить не через что");
             return chosen;
         }
 
-        Diagnostic(
-            $"системный микрофон «{chosen.FriendlyName}» "
-            + (isSilent ? "молчал на прошлом звонке" : "виртуальный")
-            + $" — берём «{replacement.FriendlyName}»");
+        Diagnostic($"системный микрофон «{chosen.FriendlyName}» виртуальный — берём «{replacement.FriendlyName}»");
+        _inputOverrideId = replacement.ID;
+        _inputOverrideFor = chosen.ID;
+        _inputIsSubstitute = true;
         chosen.Dispose();
         return replacement;
+    }
+
+    /// <summary>Откуда взят открытый микрофон — для строки «тракт поднят».</summary>
+    private string InputOrigin()
+    {
+        if (_inputIsSubstitute)
+        {
+            return "замена виртуального системного";
+        }
+
+        if (_configuration.InputDeviceId is null)
+        {
+            return "системный по умолчанию";
+        }
+
+        return string.Equals(_configuration.InputDeviceId, _inputDeviceId, StringComparison.Ordinal)
+            ? "из настроек"
+            : "системный: выбранного в настройках нет";
     }
 
     /// <summary>
@@ -1156,57 +1222,43 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
-        // Молчит микрофон той самой гарнитуры, в которую идёт звук, — это
-        // не мёртвый вход, а выключенный: поднятая штанга, кнопка на чашке,
-        // гарнитура ещё просыпается. Уезжать с неё нельзя.
-        //
-        // До 1 октября 2026 тракт уезжал: журнал звонка в 14:58 — «Микрофон
-        // (JBL Quantum350 Wireless) молчит — переключаемся на Набор микрофонов
-        // (Realtek)». Оператор говорил в гарнитуру, а в линию шёл микрофон
-        // ноутбука с метра: тихо, с комнатой и через эхоподавитель. Хуже того,
-        // запоминалось это до перезапуска программы — все следующие звонки
-        // шли на тот же встроенный микрофон, — а человек, выключивший
-        // микрофон кнопкой, оказывался в эфире через другой.
-        if (_inputIsHeadset)
+        // Молчит наша же подмена виртуального системного — её выбирали мы, а не
+        // человек, и уйти с неё на следующую можно. С любого другого микрофона —
+        // нельзя (см. OpenInput): только сказать, что он молчит, и почему.
+        if (_inputIsSubstitute && _inputOverrideFor is string virtualDefault)
         {
-            Diagnostic(
-                $"микрофон гарнитуры «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта"
-                + " — проверьте кнопку выключения микрофона и штангу на гарнитуре");
-            Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
-            return;
+            SilentInputs[current] = 0;
+
+            if (AudioDeviceCatalog.SpareCapture([.. SilentInputs.Keys, virtualDefault], _outputDeviceName) is AudioDevice spare)
+            {
+                _inputOverrideId = spare.Id;
+                Diagnostic($"замена виртуального микрофона «{_inputDeviceName}» молчит — пробуем «{spare.Name}»");
+                _supervisor?.Notify($"замена микрофона молчала, переход на «{spare.Name}»");
+                return;
+            }
         }
 
-        SilentInputs[current] = 0;
+        // Подсказка — по тому, что вероятнее всего выключено. Гарнитура, в
+        // которую идёт звук: кнопка на чашке или поднятая штанга. Выбранный в
+        // настройках вход: тот ли он. Остальное: доступ к микрофону в Windows
+        // или кнопка на проводе.
+        string hint = _inputIsHeadset
+            ? "проверьте кнопку выключения микрофона и штангу на гарнитуре"
+            : _configuration.InputDeviceId is not null
+                ? "проверьте, тот ли вход выбран в настройках"
+                : "проверьте кнопку на гарнитуре, доступ к микрофону в параметрах Windows и микрофон по умолчанию";
 
-        if (_configuration.InputDeviceId is not null)
-        {
-            Diagnostic(
-                $"микрофон «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта"
-                + " — проверьте, тот ли вход выбран в настройках");
-            Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
-            return;
-        }
-
-        if (AudioDeviceCatalog.SpareCapture([.. SilentInputs.Keys], _outputDeviceName) is not AudioDevice spare)
-        {
-            Diagnostic(
-                $"микрофон «{_inputDeviceName}» молчит, а другого живого нет"
-                + " — проверьте доступ к микрофону в параметрах Windows");
-            Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
-            return;
-        }
-
-        _inputOverrideId = spare.Id;
-        Diagnostic($"микрофон «{_inputDeviceName}» молчит — переключаемся на «{spare.Name}»");
-        _supervisor?.Notify($"микрофон молчал, переход на «{spare.Name}»");
+        Diagnostic(
+            $"микрофон «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта — {hint}");
+        Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
     }
 
     private MMDevice? OpenDevice(string? id, AudioDeviceDirection direction)
     {
         // Сохранённое устройство могло исчезнуть — гарнитуру выдернули. Тогда
-        // берём системное для связи, а не отказываемся от звонка: требование
-        // перенесено из оригинала дословно, потому что цена ошибки —
-        // несостоявшийся разговор.
+        // берём системное, а не отказываемся от звонка: требование перенесено
+        // из оригинала дословно, потому что цена ошибки — несостоявшийся
+        // разговор.
         if (!string.IsNullOrEmpty(id))
         {
             MMDevice? saved = AudioDeviceCatalog.Open(id);
@@ -1215,7 +1267,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 return saved;
             }
 
-            Diagnostic($"устройство из настроек не найдено, берём системное для связи: {id}");
+            Diagnostic($"устройство из настроек не найдено, берём системное: {id}");
         }
 
         AudioDevice? fallback = AudioDeviceCatalog.Default(direction);
@@ -1811,6 +1863,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 if (_capturePeak < SilentPeak)
                 {
                     ThreadPool.QueueUserWorkItem(_ => CheckSilentInput());
+                }
+                else if (_inputDeviceId is string speaking)
+                {
+                    // Микрофон дал сигнал — значит, он живой, что бы ни было
+                    // раньше. Словарь без замков, на этом потоке дёшево.
+                    SilentInputs.TryRemove(speaking, out _);
                 }
             }
 
