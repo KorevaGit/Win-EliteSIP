@@ -200,6 +200,9 @@
   <data name="AudioReceiveGainNote" xml:space="preserve">
     <value>Raises a quiet line by up to +10 dB and lowers a loud one by up to −6 dB — on speech; in pauses the gain holds. Volume above 100 % and levelling run through a soft limiter and do not crackle; on a very quiet line its noise becomes more audible along with the voice.</value>
   </data>
+  <data name="AudioSelfTestRerun" xml:space="preserve">
+    <value>Setting applied. The test recording was made with the previous ones — run the test again to hear the difference.</value>
+  </data>
   <data name="AudioSelfTestSave" xml:space="preserve">
     <value>Save recording</value>
   </data>

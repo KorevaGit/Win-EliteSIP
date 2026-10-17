@@ -201,6 +201,13 @@ public interface IVoiceAudioEngine : IDisposable
     public void Reconfigure(VoiceAudioConfiguration configuration);
 
     /// <summary>
+    /// Что обработка голоса сделала с микрофоном с подъёма тракта: фон до и
+    /// после, голос оператора, приглушение голосов вокруг. Пусто — тракт
+    /// такого не считает.
+    /// </summary>
+    public string ProcessingReport => string.Empty;
+
+    /// <summary>
     /// Применяет настройки к тракту, не останавливая разговор.
     ///
     /// Громкость и усиление меняются сразу, обработка голоса — подменой на

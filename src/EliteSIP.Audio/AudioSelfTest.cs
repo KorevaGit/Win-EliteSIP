@@ -345,6 +345,15 @@ public sealed class AudioSelfTest : IDisposable
 
             int frames = recorded.Count;
 
+            // Что сделала обработка — числами, снятыми до воспроизведения: на
+            // слух разница мала, пока вокруг тихо, и переключатели выглядят
+            // неработающими (жалоба 17 октября 2026, USB-гарнитура).
+            string processing = engine.ProcessingReport;
+            if (processing.Length > 0)
+            {
+                _log?.Invoke($"проверка звука: {processing}");
+            }
+
             // Снимок до воспроизведения: оно выбирает очередь до дна.
             byte[][] kept = [.. recorded.Select(frame => frame.ToArray())];
             lock (_gate)
@@ -374,7 +383,8 @@ public sealed class AudioSelfTest : IDisposable
             return new AudioSelfTestResult(
                 true,
                 $"записано {seconds:0.#} с и проиграно обратно. Не услышали себя — "
-                + "дело в устройстве вывода; услышали тихо или с хрипом — в микрофоне.");
+                + "дело в устройстве вывода; услышали тихо или с хрипом — в микрофоне."
+                + (processing.Length > 0 ? $" {char.ToUpperInvariant(processing[0])}{processing[1..]}." : string.Empty));
         }
         catch (Exception error) when (error is InvalidOperationException
                                           or System.Runtime.InteropServices.COMException)

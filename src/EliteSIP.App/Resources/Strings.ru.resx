@@ -182,6 +182,9 @@
   <data name="AudioReceiveGainNote" xml:space="preserve">
     <value>Тихую линию поднимает до +10 дБ, громкую убавляет до −6 дБ — по голосу, в паузах прибавка замирает. Громкость выше 100 % и выравнивание работают поверх мягкого ограничителя и не дают хрипа; на очень тихой линии вместе с голосом становится слышнее и её шум.</value>
   </data>
+  <data name="AudioSelfTestRerun" xml:space="preserve">
+    <value>Настройка применена. Запись проверки сделана с прежними — запустите проверку ещё раз, чтобы услышать разницу.</value>
+  </data>
   <data name="AudioSelfTestSave" xml:space="preserve">
     <value>Сохранить запись</value>
   </data>

@@ -823,6 +823,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     }
 
     /// <summary>Пики уровня одной строкой. Сбрасываются на каждом подъёме тракта.</summary>
+    /// <inheritdoc/>
+    public string ProcessingReport => _processor?.Summary ?? string.Empty;
+
     public string LevelSummary
     {
         get

@@ -245,8 +245,14 @@ public sealed class SettingsViewModel : Observable
     {
         _meterWindowOpen = windowOpen;
 
+        // Подписка — только пока раздел открыт: настройки живут дольше окна,
+        // и висящий обработчик держал бы закрытое окно в памяти.
+        Settings.Audio.PropertyChanged -= OnAudioSettingChanged;
+
         if (windowOpen && ShowsAudio)
         {
+            Settings.Audio.PropertyChanged += OnAudioSettingChanged;
+
             if (!_meterTimer.IsEnabled)
             {
                 _meterTimer.Tick -= OnMeterTick;
@@ -262,6 +268,41 @@ public sealed class SettingsViewModel : Observable
 
         // Ушли из раздела или закрыли окно — устройство отпускается сразу.
         OnStopSelfTest?.Invoke();
+    }
+
+    /// <summary>
+    /// Настройки, которые действуют на то, что записывает микрофон, а не на
+    /// то, что звучит в наушниках.
+    /// </summary>
+    private static readonly HashSet<string> CaptureSettings =
+    [
+        nameof(AudioSettings.InputDeviceId),
+        nameof(AudioSettings.MicrophoneGain),
+        nameof(AudioSettings.AutomaticGainControl),
+        nameof(AudioSettings.NoiseSuppression),
+        nameof(AudioSettings.BackgroundVoiceSuppression),
+        nameof(AudioSettings.WindowsProcessing),
+    ];
+
+    /// <summary>
+    /// Переключили обработку после записи — сказать, что запись прежняя.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Проверка проигрывает уже записанное, и записано оно с теми настройками,
+    /// что стояли во время записи. Переключатель, тронутый на воспроизведении
+    /// или после, на слух не меняет ничего — и выглядит неработающим
+    /// (жалоба 17 октября 2026). Громкость собеседника сюда не входит: она
+    /// действует на воспроизведение сразу.
+    /// </remarks>
+    private void OnAudioSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // Во время проверки молчим: правка на записи действует на её остаток, а
+        // итог проверки эту строку всё равно перепишет.
+        if (e.PropertyName is { } name && CaptureSettings.Contains(name) && _hasRecording && !_isSelfTestRunning)
+        {
+            ReportSelfTest(Strings.Get("AudioSelfTestRerun"));
+        }
     }
 
     private void OnMeterTick(object? sender, EventArgs e)
