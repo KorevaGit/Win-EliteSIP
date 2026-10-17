@@ -114,6 +114,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// <summary>Открытый микрофон — виртуальное устройство.</summary>
     private bool _inputIsVirtual;
 
+    /// <summary>Строка журнала о том, как открыт микрофон: с обработкой Windows или RAW.</summary>
+    private string _captureMode = string.Empty;
+
     /// <summary>Ниже этого пика (−100 дБ) микрофон считается цифровым нулём.</summary>
     private const float SilentPeak = 1e-5f;
 
@@ -422,7 +425,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
             bool routeChanged = previous.InputDeviceId != configuration.InputDeviceId
                 || previous.OutputDeviceId != configuration.OutputDeviceId
-                || previous.UseRawCapture != configuration.UseRawCapture
+                || previous.WindowsProcessing != configuration.WindowsProcessing
                 || previous.Codec != configuration.Codec
                 || previous.PacketTimeMilliseconds != configuration.PacketTimeMilliseconds;
 
@@ -928,16 +931,23 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 _inputDevice.ID,
                 _outputDevice.ID));
 
+        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
+        AudioTransport captureTransport = AudioDeviceCatalog.TransportOf(_inputDevice);
+        _inputIsHeadset = AudioDeviceCatalog.IsHeadsetPair(
+            captureTransport,
+            _inputDeviceName,
+            AudioDeviceCatalog.TransportOf(_outputDevice),
+            _outputDeviceName);
+
         _captureClient = _inputDevice.CreateAudioClient();
         _renderClient = _outputDevice.CreateAudioClient();
 
         // Категория «связь» — не косметика: по ней система решает, приглушать
-        // ли остальные звуки и как вести себя с гарнитурой.
-        AudioClientStreamOptions options = _configuration.UseRawCapture
-            ? AudioClientStreamOptions.Raw
-            : AudioClientStreamOptions.None;
-        _captureClient.SetClientProperties(AudioStreamCategory.Communications, options);
-        _renderClient.SetClientProperties(AudioStreamCategory.Communications, options);
+        // ли остальные звуки и как вести себя с гарнитурой. Она остаётся в
+        // любом положении переключателя; RAW — только у микрофона (см.
+        // WindowsCaptureProcessing).
+        _captureMode = OpenCaptureMode(_captureClient, _inputDevice, captureTransport);
+        _renderClient.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.None);
 
         _captureFormat = _captureClient.MixFormat;
         _renderFormat = _renderClient.MixFormat;
@@ -948,12 +958,6 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int processingRate = VoiceProcessor.NearestSupportedRate(_captureFormat.SampleRate);
         int codecRate = (int)_configuration.Codec.SampleRate();
 
-        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
-        _inputIsHeadset = AudioDeviceCatalog.IsHeadsetPair(
-            AudioDeviceCatalog.TransportOf(_inputDevice),
-            _inputDeviceName,
-            AudioDeviceCatalog.TransportOf(_outputDevice),
-            _outputDeviceName);
         _processor = new VoiceProcessor(
             processingRate,
             _configuration.AutomaticGainControl,
@@ -1019,7 +1023,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         // Эффекты известны только у инициализированного клиента — поэтому
         // здесь, а не при выборе устройства. Пишется ниже, вместе с именами.
-        string systemProcessing = CaptureEffects.Describe(
+        string systemProcessing = _captureMode + "; " + CaptureEffects.Describe(
             _captureClient,
             ownEcho: !_echoFree,
             ownNoise: _configuration.NoiseSuppression);
@@ -1231,6 +1235,52 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         Diagnostic($"системный микрофон «{_inputDeviceName}» виртуальный и молчит — переходим на «{spare.Name}»");
         _supervisor?.Notify($"виртуальный микрофон молчал, переход на «{spare.Name}»");
         return true;
+    }
+
+    /// <summary>
+    /// Ставит микрофону категорию «связь» и, если решено, RAW. Отдаёт строку
+    /// для журнала: что просили, что вышло и почему.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// RAW умеют не все устройства (<c>RawProcessingSupported</c>). Не умеет —
+    /// просить не будем: часть драйверов на такую просьбу отказывает целиком, и
+    /// звонок остался бы без микрофона ради настройки, которая всё равно не
+    /// сработает. Отказ на самой просьбе — то же: откатываемся на обычный
+    /// режим, а не роняем тракт.
+    /// </remarks>
+    private string OpenCaptureMode(AudioClient client, MMDevice device, AudioTransport transport)
+    {
+        WindowsCaptureProcessing mode = _configuration.WindowsProcessing;
+        bool wanted = WindowsCaptureProcessingPolicy.WantsRaw(mode, transport, _inputIsHeadset, _echoFree);
+        string why = mode switch
+        {
+            WindowsCaptureProcessing.Auto => wanted ? "авто: гарнитура" : "авто: не гарнитура",
+            WindowsCaptureProcessing.On => "включена в настройках",
+            _ => "выключена в настройках",
+        };
+
+        if (wanted && !AudioDeviceCatalog.SupportsRaw(device))
+        {
+            client.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.None);
+            return $"обработка Windows на микрофоне: вкл. ({why}, но устройство не умеет RAW)";
+        }
+
+        if (wanted)
+        {
+            try
+            {
+                client.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.Raw);
+                return $"обработка Windows на микрофоне: выкл., RAW ({why})";
+            }
+            catch (COMException e)
+            {
+                Diagnostic($"RAW на микрофоне не принят (0x{e.HResult:X8}) — остаётся обработка Windows");
+            }
+        }
+
+        client.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.None);
+        return $"обработка Windows на микрофоне: вкл. ({why})";
     }
 
     /// <summary>Откуда взят открытый микрофон — для строки «тракт поднят».</summary>

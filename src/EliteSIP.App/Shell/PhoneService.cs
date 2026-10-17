@@ -203,6 +203,7 @@ public sealed class PhoneService : IDisposable
         nameof(AudioSettings.NoiseSuppression),
         nameof(AudioSettings.BackgroundVoiceSuppression),
         nameof(AudioSettings.ReleasesDeviceWhenIdle),
+        nameof(AudioSettings.WindowsProcessing),
     ];
 
     private readonly object _audioApplyGate = new();
@@ -910,6 +911,7 @@ public sealed class PhoneService : IDisposable
         MicrophoneGain = (float)_settings.Audio.MicrophoneGain,
         PlaybackVolume = (float)_settings.Audio.PlaybackVolume,
         ReceiveGainControl = _settings.Audio.ReceiveGainControl,
+        WindowsProcessing = _settings.Audio.WindowsProcessing,
     };
 
     public void ToggleMicrophone()

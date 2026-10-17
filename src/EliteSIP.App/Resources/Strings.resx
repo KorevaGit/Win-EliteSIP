@@ -200,6 +200,21 @@
   <data name="AudioReceiveGainNote" xml:space="preserve">
     <value>Raises a quiet line by up to +10 dB and lowers a loud one by up to −6 dB — on speech; in pauses the gain holds. Volume above 100 % and levelling run through a soft limiter and do not crackle; on a very quiet line its noise becomes more audible along with the voice.</value>
   </data>
+  <data name="AudioWindowsProcessing" xml:space="preserve">
+    <value>Windows processing</value>
+  </data>
+  <data name="AudioWindowsProcessingAuto" xml:space="preserve">
+    <value>Auto</value>
+  </data>
+  <data name="AudioWindowsProcessingOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="AudioWindowsProcessingOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="AudioWindowsProcessingNote" xml:space="preserve">
+    <value>The driver's and Windows' own voice processing, on top of the app's. "Auto" turns it off on a headset: there it only gets in the way, and its gain in pauses pulls up nearby voices. On a laptop's built-in microphone it stays on: it narrows what the microphone picks up. Applies immediately, during a call too, with a half-second pause.</value>
+  </data>
   <data name="AudioBackgroundVoices" xml:space="preserve">
     <value>Reduce voices around you</value>
   </data>

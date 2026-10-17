@@ -290,6 +290,25 @@
 
               <theme:SettingsNote Text="{res:Loc AudioBackgroundVoicesNote}" />
 
+              <theme:SettingsRow Header="{res:Loc AudioWindowsProcessing}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="WindowsProcessing"
+                               Content="{res:Loc AudioWindowsProcessingAuto}"
+                               IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=Auto}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="WindowsProcessing"
+                               Content="{res:Loc AudioWindowsProcessingOn}"
+                               IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=On}" />
+                  <RadioButton Style="{StaticResource SegmentStyle}"
+                               GroupName="WindowsProcessing"
+                               Content="{res:Loc AudioWindowsProcessingOff}"
+                               IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=Off}" />
+                </StackPanel>
+              </theme:SettingsRow>
+
+              <theme:SettingsNote Text="{res:Loc AudioWindowsProcessingNote}" />
+
               <CheckBox Style="{StaticResource SettingsSwitchStyle}"
                         Content="{res:Loc AudioRelease}"
                         IsChecked="{Binding Settings.Audio.ReleasesDeviceWhenIdle}" />

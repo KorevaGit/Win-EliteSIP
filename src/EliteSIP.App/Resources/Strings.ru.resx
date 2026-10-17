@@ -182,6 +182,21 @@
   <data name="AudioReceiveGainNote" xml:space="preserve">
     <value>Тихую линию поднимает до +10 дБ, громкую убавляет до −6 дБ — по голосу, в паузах прибавка замирает. Громкость выше 100 % и выравнивание работают поверх мягкого ограничителя и не дают хрипа; на очень тихой линии вместе с голосом становится слышнее и её шум.</value>
   </data>
+  <data name="AudioWindowsProcessing" xml:space="preserve">
+    <value>Обработка Windows</value>
+  </data>
+  <data name="AudioWindowsProcessingAuto" xml:space="preserve">
+    <value>Авто</value>
+  </data>
+  <data name="AudioWindowsProcessingOn" xml:space="preserve">
+    <value>Вкл.</value>
+  </data>
+  <data name="AudioWindowsProcessingOff" xml:space="preserve">
+    <value>Выкл.</value>
+  </data>
+  <data name="AudioWindowsProcessingNote" xml:space="preserve">
+    <value>Своя обработка голоса драйвера и Windows — поверх обработки программы. «Авто» выключает её на гарнитуре: там она только мешает, а её усиление в паузах вытягивает голоса соседей. На встроенном микрофоне ноутбука она остаётся: сужает то, что он слышит. Меняется сразу, и посреди разговора тоже — с паузой в полсекунды.</value>
+  </data>
   <data name="AudioBackgroundVoices" xml:space="preserve">
     <value>Приглушать голоса вокруг</value>
   </data>

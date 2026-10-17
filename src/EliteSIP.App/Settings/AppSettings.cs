@@ -60,6 +60,7 @@ public sealed class AudioSettings : Observable
     private bool _backgroundVoiceSuppression = true;
     private bool _receiveGainControl;
     private bool _releasesDeviceWhenIdle = true;
+    private EliteSIP.Audio.WindowsCaptureProcessing _windowsProcessing = EliteSIP.Audio.WindowsCaptureProcessing.Auto;
 
     /// <summary>Постоянный идентификатор конечной точки. <c>null</c> — системное.</summary>
     ///
@@ -173,6 +174,21 @@ public sealed class AudioSettings : Observable
     {
         get => _releasesDeviceWhenIdle;
         set => Set(ref _releasesDeviceWhenIdle, value);
+    }
+
+    /// <summary>
+    /// Обработка Windows на микрофоне. По умолчанию «авто»: на гарнитуре
+    /// выключена, на встроенном микрофоне — включена. См.
+    /// <see cref="EliteSIP.Audio.WindowsCaptureProcessing"/>.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// В старых файлах поля нет — читается умолчание, переносить нечего.
+    /// </remarks>
+    public EliteSIP.Audio.WindowsCaptureProcessing WindowsProcessing
+    {
+        get => _windowsProcessing;
+        set => Set(ref _windowsProcessing, value);
     }
 }
 
@@ -444,7 +460,7 @@ public sealed class AppSettings : Observable
     public int? Revision { get; set; }
 
     /// <summary>Текущая ревизия. См. <see cref="Upgrade"/>.</summary>
-    public const int CurrentRevision = 1;
+    public const int CurrentRevision = 2;
 
     /// <summary>Однократные правки старых файлов. Зовётся при чтении.</summary>
     ///
@@ -455,12 +471,29 @@ public sealed class AppSettings : Observable
     /// ничего (см. <c>SpeechGainControl</c>), так что «включено» в старых
     /// файлах — никем не выбранное умолчание, а выключение ничего не меняет на
     /// слух и возвращает ползунок.
+    ///
+    /// Ревизия 2 (17 октября 2026, 0.1.76): переключатели обработки голоса —
+    /// к рекомендуемым, один раз. Тестовая группа, разбирая жалобу на голоса
+    /// соседей, могла переставить их как угодно, а сравнивать с MicroSIP надо
+    /// на одинаковых настройках (аудит шумодава 17 октября). Трогается только
+    /// обработка: шумодав и голоса вокруг включены, АРУ и выравнивание приёма
+    /// выключены, обработка Windows — «авто». Устройства, громкость и усиление
+    /// остаются, как их выбрал человек: это его гарнитура и его уши.
     /// </remarks>
     internal void Upgrade()
     {
         if (Revision is null or < 1)
         {
             Audio.AutomaticGainControl = false;
+        }
+
+        if (Revision is null or < 2)
+        {
+            Audio.NoiseSuppression = true;
+            Audio.BackgroundVoiceSuppression = true;
+            Audio.AutomaticGainControl = false;
+            Audio.ReceiveGainControl = false;
+            Audio.WindowsProcessing = EliteSIP.Audio.WindowsCaptureProcessing.Auto;
         }
 
         Revision = CurrentRevision;
@@ -481,19 +514,31 @@ public sealed class AppSettings : Observable
         {
             if (!File.Exists(path))
             {
-                return new AppSettings();
+                return Fresh();
             }
 
             var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), Format)
-                ?? new AppSettings();
+                ?? Fresh();
             settings.Upgrade();
             return settings;
         }
         catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {
-            return new AppSettings();
+            return Fresh();
         }
     }
+
+    /// <summary>
+    /// Умолчания с текущей ревизией.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Ревизия ставится сразу: умолчания и есть то, к чему ведут правки
+    /// <see cref="Upgrade"/>. Без неё файл новой машины ушёл бы на диск без
+    /// ревизии, и на следующем запуске правки сработали бы поверх того, что
+    /// человек успел выбрать в первый день.
+    /// </remarks>
+    private static AppSettings Fresh() => new() { Revision = CurrentRevision };
 
     /// <summary>Кладёт настройки на диск. Зовётся на каждую правку.</summary>
     ///

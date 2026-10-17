@@ -411,6 +411,29 @@ public static class AudioDeviceCatalog
     internal static bool IsEchoFree(MMDevice render) =>
         ReadFormFactor(render) is FormFactorHeadphones or FormFactorHeadset or FormFactorHandset;
 
+    /// <summary>
+    /// <c>System.Devices.AudioDevice.RawProcessingSupported</c>: умеет ли
+    /// устройство сырой поток. Не заявлено — считаем, что не умеет.
+    /// </summary>
+    private static readonly PropertyKey RawProcessingSupportedKey =
+        new(new Guid("8943b373-388c-4395-b557-bc6dbaffafdb"), 2);
+
+    /// <summary>Умеет ли конечная точка RAW.</summary>
+    internal static bool SupportsRaw(MMDevice endpoint)
+    {
+        try
+        {
+            PropertyStore properties = endpoint.Properties;
+            return properties.Contains(RawProcessingSupportedKey)
+                && properties[RawProcessingSupportedKey].Value is bool supported
+                && supported;
+        }
+        catch (Exception e) when (IsAudioFailure(e))
+        {
+            return false;
+        }
+    }
+
     /// <summary>Тип подключения точки — без открытия потока, в отличие от <see cref="Describe"/>.</summary>
     internal static AudioTransport TransportOf(MMDevice endpoint) =>
         Classify(ReadEnumeratorName(endpoint), ReadFormFactor(endpoint));
