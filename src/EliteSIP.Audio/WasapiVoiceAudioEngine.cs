@@ -96,6 +96,24 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// </summary>
     private static readonly TimeSpan SilenceWatch = TimeSpan.FromSeconds(2.5);
 
+    /// <summary>
+    /// То же для виртуального микрофона — дольше, десять секунд.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Виртуальный — не обязательно мёртвый, как Oculus: так же выглядят
+    /// шумодавы Krisp и NVIDIA Broadcast, которые в тишине вполне могут отдавать
+    /// ровный ноль, пока оператор молчит в начале звонка. Десять секунд
+    /// полного нуля с подъёма тракта — уже не пауза перед «алло».
+    /// </remarks>
+    private static readonly TimeSpan VirtualSilenceWatch = TimeSpan.FromSeconds(10);
+
+    /// <summary>Сколько ждать сигнала с открытого сейчас микрофона.</summary>
+    private TimeSpan SilenceWindow => _inputIsVirtual ? VirtualSilenceWatch : SilenceWatch;
+
+    /// <summary>Открытый микрофон — виртуальное устройство.</summary>
+    private bool _inputIsVirtual;
+
     /// <summary>Ниже этого пика (−100 дБ) микрофон считается цифровым нулём.</summary>
     private const float SilentPeak = 1e-5f;
 
@@ -114,14 +132,20 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> SilentInputs = new();
 
     /// <summary>
-    /// Микрофон, на который тракт переключился сам, взамен виртуального
-    /// системного. Держится, пока системным остаётся тот же виртуальный
-    /// (<see cref="_inputOverrideFor"/>): сменил человек умолчание — подмена
-    /// забывается, и тракт идёт за его выбором.
+    /// Замены молчащих виртуальных микрофонов: виртуальный → настоящий, на
+    /// который тракт ушёл сам. Общие на все тракты, как и пометки молчания:
+    /// следующий звонок идёт сразу на замену, а не молчит заново десять секунд.
     /// </summary>
-    private string? _inputOverrideId;
+    ///
+    /// <remarks>
+    /// По виртуальному, а не одной строкой: подмена действует, только пока
+    /// системным остаётся тот самый виртуальный. Сменил человек умолчание —
+    /// тракт идёт за его выбором, а замена ему не мешает. Смена устройств
+    /// замены не снимает: Oculus от того, что воткнули гарнитуру, не заговорит.
+    /// </remarks>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> VirtualSubstitutes = new();
 
-    /// <summary>Виртуальный системный микрофон, вместо которого взят <see cref="_inputOverrideId"/>.</summary>
+    /// <summary>Виртуальный системный микрофон, вместо которого открыт нынешний.</summary>
     private string? _inputOverrideFor;
 
     /// <summary>Открытый сейчас микрофон — наша подмена, а не выбор человека или системы.</summary>
@@ -404,13 +428,6 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
             if (routeChanged)
             {
-                // Микрофон выбран руками — подмена молчавшего больше не нужна.
-                if (previous.InputDeviceId != configuration.InputDeviceId)
-                {
-                    _inputOverrideId = null;
-                    _inputOverrideFor = null;
-                }
-
                 restartReason = "в настройках выбрано другое устройство";
             }
             else if (previous.AutomaticGainControl != configuration.AutomaticGainControl
@@ -887,7 +904,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     {
         // Вывод первым: по нему выбирается запасной микрофон — той же карты.
         _outputDevice = OpenDevice(_configuration.OutputDeviceId, AudioDeviceDirection.Render);
-        _inputDevice = OpenInput(_outputDevice?.FriendlyName);
+        _inputDevice = OpenInput();
 
         if (_inputDevice is null || _outputDevice is null)
         {
@@ -1000,6 +1017,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             _renderFormat,
             Guid.Empty);
 
+        // Эффекты известны только у инициализированного клиента — поэтому
+        // здесь, а не при выборе устройства. Пишется ниже, вместе с именами.
+        string systemProcessing = CaptureEffects.Describe(
+            _captureClient,
+            ownEcho: !_echoFree,
+            ownNoise: _configuration.NoiseSuppression);
+
         _latencyFrames = (int)((_captureClient.StreamLatency + _renderClient.StreamLatency)
             / 10_000_000.0 * processingRate);
 
@@ -1037,6 +1061,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             + (_configuration.OutputDeviceId is null ? "(системные для связи)" : "(из настроек)"));
 
         Diagnostic(ProcessingSummary());
+        Diagnostic(systemProcessing);
 
         Diagnostic(
             $"форматы: захват {_captureFormat.SampleRate} Гц {_captureFormat.Channels} кан. "
@@ -1124,13 +1149,20 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     }
 
     /// <summary>
-    /// Открывает микрофон с поправкой на виртуальный системный.
+    /// Открывает микрофон с поправкой на молчащий виртуальный системный.
     /// </summary>
     ///
     /// <remarks>
     /// <para>
-    /// Подмена — только когда микрофон в настройках не выбран <b>и</b> системный
-    /// виртуальный: на нём заговорить нельзя вовсе (Oculus, 11 сентября 2026).
+    /// Подмена — только когда микрофон в настройках не выбран, системный
+    /// виртуальный <b>и он молчит</b>: так выглядит Oculus, на котором
+    /// заговорить нельзя вовсе (11 сентября 2026). До 0.1.76 виртуальный
+    /// подменялся сразу, и вместе с Oculus под подмену попадали шумодавы
+    /// Krisp и NVIDIA Broadcast: поставив такой системным микрофоном, человек
+    /// получал взамен голый микрофон без шумодава (аудит 17 октября 2026).
+    /// Теперь виртуальный открывается как есть, а молчание проверяется на
+    /// звонке (<see cref="VirtualSilenceWatch"/>); замолчавший помнится, и
+    /// следующий звонок идёт сразу на замену.
     /// </para>
     /// <para>
     /// Настоящий микрофон не подменяется никогда, даже молчащий. До 0.1.76
@@ -1141,52 +1173,64 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// «проверьте микрофон» честнее: её видно, а чужой микрофон — нет.
     /// </para>
     /// </remarks>
-    private MMDevice? OpenInput(string? renderName)
+    private MMDevice? OpenInput()
     {
         _inputIsSubstitute = false;
+        _inputIsVirtual = false;
+        _inputOverrideFor = null;
 
         MMDevice? chosen = OpenDevice(_configuration.InputDeviceId, AudioDeviceDirection.Capture);
-        if (_configuration.InputDeviceId is not null || chosen is null)
+        if (chosen is null)
         {
-            return chosen;
+            return null;
         }
 
         bool isVirtual = AudioDeviceCatalog.Describe(chosen, AudioDeviceDirection.Capture)?.Transport
             is AudioTransport.Virtual;
-        if (!isVirtual)
+
+        if (_configuration.InputDeviceId is not null || !isVirtual)
         {
-            // Системный стал настоящим — человек сменил умолчание, и прежняя
-            // подмена ему больше не нужна.
-            _inputOverrideId = _inputOverrideFor = null;
+            // Выбор человека или настоящий системный — как есть.
+            _inputIsVirtual = isVirtual;
             return chosen;
         }
 
-        // Тот же виртуальный, что и в прошлый раз, — держимся найденной замены,
-        // если она ещё на месте и не замолчала.
-        if (_inputOverrideFor == chosen.ID
-            && _inputOverrideId is string forced
+        // Этот виртуальный уже молчал — держимся найденной замены, если она ещё
+        // на месте и не замолчала сама.
+        if (VirtualSubstitutes.TryGetValue(chosen.ID, out string? forced)
             && !SilentInputs.ContainsKey(forced)
             && AudioDeviceCatalog.Open(forced) is MMDevice overridden)
         {
-            chosen.Dispose();
+            Diagnostic($"системный микрофон «{chosen.FriendlyName}» виртуальный и уже молчал — берём «{overridden.FriendlyName}»");
+            _inputOverrideFor = chosen.ID;
             _inputIsSubstitute = true;
+            chosen.Dispose();
             return overridden;
         }
 
-        string[] excluding = [.. SilentInputs.Keys, chosen.ID];
-        if (AudioDeviceCatalog.SpareCapture(excluding, renderName) is not AudioDevice spare
-            || AudioDeviceCatalog.Open(spare.Id) is not MMDevice replacement)
+        // Виртуальный ещё не уличён в молчании — говорим через него: это может
+        // быть шумодав, который человек поставил сам.
+        _inputIsVirtual = true;
+        return chosen;
+    }
+
+    /// <summary>
+    /// Системный виртуальный микрофон замолчал — найти ему настоящую замену.
+    /// </summary>
+    /// <returns><c>false</c> — заменить нечем.</returns>
+    private bool SubstituteSilentVirtual(string virtualId)
+    {
+        SilentInputs[virtualId] = 0;
+
+        if (AudioDeviceCatalog.SpareCapture([.. SilentInputs.Keys, virtualId], _outputDeviceName) is not AudioDevice spare)
         {
-            Diagnostic($"системный микрофон «{chosen.FriendlyName}» виртуальный, а настоящего нет — говорить не через что");
-            return chosen;
+            return false;
         }
 
-        Diagnostic($"системный микрофон «{chosen.FriendlyName}» виртуальный — берём «{replacement.FriendlyName}»");
-        _inputOverrideId = replacement.ID;
-        _inputOverrideFor = chosen.ID;
-        _inputIsSubstitute = true;
-        chosen.Dispose();
-        return replacement;
+        VirtualSubstitutes[virtualId] = spare.Id;
+        Diagnostic($"системный микрофон «{_inputDeviceName}» виртуальный и молчит — переходим на «{spare.Name}»");
+        _supervisor?.Notify($"виртуальный микрофон молчал, переход на «{spare.Name}»");
+        return true;
     }
 
     /// <summary>Откуда взят открытый микрофон — для строки «тракт поднят».</summary>
@@ -1222,6 +1266,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
+        // Молчит системный виртуальный — тот самый случай Oculus. Уходим на
+        // настоящий: выбирал его не человек, а система.
+        if (_inputIsVirtual && _configuration.InputDeviceId is null && SubstituteSilentVirtual(current))
+        {
+            return;
+        }
+
         // Молчит наша же подмена виртуального системного — её выбирали мы, а не
         // человек, и уйти с неё на следующую можно. С любого другого микрофона —
         // нельзя (см. OpenInput): только сказать, что он молчит, и почему.
@@ -1231,7 +1282,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
             if (AudioDeviceCatalog.SpareCapture([.. SilentInputs.Keys, virtualDefault], _outputDeviceName) is AudioDevice spare)
             {
-                _inputOverrideId = spare.Id;
+                VirtualSubstitutes[virtualDefault] = spare.Id;
                 Diagnostic($"замена виртуального микрофона «{_inputDeviceName}» молчит — пробуем «{spare.Name}»");
                 _supervisor?.Notify($"замена микрофона молчала, переход на «{spare.Name}»");
                 return;
@@ -1249,7 +1300,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 : "проверьте кнопку на гарнитуре, доступ к микрофону в параметрах Windows и микрофон по умолчанию";
 
         Diagnostic(
-            $"микрофон «{_inputDeviceName}» молчит: за {SilenceWatch.TotalSeconds:0.#} с ни одного отсчёта — {hint}");
+            $"микрофон «{_inputDeviceName}» молчит: за {SilenceWindow.TotalSeconds:0.#} с ни одного отсчёта — {hint}");
         Report(new VoiceAudioEvent.InputSilent(_inputDeviceName ?? string.Empty));
     }
 
@@ -1853,7 +1904,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
             SampleClocks(now);
 
-            if (!silenceChecked && now >= SilenceWatch.TotalSeconds)
+            if (!silenceChecked && now >= SilenceWindow.TotalSeconds)
             {
                 silenceChecked = true;
 
