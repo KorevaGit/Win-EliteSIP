@@ -133,6 +133,7 @@ public sealed class RtcpSession : IDisposable
         };
         _socket.Bind(new IPEndPoint(IPAddress.Any, localPort));
         UdpSocketOptions.IgnoreIcmpResets(_socket);
+        UdpSocketOptions.MarkVoice(_socket);
     }
 
     /// <summary>Переводит отчёты на другое плечо собеседника, не трогая сокет.</summary>

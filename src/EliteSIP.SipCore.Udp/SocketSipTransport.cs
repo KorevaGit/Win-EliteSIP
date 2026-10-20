@@ -318,6 +318,8 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
                 Transport == SipTransport.Udp ? SocketType.Dgram : SocketType.Stream,
                 Transport == SipTransport.Udp ? ProtocolType.Udp : ProtocolType.Tcp);
 
+            SipSocketOptions.MarkSignaling(socket);
+
             // Соединённый UDP-сокет, а не «отправить кому угодно», и это не
             // мелочь: он приносит локальный адрес, отсекает чужие датаграммы на
             // нашем порту и доносит ICMP-отказ как ошибку сокета. Без него
