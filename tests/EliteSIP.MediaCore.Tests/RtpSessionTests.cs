@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using EliteSIP.Tests;
 
 namespace EliteSIP.MediaCore.Tests;
 
@@ -40,15 +41,12 @@ public sealed class RtpSessionTests
         Assert.Equal(SocketError.TimedOut, socketFailure.SocketErrorCode);
     }
 
-    [Fact]
+    [WindowsFact]
     public void Без_настройки_Windows_отдаёт_ICMP_ошибкой_приёма()
     {
         // Контроль к проверке выше: показывает, что та ловит именно то, ради
-        // чего настройка заведена, а не проходит на любом сокете.
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        // чего настройка заведена, а не проходит на любом сокете. Вне Windows
+        // такого поведения нет, и контролировать нечего.
 
         using Socket plain = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         plain.Bind(new IPEndPoint(IPAddress.Loopback, 0));

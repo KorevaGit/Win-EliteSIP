@@ -19,6 +19,11 @@ namespace EliteSIP.CallHistory;
 /// <c>0600</c>: администратор машины по-прежнему может взять файл, сменив
 /// владельца, — ровно как <c>root</c> в оригинале.
 ///
+/// <b>Вне Windows</b> — права <c>0600</c>, как в оригинале. Там они снова
+/// означают то, что означали на macOS: файл читает только владелец (и
+/// <c>root</c>). Умолчание без этого — <c>0644</c> по <c>umask</c>, то есть
+/// номера лидов любому пользователю машины.
+///
 /// <b>Три файла, а не один:</b> в режиме WAL рядом с базой живут <c>-wal</c> и
 /// <c>-shm</c>, и данные в них те же самые. Отсутствующие молча пропускаются —
 /// их SQLite ещё не создал либо уже убрал за собой.
@@ -36,9 +41,7 @@ internal static class HistoryFilePrivacy
         // SQLite, — поэтому их права правятся после того, как он их создал.
         if (!File.Exists(databasePath))
         {
-            using (File.Create(databasePath))
-            {
-            }
+            CreateOwnerOnly(databasePath);
         }
 
         RestrictOne(databasePath);
@@ -48,16 +51,57 @@ internal static class HistoryFilePrivacy
         }
     }
 
+    /// <summary>
+    /// Пустая база. Вне Windows права задаются в самом <c>open(2)</c>, а не
+    /// после: щели, о которой выше, там нет вовсе. На Windows список доступа
+    /// ставится следом, в <see cref="RestrictOne"/>.
+    /// </summary>
+    private static void CreateOwnerOnly(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            using (File.Create(path))
+            {
+            }
+
+            return;
+        }
+
+        FileStreamOptions options = new()
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+        };
+        try
+        {
+            using (new FileStream(path, options))
+            {
+            }
+        }
+        catch (IOException) when (File.Exists(path))
+        {
+            // Успел кто-то другой — права всё равно поправит RestrictOne.
+        }
+    }
+
     private static void RestrictOne(string path)
     {
-        if (!OperatingSystem.IsWindows() || !File.Exists(path))
+        if (!File.Exists(path))
         {
             return;
         }
 
         try
         {
-            ApplyOwnerOnlyAcl(path);
+            if (OperatingSystem.IsWindows())
+            {
+                ApplyOwnerOnlyAcl(path);
+            }
+            else
+            {
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
         }
         catch (Exception error) when (error is UnauthorizedAccessException
             or IOException

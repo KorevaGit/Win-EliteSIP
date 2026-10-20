@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -27,9 +26,15 @@ namespace EliteSIP.AdminAccess;
 /// этой учётной записью: такой человек расшифрует секрет тем же вызовом. Это не
 /// пробел, а граница задачи — она ровно та же, что была у прав <c>0600</c> в
 /// оригинале.
+///
+/// <b>Вне Windows DPAPI нет</b>, и там работает вторая половина —
+/// <c>ProtectedSecret.Unix.cs</c>: шифр AES-GCM ключом из файла пользователя с
+/// правами <c>0600</c>. Обещание то же: вынесенный файл настроек без этого
+/// ключа не читается. Формат значений у двух половин разный, и это не важно:
+/// файл настроек с одной ОС на другую не ездит, а если приедет, ответ —
+/// <c>null</c>, «не наше», как и для файла с чужой машины.
 /// </summary>
-[SupportedOSPlatform("windows")]
-public static class ProtectedSecret
+public static partial class ProtectedSecret
 {
     /// <summary>
     /// Дополнительная примесь к ключу DPAPI.
@@ -47,6 +52,11 @@ public static class ProtectedSecret
     public static string Protect(string secret)
     {
         ArgumentNullException.ThrowIfNull(secret);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return ProtectUnix(secret);
+        }
 
         byte[] plaintext = Encoding.UTF8.GetBytes(secret);
         try
@@ -83,6 +93,11 @@ public static class ProtectedSecret
         catch (FormatException)
         {
             return null;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return UnprotectUnix(cipher);
         }
 
         try

@@ -9,11 +9,15 @@
   <ItemGroup>
     <!--
       DPAPI. Проект остаётся `net10.0`, а не `net10.0-windows`: платформенный
-      здесь один тип из пяти, и он помечен `SupportedOSPlatform`. Сборка под
-      Windows и без того единственная целевая, а `net10.0` позволяет прогонять
-      тесты пароля где угодно.
+      здесь один тип из пяти, и у него две половины — DPAPI на Windows и
+      AES-GCM с ключом в профиле на Linux и macOS (ProtectedSecret.Unix.cs).
     -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Проверкам нужен свой каталог ключа: настоящий профиль они не трогают. -->
+    <InternalsVisibleTo Include="EliteSIP.AdminAccess.Tests" />
   </ItemGroup>
 
 </Project>

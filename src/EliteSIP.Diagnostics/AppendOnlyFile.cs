@@ -24,9 +24,15 @@ namespace EliteSIP.Diagnostics;
 /// <c>FILE_APPEND_DATA</c> и <b>без</b> <c>FILE_WRITE_DATA</c>: тогда
 /// <c>WriteFile</c> игнорирует позицию и всегда дописывает в конец.
 ///
-/// Отсюда и вызовы напрямую в <c>kernel32</c>. Это единственное место в
-/// <c>EliteSIP.Diagnostics</c>, которое знает, что операционная система —
-/// Windows, и вынесено оно отдельным типом именно поэтому.
+/// Отсюда и вызовы напрямую в <c>kernel32</c>, а вне Windows — в libc, с
+/// <c>O_APPEND</c>, как в оригинале (<c>AppendOnlyFile.Unix.cs</c>). Это
+/// единственное место в <c>EliteSIP.Diagnostics</c>, которое знает, какая под
+/// ним операционная система, и вынесено оно отдельным типом именно поэтому.
+///
+/// <b>Без второй половины журнал на Linux не падал, а вешал приложение.</b>
+/// <c>DllNotFoundException</c> из <c>kernel32</c> убивала фоновую очередь
+/// <see cref="LogFile"/>, и первый же <c>Flush</c> ждал её вечно (замер
+/// 19 октября 2026, проверка двух экземпляров на одном файле).
 /// </summary>
 internal sealed partial class AppendOnlyFile : IDisposable
 {
@@ -49,6 +55,11 @@ internal sealed partial class AppendOnlyFile : IDisposable
     /// </summary>
     public static AppendOnlyFile? Open(string path)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return OpenUnix(path);
+        }
+
         SafeFileHandle handle = CreateFileW(
             path,
             FileAppendData,
@@ -77,6 +88,11 @@ internal sealed partial class AppendOnlyFile : IDisposable
     /// </summary>
     public int Append(byte[] data)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return AppendUnix(data);
+        }
+
         int written = 0;
         while (written < data.Length)
         {
@@ -94,6 +110,12 @@ internal sealed partial class AppendOnlyFile : IDisposable
 
     public void Flush()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            FlushUnix();
+            return;
+        }
+
         _ = FlushFileBuffers(_handle);
     }
 

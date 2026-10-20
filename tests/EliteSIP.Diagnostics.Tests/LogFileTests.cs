@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Runtime.Versioning;
+using EliteSIP.Tests;
 
 namespace EliteSIP.Diagnostics.Tests;
 
@@ -58,6 +60,20 @@ public sealed class LogFileTests : IDisposable
         // Маскирование обязано работать на пути в файл, а не рядом с ним.
         Assert.DoesNotContain("deadbeef", text, StringComparison.Ordinal);
         Assert.Contains("скрыто", text, StringComparison.Ordinal);
+    }
+
+    [UnixFact]
+    [UnsupportedOSPlatform("windows")]
+    public void Новый_файл_журнала_закрыт_от_всех_кроме_владельца()
+    {
+        // Номера в журнале остаются как есть — по ним разбирают «вызов не
+        // дошёл», — а номера это лиды. С умолчанием 0644 их прочёл бы любой
+        // пользователь машины.
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Write("звоню на 22998", "info");
+        log.Flush();
+
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(log.CurrentFilePath));
     }
 
     [Fact]

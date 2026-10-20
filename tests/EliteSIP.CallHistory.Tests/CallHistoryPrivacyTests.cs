@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using EliteSIP.CallHistory;
+using EliteSIP.Tests;
 
 namespace EliteSIP.CallHistory.Tests;
 
@@ -10,11 +11,12 @@ namespace EliteSIP.CallHistory.Tests;
 ///
 /// В базе лежат номера лидов — те самые персональные данные, ради которых у
 /// истории вообще есть срок хранения и отдельная политика удаления. В оригинале
-/// файл закрывался правами <c>0600</c>; здесь проверяется их windows-аналог:
-/// наследование снято, в списке доступа — только владелец.
+/// файл закрывался правами <c>0600</c>. На Windows проверяется их аналог:
+/// наследование снято, в списке доступа — только владелец. Вне Windows — сами
+/// <c>0600</c>.
 ///
-/// Не на Windows проверка не делает ничего: списков доступа там нет, а
-/// подделывать их нечем.
+/// До 20 октября 2026 вне Windows проверка молча выходила и отчитывалась
+/// зелёной, хотя файл там ложился с правами <c>0644</c>.
 /// </summary>
 public sealed class CallHistoryPrivacyTests : IDisposable
 {
@@ -30,14 +32,10 @@ public sealed class CallHistoryPrivacyTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsFact]
+    [SupportedOSPlatform("windows")]
     public void База_и_её_спутники_закрыты_от_всех_кроме_владельца()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
         CallHistoryStore.Settings settings = new(Path.Combine(_directory, "call-history.sqlite"));
 
         using CallHistoryStore store = new(settings);
@@ -54,6 +52,27 @@ public sealed class CallHistoryPrivacyTests : IDisposable
             if (File.Exists(path))
             {
                 AssertOwnerOnly(path);
+            }
+        }
+    }
+
+    [UnixFact]
+    [UnsupportedOSPlatform("windows")]
+    public void База_и_её_спутники_лежат_с_правами_0600()
+    {
+        CallHistoryStore.Settings settings = new(Path.Combine(_directory, "call-history.sqlite"));
+
+        using CallHistoryStore store = new(settings);
+        Assert.IsType<HistoryOpenOutcome.Ready>(store.OpenOutcome);
+        store.Flush();
+
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(settings.FilePath));
+        foreach (string suffix in new[] { "-wal", "-shm" })
+        {
+            string path = settings.FilePath + suffix;
+            if (File.Exists(path))
+            {
+                Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
             }
         }
     }

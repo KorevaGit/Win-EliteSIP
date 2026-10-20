@@ -16,4 +16,9 @@
     <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Атрибуты проверок под одну ОС: «пропущено» вместо пустого «пройдено». -->
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/PlatformFacts.cs" Link="Shared/PlatformFacts.cs" />
+  </ItemGroup>
+
 </Project>
