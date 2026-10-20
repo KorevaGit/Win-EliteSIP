@@ -44,6 +44,7 @@ public sealed class PanelSettings : Observable
     private bool _machineKeyRegistered;
     private Guid? _mainProfileId;
     private string _lastNumberNotice = string.Empty;
+    private string _lockedWorkFormat = string.Empty;
 
     /// <summary>
     /// Единственное, по чему панель вообще узнаёт эту машину.
@@ -152,8 +153,57 @@ public sealed class PanelSettings : Observable
         {
             Set(ref _mode, value);
             NotifyChanged(nameof(IsManaged));
+            NotifyChanged(nameof(IsWorkFormatLocked));
+            NotifyChanged(nameof(LockedSite));
         }
     }
+
+    /// <summary>
+    /// Формат работы, закреплённый Spark: <c>office</c> или <c>remote</c>. Пусто —
+    /// менеджер выбирает сам.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Хранится сам формат, а не признак «запрещено»: возврат в онлайн обязан
+    /// вернуть площадку туда, куда её поставил Spark, даже если конфигурация в
+    /// этот раз не дойдёт.
+    ///
+    /// Действует только под панелью (<see cref="IsWorkFormatLocked"/>): в
+    /// оффлайне машиной управляет человек на месте, и запрет теряет смысл вместе
+    /// с остальными управляемыми полями. Как на macOS с 0.1.67.
+    /// </remarks>
+    public string LockedWorkFormat
+    {
+        get => _lockedWorkFormat;
+        set
+        {
+            Set(ref _lockedWorkFormat, value ?? string.Empty);
+            NotifyChanged(nameof(IsWorkFormatLocked));
+            NotifyChanged(nameof(LockedSite));
+        }
+    }
+
+    /// <summary>
+    /// Запрещена ли смена формата работы прямо сейчас — без учёта открытого
+    /// пароля настроек, который запрет снимает.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsWorkFormatLocked => Mode == PanelMode.Managed && LockedSite is not null;
+
+    /// <summary>Площадка, закреплённая Spark, — если закреплена и машина под панелью.</summary>
+    [JsonIgnore]
+    public WorkplaceSite? LockedSite => Mode != PanelMode.Managed ? null : SiteOf(_lockedWorkFormat);
+
+    /// <summary>
+    /// Формат работы из Spark — площадка. Неизвестное значение — <c>null</c>:
+    /// площадку не трогать и не закреплять.
+    /// </summary>
+    public static WorkplaceSite? SiteOf(string workFormat) => workFormat switch
+    {
+        "office" => WorkplaceSite.Office,
+        "remote" => WorkplaceSite.Remote,
+        _ => null,
+    };
 
     /// <summary>
     /// Машина просит применить предустановку заново, даже если ревизия та же

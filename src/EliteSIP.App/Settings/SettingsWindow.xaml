@@ -121,15 +121,18 @@
           <StackPanel Visibility="{Binding ShowsWork, Converter={StaticResource BoolToVisibility}}">
             <theme:SettingsSection Header="{res:Loc WorkPlace}">
               <theme:SettingsRow Header="{res:Loc SectionWork}">
-                <StackPanel Orientation="Horizontal">
+                <!-- Закреплённый в Spark формат гасит сегменты, а не молча
+                     отказывает: отказ после нажатия читается как поломка. -->
+                <StackPanel Orientation="Horizontal"
+                            IsEnabled="{Binding CanSwitchWorkplace}">
                   <RadioButton Style="{StaticResource SegmentStyle}"
                                GroupName="Site"
                                Content="{res:Loc WorkOffice}"
-                               IsChecked="{Binding Settings.Account.Site, Converter={StaticResource EnumToBool}, ConverterParameter=Office}" />
+                               IsChecked="{Binding WorkplaceSite, Converter={StaticResource EnumToBool}, ConverterParameter=Office}" />
                   <RadioButton Style="{StaticResource SegmentStyle}"
                                GroupName="Site"
                                Content="{res:Loc WorkRemote}"
-                               IsChecked="{Binding Settings.Account.Site, Converter={StaticResource EnumToBool}, ConverterParameter=Remote}" />
+                               IsChecked="{Binding WorkplaceSite, Converter={StaticResource EnumToBool}, ConverterParameter=Remote}" />
                 </StackPanel>
               </theme:SettingsRow>
 
@@ -139,6 +142,22 @@
               </theme:SettingsRow>
 
               <theme:SettingsNote Text="{res:Loc WorkSiteNote}" />
+
+              <!-- Закрепление из Spark: снять его на месте можно паролем
+                   настроек, ценой оффлайна. -->
+              <StackPanel Visibility="{Binding IsWorkplaceSwitchLocked, Converter={StaticResource BoolToVisibility}}">
+                <theme:SettingsNote Text="{res:Loc WorkSiteLockedNote}" />
+                <theme:SettingsIndented>
+                  <Button Style="{StaticResource SettingsButtonStyle}"
+                          HorizontalAlignment="Left"
+                          Content="{res:Loc WorkSiteUnlock}"
+                          Command="{Binding UnlockWorkplace}" />
+                </theme:SettingsIndented>
+              </StackPanel>
+
+              <theme:SettingsNote Text="{res:Loc WorkSiteLockLiftedNote}"
+                                  IsAlarming="True"
+                                  Visibility="{Binding IsWorkplaceLockLifted, Converter={StaticResource BoolToVisibility}}" />
             </theme:SettingsSection>
 
             <theme:SettingsSection Header="{res:Loc WorkTroubleSection}">
@@ -153,8 +172,12 @@
                 <Button Style="{StaticResource SettingsButtonStyle}"
                         HorizontalAlignment="Left"
                         Content="{res:Loc WorkRepairNetwork}"
-                        Command="{Binding RepairNetwork}" />
+                        Command="{Binding RepairNetwork}"
+                        IsEnabled="{Binding CanRepairNetwork}" />
               </theme:SettingsIndented>
+
+              <theme:SettingsNote Text="{res:Loc WorkRepairLockedNote}"
+                                  Visibility="{Binding IsNetworkRepairLocked, Converter={StaticResource BoolToVisibility}}" />
 
               <!-- Итог — здесь, под своей кнопкой: прежде он уходил на страницу
                    «Техподдержка», и нажатие на этой странице выглядело ничем. -->

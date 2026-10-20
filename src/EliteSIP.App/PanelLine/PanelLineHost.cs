@@ -388,6 +388,19 @@ internal sealed class PanelLineHost : IDisposable
     private void ApplyPreset(PresetBundle.Entry entry)
     {
         var wasResync = _settings.Panel.WantsResync;
+
+        // Возврат в онлайн возвращает и площадку, переставленную на месте
+        // поверх закрепления. Конфигурация делает то же самое, но может и не
+        // дойти, а переприменённая предустановка с прежней площадкой оставила
+        // бы менеджера там, откуда Spark его убрал. До `domainBefore`: смена
+        // площадки сама пересчитывает адрес и переподключает, и второй
+        // перерегистрации ниже незачем.
+        if (wasResync && _settings.Panel.LockedSite is { } locked && locked != _settings.Account.Site)
+        {
+            _settings.Account.Site = locked;
+            _log($"площадка возвращена к закреплённой в Spark: {(locked is WorkplaceSite.Remote ? "из дома" : "офис")}");
+        }
+
         var domainBefore = _settings.Account.Domain;
 
         _settings.Apply(ManagedFields.Parse(entry.Fields));

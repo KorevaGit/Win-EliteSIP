@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Reflection;
+using EliteSIP.AdminAccess;
 using EliteSIP.App.Panel;
 using EliteSIP.App.Resources;
 using EliteSIP.Audio;
@@ -82,6 +83,14 @@ public sealed class SettingsViewModel : Observable
         });
         SaveRecording = new RelayCommand(_ => OnSaveRecording?.Invoke());
 
+        UnlockWorkplace = new RelayCommand(_ =>
+        {
+            if (OnUnlockWorkplace?.Invoke() is true)
+            {
+                RefreshWorkplace();
+            }
+        });
+
         ReturnOnline = new RelayCommand(async _ =>
         {
             if (OnReturnOnline is not null)
@@ -154,6 +163,147 @@ public sealed class SettingsViewModel : Observable
     public bool HasPresetsResult => _supportResult is not null && _supportArea is SupportArea.Presets;
 
     public bool HasNetworkResult => _supportResult is not null && _supportArea is SupportArea.Network;
+
+    // --- Закреплённый формат работы ------------------------------------------
+    //
+    // Spark может закрепить формат работы за местом — тогда «Офис / Из дома»
+    // гаснет, а при закреплённом офисе гаснет и «Исправить сеть». Снять
+    // закрепление на месте можно паролем настроек, и цена у этого та же, что у
+    // правки в «Управлении»: переключение уводит машину в оффлайн. Как на macOS
+    // с 0.1.67.
+    //
+    // Почему пароль, а не только Spark: администратор у машины бывает и тогда,
+    // когда до Spark ему не дотянуться, — а ставить менеджера звонить в
+    // недостижимый адрес ради чистоты запрета незачем.
+
+    /// <summary>Пароль настроек: открытый снимает запрет. Ставит приложение.</summary>
+    internal AdminAccessState? Access { get; init; }
+
+    /// <summary>
+    /// Спросить пароль настроек ради закрепления. <c>true</c> — вошли. Ставит
+    /// приложение: окно пароля одно на «Управление» и «Работу».
+    /// </summary>
+    internal Func<bool>? OnUnlockWorkplace { get; init; }
+
+    /// <summary>Площадку переключили поверх закрепления — машина ушла в оффлайн.</summary>
+    internal Action? OnWorkplaceWentOffline { get; init; }
+
+    /// <summary>«Снять закрепление…».</summary>
+    public RelayCommand UnlockWorkplace { get; }
+
+    /// <summary>
+    /// Площадка в сегментах «Офис / Из дома».
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Не прямая привязка к <c>Account.Site</c>: выбор здесь — решение, можно ли
+    /// переезжать и чего это стоит, а площадку ту же меняют и конфигурация
+    /// Spark, и «Управление», которым оффлайн не положен.
+    /// </remarks>
+    public WorkplaceSite WorkplaceSite
+    {
+        get => Settings.Account.Site;
+        set => ChooseWorkplaceSite(value);
+    }
+
+    /// <summary>Заперт ли переключатель для того, кто сидит за машиной.</summary>
+    public bool IsWorkplaceSwitchLocked
+        => Settings.Panel.LockedSite is not null && Access?.AllowsAdministration is not true;
+
+    public bool CanSwitchWorkplace => !IsWorkplaceSwitchLocked;
+
+    /// <summary>
+    /// Закрепление снято паролем, а машина ещё под панелью: цену переключения
+    /// надо видеть до нажатия, а не после.
+    /// </summary>
+    public bool IsWorkplaceLockLifted => Settings.Panel.LockedSite is not null && !IsWorkplaceSwitchLocked;
+
+    /// <summary>
+    /// Заперто ли «Исправить сеть» — только при закреплённом офисе.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Из офиса АТС достижима напрямую, и стучаться к ней снаружи незачем.
+    /// Закреплённому дому кнопка остаётся — иначе человек дома не смог бы сам
+    /// починить дорогу, когда у домашнего интернета сменился адрес.
+    /// </remarks>
+    public bool IsNetworkRepairLocked
+        => IsWorkplaceSwitchLocked && Settings.Panel.LockedSite is WorkplaceSite.Office;
+
+    public bool CanRepairNetwork => !IsNetworkRepairLocked;
+
+    private void ChooseWorkplaceSite(WorkplaceSite site)
+    {
+        if (site == Settings.Account.Site)
+        {
+            return;
+        }
+
+        // Сегменты погашены, но погашенная кнопка — не единственный вызывающий
+        // навсегда. Перечитать — чтобы отметка вернулась на место.
+        if (IsWorkplaceSwitchLocked)
+        {
+            RefreshWorkplace();
+            return;
+        }
+
+        // Переключение поверх закрепления — то же, что правка управляемого поля
+        // в «Управлении»: связка рвётся до переезда.
+        if (Settings.Panel.LockedSite is not null)
+        {
+            Settings.Panel.Mode = PanelMode.Manual;
+            Settings.Panel.WantsResync = false;
+            OnWorkplaceWentOffline?.Invoke();
+        }
+
+        Settings.Account.Site = site;
+        RefreshWorkplace();
+    }
+
+    /// <summary>
+    /// Площадка, закрепление или пароль настроек могли смениться — перечитать
+    /// всё, что от них зависит.
+    /// </summary>
+    internal void RefreshWorkplace()
+    {
+        NotifyChanged(nameof(WorkplaceSite));
+        NotifyChanged(nameof(IsWorkplaceSwitchLocked));
+        NotifyChanged(nameof(CanSwitchWorkplace));
+        NotifyChanged(nameof(IsWorkplaceLockLifted));
+        NotifyChanged(nameof(IsNetworkRepairLocked));
+        NotifyChanged(nameof(CanRepairNetwork));
+        RefreshLink();
+    }
+
+    /// <summary>
+    /// Следить за площадкой и закреплением, пока окно открыто.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Подписка — только на время окна: настройки живут дольше него, и висящий
+    /// обработчик держал бы закрытое окно в памяти.
+    /// </remarks>
+    internal void WatchWorkplace(bool watch)
+    {
+        Settings.Account.PropertyChanged -= OnWorkplaceSettingChanged;
+        Settings.Panel.PropertyChanged -= OnWorkplaceSettingChanged;
+
+        if (watch)
+        {
+            Settings.Account.PropertyChanged += OnWorkplaceSettingChanged;
+            Settings.Panel.PropertyChanged += OnWorkplaceSettingChanged;
+        }
+    }
+
+    private void OnWorkplaceSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(AccountSettings.Site)
+            or nameof(PanelSettings.Mode)
+            or nameof(PanelSettings.LockedWorkFormat))
+        {
+            RefreshWorkplace();
+        }
+    }
 
     // --- Самопроверка звука --------------------------------------------------
 

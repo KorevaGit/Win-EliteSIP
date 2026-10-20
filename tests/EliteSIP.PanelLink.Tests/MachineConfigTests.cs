@@ -81,6 +81,27 @@ public sealed class MachineConfigTests
         Assert.Equal("line-17", config.Lines[1].ID);
     }
 
+    [Fact]
+    public void Закрепление_формата_работы_приходит_полем_а_без_поля_его_нет()
+    {
+        var machine = MachineKeyPair.Generate();
+        var spark = new Spark();
+
+        var locked = MachineConfig.Open(
+            spark.Config(machine.PublicKey, InstallationID, 5, Content() with { work_format_locked = true }),
+            spark.PublicKey,
+            InstallationID,
+            machine);
+        var old = MachineConfig.Open(
+            spark.Config(machine.PublicKey, InstallationID, 5, Content()), spark.PublicKey, InstallationID, machine);
+
+        Assert.True(locked.WorkFormatLocked);
+        Assert.False(old.WorkFormatLocked);
+
+        // Поднятый запрет — правка содержимого: она доезжает и без подъёма ревизии.
+        Assert.NotEqual(old.Fingerprint(), locked.Fingerprint());
+    }
+
     /// <summary>Перенос <c>testSingleNumberBecomesOneLine</c> из macOS.</summary>
     [Fact]
     public void Один_номер_становится_одной_линией_с_подписью_сотрудника()
@@ -238,7 +259,8 @@ public sealed class MachineConfigTests
         string preset_id,
         string preset_name,
         string admin_password,
-        object[]? lines);
+        object[]? lines,
+        bool? work_format_locked = null);
 #pragma warning restore IDE1006, SA1300
 
     /// <summary>Сторона Spark: ключ подписи и запечатывание под машину.</summary>

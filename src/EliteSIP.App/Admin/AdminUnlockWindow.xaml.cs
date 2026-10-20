@@ -21,11 +21,30 @@ public partial class AdminUnlockWindow : Window
     private readonly AdminAccessState _access;
     private readonly AppearanceService _appearance;
 
-    public AdminUnlockWindow(AppSettings settings, AdminAccessState access, AppearanceService appearance)
+    public AdminUnlockWindow(
+        AppSettings settings,
+        AdminAccessState access,
+        AppearanceService appearance,
+        AdminUnlockPurpose purpose = AdminUnlockPurpose.Administration)
     {
         InitializeComponent();
         _access = access;
         _appearance = appearance;
+
+        // Окно одно на обе дороги: пароль и отказ — общие, а разъехавшись, две
+        // копии однажды разошлись бы и в том, кого пускать.
+        if (purpose is AdminUnlockPurpose.Workplace)
+        {
+            Title = Strings.Get("AdminUnlockWorkplaceTitle");
+            TitleText.Text = Title;
+            SubtitleText.Text = Strings.Get("AdminUnlockWorkplaceSubtitle");
+            EnterButton.Content = Strings.Get("AdminUnlockWorkplaceEnter");
+
+            // Предупреждение — всегда, а не только на незащищённой машине: цена
+            // снятия закрепления — оффлайн, и знать о ней надо до, а не после.
+            WarningText.Text = Strings.Get("AdminUnlockWorkplaceWarning");
+            WarningText.Visibility = Visibility.Visible;
+        }
 
         if (settings.Admin.IsProtected)
         {
@@ -117,4 +136,17 @@ public partial class AdminUnlockWindow : Window
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e) => DialogResult = false;
+}
+
+/// <summary>Зачем спрашивают пароль настроек.</summary>
+public enum AdminUnlockPurpose
+{
+    /// <summary>Открыть «Управление».</summary>
+    Administration,
+
+    /// <summary>
+    /// Снять закрепление формата работы в разделе «Работа». Пароль остаётся
+    /// открытым до закрытия настроек — как у «Управления» до закрытия его окна.
+    /// </summary>
+    Workplace,
 }

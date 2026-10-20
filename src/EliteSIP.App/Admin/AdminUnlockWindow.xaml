@@ -22,9 +22,10 @@
   -->
 
   <StackPanel Margin="12">
-    <TextBlock Text="{res:Loc AdminUnlockTitle}" FontSize="16" FontWeight="SemiBold" />
+    <TextBlock x:Name="TitleText" Text="{res:Loc AdminUnlockTitle}" FontSize="16" FontWeight="SemiBold" />
 
-    <TextBlock Text="{res:Loc AdminUnlockSubtitle}"
+    <TextBlock x:Name="SubtitleText"
+               Text="{res:Loc AdminUnlockSubtitle}"
                Margin="0,4,0,0"
                FontSize="12"
                TextWrapping="Wrap"

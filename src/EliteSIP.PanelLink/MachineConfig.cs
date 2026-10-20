@@ -56,6 +56,17 @@ public sealed record MachineConfig
     /// <summary><c>office</c>, <c>remote</c> или неизвестное — тогда площадку не трогать.</summary>
     public string WorkFormat { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Запрещено ли менеджеру менять формат работы в разделе «Работа».
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Снимается только паролем настроек — с теми же последствиями, что у
+    /// правки в «Управлении». Spark, не знающий <c>work_format_locked</c>, поля
+    /// не присылает — тогда не запрещено. Как на macOS с 0.1.67.
+    /// </remarks>
+    public bool WorkFormatLocked { get; init; }
+
     public string PresetID { get; init; } = string.Empty;
 
     public string PresetName { get; init; } = string.Empty;
@@ -86,6 +97,15 @@ public sealed record MachineConfig
             .Append(Employee).Append('\n').Append(Number).Append('\n').Append(SipPassword).Append('\n')
             .Append(WorkFormat).Append('\n').Append(PresetID).Append('\n').Append(PresetName).Append('\n')
             .Append(AdminPassword).Append('\n');
+
+        // Только поднятый запрет: иначе отпечаток каждой уже применённой
+        // конфигурации сменился бы с выходом этой сборки, и все машины разом
+        // переприменили бы её без единой правки в Spark.
+        if (WorkFormatLocked)
+        {
+            text.Append("work_format_locked\n");
+        }
+
         foreach (var line in Lines)
         {
             text.Append(line.ID).Append('\t').Append(line.Number).Append('\t')
@@ -215,6 +235,7 @@ public sealed record MachineConfig
             Number = content.Number?.Trim() ?? string.Empty,
             SipPassword = content.SipPassword ?? string.Empty,
             WorkFormat = content.WorkFormat?.Trim() ?? string.Empty,
+            WorkFormatLocked = content.WorkFormatLocked ?? false,
             PresetID = content.PresetID?.Trim() ?? string.Empty,
             PresetName = content.PresetName?.Trim() ?? string.Empty,
             AdminPassword = content.AdminPassword ?? string.Empty,
@@ -313,6 +334,9 @@ public sealed record MachineConfig
 
         [JsonPropertyName("work_format")]
         public string? WorkFormat { get; init; }
+
+        [JsonPropertyName("work_format_locked")]
+        public bool? WorkFormatLocked { get; init; }
 
         [JsonPropertyName("preset_id")]
         public string? PresetID { get; init; }

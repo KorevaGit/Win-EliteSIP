@@ -143,6 +143,42 @@ public sealed class ConfigApplyTests
     }
 
     [Fact]
+    public void Закрепление_формата_работы_запоминается_и_снимается_конфигурацией()
+    {
+        var settings = Machine();
+
+        Apply(settings, Config(1, number: "172", employee: "С") with { WorkFormat = "remote", WorkFormatLocked = true });
+
+        Assert.Equal("remote", settings.Panel.LockedWorkFormat);
+        Assert.Equal(WorkplaceSite.Remote, settings.Panel.LockedSite);
+        Assert.True(settings.Panel.IsWorkFormatLocked);
+        Assert.Equal(WorkplaceSite.Remote, settings.Account.Site);
+
+        // В оффлайне запрета нет, но формат помнится — для возврата в онлайн.
+        settings.Panel.Mode = PanelMode.Manual;
+        Assert.Null(settings.Panel.LockedSite);
+        Assert.False(settings.Panel.IsWorkFormatLocked);
+        Assert.Equal("remote", settings.Panel.LockedWorkFormat);
+
+        Apply(settings, Config(2, number: "172", employee: "С"));
+
+        Assert.Equal("", settings.Panel.LockedWorkFormat);
+        Assert.False(settings.Panel.IsWorkFormatLocked);
+        Assert.Contains(_log, line => line.Contains("разрешил", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Незнакомый_формат_работы_не_закрепляется()
+    {
+        var settings = Machine();
+
+        Apply(settings, Config(1, number: "172", employee: "С") with { WorkFormat = "hybrid", WorkFormatLocked = true });
+
+        Assert.Equal("", settings.Panel.LockedWorkFormat);
+        Assert.False(settings.Panel.IsWorkFormatLocked);
+    }
+
+    [Fact]
     public void Переключение_профиля_меняет_местами_активный_и_сохранённый()
     {
         var settings = Machine();

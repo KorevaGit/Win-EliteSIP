@@ -39,6 +39,10 @@ public partial class SettingsWindow : Window
         // Шкалы звука опрашиваются, только пока окно открыто и виден раздел
         // «Звук»; закрытие окна отпускает и проверку, если она шла.
         Loaded += (_, _) => model.UpdateMeterPolling(windowOpen: true);
+
+        // «Работа» обязана видеть площадку и закрепление, приехавшие из Spark,
+        // пока окно открыто.
+        model.WatchWorkplace(watch: true);
     }
 
     public SettingsViewModel Model { get; }
@@ -56,6 +60,7 @@ public partial class SettingsWindow : Window
     {
         Model.Settings.Appearance.PropertyChanged -= OnAppearanceChanged;
         Model.UpdateMeterPolling(windowOpen: false);
+        Model.WatchWorkplace(watch: false);
 
         // Иначе рингтон продолжает звонить после того, как окно закрыли, и
         // остановить его нечем.

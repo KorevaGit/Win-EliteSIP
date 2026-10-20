@@ -650,6 +650,14 @@ public partial class App : Application, IDisposable
             // адрес, а шлюз помнит прежний.
             OnRepairNetwork = () =>
             {
+                // Место закреплено за офисом: снаружи стучаться незачем.
+                // Проверка и здесь, а не только погашенной кнопкой.
+                if (model!.IsNetworkRepairLocked)
+                {
+                    model.ReportSupport(Strings.Get("SupportNetworkRepairLocked"), SupportArea.Network);
+                    return;
+                }
+
                 Reconnect("исправление сети");
                 model!.ReportSupport(Strings.Get("SupportNetworkRepaired"), SupportArea.Network);
             },
@@ -678,6 +686,34 @@ public partial class App : Application, IDisposable
                     _phone.IsCallActive,
                     _phone.SelfTest.TakeLevels() ?? _phone.TakeCallLevels()),
             OnReturnOnline = () => _panelLine?.ReturnOnline() ?? Task.CompletedTask,
+
+            // Закреплённый в Spark формат работы: пароль спрашивает то же окно,
+            // что и перед «Управлением», но после входа оставляет человека в
+            // «Работе».
+            Access = _access,
+            OnUnlockWorkplace = () =>
+            {
+                var unlock = new AdminUnlockWindow(_settings!, _access!, _appearance!, AdminUnlockPurpose.Workplace)
+                {
+                    Owner = _settingsWindow,
+                };
+
+                if (unlock.ShowDialog() is not true)
+                {
+                    return false;
+                }
+
+                Log("пароль настроек открыт: снять закрепление формата работы");
+                return true;
+            },
+            OnWorkplaceWentOffline = () =>
+            {
+                Log("оффлайн: закреплённый формат работы сменён по паролю настроек");
+                ClientEventLog.Shared.Record(
+                    ClientEventLog.Kind.Config,
+                    ClientEventLog.Level.Warning,
+                    "Закреплённый формат работы сменён на месте по паролю настроек — машина в оффлайне");
+            },
         };
 
         var settings = model;
@@ -696,6 +732,13 @@ public partial class App : Application, IDisposable
         _settingsWindow.Closed += (_, _) =>
         {
             _settingsWindow = null;
+
+            // Пароль, открытый ради «Работы», живёт до закрытия настроек — как на
+            // macOS. Открытое «Управление» запрёт его само, своим закрытием.
+            if (_administrationWindow is null)
+            {
+                _access?.Lock();
+            }
             if (_panelLine is not null)
             {
                 _panelLine.StateChanged -= refreshLink;
@@ -741,6 +784,10 @@ public partial class App : Application, IDisposable
             {
                 return;
             }
+
+            // Открытый пароль снимает и закрепление формата работы, пока
+            // «Управление» открыто.
+            (_settingsWindow?.Model)?.RefreshWorkplace();
         }
 
         // Раздел «Поддержка» заводится только вместе с линией: без неё показывать
@@ -822,6 +869,9 @@ public partial class App : Application, IDisposable
             // «Управление», закрытое «Сохранить», второй раз открывалось без
             // пароля.
             _access!.Lock();
+
+            // Запертый пароль снова запирает закреплённый формат работы.
+            (_settingsWindow?.Model)?.RefreshWorkplace();
 
             // Клавиши могли перемениться — панель обязана показать те, что
             // сохранили, а не те, с которыми её открыли.

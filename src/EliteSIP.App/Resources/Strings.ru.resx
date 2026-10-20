@@ -143,6 +143,33 @@
   <data name="WorkRepairNote" xml:space="preserve">
     <value>Открывает дорогу до АТС снаружи — один раз и прямо сейчас. Нужно, когда из дома перестало подключаться без видимой причины: у домашнего интернета сменился адрес, а шлюз помнит прежний.</value>
   </data>
+  <data name="WorkSiteLockedNote" xml:space="preserve">
+    <value>Формат работы закреплён администратором.</value>
+  </data>
+  <data name="WorkSiteUnlock" xml:space="preserve">
+    <value>Снять закрепление…</value>
+  </data>
+  <data name="WorkSiteLockLiftedNote" xml:space="preserve">
+    <value>Закрепление снято. Переключение переведёт машину в оффлайн.</value>
+  </data>
+  <data name="WorkRepairLockedNote" xml:space="preserve">
+    <value>Место закреплено за офисом — из офиса АТС достижима напрямую.</value>
+  </data>
+  <data name="SupportNetworkRepairLocked" xml:space="preserve">
+    <value>Место закреплено за офисом</value>
+  </data>
+  <data name="AdminUnlockWorkplaceTitle" xml:space="preserve">
+    <value>Формат работы закреплён</value>
+  </data>
+  <data name="AdminUnlockWorkplaceSubtitle" xml:space="preserve">
+    <value>Сменить офис или дом можно только с паролем администратора.</value>
+  </data>
+  <data name="AdminUnlockWorkplaceWarning" xml:space="preserve">
+    <value>Формат работы закрепил EliteSupport. Переключение офиса и дома переводит машину в оффлайн: обновления конфигураций, новые клавиши и новые адреса АТС перестают приходить, и управление клиентом переходит к вам. Вернуться можно кнопкой «Вернуться в онлайн» в «Техподдержке» — местные правки тогда заменит панель. Пока настройки открыты, переключатель доступен; машина уходит в оффлайн, только если его действительно переключить.</value>
+  </data>
+  <data name="AdminUnlockWorkplaceEnter" xml:space="preserve">
+    <value>Снять закрепление</value>
+  </data>
   <data name="AudioMicrophone" xml:space="preserve">
     <value>Микрофон</value>
   </data>

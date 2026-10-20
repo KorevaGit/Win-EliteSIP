@@ -161,6 +161,33 @@
   <data name="WorkRepairNote" xml:space="preserve">
     <value>Opens the way to the PBX from outside — once and right now. Needed when it stops connecting from home for no visible reason: the home address changed and the gateway remembers the old one.</value>
   </data>
+  <data name="WorkSiteLockedNote" xml:space="preserve">
+    <value>The work format is locked by the administrator.</value>
+  </data>
+  <data name="WorkSiteUnlock" xml:space="preserve">
+    <value>Unlock…</value>
+  </data>
+  <data name="WorkSiteLockLiftedNote" xml:space="preserve">
+    <value>Unlocked. Switching will take this machine offline.</value>
+  </data>
+  <data name="WorkRepairLockedNote" xml:space="preserve">
+    <value>The workplace is locked to the office — the PBX is reachable directly from there.</value>
+  </data>
+  <data name="SupportNetworkRepairLocked" xml:space="preserve">
+    <value>The workplace is locked to the office</value>
+  </data>
+  <data name="AdminUnlockWorkplaceTitle" xml:space="preserve">
+    <value>Work format is locked</value>
+  </data>
+  <data name="AdminUnlockWorkplaceSubtitle" xml:space="preserve">
+    <value>Switching between office and remote requires the administrator password.</value>
+  </data>
+  <data name="AdminUnlockWorkplaceWarning" xml:space="preserve">
+    <value>The work format was locked by EliteSupport. Switching between office and remote takes this machine offline: configuration updates, new keys and new PBX addresses stop arriving, and you take over managing the client. To go back, use “Return online” in Support — the panel will then replace local changes. While settings are open the switch is available; the machine goes offline only if you actually switch it.</value>
+  </data>
+  <data name="AdminUnlockWorkplaceEnter" xml:space="preserve">
+    <value>Unlock</value>
+  </data>
   <data name="AudioMicrophone" xml:space="preserve">
     <value>Microphone</value>
   </data>
