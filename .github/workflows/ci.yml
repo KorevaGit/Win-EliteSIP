@@ -2,8 +2,12 @@ name: CI
 
 # Сборка и тесты на каждый коммит и каждый pull request.
 #
-# Только windows-latest: продукт нативно оконный, половина проектов собирается
-# под net10.0-windows, и зелёная сборка на Linux ничего не доказывала бы.
+# Два задания. windows-latest — продукт: всё решение, все проверки.
+# ubuntu-latest — общий код, который с 20 октября 2026 собирается и в
+# Linux-версии (подмодуль shared/ в Linux-репозитории): проекты net10.0 и их
+# проверки. Без него о том, что правка для Windows сломала Linux, стало бы
+# известно только при сдвиге подмодуля — когда автор правки уже забыл, что в
+# ней было.
 
 on:
   push:
@@ -32,3 +36,30 @@ jobs:
 
       - name: Тесты
         run: dotnet test --no-build --configuration Release --verbosity normal
+
+  linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Всё решение собирается и здесь: проекты под net10.0-windows (WPF,
+      # WASAPI) компилируются с EnableWindowsTargeting, хотя и не запускаются.
+      # Сборка ловит то, что сломалось бы при компиляции на Windows, ещё до
+      # задания windows-latest.
+      - name: Сборка
+        run: dotnet build --configuration Release -p:EnableWindowsTargeting=true
+
+      # Запускаются только проверки net10.0: остальным нужна Windows. Проверки
+      # одной ОС помечены WindowsFact и UnixFact и честно пропускаются.
+      - name: Тесты
+        run: |
+          for project in tests/*/*.Tests.csproj; do
+            if grep -q '<TargetFramework>net10.0</TargetFramework>' "$project"; then
+              dotnet test "$project" --no-build --configuration Release --verbosity normal
+            fi
+          done
