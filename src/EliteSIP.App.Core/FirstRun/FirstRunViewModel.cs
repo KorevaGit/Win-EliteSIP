@@ -1,6 +1,4 @@
 using System.Net.Http;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using EliteSIP.AdminAccess;
 using EliteSIP.App.Panel;
 using EliteSIP.App.PanelLine;
@@ -67,7 +65,7 @@ public sealed class FirstRunViewModel : Observable, IDisposable
     private PairingState? _pairing;
     private CancellationTokenSource? _pairingLoop;
     private string? _pairCode;
-    private ImageSource? _pairQr;
+    private QrCode? _pairQr;
     private string? _pairStatus;
     private bool _pairFailed;
     private bool _isPaired;
@@ -142,8 +140,14 @@ public sealed class FirstRunViewModel : Observable, IDisposable
 
     public bool HasPairCode => _pairCode is not null && !_isPaired;
 
-    /// <summary>QR строки <c>elitesip://pair?s=…&amp;f=…</c> для EliteSIP Connect.</summary>
-    public ImageSource? PairQr
+    /// <summary>
+    /// QR строки <c>elitesip://pair?s=…&amp;f=…</c> для EliteSIP Connect.
+    ///
+    /// Сам код, а не картинка: рисует его окно (в WPF —
+    /// <c>QrImageConverter</c>). До 20 октября 2026 модель отдавала
+    /// <c>ImageSource</c> и этим держалась на WPF.
+    /// </summary>
+    public QrCode? PairQr
     {
         get => _pairQr;
         private set => Set(ref _pairQr, value);
@@ -387,7 +391,7 @@ public sealed class FirstRunViewModel : Observable, IDisposable
         }
 
         PairCode = session.Code;
-        PairQr = session.Qr.Length > 0 ? QrImage.Render(session.Qr) : null;
+        PairQr = session.Qr.Length > 0 ? QrCode.Encode(session.Qr) : null;
     }
 
     private void SavePairing()
@@ -609,34 +613,5 @@ public sealed class FirstRunViewModel : Observable, IDisposable
         NotifyChanged(nameof(IsUserComplete));
         NotifyChanged(nameof(CanGoForward));
         NotifyChanged(nameof(AdminPasswordsDiffer));
-    }
-}
-
-/// <summary>QR-картинка для WPF из <see cref="QrCode"/>.</summary>
-internal static class QrImage
-{
-    /// <summary>
-    /// Рисует код чёрным по белому с полем в четыре модуля — независимо от
-    /// темы: сканеры читают тёмное на светлом, а на тёмной теме инвертированный
-    /// код часть телефонов не видит.
-    /// </summary>
-    internal static ImageSource Render(string text)
-    {
-        var qr = QrCode.Encode(text);
-        const int quiet = 4;
-        var size = qr.Size + (quiet * 2);
-
-        var pixels = new byte[size * size];
-        for (var y = 0; y < size; y++)
-        {
-            for (var x = 0; x < size; x++)
-            {
-                pixels[(y * size) + x] = qr[x - quiet, y - quiet] ? (byte)0 : (byte)255;
-            }
-        }
-
-        var bitmap = BitmapSource.Create(size, size, 96, 96, PixelFormats.Gray8, null, pixels, size);
-        bitmap.Freeze();
-        return bitmap;
     }
 }

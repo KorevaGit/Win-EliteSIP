@@ -25,7 +25,7 @@ namespace EliteSIP.Audio;
 /// вовсе: медиа поднималось на 200 OK. На направлениях с ранними медиа это
 /// давало то тишину, то наш тон поверх обрывка объявления — «гудки через раз».
 /// </summary>
-public sealed class SignalSoundPlayer : IDisposable
+public sealed class SignalSoundPlayer : ISignalSounds
 {
     private readonly object _gate = new();
     private readonly Action<string>? _log;

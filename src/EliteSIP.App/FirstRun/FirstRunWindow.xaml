@@ -3,11 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:firstrun="clr-namespace:EliteSIP.App.FirstRun"
+        xmlns:firstruncore="clr-namespace:EliteSIP.App.FirstRun;assembly=EliteSIP.App.Core"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=firstrun:FirstRunViewModel}"
+        d:DataContext="{d:DesignInstance Type=firstruncore:FirstRunViewModel}"
         Title="{res:Loc FirstRunTitle}"
         Width="460"
         Height="440"
@@ -154,7 +155,7 @@
                     Visibility="{Binding HasPairCode, Converter={StaticResource BoolToVisibility}}">
           <!-- Белая подложка при любой теме: сканеры читают тёмное на светлом. -->
           <Border Background="White" CornerRadius="4" Padding="4">
-            <Image Source="{Binding PairQr}"
+            <Image Source="{Binding PairQr, Converter={x:Static firstrun:QrImageConverter.Instance}}"
                    Width="132" Height="132"
                    RenderOptions.BitmapScalingMode="NearestNeighbor" />
           </Border>

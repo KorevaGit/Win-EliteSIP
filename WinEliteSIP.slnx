@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/EliteSIP.AdminAccess/EliteSIP.AdminAccess.csproj" />
     <Project Path="src/EliteSIP.App/EliteSIP.App.csproj" />
+    <Project Path="src/EliteSIP.App.Core/EliteSIP.App.Core.csproj" />
     <Project Path="src/EliteSIP.Audio/EliteSIP.Audio.csproj" />
     <Project Path="src/EliteSIP.Audio.Wasapi/EliteSIP.Audio.Wasapi.csproj" />
     <Project Path="src/EliteSIP.CallGuard/EliteSIP.CallGuard.csproj" />
@@ -15,6 +16,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/EliteSIP.App.Tests/EliteSIP.App.Tests.csproj" />
+    <Project Path="tests/EliteSIP.App.Core.Tests/EliteSIP.App.Core.Tests.csproj" />
     <Project Path="tests/EliteSIP.AdminAccess.Tests/EliteSIP.AdminAccess.Tests.csproj" />
     <Project Path="tests/EliteSIP.Audio.Tests/EliteSIP.Audio.Tests.csproj" />
     <Project Path="tests/EliteSIP.Audio.Wasapi.Tests/EliteSIP.Audio.Wasapi.Tests.csproj" />

@@ -16,7 +16,7 @@ namespace EliteSIP.App.Incoming;
 /// принимает решения здесь, и ни одна строка отсюда не участвует в тестах
 /// пакета: разбор проверяется без экрана, а показ проверяется живым вызовом.
 /// </remarks>
-public sealed class IncomingCallPresenter : IDisposable
+public sealed class IncomingCallPresenter : Platform.IIncomingCallView, IDisposable
 {
     /// <summary>Насколько считать курсор «рядом с окном», в точках.</summary>
     ///

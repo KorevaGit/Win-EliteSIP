@@ -18,11 +18,11 @@ public partial class SettingsWindow : Window
     /// <c>MediaPlayer</c> у окна больше нет: он не умел ни стандартный звук, ни
     /// OGG и звучал не на том устройстве, что звонок.
     /// </summary>
-    private readonly SignalSoundPlayer _sounds;
+    private readonly ISignalSounds _sounds;
 
     private readonly AppearanceService _appearance;
 
-    public SettingsWindow(SettingsViewModel model, AppearanceService appearance, SignalSoundPlayer sounds)
+    public SettingsWindow(SettingsViewModel model, AppearanceService appearance, ISignalSounds sounds)
     {
         InitializeComponent();
         _sounds = sounds;

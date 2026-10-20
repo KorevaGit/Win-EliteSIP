@@ -1,5 +1,5 @@
 using System.IO;
-using System.Windows.Threading;
+using EliteSIP.App.Platform;
 using EliteSIP.AdminAccess;
 using EliteSIP.App.Settings;
 using EliteSIP.PanelLink;
@@ -36,12 +36,12 @@ internal sealed class PanelLineHost : IDisposable
     private readonly AdminAccessState _access;
     private readonly Action<string> _log;
     private readonly Func<bool> _isBlocked;
-    private readonly Dispatcher _dispatcher;
+    private readonly IUiThread _ui;
 
     private readonly PresetService _presets;
     private readonly MachineService _machine;
 
-    private readonly DispatcherTimer _machineTimer;
+    private readonly IUiTimer _machineTimer;
 
     /// <summary>
     /// Конфигурация, пришедшая посреди разговора или при открытом «Управлении».
@@ -63,6 +63,7 @@ internal sealed class PanelLineHost : IDisposable
         AdminAccessState access,
         Func<bool> isBlocked,
         Action reset,
+        IUiThread ui,
         Action<string> log)
     {
         _settings = settings;
@@ -70,7 +71,7 @@ internal sealed class PanelLineHost : IDisposable
         _isBlocked = isBlocked;
         _reset = reset;
         _log = log;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _ui = ui;
 
         _presets = new PresetService(() => _settings, ApplyPreset, isBlocked, log);
         _presets.NoteContact = () => _settings.Panel.LastContactAt = DateTimeOffset.UtcNow;
@@ -88,7 +89,7 @@ internal sealed class PanelLineHost : IDisposable
         // живёт отвязанная машина. Предустановки — в общем двухчасовом такте с
         // обновлениями (`UpdateService`): канал один, и два независимых срока
         // на нём разошлись бы через полгода.
-        _machineTimer = new DispatcherTimer { Interval = MachineService.RevocationInterval };
+        _machineTimer = ui.CreateTimer(MachineService.RevocationInterval);
         _machineTimer.Tick += async (_, _) =>
         {
             _log($"такт конфигурации, предустановки и отзыва; следующий через {MachineService.RevocationInterval.TotalMinutes:0} мин");
@@ -211,13 +212,13 @@ internal sealed class PanelLineHost : IDisposable
 
     private void OnUi(Action action)
     {
-        if (_dispatcher.CheckAccess())
+        if (_ui.CheckAccess())
         {
             action();
         }
         else
         {
-            _dispatcher.BeginInvoke(action);
+            _ui.Post(action);
         }
     }
 

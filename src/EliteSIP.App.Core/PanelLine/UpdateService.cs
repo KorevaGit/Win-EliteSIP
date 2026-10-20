@@ -2,7 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
-using System.Windows.Threading;
+using EliteSIP.App.Platform;
 using EliteSIP.PanelLink;
 
 namespace EliteSIP.App.PanelLine;
@@ -94,8 +94,9 @@ internal sealed class UpdateService : IDisposable
     private readonly Action _alsoCheckPresets;
     private readonly Action<string> _log;
 
-    private readonly DispatcherTimer _cycle = new();
-    private readonly DispatcherTimer _reminder = new() { Interval = ReminderInterval };
+    private readonly IUiTimer _cycle;
+    private readonly IUiTimer _reminder;
+    private readonly IUpdateHandoff _handoff;
 
     private bool _isChecking;
 
@@ -112,12 +113,18 @@ internal sealed class UpdateService : IDisposable
         Func<bool> isBusy,
         Action<string?> announce,
         Action alsoCheckPresets,
+        IUiThread ui,
+        IUpdateHandoff handoff,
         Action<string> log)
     {
         _isBusy = isBusy;
         _announce = announce;
         _alsoCheckPresets = alsoCheckPresets;
+        _handoff = handoff;
         _log = log;
+
+        _cycle = ui.CreateTimer(FirstCheckDelay);
+        _reminder = ui.CreateTimer(ReminderInterval);
 
         _cycle.Tick += async (_, _) => await TickAsync().ConfigureAwait(true);
         _reminder.Tick += (_, _) => Offer();
@@ -308,7 +315,7 @@ internal sealed class UpdateService : IDisposable
     /// Прежде здесь запускался установщик. Под политикой заказчика так нельзя:
     /// скачанный файл лежит в каталоге, откуда запуск запрещён, а ставить надо
     /// в <c>Program Files</c>, куда оператор не пишет. Установку делает
-    /// <c>EliteSIP.Updater</c> от SYSTEM — см. <see cref="UpdateHandoff"/>.
+    /// <c>EliteSIP.Updater</c> от SYSTEM — см. <see cref="IUpdateHandoff"/>.
     ///
     /// <b>Уходим с дороги только если задачу удалось разбудить.</b> Иначе она
     /// проснётся сама в течение десяти минут, и всё это время оператор сидел бы
@@ -323,14 +330,14 @@ internal sealed class UpdateService : IDisposable
             return false;
         }
 
-        if (!UpdateHandoff.Request(version, _log))
+        if (!_handoff.Request(version, _log))
         {
             return false;
         }
 
         _log($"обновление {version} передано обновляльщику");
 
-        if (UpdateHandoff.Trigger(_log))
+        if (_handoff.Trigger(_log))
         {
             PrepareForRestart?.Invoke();
         }
@@ -527,7 +534,7 @@ internal sealed class UpdateService : IDisposable
         string[] staged;
         try
         {
-            var directory = UpdateHandoff.UpdatesDirectory;
+            var directory = _handoff.UpdatesDirectory;
 
             staged = Directory.Exists(directory)
                 ? Directory.GetFiles(directory, "EliteSIP-*.exe")
@@ -572,7 +579,7 @@ internal sealed class UpdateService : IDisposable
         // дотянуться — у SYSTEM свой. Файл здесь остаётся данными: запускать его
         // не будет ни приложение, ни обновляльщик, пока тот не перенесёт его в
         // `Program Files`, проверив подпись заново.
-        var directory = UpdateHandoff.UpdatesDirectory;
+        var directory = _handoff.UpdatesDirectory;
 
         var path = Path.Combine(directory, $"EliteSIP-{manifest.Version.ToString(3)}.exe");
 

@@ -3,11 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:history="clr-namespace:EliteSIP.App.History"
+        xmlns:historycore="clr-namespace:EliteSIP.App.History;assembly=EliteSIP.App.Core"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=history:CallHistoryViewModel}"
+        d:DataContext="{d:DesignInstance Type=historycore:CallHistoryViewModel}"
         Width="640"
         Height="520"
         MinWidth="600"
@@ -47,7 +48,7 @@
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
-          <DataTemplate DataType="{x:Type history:HistoryFilterItem}">
+          <DataTemplate DataType="{x:Type historycore:HistoryFilterItem}">
             <RadioButton Style="{StaticResource FilterChipStyle}"
                          GroupName="HistoryFilter"
                          Tag="{Binding Filter}"
@@ -171,7 +172,7 @@
 
             <ItemsControl ItemsSource="{Binding Weeks}">
               <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="{x:Type history:CalendarWeek}">
+                <DataTemplate DataType="{x:Type historycore:CalendarWeek}">
                   <ItemsControl ItemsSource="{Binding Days}">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate>
@@ -179,7 +180,7 @@
                       </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate DataType="{x:Type history:CalendarDay}">
+                      <DataTemplate DataType="{x:Type historycore:CalendarDay}">
                         <Button Width="28"
                                 Height="28"
                                 IsEnabled="{Binding IsAvailable}"
@@ -256,7 +257,7 @@
                       Visibility="{Binding IsEmpty, Converter={StaticResource NotBoolToVisibility}}">
           <ItemsControl ItemsSource="{Binding Days}">
             <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="{x:Type history:HistoryDay}">
+              <DataTemplate DataType="{x:Type historycore:HistoryDay}">
                 <StackPanel>
                   <!--
                       Заголовок дня — кеглем раздела, а не мелкой серой

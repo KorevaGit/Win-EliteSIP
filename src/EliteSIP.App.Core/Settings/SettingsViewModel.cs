@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Reflection;
 using EliteSIP.App.Panel;
+using EliteSIP.App.Platform;
 using EliteSIP.App.Resources;
 using EliteSIP.Audio;
 
@@ -42,9 +43,15 @@ public sealed class SettingsViewModel : Observable
 {
     private SettingsSectionKind _section = SettingsSectionKind.Work;
 
-    public SettingsViewModel(AppSettings settings)
+    private readonly IAudioPlatform _audio;
+    private readonly IAutoStart _autoStart;
+
+    public SettingsViewModel(AppSettings settings, IUiThread ui, IAudioPlatform audio, IAutoStart autoStart)
     {
         Settings = settings;
+        _audio = audio;
+        _autoStart = autoStart;
+        _meterTimer = ui.CreateTimer(TimeSpan.FromMilliseconds(50));
 
         Sections =
         [
@@ -213,8 +220,7 @@ public sealed class SettingsViewModel : Observable
     // macOS). Таймер опроса живёт, пока открыт раздел «Звук», и опрос ничего
     // не стоит: он спрашивает уже работающий тракт.
 
-    private readonly System.Windows.Threading.DispatcherTimer _meterTimer =
-        new() { Interval = TimeSpan.FromMilliseconds(50) };
+    private readonly IUiTimer _meterTimer;
 
     private bool _meterWindowOpen;
     private bool _isSelfTestRunning;
@@ -399,10 +405,10 @@ public sealed class SettingsViewModel : Observable
     /// </remarks>
     public bool StartsWithWindows
     {
-        get => Shell.AutoStart.IsEnabled;
+        get => _autoStart.IsEnabled;
         set
         {
-            _ = Shell.AutoStart.Set(value);
+            _ = _autoStart.TrySet(value);
             NotifyChanged();
         }
     }
@@ -518,7 +524,7 @@ public sealed class SettingsViewModel : Observable
         NotifyChanged(nameof(NeedsAggregate));
     }
 
-    private static void Fill(
+    private void Fill(
         ObservableCollection<AudioDeviceOption> target,
         AudioDeviceDirection direction,
         string systemTitle)
@@ -527,12 +533,12 @@ public sealed class SettingsViewModel : Observable
 
         // «Системное» первым пунктом, а не отдельным выключателем рядом: это
         // одно и то же поле — какое устройство брать.
-        var system = AudioDeviceCatalog.Default(direction);
+        var system = _audio.DefaultDevice(direction);
         target.Add(new AudioDeviceOption(
             Id: null,
             Name: system is null ? systemTitle : $"{systemTitle} — {system.Name}"));
 
-        foreach (var device in AudioDeviceCatalog.Devices(direction))
+        foreach (var device in _audio.Devices(direction))
         {
             target.Add(new AudioDeviceOption(device.Id, device.Name));
         }

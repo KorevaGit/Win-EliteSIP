@@ -4,7 +4,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:history="clr-namespace:EliteSIP.App.History"
-        xmlns:incoming="clr-namespace:EliteSIP.App.Incoming"
+        xmlns:incoming="clr-namespace:EliteSIP.App.Incoming;assembly=EliteSIP.App.Core"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"

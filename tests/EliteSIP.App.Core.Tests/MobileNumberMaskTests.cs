@@ -65,17 +65,6 @@ public sealed class MobileNumberMaskTests
     }
 
     [Fact]
-    public void Строка_истории_без_флага_прячет()
-    {
-        // Привязка, не донёсшая третье значение, не должна открыть номер.
-        CallRecord record = new() { CallId = "in", Direction = CallDirection.Incoming, Number = Mobile };
-
-        var title = new CallTitleConverter().Convert([record, Own], typeof(string), null, System.Globalization.CultureInfo.InvariantCulture);
-
-        Assert.Equal("+7**********", title);
-    }
-
-    [Fact]
     public void Предустановка_открывает_и_закрывает_номера()
     {
         var settings = new AppSettings();

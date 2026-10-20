@@ -1,5 +1,5 @@
 using EliteSIP.Diagnostics;
-using System.Windows.Threading;
+using EliteSIP.App.Platform;
 using EliteSIP.App.Incoming;
 using EliteSIP.App.Panel;
 using EliteSIP.App.PanelLine;
@@ -38,7 +38,7 @@ namespace EliteSIP.App.Shell;
 /// умолчанию он выключен, и просьбе сервера снять трубку самому
 /// (<c>X-Autoanswer</c>) приложение не подчиняется: автоответ отдал бы лид
 /// пустому месту — ровно то, от чего приложение и защищает. Окно и
-/// разбор попытки живут в <see cref="Incoming.IncomingCallPresenter"/>, здесь
+/// разбор попытки живут в окне входящего (<see cref="IIncomingCallView"/>), здесь
 /// остаётся то, что происходит после решения: 200 OK с нашим SDP и подъём
 /// медиа — или 486, чтобы вызов вернулся в очередь следующему оператору, а не
 /// висел до таймаута сервера.
@@ -48,12 +48,13 @@ public sealed class PhoneService : IDisposable
     private readonly AppSettings _settings;
     private readonly PanelViewModel _panel;
     private readonly CallHistoryStore _history;
-    private readonly IncomingCallPresenter _incoming;
-    private readonly Dispatcher _dispatcher;
+    private readonly IIncomingCallView _incoming;
+    private readonly IUiThread _ui;
+    private readonly IAudioPlatform _audio;
     private readonly Action<string> _log;
 
     /// <summary>Гудки и рингтон. Живёт всё время работы: устройство берётся на звук.</summary>
-    private readonly SignalSoundPlayer _sounds;
+    private readonly ISignalSounds _sounds;
 
     private SocketSipTransport? _transport;
     private PortKnocker? _knocker;
@@ -118,18 +119,20 @@ public sealed class PhoneService : IDisposable
         AppSettings settings,
         PanelViewModel panel,
         CallHistoryStore history,
-        IncomingCallPresenter incoming,
-        Dispatcher dispatcher,
+        IIncomingCallView incoming,
+        IUiThread ui,
+        IAudioPlatform audio,
         Action<string> log)
     {
         _settings = settings;
         _panel = panel;
         _history = history;
         _incoming = incoming;
-        _dispatcher = dispatcher;
+        _ui = ui;
+        _audio = audio;
         _log = log;
-        _sounds = new SignalSoundPlayer(log);
-        SelfTest = new AudioSelfTest(configuration => new WasapiVoiceAudioEngine(configuration), log);
+        _sounds = audio.CreateSignalSounds(log);
+        SelfTest = new AudioSelfTest(audio.CreateEngine, log);
 
         _settings.Audio.PropertyChanged += OnAudioSettingsChanged;
 
@@ -137,10 +140,7 @@ public sealed class PhoneService : IDisposable
         // звонков, а те живут там же. Работы на такте — сравнить пару
         // счётчиков, так что держать его включённым весь день дешевле, чем
         // следить, когда его включать.
-        _monitor = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
-        {
-            Interval = TimeSpan.FromSeconds(1),
-        };
+        _monitor = ui.CreateTimer(TimeSpan.FromSeconds(1));
         _monitor.Tick += (_, _) => MonitorTick();
         _monitor.Start();
     }
@@ -292,7 +292,7 @@ public sealed class PhoneService : IDisposable
     }
 
     /// <summary>Служебные звуки: их же берёт окно входящего под рингтон.</summary>
-    public SignalSoundPlayer Sounds => _sounds;
+    public ISignalSounds Sounds => _sounds;
 
     /// <summary>Поднимает регистрацию по записанным настройкам.</summary>
     ///
@@ -425,9 +425,7 @@ public sealed class PhoneService : IDisposable
         // обработки голоса: они сохранялись и ни на что не влияли.
         var audio = AudioConfiguration();
 
-        _bus = new VoiceAudioBus(
-            new WasapiVoiceAudioEngine(audio),
-            settings => new WasapiVoiceAudioEngine(settings));
+        _bus = new VoiceAudioBus(_audio.CreateEngine(audio), _audio.CreateEngine);
 
         _lines = new LineController(new SipUserAgentSignaling(_agent), _log);
 
@@ -832,13 +830,13 @@ public sealed class PhoneService : IDisposable
                 _sounds.PlayHangUp(_settings.Audio.OutputDeviceId);
             }
 
-            await _dispatcher.InvokeAsync(SyncLines);
+            await _ui.InvokeAsync(SyncLines);
         }
     }
 
     /// <summary>Убирает окно входящего и закрывает запись истории.</summary>
     private Task CloseIncoming(string callId, string reason, CallOutcome? outcome)
-        => _dispatcher.InvokeAsync(() =>
+        => _ui.InvokeAsync(() =>
         {
             _incoming.Hide();
 
@@ -849,7 +847,7 @@ public sealed class PhoneService : IDisposable
 
             ClientEventLog.Shared.CallFinished(callId, reason, failed: outcome is CallOutcome.Failed);
             SyncLines();
-        }).Task;
+        });
 
     /// <summary>Кладёт трубку на активной линии.</summary>
     public async Task HangUpAsync()
@@ -1011,7 +1009,7 @@ public sealed class PhoneService : IDisposable
                 switch (value)
                 {
                     case SipUserAgentEvent.Registration registration:
-                        await _dispatcher.InvokeAsync(() => Apply(registration.State));
+                        await _ui.InvokeAsync(() => Apply(registration.State));
                         break;
 
                     case SipUserAgentEvent.Log log:
@@ -1035,11 +1033,11 @@ public sealed class PhoneService : IDisposable
                         break;
 
                     case SipUserAgentEvent.IncomingCall incoming:
-                        await _dispatcher.InvokeAsync(() => Offer(incoming.Call));
+                        await _ui.InvokeAsync(() => Offer(incoming.Call));
                         break;
 
                     case SipUserAgentEvent.ChannelClosed closed:
-                        await _dispatcher.InvokeAsync(() => Trouble("TroubleChannelClosed", opensSettings: false));
+                        await _ui.InvokeAsync(() => Trouble("TroubleChannelClosed", opensSettings: false));
                         _log($"канал закрыт: {closed.Reason}");
                         break;
 
@@ -1104,7 +1102,7 @@ public sealed class PhoneService : IDisposable
                         }
 
                         answered = true;
-                        await _dispatcher.InvokeAsync(() =>
+                        await _ui.InvokeAsync(() =>
                         {
                             MarkAnswered(call.CallId);
 
@@ -1121,7 +1119,7 @@ public sealed class PhoneService : IDisposable
                     // вызов пошёл. Звука оно само не решает: что слышно,
                     // говорят два события ниже.
                     case SipCallEvent.State { Value: SipCallState.Ringing }:
-                        await _dispatcher.InvokeAsync(
+                        await _ui.InvokeAsync(
                             () => _panel.CallStatus = Strings.Get("CallStatusRinging"));
                         break;
 
@@ -1135,7 +1133,7 @@ public sealed class PhoneService : IDisposable
                             _ringbackWanted = true;
                         }
 
-                        await _dispatcher.InvokeAsync(UpdatePreAnswerAudio);
+                        await _ui.InvokeAsync(UpdatePreAnswerAudio);
                         break;
 
                     // 18x с SDP: станция играет сама — гудки, IVR,
@@ -1145,7 +1143,7 @@ public sealed class PhoneService : IDisposable
                         session = await FollowEarlyMediaAsync(progress, offer, reservation, call.CallId, session)
                             .ConfigureAwait(false);
 
-                        await _dispatcher.InvokeAsync(UpdatePreAnswerAudio);
+                        await _ui.InvokeAsync(UpdatePreAnswerAudio);
                         break;
 
                     case SipCallEvent.Failed failure:
@@ -1191,7 +1189,7 @@ public sealed class PhoneService : IDisposable
             // поверх последнего слова собеседника.
             _sounds.PlayHangUp(_settings.Audio.OutputDeviceId);
 
-            await _dispatcher.InvokeAsync(SyncLines);
+            await _ui.InvokeAsync(SyncLines);
         }
     }
 
@@ -1231,7 +1229,7 @@ public sealed class PhoneService : IDisposable
             // бросить: иначе линия останется занятой до таймаута сервера.
             _log($"тракт не поднялся: {failure.Message}");
             await CloseMediaAsync(callId).ConfigureAwait(false);
-            await _dispatcher.InvokeAsync(() => Trouble("TroubleNoAudio", opensSettings: true));
+            await _ui.InvokeAsync(() => Trouble("TroubleNoAudio", opensSettings: true));
         }
 
         return null;
@@ -1374,7 +1372,7 @@ public sealed class PhoneService : IDisposable
         catch (VoiceAudioException failure)
         {
             _log($"тракт не поднялся: {failure.Message}");
-            await _dispatcher.InvokeAsync(() => Trouble("TroubleNoAudio", opensSettings: true));
+            await _ui.InvokeAsync(() => Trouble("TroubleNoAudio", opensSettings: true));
         }
 
         return null;
@@ -1582,7 +1580,7 @@ public sealed class PhoneService : IDisposable
     }
 
     private Task Finish(string callId, string reason, CallOutcome? outcome)
-        => _dispatcher.InvokeAsync(() =>
+        => _ui.InvokeAsync(() =>
         {
             if (_records.Remove(callId, out var record))
             {
@@ -1592,7 +1590,7 @@ public sealed class PhoneService : IDisposable
             ClientEventLog.Shared.CallFinished(callId, reason, failed: outcome is CallOutcome.Failed);
             ClearPending(callId);
             SyncLines();
-        }).Task;
+        });
 
     /// <summary>Отмечает ответ — и в истории, и в записи, которую держит панель.</summary>
     ///
@@ -1831,7 +1829,7 @@ public sealed class PhoneService : IDisposable
         Network,
     }
 
-    private readonly DispatcherTimer _monitor;
+    private readonly IUiTimer _monitor;
     private readonly Dictionary<StatusSlot, (string Key, string Glyph, bool IsWarning, DateTimeOffset? Until)> _statuses = [];
     private bool _wasRegistered;
     private DateTimeOffset? _registeringSince;
@@ -1878,13 +1876,13 @@ public sealed class PhoneService : IDisposable
 
     private void OnUi(Action action)
     {
-        if (_dispatcher.CheckAccess())
+        if (_ui.CheckAccess())
         {
             action();
         }
         else
         {
-            _dispatcher.BeginInvoke(action);
+            _ui.Post(action);
         }
     }
 

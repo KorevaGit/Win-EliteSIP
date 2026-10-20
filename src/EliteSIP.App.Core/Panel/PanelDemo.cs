@@ -20,7 +20,7 @@ namespace EliteSIP.App.Panel;
 /// </remarks>
 internal static class PanelDemo
 {
-    public static void Apply(PanelViewModel model, Settings.AppSettings settings, IReadOnlyList<string> arguments)
+    public static void Apply(PanelViewModel model, Settings.AppSettings settings, IReadOnlyList<string> arguments, Platform.IUiThread ui)
     {
         var index = arguments.ToList().IndexOf("--demo");
         if (index < 0)
@@ -78,7 +78,7 @@ internal static class PanelDemo
                 // окно WPF показывается не мгновенно, и первый снимок должен
                 // застать панель уже нарисованной.
                 StartCall(model);
-                Delay(TimeSpan.FromSeconds(8), model.ShowTransferEntry);
+                Delay(ui, TimeSpan.FromSeconds(8), model.ShowTransferEntry);
                 break;
 
             default:
@@ -87,9 +87,9 @@ internal static class PanelDemo
         }
     }
 
-    private static void Delay(TimeSpan delay, Action action)
+    private static void Delay(Platform.IUiThread ui, TimeSpan delay, Action action)
     {
-        var timer = new System.Windows.Threading.DispatcherTimer { Interval = delay };
+        var timer = ui.CreateTimer(delay);
         timer.Tick += (_, _) =>
         {
             timer.Stop();

@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Приложение без окон: настройки и профили, линия Spark (привязка,
+    конфигурация, предустановки, отзыв, обновления, журнал машины), модели
+    окон, телефон (PhoneService), разбор входящего, подписи.
+
+    Вынесено из EliteSIP.App 20 октября 2026: всё это одинаково на Windows и
+    Linux, а Linux-версия (подмодуль в Linux-репозитории) ставит поверх свои
+    окна на Avalonia. От платформы этому проекту нужно немногое, и оно
+    спрошено интерфейсами в Platform/: поток окна и его таймеры, звуковая
+    платформа, показ окна входящего, передача обновления обновляльщику,
+    автозапуск. Реализации — в EliteSIP.App (WPF) и в Linux-версии.
+
+    Пространства имён прежние — EliteSIP.App.* — и RootNamespace тоже: подписи
+    живут в ресурсах с именем EliteSIP.App.Resources.Strings, и смена корня
+    молча оставила бы приложение без перевода.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>EliteSIP.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EliteSIP.SipCore\EliteSIP.SipCore.csproj" />
+    <ProjectReference Include="..\EliteSIP.SipCore.Udp\EliteSIP.SipCore.Udp.csproj" />
+    <ProjectReference Include="..\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
+    <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+    <ProjectReference Include="..\EliteSIP.CallGuard\EliteSIP.CallGuard.csproj" />
+    <ProjectReference Include="..\EliteSIP.Lines\EliteSIP.Lines.csproj" />
+    <ProjectReference Include="..\EliteSIP.CallHistory\EliteSIP.CallHistory.csproj" />
+    <ProjectReference Include="..\EliteSIP.AdminAccess\EliteSIP.AdminAccess.csproj" />
+    <ProjectReference Include="..\EliteSIP.PanelLink\EliteSIP.PanelLink.csproj" />
+    <ProjectReference Include="..\EliteSIP.Diagnostics\EliteSIP.Diagnostics.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Раскладка конфигурации Spark и прочая логика без окон — internal, а
+      проверять её надо. Окнам приложения она тоже нужна: до разделения они
+      жили в одной сборке с ней.
+    -->
+    <InternalsVisibleTo Include="EliteSIP.App" />
+    <InternalsVisibleTo Include="EliteSIP.App.Tests" />
+    <InternalsVisibleTo Include="EliteSIP.App.Core.Tests" />
+    <InternalsVisibleTo Include="EliteSIP.App.Linux" />
+  </ItemGroup>
+
+</Project>

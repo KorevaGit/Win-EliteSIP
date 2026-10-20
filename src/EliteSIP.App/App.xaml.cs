@@ -15,6 +15,7 @@ using EliteSIP.App.Shell;
 using EliteSIP.App.FirstRun;
 using EliteSIP.App.Incoming;
 using EliteSIP.App.PanelLine;
+using EliteSIP.App.Platform;
 using EliteSIP.Diagnostics;
 using EliteSIP.PanelLink;
 
@@ -27,6 +28,16 @@ public partial class App : Application, IDisposable
 {
     private AppearanceService? _appearance;
     private AppSettings? _settings;
+
+    // Windows-половина интерфейсов из EliteSIP.App.Core/Platform. До
+    // 20 октября 2026 телефон, линия Spark и настройки брали Dispatcher, WASAPI,
+    // реестр и задачу планировщика сами.
+    private IUiThread? _ui;
+    private readonly WasapiAudioPlatform _audioPlatform = new();
+    private readonly WindowsAutoStart _autoStart = new();
+    private readonly WindowsUpdateHandoff _updateHandoff = new();
+
+    private IUiThread Ui => _ui ??= new WpfUiThread(Dispatcher);
     private SettingsWindow? _settingsWindow;
     private CallHistoryWindow? _historyWindow;
     private CallHistoryStore? _history;
@@ -233,7 +244,7 @@ public partial class App : Application, IDisposable
             () => _panelWindow is null ? 0 : new WindowInteropHelper(_panelWindow).Handle);
 
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
-        _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
+        _phone = new PhoneService(_settings, _panel, _history, _incoming, Ui, _audioPlatform, Log);
         Mark("телефон");
 
         // Рингтон входящего. Настройка его обещала с самого начала, а играть
@@ -339,7 +350,7 @@ public partial class App : Application, IDisposable
                 MacrosChanged();
             }
         };
-        PanelDemo.Apply(model, _settings, e.Args);
+        PanelDemo.Apply(model, _settings, e.Args, Ui);
 
         if (e.Args.Contains("--demo"))
         {
@@ -398,6 +409,7 @@ public partial class App : Application, IDisposable
             // потерять её по «Отменить», либо затереть ею несохранённое.
             isBlocked: () => model.IsInCall || _administrationWindow is { IsLoaded: true },
             reset: ResetMachine,
+            ui: Ui,
             log: Log)
         {
             // Конфигурация из Spark сменила номер, пароль или площадку, либо
@@ -422,6 +434,8 @@ public partial class App : Application, IDisposable
                 ? "обновление больше не ждёт"
                 : $"обновление {version} ждёт решения оператора"),
             alsoCheckPresets: () => _ = _panelLine?.CheckAsync(),
+            ui: Ui,
+            handoff: _updateHandoff,
             log: Log)
         {
             AskToInstall = AskToInstallUpdate,
@@ -641,7 +655,7 @@ public partial class App : Application, IDisposable
         // приложение, два окна её показывают. Второй экземпляр означал бы два
         // независимых такта опроса на одном канале.
         SettingsViewModel? model = null;
-        model = new SettingsViewModel(_settings!)
+        model = new SettingsViewModel(_settings!, Ui, _audioPlatform, _autoStart)
         {
             Updates = _updates is null ? null : new UpdatesViewModel(_updates),
 

@@ -6,24 +6,6 @@ using NAudio.Wave;
 
 namespace EliteSIP.Audio;
 
-/// <summary>Тракт не поднялся или развалился.</summary>
-public sealed class VoiceAudioException : Exception
-{
-    public VoiceAudioException(string message)
-        : base(message)
-    {
-    }
-
-    public VoiceAudioException(string message, Exception inner)
-        : base(message, inner)
-    {
-    }
-
-    public VoiceAudioException()
-    {
-    }
-}
-
 /// <summary>
 /// Тракт разговора на WASAPI: микрофон, обработка голоса, кодек,
 /// воспроизведение.
