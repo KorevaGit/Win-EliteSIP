@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Звук на Windows: WASAPI, каталог и слежение за устройствами (MMDevice
+    API), служебные звуки, эффекты захвата. Вынесено из EliteSIP.Audio
+    20 октября 2026, чтобы общая часть собиралась под net10.0 и ехала в
+    Linux-версию. Пространство имён осталось прежним — EliteSIP.Audio: перенос
+    проектный, а не смысловой, и сотня using в приложении и стендах не должна
+    была меняться ради него.
+  -->
+
+  <ItemGroup>
+    <!--
+      Тот же NAudio, на котором собран стенд W0. Обёртка над MMDevice API и
+      WASAPI: писать её самим значило бы переписать полтысячи строк объявлений
+      COM ради того же самого, а расхождение стенда и продукта в этом слое
+      обесценило бы все замеры W0.
+    -->
+    <PackageReference Include="NAudio" Version="3.0.1" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EliteSIP.Audio.Wasapi.Tests" />
+    <InternalsVisibleTo Include="AudioProbe" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+    <ProjectReference Include="..\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
+    <ProjectReference Include="..\EliteSIP.Diagnostics\EliteSIP.Diagnostics.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!--
+      Буфер WASAPI приходит сырым указателем, и другого способа его прочитать
+      нет. Разрешение стоит только здесь, в единственном проекте, который
+      разговаривает с устройством напрямую: в стенде W0 ровно так же.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+</Project>

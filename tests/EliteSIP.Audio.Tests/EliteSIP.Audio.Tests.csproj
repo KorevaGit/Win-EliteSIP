@@ -2,11 +2,11 @@
 
   <PropertyGroup>
     <!--
-      Windows-версия платформы, а не голая net10.0: проверяемый проект тянет
-      WASAPI и живёт только на Windows. Расхождение здесь дало бы ошибку
-      сборки, а не понятный отказ.
+      Голая net10.0: с 20 октября 2026 проверяемый проект — звук без
+      устройств, и проверки идут и на Linux. То, что требует WASAPI, — в
+      EliteSIP.Audio.Wasapi.Tests.
     -->
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

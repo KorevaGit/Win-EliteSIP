@@ -15,11 +15,12 @@
 
   <PropertyGroup>
     <!--
-      Windows-версия платформы: слой берёт тракт, а тракт живёт на WASAPI.
-      Логика линий при этом проверяется без звуковой карты — через
-      ILineMedia и ILineSignaling, см. тесты.
+      Голая net10.0: слой берёт тракт через шину и интерфейс движка, а сам
+      WASAPI с 20 октября 2026 живёт в EliteSIP.Audio.Wasapi. До этого проект
+      был net10.0-windows только из-за ссылки на Audio. Логика линий
+      проверяется без звуковой карты — через ILineMedia и ILineSignaling.
     -->
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

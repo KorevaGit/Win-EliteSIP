@@ -36,7 +36,7 @@ public sealed class MediaSessionLineTests
             20,
             MediaSecurity.None);
 
-        using MediaSession session = new(negotiated, reservation);
+        using MediaSession session = new(negotiated, reservation, engines: _ => new SilentVoiceAudioEngine());
         MediaSessionLine line = new(session, local);
 
         // Станция переносит поток на другое плечо и ставит на удержание. A-law

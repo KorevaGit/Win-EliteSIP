@@ -27,7 +27,7 @@ public sealed class SpareCaptureTests
     [Fact]
     public void Берётся_микрофон_той_же_карты_что_и_наушники()
     {
-        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture(
+        AudioDevice? spare = AudioDeviceRules.PickSpareCapture(
             [Oculus, LifeChat, Realtek],
             ["oculus"],
             "Наушники (Realtek(R) Audio)");
@@ -38,7 +38,7 @@ public sealed class SpareCaptureTests
     [Fact]
     public void Виртуальный_не_берётся_никогда()
     {
-        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([Oculus], [], "Наушники (Oculus Virtual Audio Device)");
+        AudioDevice? spare = AudioDeviceRules.PickSpareCapture([Oculus], [], "Наушники (Oculus Virtual Audio Device)");
 
         Assert.Null(spare);
     }
@@ -48,7 +48,7 @@ public sealed class SpareCaptureTests
     {
         // Bluetooth в режиме гарнитуры переводит наушники в моно 8 кГц — его
         // берём последним, даже если он в списке первым.
-        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([AirPods, LifeChat], [], renderName: null);
+        AudioDevice? spare = AudioDeviceRules.PickSpareCapture([AirPods, LifeChat], [], renderName: null);
 
         Assert.Equal("lifechat", spare?.Id);
     }
@@ -56,7 +56,7 @@ public sealed class SpareCaptureTests
     [Fact]
     public void Замолчавшие_не_берутся_повторно()
     {
-        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture(
+        AudioDevice? spare = AudioDeviceRules.PickSpareCapture(
             [Realtek, LifeChat],
             ["realtek"],
             "Наушники (Realtek(R) Audio)");
@@ -72,7 +72,7 @@ public sealed class SpareCaptureTests
     {
         // До 0.1.76 USB-камера и встроенный микрофон набирали поровну, и
         // ничью решал порядок перечисления — камера в списке первая.
-        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([Webcam, Realtek], [], "Динамики (JBL Quantum350 Wireless)");
+        AudioDevice? spare = AudioDeviceRules.PickSpareCapture([Webcam, Realtek], [], "Динамики (JBL Quantum350 Wireless)");
 
         Assert.Equal("realtek", spare?.Id);
     }
@@ -80,7 +80,7 @@ public sealed class SpareCaptureTests
     [Fact]
     public void Камера_ниже_даже_Bluetooth()
     {
-        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([Webcam, AirPods], [], renderName: null);
+        AudioDevice? spare = AudioDeviceRules.PickSpareCapture([Webcam, AirPods], [], renderName: null);
 
         Assert.Equal("airpods", spare?.Id);
     }
@@ -88,7 +88,7 @@ public sealed class SpareCaptureTests
     [Fact]
     public void Камера_берётся_когда_больше_нечего()
     {
-        AudioDevice? spare = AudioDeviceCatalog.PickSpareCapture([Oculus, Webcam], ["oculus"], renderName: null);
+        AudioDevice? spare = AudioDeviceRules.PickSpareCapture([Oculus, Webcam], ["oculus"], renderName: null);
 
         Assert.Equal("webcam", spare?.Id);
     }
@@ -106,24 +106,14 @@ public sealed class SpareCaptureTests
     [InlineData("Microphone (Jabra Evolve2 30)", false)]
     [InlineData(null, false)]
     public void Камера_опознаётся_по_имени(string? name, bool expected)
-        => Assert.Equal(expected, AudioDeviceCatalog.IsCamera(name));
-
-    [Fact]
-    public void Микрофон_берётся_обычный_по_умолчанию_а_выход_для_связи()
-    {
-        // Микрофон — тот, что выбран в параметрах Windows: «для связи» Windows
-        // сама отдаёт вебкамере. Выход — «для связи»: у Bluetooth-гарнитуры
-        // обычным стоит стереоточка, которая молчит при открытом микрофоне.
-        Assert.Equal(NAudio.CoreAudioApi.Role.Console, AudioDeviceCatalog.DefaultRole(AudioDeviceDirection.Capture));
-        Assert.Equal(NAudio.CoreAudioApi.Role.Communications, AudioDeviceCatalog.DefaultRole(AudioDeviceDirection.Render));
-    }
+        => Assert.Equal(expected, AudioDeviceRules.IsCamera(name));
 
     [Fact]
     public void Неподключённый_не_берётся()
     {
         AudioDevice unplugged = Realtek with { Availability = AudioDeviceAvailability.Unplugged };
 
-        Assert.Null(AudioDeviceCatalog.PickSpareCapture([unplugged], [], "Наушники (Realtek(R) Audio)"));
+        Assert.Null(AudioDeviceRules.PickSpareCapture([unplugged], [], "Наушники (Realtek(R) Audio)"));
     }
 
     [Theory]
@@ -133,7 +123,7 @@ public sealed class SpareCaptureTests
     [InlineData("", null)]
     [InlineData(null, null)]
     public void Имя_карты_берётся_из_последних_скобок_с_учётом_вложенных(string? endpoint, string? adapter)
-        => Assert.Equal(adapter, AudioDeviceCatalog.AdapterOf(endpoint));
+        => Assert.Equal(adapter, AudioDeviceRules.AdapterOf(endpoint));
 
     [Theory]
     // Журнал 1 октября 2026: донгл JBL заявляет выход «Динамиками», и по
@@ -153,7 +143,7 @@ public sealed class SpareCaptureTests
         bool expected)
         => Assert.Equal(
             expected,
-            AudioDeviceCatalog.IsHeadsetPair(captureTransport, captureName, renderTransport, renderName));
+            AudioDeviceRules.IsHeadsetPair(captureTransport, captureName, renderTransport, renderName));
 
     private static AudioDevice Capture(string id, string name, AudioTransport transport) => new(
         id,

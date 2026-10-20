@@ -136,7 +136,7 @@ public sealed class PlaybackModelTests
                 if (jitter.IsPlaying)
                 {
                     PlaybackBacklog backlog = new(jitter.Depth, jitter.TargetDepth);
-                    controller.Retarget(WasapiVoiceAudioEngine.BacklogTarget(backlog, FrameSamples));
+                    controller.Retarget(ReceiveTuning.BacklogTarget(backlog, FrameSamples));
                     controller.Observe((int)ring + (backlog.Frames * FrameSamples), (now - lastObserved) / 1000);
                 }
 

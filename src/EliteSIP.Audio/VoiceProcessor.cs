@@ -48,7 +48,7 @@ namespace EliteSIP.Audio;
 /// назвать её константой в W0 дала 37,6 дБ в одном прогоне и 2,7 дБ в следующем
 /// на том же значении: она зависит от того, где на старте улеглось кольцо
 /// воспроизведения, а это гонка потоков, разная каждый раз. Считает её
-/// <see cref="WasapiVoiceAudioEngine"/> — он один знает все слагаемые.
+/// движок устройства (<c>WasapiVoiceAudioEngine</c> на Windows) — он один знает все слагаемые.
 /// </summary>
 internal sealed class VoiceProcessor : IDisposable
 {

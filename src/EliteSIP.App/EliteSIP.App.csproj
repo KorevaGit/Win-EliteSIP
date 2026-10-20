@@ -5,6 +5,7 @@
     <ProjectReference Include="..\EliteSIP.SipCore.Udp\EliteSIP.SipCore.Udp.csproj" />
     <ProjectReference Include="..\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
     <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+    <ProjectReference Include="..\EliteSIP.Audio.Wasapi\EliteSIP.Audio.Wasapi.csproj" />
     <ProjectReference Include="..\EliteSIP.CallGuard\EliteSIP.CallGuard.csproj" />
 
     <!-- Слой линий: до трёх разговоров и один тракт на них. Готов с W6. -->

@@ -11,36 +11,14 @@ namespace EliteSIP.Audio.Tests;
 /// тракта — прогон на живом железе, и она сделана: матрица устройств, баланс
 /// отсчётов и разбор задержки печатаются самим трактом.
 ///
-/// <b>Что здесь есть.</b> То, что от железа не зависит: выбор частоты
-/// обработки и поведение незапущенного тракта. Поправка темпа живёт в
-/// пересчёте частоты и проверяется там (<see cref="ResamplerTests"/>).
+/// <b>Что здесь есть.</b> То, что от железа не зависит: поведение
+/// незапущенного тракта. Выбор частоты обработки — общий для всех движков и
+/// проверяется в <c>EliteSIP.Audio.Tests</c> (<c>ProcessingRateTests</c>);
+/// поправка темпа живёт в пересчёте частоты и проверяется там же
+/// (<c>ResamplerTests</c>).
 /// </summary>
 public sealed class WasapiVoiceAudioEngineTests
 {
-    [Theory]
-    [InlineData(8000, 8000)]
-    [InlineData(16000, 16000)]
-    [InlineData(32000, 32000)]
-    [InlineData(48000, 48000)]
-    public void Поддерживаемая_частота_остаётся_собой(int deviceRate, int expected)
-    {
-        // Гарнитура в режиме связи работает на 8 кГц. Обрабатывать её на 48
-        // значило бы трижды пересчитать то, чего в сигнале нет.
-        Assert.Equal(expected, VoiceProcessor.NearestSupportedRate(deviceRate));
-    }
-
-    [Theory]
-    [InlineData(44100, 48000)]
-    [InlineData(22050, 32000)]
-    [InlineData(11025, 16000)]
-    [InlineData(96000, 48000)]
-    public void Неподдерживаемая_частота_поднимается_до_ближайшей(int deviceRate, int expected)
-    {
-        // Вверх, а не вниз: понижение резало бы полосу до обработки, то есть
-        // выбрасывало бы часть разговора ещё до эхоподавителя.
-        Assert.Equal(expected, VoiceProcessor.NearestSupportedRate(deviceRate));
-    }
-
     [Fact]
     public void Незапущенный_тракт_так_и_говорит()
     {

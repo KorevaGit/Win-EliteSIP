@@ -155,3 +155,42 @@ internal sealed class FakeSignaling(List<string> journal) : ILineSignaling
     public SipDialogIdentifier? DialogIdentifierOf(string callId) =>
         string.Equals(callId, "consult", StringComparison.Ordinal) ? Consultation : null;
 }
+
+/// <summary>
+/// Тракт, который ничего не открывает.
+///
+/// Нужен проверкам, которым нужна настоящая медиа-сессия, но не звук: ответ
+/// на повторное предложение станции правит описание, а до устройства дело не
+/// доходит. До 20 октября 2026 сессия без шины заводила WASAPI сама, и
+/// проверка держала слой линий на Windows, ни разу его не открыв.
+/// </summary>
+internal sealed class SilentVoiceAudioEngine : IVoiceAudioEngine
+{
+    public AudioLatencySnapshot Latency => default;
+
+    public VoiceAudioHandlers Handlers { get; set; } = VoiceAudioHandlers.None;
+
+    public void Reconfigure(VoiceAudioConfiguration configuration)
+    {
+    }
+
+    public void Apply(VoiceAudioConfiguration configuration)
+    {
+    }
+
+    public void Start()
+    {
+    }
+
+    public void Stop()
+    {
+    }
+
+    public void Restart(string reason)
+    {
+    }
+
+    public void Dispose()
+    {
+    }
+}

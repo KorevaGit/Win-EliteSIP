@@ -208,6 +208,16 @@ public interface IVoiceAudioEngine : IDisposable
     public string ProcessingReport => string.Empty;
 
     /// <summary>
+    /// Пики уровня одной строкой для итога звонка: микрофон, линия, наушники.
+    /// <c>null</c> — тракт уровней не считает.
+    ///
+    /// В интерфейсе с 20 октября 2026: до этого медиа-сессия приводила тракт к
+    /// <c>WasapiVoiceAudioEngine</c>, чтобы их достать, и тем держала общую
+    /// часть на Windows.
+    /// </summary>
+    public string? LevelSummary => null;
+
+    /// <summary>
     /// Применяет настройки к тракту, не останавливая разговор.
     ///
     /// Громкость и усиление меняются сразу, обработка голоса — подменой на

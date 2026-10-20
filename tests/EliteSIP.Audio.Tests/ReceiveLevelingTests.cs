@@ -27,7 +27,7 @@ public sealed class ReceiveLevelingTests
         // только десять — вместе с голосом поднимается шум линии.
         double level = Leveled(inputDb: -40, out double gain);
 
-        Assert.InRange(gain, WasapiVoiceAudioEngine.ReceiveMaximumBoostDb - 0.5, WasapiVoiceAudioEngine.ReceiveMaximumBoostDb);
+        Assert.InRange(gain, ReceiveTuning.ReceiveMaximumBoostDb - 0.5, ReceiveTuning.ReceiveMaximumBoostDb);
         Assert.InRange(level, -32, -28);
     }
 
@@ -36,16 +36,16 @@ public sealed class ReceiveLevelingTests
     {
         Leveled(inputDb: -6, out double gain);
 
-        Assert.InRange(gain, -WasapiVoiceAudioEngine.ReceiveMaximumCutDb, -WasapiVoiceAudioEngine.ReceiveMaximumCutDb + 0.5);
+        Assert.InRange(gain, -ReceiveTuning.ReceiveMaximumCutDb, -ReceiveTuning.ReceiveMaximumCutDb + 0.5);
     }
 
     [Fact]
     public void Шум_линии_в_паузе_не_вытягивается()
     {
         SpeechGainControl control = new(
-            WasapiVoiceAudioEngine.ReceiveTargetDb,
-            WasapiVoiceAudioEngine.ReceiveMaximumBoostDb,
-            WasapiVoiceAudioEngine.ReceiveMaximumCutDb);
+            ReceiveTuning.ReceiveTargetDb,
+            ReceiveTuning.ReceiveMaximumBoostDb,
+            ReceiveTuning.ReceiveMaximumCutDb);
         float[] frame = new float[Chunk];
         Random random = new(3);
 
@@ -75,9 +75,9 @@ public sealed class ReceiveLevelingTests
     private static double Leveled(double inputDb, out double gain)
     {
         SpeechGainControl control = new(
-            WasapiVoiceAudioEngine.ReceiveTargetDb,
-            WasapiVoiceAudioEngine.ReceiveMaximumBoostDb,
-            WasapiVoiceAudioEngine.ReceiveMaximumCutDb);
+            ReceiveTuning.ReceiveTargetDb,
+            ReceiveTuning.ReceiveMaximumBoostDb,
+            ReceiveTuning.ReceiveMaximumCutDb);
         float[] frame = new float[Chunk];
         double amplitude = Math.Pow(10, inputDb / 20) * 2.2;
         double phase = 0;

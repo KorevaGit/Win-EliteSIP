@@ -219,8 +219,8 @@ public sealed class MediaSession : IDisposable
     /// <param name="negotiated">Итог согласования SDP: кодек, адрес, порт, направление.</param>
     /// <param name="reservation">Занятая пара портов. Сессия её и освобождает.</param>
     /// <param name="bus">
-    /// Общий аудиотракт приложения. Без него сессия заводит свой собственный, и
-    /// это не поблажка вызывающему: так работают стенды и тесты, у которых
+    /// Общий аудиотракт приложения. Без него сессия заводит свой собственный
+    /// (из <paramref name="engines"/>), и это не поблажка вызывающему: так работают стенды и тесты, у которых
     /// разговор ровно один. Внутри приложения передавать общий обязательно —
     /// линий до трёх, а звуковая карта у них одна.
     /// </param>
@@ -229,11 +229,16 @@ public sealed class MediaSession : IDisposable
     /// берутся из согласования и затирают то, что пришло сюда: договорённость с
     /// сервером сильнее настройки.
     /// </param>
+    /// <param name="engines">
+    /// Откуда брать движок тракта, когда шины нет. Обязателен ровно в этом
+    /// случае: движок платформенный (WASAPI, PulseAudio), а сессия — нет.
+    /// </param>
     public MediaSession(
         NegotiatedMedia negotiated,
         RtpPortReservation reservation,
         VoiceAudioBus? bus = null,
-        VoiceAudioConfiguration? audio = null)
+        VoiceAudioConfiguration? audio = null,
+        Func<VoiceAudioConfiguration, IVoiceAudioEngine>? engines = null)
     {
         ArgumentNullException.ThrowIfNull(negotiated);
         ArgumentNullException.ThrowIfNull(reservation);
@@ -252,9 +257,12 @@ public sealed class MediaSession : IDisposable
 
         if (bus is null)
         {
-            _bus = new VoiceAudioBus(
-                new WasapiVoiceAudioEngine(_audioConfiguration),
-                configuration => new WasapiVoiceAudioEngine(configuration));
+            // Движок устройства сессия не выбирает сама: он платформенный
+            // (WASAPI на Windows, PulseAudio на Linux), а этот проект — нет.
+            // Без шины его даёт вызывающий.
+            Func<VoiceAudioConfiguration, IVoiceAudioEngine> make = engines
+                ?? throw new ArgumentException("без общей шины нужен движок тракта", nameof(engines));
+            _bus = new VoiceAudioBus(make(_audioConfiguration), make);
             _ownsBus = true;
         }
         else
@@ -1180,7 +1188,7 @@ public sealed class MediaSession : IDisposable
 
         // Уровни есть только у того, кто держит тракт: у фоновой линии звука
         // нет, и спрашивать его не у кого.
-        if (_bus.TryWithEngine(_token, engine => (engine as WasapiVoiceAudioEngine)?.LevelSummary, out string? levels)
+        if (_bus.TryWithEngine(_token, engine => engine.LevelSummary, out string? levels)
             && levels is not null)
         {
             summary = $"{summary}, {levels}";

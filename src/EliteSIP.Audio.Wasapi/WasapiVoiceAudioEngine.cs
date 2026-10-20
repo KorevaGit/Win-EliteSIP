@@ -936,7 +936,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
         AudioTransport captureTransport = AudioDeviceCatalog.TransportOf(_inputDevice);
-        _inputIsHeadset = AudioDeviceCatalog.IsHeadsetPair(
+        _inputIsHeadset = AudioDeviceRules.IsHeadsetPair(
             captureTransport,
             _inputDeviceName,
             AudioDeviceCatalog.TransportOf(_outputDevice),
@@ -2063,28 +2063,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         }
 
         SpeechGainControl control = _receiveGain ??= new SpeechGainControl(
-            ReceiveTargetDb, ReceiveMaximumBoostDb, ReceiveMaximumCutDb);
+            ReceiveTuning.ReceiveTargetDb, ReceiveTuning.ReceiveMaximumBoostDb, ReceiveTuning.ReceiveMaximumCutDb);
 
         for (int offset = 0; offset < samples.Length; offset += chunk)
         {
             control.Process(samples.Slice(offset, Math.Min(chunk, samples.Length - offset)));
         }
     }
-
-    /// <summary>
-    /// Куда выравнивать голос собеседника, дБ RMS. На пару децибел громче, чем
-    /// микрофон: приём слушают в одно ухо поверх шума кабинета.
-    /// </summary>
-    internal const double ReceiveTargetDb = -20;
-
-    /// <summary>
-    /// Подъём тихой линии не больше +10 дБ: вместе с голосом поднимается шум
-    /// линии, и в паузах он стоит на той же прибавке.
-    /// </summary>
-    internal const double ReceiveMaximumBoostDb = 10;
-
-    /// <summary>Громкую линию убавлять не больше чем на 6 дБ.</summary>
-    internal const double ReceiveMaximumCutDb = 6;
 
     /// <summary>
     /// Сообщает регулятору темпа, сколько принятого ещё не прозвучало.
@@ -2123,13 +2108,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
-        controller.Retarget(BacklogTarget(backlog, frameSamples));
+        controller.Retarget(ReceiveTuning.BacklogTarget(backlog, frameSamples));
         controller.Observe(ringFill + (backlog.Frames * frameSamples), elapsed);
     }
-
-    /// <summary>Цель регулятора темпа в отсчётах вывода. Отдельно — ради модели в тестах.</summary>
-    internal static int BacklogTarget(PlaybackBacklog backlog, int frameSamples) =>
-        Math.Max(1, (backlog.TargetFrames * frameSamples) - (frameSamples / 2));
 
     /// <summary>
     /// Проба часов обоих устройств для оценки их расхождения.

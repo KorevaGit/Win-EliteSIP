@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+    <ProjectReference Include="..\..\src\EliteSIP.Audio.Wasapi\EliteSIP.Audio.Wasapi.csproj" />
     <ProjectReference Include="..\..\src\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
   </ItemGroup>
 

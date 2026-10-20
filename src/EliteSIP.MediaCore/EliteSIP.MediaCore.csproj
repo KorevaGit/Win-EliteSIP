@@ -20,6 +20,14 @@
       оно только навредит — оно без замка, и замок держит тракт.
     -->
     <InternalsVisibleTo Include="EliteSIP.Audio" />
+
+    <!--
+      С 20 октября 2026 тракт — это общая часть плюс движок устройства
+      (EliteSIP.Audio.Wasapi на Windows, EliteSIP.Audio.Pulse в Linux-версии), и
+      кольцо держит движок. Причина та же.
+    -->
+    <InternalsVisibleTo Include="EliteSIP.Audio.Wasapi" />
+    <InternalsVisibleTo Include="EliteSIP.Audio.Pulse" />
   </ItemGroup>
 
   <PropertyGroup>
