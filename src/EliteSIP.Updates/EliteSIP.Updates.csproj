@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Правила обновляльщика без ОС: согласие оператора и его обработка,
+    аварийный путь для выпуска, который не запускается, журнал, заводская
+    настройка, HTTP-клиент канала. Вынесено из tools/Updater 20 октября 2026.
+
+    Здесь нет путей, прав и способа установки — это ОС: на Windows
+    tools/Updater (задача планировщика от SYSTEM, Inno Setup, запуск в сеансе
+    оператора), в Linux-версии — служба systemd от root и пакет .deb. Сценарий
+    обновляльщика (Program.cs) пока целиком в tools/Updater: он написан
+    локальными функциями вокруг Windows-установки, и его разбор — работа
+    Linux-обновляльщика на этапе W-L7, а не перенос.
+
+    Пространство имён прежнее — EliteSIP.Updater: перенос проектный.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Проверка подписи берётся у клиента, а не пишется здесь заново: этот код
+      работает от SYSTEM и от root, и своя копия проверки означала бы второе
+      место, где решается, чему на машине позволено установиться.
+    -->
+    <ProjectReference Include="..\EliteSIP.PanelLink\EliteSIP.PanelLink.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EliteSIP.Updater" />
+    <InternalsVisibleTo Include="EliteSIP.Updater.Tests" />
+    <InternalsVisibleTo Include="EliteSIP.Updates.Tests" />
+    <!-- Обновляльщик Linux-версии: другой репозиторий, этот проект — подмодулем. -->
+    <InternalsVisibleTo Include="EliteSIP.Updater.Linux" />
+  </ItemGroup>
+
+</Project>

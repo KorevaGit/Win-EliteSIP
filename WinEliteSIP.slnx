@@ -13,6 +13,7 @@
     <Project Path="src/EliteSIP.PanelLink/EliteSIP.PanelLink.csproj" />
     <Project Path="src/EliteSIP.SipCore.Udp/EliteSIP.SipCore.Udp.csproj" />
     <Project Path="src/EliteSIP.SipCore/EliteSIP.SipCore.csproj" />
+    <Project Path="src/EliteSIP.Updates/EliteSIP.Updates.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/EliteSIP.App.Tests/EliteSIP.App.Tests.csproj" />
@@ -28,6 +29,7 @@
     <Project Path="tests/EliteSIP.PanelLink.Tests/EliteSIP.PanelLink.Tests.csproj" />
     <Project Path="tests/EliteSIP.SipCore.Tests/EliteSIP.SipCore.Tests.csproj" />
     <Project Path="tests/EliteSIP.Updater.Tests/EliteSIP.Updater.Tests.csproj" />
+    <Project Path="tests/EliteSIP.Updates.Tests/EliteSIP.Updates.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/AudioProbe/AudioProbe.csproj" />

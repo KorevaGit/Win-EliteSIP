@@ -1,6 +1,6 @@
 using EliteSIP.Updater;
 
-namespace EliteSIP.Updater.Tests;
+namespace EliteSIP.Updates.Tests;
 
 /// <summary>
 /// Аварийный путь: выпуск, который не запускается, лечится следующим без
@@ -83,13 +83,5 @@ public sealed class RecoveryTests : IDisposable
         Assert.True(Recovery.NoteOnce(Installed, noted));
         Assert.False(Recovery.NoteOnce(Installed, noted));
         Assert.True(Recovery.NoteOnce(new Version(0, 1, 68, 0), noted));
-    }
-
-    [Fact]
-    public void Отметка_о_запуске_лежит_в_общем_каталоге_а_отсчёт_у_себя()
-    {
-        Assert.StartsWith(Paths.Shared, Paths.Started, StringComparison.OrdinalIgnoreCase);
-        Assert.StartsWith(Paths.TrustedUpdates, Paths.InstalledSeen, StringComparison.OrdinalIgnoreCase);
-        Assert.StartsWith(Paths.TrustedUpdates, Paths.RecoveryNoted, StringComparison.OrdinalIgnoreCase);
     }
 }

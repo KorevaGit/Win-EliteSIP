@@ -8,6 +8,13 @@
       чему на этой машине позволено установиться.
     -->
     <ProjectReference Include="..\..\src\EliteSIP.PanelLink\EliteSIP.PanelLink.csproj" />
+
+    <!--
+      Правила без ОС — согласие, аварийный путь, журнал, заводская настройка —
+      с 20 октября 2026 в EliteSIP.Updates, общем с Linux-обновляльщиком.
+      Здесь пути Windows, права, установка и подъём в сеансе оператора.
+    -->
+    <ProjectReference Include="..\..\src\EliteSIP.Updates\EliteSIP.Updates.csproj" />
   </ItemGroup>
 
   <ItemGroup>

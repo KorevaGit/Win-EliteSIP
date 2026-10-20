@@ -1,18 +1,21 @@
 using EliteSIP.Updater;
 
-namespace EliteSIP.Updater.Tests;
+namespace EliteSIP.Updates.Tests;
 
 /// <summary>
-/// Обновляльщик работает от SYSTEM, а общий каталог открыт оператору на запись.
-/// Всякая запись или удаление от SYSTEM в общем каталоге — путь к правам
-/// администратора (подмена каталога связкой). Эти проверки держат границу:
-/// пишет обновляльщик только к себе, а отметку оператора лишь читает.
+/// Отметка о согласии оператора: обновляльщик её только читает, а обработанную
+/// запоминает у себя.
+///
+/// До 20 октября 2026 — часть <c>SharedDirectoryTests</c>. Правило общее для
+/// Windows и Linux и проверяется здесь; то, что всё записываемое лежит вне
+/// общего каталога, зависит от раскладки ОС и проверяется у обновляльщика
+/// (<c>WindowsLayoutTests</c>).
 /// </summary>
-public sealed class SharedDirectoryTests : IDisposable
+public sealed class ConsentTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "EliteSIP.Updater.Tests", Guid.NewGuid().ToString("N"));
 
-    public SharedDirectoryTests()
+    public ConsentTests()
     {
         Directory.CreateDirectory(_root);
     }
@@ -25,31 +28,6 @@ public sealed class SharedDirectoryTests : IDisposable
     private string RequestPath => Path.Combine(_root, "update-requested");
 
     private string HandledPath => Path.Combine(_root, "trusted", "request-handled");
-
-    [Theory]
-    [InlineData(nameof(Paths.Log))]
-    [InlineData(nameof(Paths.RequestHandled))]
-    [InlineData(nameof(Paths.RelaunchMarker))]
-    [InlineData(nameof(Paths.TrustedUpdates))]
-    public void ВсёЧтоПишетОбновляльщик_ЛежитВнеОбщегоКаталога(string name)
-    {
-        var path = name switch
-        {
-            nameof(Paths.Log) => Paths.Log,
-            nameof(Paths.RequestHandled) => Paths.RequestHandled,
-            nameof(Paths.RelaunchMarker) => Paths.RelaunchMarker,
-            _ => Paths.TrustedUpdates,
-        };
-
-        Assert.False(string.IsNullOrEmpty(path));
-        Assert.False(
-            Path.GetFullPath(path).StartsWith(Path.GetFullPath(Paths.Shared), StringComparison.OrdinalIgnoreCase),
-            $"{name} = {path} лежит в общем каталоге");
-        Assert.StartsWith(
-            Path.GetFullPath(AppContext.BaseDirectory),
-            Path.GetFullPath(path),
-            StringComparison.OrdinalIgnoreCase);
-    }
 
     [Fact]
     public void ОтметкиНет_СогласияНет()
