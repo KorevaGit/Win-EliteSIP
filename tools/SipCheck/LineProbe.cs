@@ -20,13 +20,15 @@ namespace EliteSIP.Tools.SipCheck;
 /// <c>--lines</c> тракт нужен ровно для того, чтобы проверить, что он достаётся
 /// одной линии за раз.
 /// </summary>
-internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDisposable
+internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus, MediaSecurityPolicy security) : IDisposable
 {
     private readonly ConcurrentDictionary<string, MediaSessionLine> _media = new(StringComparer.Ordinal);
 
     private readonly SipUserAgent _agent = agent;
 
     private readonly VoiceAudioBus _bus = bus;
+
+    private readonly MediaSecurityPolicy _security = security;
 
     private readonly CancellationTokenSource _pumps = new();
 
@@ -41,10 +43,11 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
         SipUserAgent agent,
         IReadOnlyList<string> targets,
         double talkSeconds,
+        MediaSecurityPolicy security,
         CancellationToken cancellationToken)
     {
-        using VoiceAudioBus bus = MakeBus();
-        using var probe = new LineProbe(agent, bus);
+        using VoiceAudioBus bus = ProbeAudio.MakeBus();
+        using var probe = new LineProbe(agent, bus, security);
         probe.ArmRenegotiator();
 
         var established = new List<string>();
@@ -98,10 +101,11 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
         string target,
         string consultTarget,
         double talkSeconds,
+        MediaSecurityPolicy security,
         CancellationToken cancellationToken)
     {
-        using VoiceAudioBus bus = MakeBus();
-        using var probe = new LineProbe(agent, bus);
+        using VoiceAudioBus bus = ProbeAudio.MakeBus();
+        using var probe = new LineProbe(agent, bus, security);
         probe.ArmRenegotiator();
 
         if (await probe.DialAsync(target, cancellationToken).ConfigureAwait(false) is not string primary)
@@ -153,10 +157,11 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
         string target,
         double talkSeconds,
         double holdAfterSeconds,
+        MediaSecurityPolicy security,
         CancellationToken cancellationToken)
     {
-        using VoiceAudioBus bus = MakeBus();
-        using var probe = new LineProbe(agent, bus);
+        using VoiceAudioBus bus = ProbeAudio.MakeBus();
+        using var probe = new LineProbe(agent, bus, security);
         probe.ArmRenegotiator();
 
         if (await probe.DialAsync(target, cancellationToken).ConfigureAwait(false) is not string callId)
@@ -198,10 +203,11 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
         string code,
         double talkSeconds,
         double sendAfterSeconds,
+        MediaSecurityPolicy security,
         CancellationToken cancellationToken)
     {
-        using VoiceAudioBus bus = MakeBus();
-        using var probe = new LineProbe(agent, bus);
+        using VoiceAudioBus bus = ProbeAudio.MakeBus();
+        using var probe = new LineProbe(agent, bus, security);
         probe.ArmRenegotiator();
 
         if (await probe.DialAsync(target, cancellationToken).ConfigureAwait(false) is not string callId)
@@ -234,10 +240,11 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
         double talkSeconds,
         bool reject,
         string? conferenceCode,
+        MediaSecurityPolicy security,
         CancellationToken cancellationToken)
     {
-        using VoiceAudioBus bus = MakeBus();
-        using var probe = new LineProbe(agent, bus);
+        using VoiceAudioBus bus = ProbeAudio.MakeBus();
+        using var probe = new LineProbe(agent, bus, security);
         probe.ArmRenegotiator();
 
         Console.WriteLine($"-> ждём входящий {waitSeconds.ToString(CultureInfo.InvariantCulture)} с");
@@ -285,6 +292,7 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
             MediaSession.MakeAnswer(
                 SdpParser.Parse(incoming.Offer.Span),
                 mediaAddress,
+                security: security,
                 bindAddress: agent.LocalSignalingAddress);
 
         if (!await agent.AnswerIncomingCallAsync(incoming.CallId, answer.EncodedData()).ConfigureAwait(false))
@@ -323,14 +331,6 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
         }
     }
 
-    private static VoiceAudioBus MakeBus()
-    {
-        VoiceAudioConfiguration configuration = new();
-        return new VoiceAudioBus(
-            new WasapiVoiceAudioEngine(configuration),
-            settings => new WasapiVoiceAudioEngine(settings));
-    }
-
     private static string Describe(DtmfOutcome outcome) => outcome switch
     {
         DtmfOutcome.Sent => "команда вышла в поток",
@@ -360,10 +360,12 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
 
         try
         {
+            // Ключ SRTP прежний: новый пересобрал бы поток на каждом удержании.
             (SessionDescription answer, NegotiatedMedia media) = SdpNegotiator.MakeAnswer(
                 SdpParser.Parse(offer.Span),
                 mediaAddress,
-                line.Session.LocalPort);
+                line.Session.LocalPort,
+                localKey: line.Session.Negotiated?.Security.LocalKey);
 
             MediaRenegotiation outcome = line.Session.Renegotiate(media);
 
@@ -392,6 +394,7 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
 
         (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(
             mediaAddress,
+            security: _security,
             bindAddress: _agent.LocalSignalingAddress);
         Console.WriteLine(
             $"-> звоним на {target}, RTP на {mediaAddress}:"
@@ -455,7 +458,8 @@ internal sealed class LineProbe(SipUserAgent agent, VoiceAudioBus bus) : IDispos
 
         Console.WriteLine(
             $"[v] линия {callId} на {peer}: {media.Codec.SdpName()}, "
-                + $"порт {session.LocalPort.ToString(CultureInfo.InvariantCulture)}");
+                + $"порт {session.LocalPort.ToString(CultureInfo.InvariantCulture)}"
+                + (media.Security.IsEncrypted ? ", SRTP" : string.Empty));
     }
 
     /// <summary>Следит за концом разговора и убирает линию, когда он кончился.</summary>

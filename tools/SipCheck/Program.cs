@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Threading.Channels;
+using EliteSIP.MediaCore;
 using EliteSIP.SipCore;
 using EliteSIP.SipCore.Udp;
 
@@ -71,6 +72,10 @@ internal static class Program
 
         Task printer = PrintEventsAsync(agent, incoming?.Writer, stopping.Token);
 
+        // SDES обязателен, а не «по возможности»: в chan_sip промежуточного
+        // режима нет, и пир с encryption=yes отвечает 488 на открытый RTP.
+        MediaSecurityPolicy security = options.Srtp ? MediaSecurityPolicy.SdesRequired : MediaSecurityPolicy.None;
+
         await agent.StartAsync();
 
         // Ждём регистрации: без неё проверять дальше нечего.
@@ -88,7 +93,7 @@ internal static class Program
         // перевод.
         if (options.Lines is IReadOnlyList<string> lineTargets)
         {
-            bool passed = await LineProbe.RunLinesAsync(agent, lineTargets, options.Talk, stopping.Token);
+            bool passed = await LineProbe.RunLinesAsync(agent, lineTargets, options.Talk, security, stopping.Token);
             await ShutdownAsync(agent, stopping, printer);
             return passed ? 0 : 1;
         }
@@ -97,14 +102,14 @@ internal static class Program
         {
             bool passed = await LineProbe.RunAnswerAsync(
                 agent, incoming!.Reader, options.Duration, options.Talk, options.Reject, options.Conference,
-                stopping.Token);
+                security, stopping.Token);
             await ShutdownAsync(agent, stopping, printer);
             return passed ? 0 : 1;
         }
 
         if (options.Call is string primary && options.Consult is string consult)
         {
-            bool passed = await LineProbe.RunConsultAsync(agent, primary, consult, options.Talk, stopping.Token);
+            bool passed = await LineProbe.RunConsultAsync(agent, primary, consult, options.Talk, security, stopping.Token);
             await ShutdownAsync(agent, stopping, printer);
             return passed ? 0 : 1;
         }
@@ -112,14 +117,14 @@ internal static class Program
         if (options.Call is string dialed && options.Conference is string code)
         {
             bool passed = await LineProbe.RunConferenceAsync(
-                agent, dialed, code, options.Talk, options.Hold ?? 4, stopping.Token);
+                agent, dialed, code, options.Talk, options.Hold ?? 4, security, stopping.Token);
             await ShutdownAsync(agent, stopping, printer);
             return passed ? 0 : 1;
         }
 
         if (options.Call is string held && options.Hold is double holdAfter)
         {
-            bool passed = await LineProbe.RunHoldAsync(agent, held, options.Talk, holdAfter, stopping.Token);
+            bool passed = await LineProbe.RunHoldAsync(agent, held, options.Talk, holdAfter, security, stopping.Token);
             await ShutdownAsync(agent, stopping, printer);
             return passed ? 0 : 1;
         }
@@ -129,7 +134,7 @@ internal static class Program
             // Звонок — отдельный путь целиком: держать после него регистрацию
             // незачем, всё, ради чего стенд звали, уже случилось.
             bool talked = await CallProbe.RunAsync(
-                agent, number, options.Talk, options.Dtmf, options.Calls, options.Latency, stopping.Token);
+                agent, number, options.Talk, options.Dtmf, options.Calls, options.Latency, security, stopping.Token);
             await ShutdownAsync(agent, stopping, printer);
             return talked ? 0 : 1;
         }
@@ -157,7 +162,7 @@ internal static class Program
 
           --host <адрес>        по умолчанию 127.0.0.1
           --port <порт>         по умолчанию 5060
-          --transport udp|tcp   по умолчанию udp; tls появится на этапе W11
+          --transport udp|tcp|tls  по умолчанию udp; tls проверяет сертификат системой
           --expires <секунды>   запрашиваемый срок регистрации, по умолчанию 120
           --duration <секунды>  сколько держать регистрацию, по умолчанию 10
           --call <номер>        позвонить со звуком и положить трубку в срок
@@ -172,6 +177,8 @@ internal static class Program
           --reject              дождаться входящего и ответить 486
           --conference <код>    отправить код тонами по активной линии (с --call или --answer);
                         момент отправки задаёт --hold, по умолчанию через 4 с
+          --srtp                звук только по SDES-SRTP, как пир с encryption=yes;
+                        ключ идёт в SDP, поэтому вместе с --transport tls
         """;
 
     private static async Task<bool> WaitForRegistrationAsync(SipUserAgent agent, TimeSpan timeout)
@@ -326,6 +333,9 @@ internal static class Program
         /// <summary>Код конференции — тот же, что в настройках оператора.</summary>
         public string? Conference { get; init; }
 
+        /// <summary>Предлагать и принимать звук только по SDES-SRTP.</summary>
+        public bool Srtp { get; init; }
+
         public static CommandLineOptions Parse(string[] arguments)
         {
             Dictionary<string, string> values = new(StringComparer.Ordinal);
@@ -388,6 +398,7 @@ internal static class Program
                 Consult = values.GetValueOrDefault("consult") is { Length: > 0 } consult ? consult : null,
                 Answer = values.ContainsKey("answer"),
                 Reject = values.ContainsKey("reject"),
+                Srtp = values.ContainsKey("srtp"),
                 Conference = values.GetValueOrDefault("conference") is { Length: > 0 } conference
                     ? conference
                     : null,

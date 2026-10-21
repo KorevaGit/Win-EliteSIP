@@ -39,9 +39,10 @@ internal static class CallProbe
         string? dtmf,
         int calls,
         bool measureLatency,
+        MediaSecurityPolicy security,
         CancellationToken cancellationToken)
     {
-        using VoiceAudioBus bus = MakeBus();
+        using VoiceAudioBus bus = ProbeAudio.MakeBus();
         bool all = true;
 
         for (int attempt = 1; attempt <= Math.Max(calls, 1); attempt++)
@@ -51,7 +52,7 @@ internal static class CallProbe
                 Console.WriteLine($"=== звонок {attempt} из {calls} ===");
             }
 
-            if (!await PlaceAsync(agent, target, talkSeconds, dtmf, bus, measureLatency, cancellationToken)
+            if (!await PlaceAsync(agent, target, talkSeconds, dtmf, bus, measureLatency, security, cancellationToken)
                 .ConfigureAwait(false))
             {
                 all = false;
@@ -62,15 +63,6 @@ internal static class CallProbe
         return all;
     }
 
-    /// <summary>Общий тракт разговора — тот же, что будет у приложения.</summary>
-    private static VoiceAudioBus MakeBus()
-    {
-        VoiceAudioConfiguration configuration = new();
-        return new VoiceAudioBus(
-            new WasapiVoiceAudioEngine(configuration),
-            settings => new WasapiVoiceAudioEngine(settings));
-    }
-
     private static async Task<bool> PlaceAsync(
         SipUserAgent agent,
         string target,
@@ -78,6 +70,7 @@ internal static class CallProbe
         string? dtmf,
         VoiceAudioBus bus,
         bool measureLatency,
+        MediaSecurityPolicy security,
         CancellationToken cancellationToken)
     {
         // Адрес для SDP берётся у агента, а не у сокета: это тот же адрес, что
@@ -92,6 +85,7 @@ internal static class CallProbe
 
         (SessionDescription offer, RtpPortReservation reservation) = MediaSession.MakeOffer(
             mediaAddress,
+            security: security,
             bindAddress: agent.LocalSignalingAddress);
         Console.WriteLine(
             $"-> звоним на {target}, RTP на {mediaAddress}:"
@@ -215,7 +209,8 @@ internal static class CallProbe
                 $"[v] ответили: {negotiated.Codec.SdpName()} на {negotiated.RemoteAddress}:"
                     + $"{negotiated.RemotePort.ToString(CultureInfo.InvariantCulture)}, "
                     + $"{negotiated.PacketTimeMilliseconds.ToString(CultureInfo.InvariantCulture)} мс на пакет, "
-                    + $"направление {negotiated.Direction}");
+                    + $"направление {negotiated.Direction}"
+                    + (negotiated.Security.IsEncrypted ? ", SRTP" : string.Empty));
 
             MediaSession session = new(negotiated, reservation, bus);
             session.OnDiagnostic = message => Console.WriteLine($"   медиа: {message}");
@@ -323,11 +318,13 @@ internal static class CallProbe
             SessionDescription incoming = SdpParser.Parse(remoteOffer.Span);
 
             // Порт в ответе — наш прежний: он объявлен в первом предложении и
-            // смене посреди диалога не подлежит.
+            // смене посреди диалога не подлежит. Ключ SRTP — тоже прежний:
+            // новый пересобрал бы поток на каждом удержании (MediaSecurity.LocalKey).
             (SessionDescription answer, NegotiatedMedia media) = SdpNegotiator.MakeAnswer(
                 incoming,
                 mediaAddress,
-                session.LocalPort);
+                session.LocalPort,
+                localKey: session.Negotiated?.Security.LocalKey);
 
             MediaRenegotiation outcome = session.Renegotiate(media);
             Console.WriteLine($"   пересогласование: {outcome}, направление {media.Direction}");
