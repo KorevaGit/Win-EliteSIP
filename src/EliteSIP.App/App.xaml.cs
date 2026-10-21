@@ -175,7 +175,7 @@ public partial class App : Application, IDisposable
         Mark("экземпляр");
 
         // Только у экземпляра, который остаётся работать: второй выходит сразу.
-        Shell.CrashGuard.RegisterRestart(EarlyLog);
+        Shell.CrashRestart.Register(EarlyLog);
 
         // Порядок важен: настройки читаются до языка, язык — до палитры, палитра
         // — до первого окна. Иначе панель успевает нарисоваться английской и

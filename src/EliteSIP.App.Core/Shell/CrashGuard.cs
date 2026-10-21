@@ -23,8 +23,12 @@ namespace EliteSIP.App.Shell;
 /// памяти). Второй — серия: больше <see cref="BurstLimit"/> за
 /// <see cref="BurstWindow"/> означает, что ошибка повторяется на каждом такте
 /// отрисовки или таймера, и «пережить» её значит повесить окно в цикле. В обоих
-/// случаях процесс падает, а поднимает его Windows — см.
-/// <see cref="RegisterRestart"/>.
+/// случаях процесс падает, а поднимает его система: Windows — по
+/// <c>CrashRestart.Register</c> в WPF-приложении, Linux — служба systemd.
+/// </para>
+/// <para>
+/// Решение от ОС не зависит и с 21 октября 2026 живёт в App.Core: его
+/// разделяют обе версии.
 /// </para>
 /// </remarks>
 internal sealed class CrashGuard
@@ -77,33 +81,4 @@ internal sealed class CrashGuard
             or TypeInitializationException => true,
         _ => false,
     };
-
-    /// <summary>
-    /// Просит Windows поднять софтфон, если он всё-таки упал или завис.
-    /// </summary>
-    ///
-    /// <remarks>
-    /// Windows поднимает только процесс, проживший больше минуты, — так что
-    /// падение на запуске в круг не уходит. Не поднимает после установки
-    /// обновления и перезагрузки: первое делает обновляльщик, второе —
-    /// автозапуск. Обычный выход и снятие задачи установщиком падением не
-    /// считаются.
-    ///
-    /// Работает через отчёты об ошибках Windows; если они выключены групповой
-    /// политикой, перезапуска не будет, и это стоит знать при разборе.
-    /// </remarks>
-    internal static void RegisterRestart(Action<string> log)
-    {
-        const int restartNoPatch = 4;
-        const int restartNoReboot = 8;
-
-        var result = RegisterApplicationRestart("--after-crash", restartNoPatch | restartNoReboot);
-        if (result != 0)
-        {
-            log($"перезапуск после падения не заказан: 0x{result:X8}");
-        }
-    }
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern int RegisterApplicationRestart(string commandLine, int flags);
 }
