@@ -26,7 +26,8 @@ namespace EliteSIP.SipCore;
 /// Поэтому пакет отправляет система через <c>IcmpSendEcho2</c> из
 /// <c>iphlpapi.dll</c> — то, что <see cref="Ping"/> и есть. Заголовок собирает
 /// она, а мы задаём то единственное, на что смотрит правило на шлюзе, — длину
-/// данных.
+/// данных. На Linux <see cref="Ping"/> этого не умеет, и отправка там своя —
+/// см. <see cref="IIcmpEcho"/>.
 /// </remarks>
 public sealed class PortKnocker : ISipPathOpener, IDisposable
 {
@@ -34,7 +35,7 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     private readonly PortKnockSequence _sequence;
     private readonly Action<string> _log;
     private readonly PortKnockThrottle _throttle;
-    private readonly Ping _ping = new();
+    private readonly IIcmpEcho _echo;
 
     /// <summary>
     /// Отказ, о котором уже сказали в журнал.
@@ -46,9 +47,10 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     /// </remarks>
     private bool _reportedFailure;
 
-    private PortKnocker(string serverHost, PortKnockSequence sequence, Action<string> log)
+    private PortKnocker(string serverHost, PortKnockSequence sequence, Action<string> log, IIcmpEcho echo)
     {
         _serverHost = serverHost;
+        _echo = echo;
         _sequence = sequence;
         _log = log;
         _throttle = new PortKnockThrottle(TimeSpan.FromSeconds(sequence.RepeatIntervalSeconds));
@@ -64,11 +66,18 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     /// Ветка живёт в одном месте, а не расползается проверками по коду
     /// регистрации.
     /// </remarks>
+    ///
+    /// <param name="createEcho">
+    /// чем отправлять пакеты; <see langword="null"/> — <see cref="SystemIcmpEcho"/>.
+    /// Фабрика, а не готовый объект: отправителя заводит и закрывает стучащий,
+    /// а для офисного места его не нужно вовсе.
+    /// </param>
     public static PortKnocker? ForServer(
         string serverHost,
         WorkplaceSite site,
         PortKnockSequence sequence,
-        Action<string> log)
+        Action<string> log,
+        Func<IIcmpEcho>? createEcho = null)
     {
         ArgumentNullException.ThrowIfNull(sequence);
 
@@ -77,7 +86,7 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
             return null;
         }
 
-        return new PortKnocker(serverHost, sequence, log);
+        return new PortKnocker(serverHost, sequence, log, createEcho?.Invoke() ?? new SystemIcmpEcho());
     }
 
     /// <summary>Сеть сменилась — прошлый стук больше ничего не значит.</summary>
@@ -130,7 +139,7 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
             : $"стук отправлен частично: {sent} из {_sequence.PacketCount}");
     }
 
-    public void Dispose() => _ping.Dispose();
+    public void Dispose() => _echo.Dispose();
 
     /// <summary>
     /// Один пакет. <see langword="false"/> — дальше стучать нечем.
@@ -150,21 +159,24 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     {
         try
         {
-            var timeout = (int)Math.Max(1, _sequence.SpacingSeconds * 1000);
-            await _ping.SendPingAsync(host, timeout, PortKnockPayload.Make(payloadBytes))
+            await _echo.SendAsync(host, payloadBytes, TimeSpan.FromSeconds(_sequence.SpacingSeconds))
                 .ConfigureAwait(false);
 
             return true;
         }
         // `ObjectDisposedException` — не отказ сети, а гонка: смена площадки
-        // роняет прежний стук вместе с `Ping`, пока его пакет ещё в полёте.
+        // роняет прежний стук вместе с отправителем, пока его пакет ещё в полёте.
         // Стучать больше некуда и незачем — новое подключение уже стучит своим.
         catch (ObjectDisposedException)
         {
             return false;
         }
+        // `PlatformNotSupportedException` — `Ping` вне Windows без своего
+        // отправителя (см. `IIcmpEcho`). До неё стук молча ронял бы регистрацию
+        // исключением из `OpenPathAsync`, а должен ронять только себя.
         catch (Exception error) when (error is PingException or SocketException
-                                          or InvalidOperationException)
+                                          or InvalidOperationException
+                                          or PlatformNotSupportedException)
         {
             if (!_reportedFailure)
             {

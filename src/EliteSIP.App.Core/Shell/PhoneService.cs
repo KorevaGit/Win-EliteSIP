@@ -51,6 +51,9 @@ public sealed class PhoneService : IDisposable
     private readonly IIncomingCallView _incoming;
     private readonly IUiThread _ui;
     private readonly IAudioPlatform _audio;
+
+    /// <summary>Чем стучать; <see langword="null"/> — <see cref="SystemIcmpEcho"/>, путь Windows.</summary>
+    private readonly Func<IIcmpEcho>? _icmpEcho;
     private readonly Action<string> _log;
 
     /// <summary>Гудки и рингтон. Живёт всё время работы: устройство берётся на звук.</summary>
@@ -122,7 +125,8 @@ public sealed class PhoneService : IDisposable
         IIncomingCallView incoming,
         IUiThread ui,
         IAudioPlatform audio,
-        Action<string> log)
+        Action<string> log,
+        Func<IIcmpEcho>? icmpEcho = null)
     {
         _settings = settings;
         _panel = panel;
@@ -131,6 +135,7 @@ public sealed class PhoneService : IDisposable
         _ui = ui;
         _audio = audio;
         _log = log;
+        _icmpEcho = icmpEcho;
         _sounds = audio.CreateSignalSounds(log);
         SelfTest = new AudioSelfTest(audio.CreateEngine, log);
 
@@ -398,7 +403,8 @@ public sealed class PhoneService : IDisposable
             address,
             account.Site is SettingsSite.Remote ? KnockSite.Remote : KnockSite.Office,
             _settings.PortKnock.ToSequence(),
-            _log);
+            _log,
+            _icmpEcho);
 
         if (_knocker is not null)
         {

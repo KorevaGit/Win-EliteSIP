@@ -363,4 +363,79 @@ public sealed class PortKnockTests
             PortKnockSequence.Production.Steps.Select(step => (step.Host, step.PayloadBytes, step.Count)),
             decoded.Steps.Select(step => (step.Host, step.PayloadBytes, step.Count)));
     }
+
+    // MARK: - Отправка
+
+    /// <summary>
+    /// Стучащий отдаёт отправителю ровно те длины и адреса, что в
+    /// последовательности, и в том же порядке.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Отправитель с 21 октября 2026 подменяемый (<see cref="IIcmpEcho"/>):
+    /// на Linux пакет уходит не через <c>Ping</c>. Порядок и длины — подпись
+    /// для шлюза, и подмена пути не должна их трогать.
+    /// </remarks>
+    [Fact]
+    public async Task Отправитель_получает_длины_и_адреса_по_порядку()
+    {
+        RecordingEcho echo = new();
+        PortKnockSequence sequence = new()
+        {
+            Steps = [new PortKnockStep(228, count: 2), new PortKnockStep(126, "45.10.53.86")],
+            SpacingSeconds = 0.01,
+        };
+
+        using (var knocker = PortKnocker.ForServer(
+            "192.168.1.2", WorkplaceSite.Remote, sequence, Silent, () => echo))
+        {
+            await knocker!.OpenPathAsync(SipPathOpenReason.Registration);
+        }
+
+        Assert.Equal(
+            [("192.168.1.2", 228), ("192.168.1.2", 228), ("45.10.53.86", 126)],
+            echo.Sent);
+        Assert.True(echo.Disposed);
+    }
+
+    /// <summary>
+    /// Отказ отправителя кончает стук, но не регистрацию.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// <c>PlatformNotSupportedException</c> — то, что бросает <c>Ping</c> на
+    /// Linux с данными своего содержимого. До 21 октября 2026 она из стука
+    /// вылетала: в обработчике были только сетевые отказы.
+    /// </remarks>
+    [Fact]
+    public async Task Отказ_отправителя_кончает_стук_без_исключения()
+    {
+        List<string> log = [];
+        RecordingEcho echo = new() { Failure = new PlatformNotSupportedException("нечем") };
+
+        using var knocker = PortKnocker.ForServer(
+            "192.168.1.2", WorkplaceSite.Remote, PortKnockSequence.Production, log.Add, () => echo);
+
+        await knocker!.OpenPathAsync(SipPathOpenReason.Registration);
+
+        Assert.Single(echo.Sent);
+        Assert.Contains(log, line => line.StartsWith("стук не отправлен", StringComparison.Ordinal));
+    }
+
+    private sealed class RecordingEcho : IIcmpEcho
+    {
+        public List<(string Host, int PayloadBytes)> Sent { get; } = [];
+
+        public Exception? Failure { get; init; }
+
+        public bool Disposed { get; private set; }
+
+        public Task SendAsync(string host, int payloadBytes, TimeSpan timeout)
+        {
+            Sent.Add((host, payloadBytes));
+            return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+        }
+
+        public void Dispose() => Disposed = true;
+    }
 }
