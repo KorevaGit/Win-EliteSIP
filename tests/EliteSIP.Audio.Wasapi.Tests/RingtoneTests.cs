@@ -18,7 +18,7 @@ public sealed class RingtoneTests : IDisposable
     public RingtoneTests()
     {
         Directory.CreateDirectory(_root);
-        _player = new SignalSoundPlayer(_log.Add);
+        _player = WasapiSignalSounds.Create(_log.Add);
     }
 
     public void Dispose()

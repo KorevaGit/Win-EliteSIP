@@ -1,4 +1,3 @@
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
@@ -24,13 +23,19 @@ namespace EliteSIP.Audio;
 /// До 0.1.56 тон рисовался на любой 180/183, а поток станции не принимался
 /// вовсе: медиа поднималось на 200 OK. На направлениях с ранними медиа это
 /// давало то тишину, то наш тон поверх обрывка объявления — «гудки через раз».
+///
+/// <b>Общий с 21 октября 2026.</b> Что звучит и когда — одинаково на Windows и
+/// Linux и живёт здесь; ОС отличается только выводом на устройство и разбором
+/// сжатого файла. Их даёт <see cref="SignalOutputs"/>: WASAPI и Media Foundation
+/// на Windows (<c>EliteSIP.Audio.Wasapi</c>), PulseAudio и NLayer на Linux.
 /// </summary>
 public sealed class SignalSoundPlayer : ISignalSounds
 {
     private readonly object _gate = new();
     private readonly Action<string>? _log;
+    private readonly SignalOutputs _outputs;
 
-    private WasapiPlayer? _output;
+    private ISignalOutput? _output;
 
     /// <summary>Что играет: гудки и рингтон снимаются каждый своей кнопкой.</summary>
     private Signal _signal;
@@ -40,7 +45,12 @@ public sealed class SignalSoundPlayer : ISignalSounds
 
     private bool _disposed;
 
-    public SignalSoundPlayer(Action<string>? log = null) => _log = log;
+    public SignalSoundPlayer(SignalOutputs outputs, Action<string>? log = null)
+    {
+        ArgumentNullException.ThrowIfNull(outputs);
+        _outputs = outputs;
+        _log = log;
+    }
 
     /// <summary>Играют ли гудки или рингтон прямо сейчас.</summary>
     public bool IsPlaying
@@ -166,7 +176,7 @@ public sealed class SignalSoundPlayer : ISignalSounds
     {
         try
         {
-            return FileSoundProvider.Open(path, volume, loop);
+            return FileSoundProvider.Open(path, volume, loop, _outputs.OpenFile);
         }
         catch (Exception error) when (error is IOException or FormatException or ArgumentException
                                           or InvalidOperationException or NotSupportedException
@@ -185,7 +195,7 @@ public sealed class SignalSoundPlayer : ISignalSounds
     /// <param name="only">снять, только если играет это. <c>null</c> — что угодно.</param>
     private void Stop(Signal? only)
     {
-        WasapiPlayer? going;
+        ISignalOutput? going;
         IDisposable? owner;
 
         lock (_gate)
@@ -234,14 +244,13 @@ public sealed class SignalSoundPlayer : ISignalSounds
 
         try
         {
-            WasapiPlayer output = Open(deviceId);
-            output.Init(provider);
-            output.Play();
+            ISignalOutput output = _outputs.Open(deviceId);
+            output.Play(provider);
 
             lock (_gate)
             {
                 // Пока мы открывали устройство, звонок мог кончиться: открытие
-                // WASAPI занимает десятки миллисекунд, а трубку снимают быстрее.
+                // устройства занимает десятки миллисекунд, а трубку снимают быстрее.
                 if (_disposed)
                 {
                     output.Dispose();
@@ -259,49 +268,6 @@ public sealed class SignalSoundPlayer : ISignalSounds
             // Отсутствие служебного звука не должно ронять звонок: без гудка
             // разговор состоится, без исключения в потоке сигнализации — нет.
             _log?.Invoke($"{signal switch { Signal.Ringback => "гудки", Signal.Preview => "прослушивание", _ => "рингтон" }} не играют: {error.Message}");
-        }
-    }
-
-    private static WasapiPlayer Open(string? deviceId)
-    {
-        WasapiPlayerBuilder builder = new WasapiPlayerBuilder()
-            .WithSharedMode()
-
-            // Сотня миллисекунд, а не низкая задержка: служебному звуку
-            // задержка безразлична, а низкая берётся не даром — MMCSS и
-            // мелкий буфер здесь заняли бы то, что нужно разговору.
-            .WithLatency(100)
-            .WithEventSync();
-
-        if (Device(deviceId) is { } device)
-        {
-            builder = builder.WithDevice(device);
-        }
-
-        return builder.Build();
-    }
-
-    /// <summary>Устройство по имени. <c>null</c> — играть системным.</summary>
-    private static MMDevice? Device(string? deviceId)
-    {
-        if (deviceId is not { Length: > 0 })
-        {
-            return null;
-        }
-
-        using MMDeviceEnumerator enumerator = new();
-        try
-        {
-            MMDevice device = enumerator.GetDevice(deviceId);
-
-            // Устройства может уже не быть — гарнитуру выдернули между
-            // настройкой и звонком. Звонить системным лучше, чем не звонить.
-            return device.State is DeviceState.Active ? device : null;
-        }
-        catch (Exception error) when (error is ArgumentException
-                                          or System.Runtime.InteropServices.COMException)
-        {
-            return null;
         }
     }
 
@@ -347,7 +313,7 @@ public sealed class SignalSoundPlayer : ISignalSounds
     private static readonly TimeSpan CueIdleClose = TimeSpan.FromSeconds(3);
 
     private readonly object _cueGate = new();
-    private WasapiPlayer? _cueOutput;
+    private ISignalOutput? _cueOutput;
     private MixingSampleProvider? _cueMixer;
     private string? _cueDeviceId;
     private Timer? _cueIdle;
@@ -379,9 +345,8 @@ public sealed class SignalSoundPlayer : ISignalSounds
                     // короткий кадр, — иначе вывод остановится после первой
                     // же подсказки.
                     MixingSampleProvider mixer = new(cue.WaveFormat) { ReadFully = true };
-                    WasapiPlayer output = Open(deviceId);
-                    output.Init(mixer);
-                    output.Play();
+                    ISignalOutput output = _outputs.Open(deviceId);
+                    output.Play(mixer);
 
                     _cueMixer = mixer;
                     _cueOutput = output;
@@ -417,7 +382,7 @@ public sealed class SignalSoundPlayer : ISignalSounds
         _cueIdle?.Dispose();
         _cueIdle = null;
 
-        WasapiPlayer? output = _cueOutput;
+        ISignalOutput? output = _cueOutput;
         _cueOutput = null;
         _cueMixer = null;
         _cueDeviceId = null;
@@ -651,7 +616,7 @@ public sealed class SignalSoundPlayer : ISignalSounds
             _loop = loop;
         }
 
-        public static FileSoundProvider Open(string path, double volume, bool loop)
+        public static FileSoundProvider Open(string path, double volume, bool loop, Func<string, WaveStream> openFile)
         {
             float gain = (float)Math.Clamp(volume, 0, 1);
 
@@ -674,8 +639,23 @@ public sealed class SignalSoundPlayer : ISignalSounds
                 }
             }
 
-            var reader = new AudioFileReader(path) { Volume = gain };
-            return new FileSoundProvider(reader, reader, () => reader.Position = 0, loop);
+            // WAV и MP3 разбирает ОС-зависимый читатель (SignalOutputs.OpenFile):
+            // MP3 на Windows — Media Foundation, на Linux — NLayer. Громкость
+            // та же, что давал AudioFileReader.Volume: множитель на отсчёт.
+            var reader = openFile(path);
+            try
+            {
+                return new FileSoundProvider(
+                    new VolumeSampleProvider(reader.ToSampleProvider()) { Volume = gain },
+                    reader,
+                    () => reader.Position = 0,
+                    loop);
+            }
+            catch
+            {
+                reader.Dispose();
+                throw;
+            }
         }
 
         public WaveFormat WaveFormat => _source.WaveFormat;

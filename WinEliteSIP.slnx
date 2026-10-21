@@ -4,6 +4,7 @@
     <Project Path="src/EliteSIP.App/EliteSIP.App.csproj" />
     <Project Path="src/EliteSIP.App.Core/EliteSIP.App.Core.csproj" />
     <Project Path="src/EliteSIP.Audio/EliteSIP.Audio.csproj" />
+    <Project Path="src/EliteSIP.Audio.Signals/EliteSIP.Audio.Signals.csproj" />
     <Project Path="src/EliteSIP.Audio.Wasapi/EliteSIP.Audio.Wasapi.csproj" />
     <Project Path="src/EliteSIP.CallGuard/EliteSIP.CallGuard.csproj" />
     <Project Path="src/EliteSIP.CallHistory/EliteSIP.CallHistory.csproj" />
@@ -20,6 +21,7 @@
     <Project Path="tests/EliteSIP.App.Core.Tests/EliteSIP.App.Core.Tests.csproj" />
     <Project Path="tests/EliteSIP.AdminAccess.Tests/EliteSIP.AdminAccess.Tests.csproj" />
     <Project Path="tests/EliteSIP.Audio.Tests/EliteSIP.Audio.Tests.csproj" />
+    <Project Path="tests/EliteSIP.Audio.Signals.Tests/EliteSIP.Audio.Signals.Tests.csproj" />
     <Project Path="tests/EliteSIP.Audio.Wasapi.Tests/EliteSIP.Audio.Wasapi.Tests.csproj" />
     <Project Path="tests/EliteSIP.CallGuard.Tests/EliteSIP.CallGuard.Tests.csproj" />
     <Project Path="tests/EliteSIP.CallHistory.Tests/EliteSIP.CallHistory.Tests.csproj" />

@@ -17,7 +17,6 @@
       обесценило бы все замеры W0.
     -->
     <PackageReference Include="NAudio" Version="3.0.1" />
-    <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+    <ProjectReference Include="..\EliteSIP.Audio.Signals\EliteSIP.Audio.Signals.csproj" />
     <ProjectReference Include="..\EliteSIP.MediaCore\EliteSIP.MediaCore.csproj" />
     <ProjectReference Include="..\EliteSIP.Diagnostics\EliteSIP.Diagnostics.csproj" />
   </ItemGroup>

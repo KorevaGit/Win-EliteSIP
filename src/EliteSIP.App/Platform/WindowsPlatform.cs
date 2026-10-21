@@ -10,7 +10,7 @@ internal sealed class WasapiAudioPlatform : IAudioPlatform
     public IVoiceAudioEngine CreateEngine(VoiceAudioConfiguration configuration) =>
         new WasapiVoiceAudioEngine(configuration);
 
-    public ISignalSounds CreateSignalSounds(Action<string> log) => new SignalSoundPlayer(log);
+    public ISignalSounds CreateSignalSounds(Action<string> log) => WasapiSignalSounds.Create(log);
 
     public IReadOnlyList<AudioDevice> Devices(AudioDeviceDirection direction) =>
         AudioDeviceCatalog.Devices(direction);

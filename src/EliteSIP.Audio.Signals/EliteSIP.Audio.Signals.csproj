@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Служебные звуки — гудки, рингтон, тоны клавиш, отбой — без ОС. Вынесено
+    из EliteSIP.Audio.Wasapi 21 октября 2026: что и когда звучит, одинаково на
+    Windows и Linux, а отличаются только вывод на устройство и разбор MP3
+    (SignalOutputs). Пространство имён прежнее — EliteSIP.Audio.
+
+    NAudio.Core, а не NAudio целиком: в Core нет ничего от Windows, а
+    источники, смеситель и читатель WAV — там.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>EliteSIP.Audio</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio.Core" Version="3.0.1" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="EliteSIP.Audio.Signals.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EliteSIP.Audio\EliteSIP.Audio.csproj" />
+  </ItemGroup>
+
+</Project>
