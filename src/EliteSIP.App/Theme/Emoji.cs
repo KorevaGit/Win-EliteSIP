@@ -71,7 +71,7 @@ public static class Emoji
                 continue;
             }
 
-            if (pack.Image(piece.Key!) is not { } source)
+            if (EmojiImages.Get(pack, piece.Key!) is not { } source)
             {
                 continue;
             }

@@ -2,12 +2,11 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
-using System.Windows.Media.Imaging;
 
 namespace EliteSIP.App.Theme;
 
 /// <summary>
-/// Картинки смайликов: разбор строки на текст и смайлики и сами изображения.
+/// Картинки смайликов: разбор строки на текст и смайлики и доступ к картинкам.
 /// </summary>
 ///
 /// <remarks>
@@ -22,6 +21,10 @@ namespace EliteSIP.App.Theme;
 ///
 /// Имена в пакете кодов без селектора вариантов (FE0F), а в тексте он то есть,
 /// то нет — сравнивается без него.
+///
+/// <b>Общий с 21 октября 2026.</b> Разбор и пакет от ОС не зависят и живут в
+/// App.Core; картинку из потока делает платформа — <c>BitmapSource</c> в
+/// WPF-версии (<c>Theme/EmojiImages</c>), <c>Bitmap</c> Avalonia в Linux-версии.
 /// </remarks>
 internal sealed class EmojiPack
 {
@@ -35,7 +38,6 @@ internal sealed class EmojiPack
 
     private readonly Dictionary<string, string> _names;
     private readonly Func<string, Stream?> _open;
-    private readonly Dictionary<string, BitmapSource?> _images = [];
     private readonly int _longest;
 
     internal EmojiPack(IEnumerable<string> names, Func<string, Stream?> open)
@@ -163,38 +165,12 @@ internal sealed class EmojiPack
     }
 
     /// <summary>Картинка смайлика; <c>null</c> — не читается.</summary>
-    internal BitmapSource? Image(string name)
-    {
-        if (_images.TryGetValue(name, out var cached))
-        {
-            return cached;
-        }
-
-        BitmapSource? image = null;
-        try
-        {
-            if (_open(name) is { } stream)
-            {
-                using (stream)
-                {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.StreamSource = stream;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-                    image = bitmap;
-                }
-            }
-        }
-        catch (Exception error) when (error is IOException or NotSupportedException or InvalidOperationException)
-        {
-            image = null;
-        }
-
-        _images[name] = image;
-        return image;
-    }
+    /// <summary>
+    /// Картинка смайлика по имени из <see cref="Split"/> — поток PNG 64×64.
+    /// <see langword="null"/> — в пакете её нет. Поток — копия в памяти: его
+    /// можно читать с любого потока и закрывать когда угодно.
+    /// </summary>
+    internal Stream? OpenImage(string name) => _open(name);
 
     private static string Hex(Rune rune) => rune.Value.ToString("x", CultureInfo.InvariantCulture);
 
