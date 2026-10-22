@@ -26,8 +26,8 @@
 
   <!--
       Полосы заголовка у окна нет вовсе: это карточка вызова, а не окно
-      документа. `WindowChrome` с нулевой полосой оставляет системную тень и
-      скруглённый угол Windows 11, но не рисует ни заголовка, ни кнопок.
+      документа. Невидимая полоса WindowChrome над шапкой позволяет двигать
+      карточку; системная тень остаётся, заголовка и кнопок нет.
 
       `AllowsTransparency` при этом не включается: он выключает ClearType, а в
       окне, которое читают за долю секунды, шрифт важнее полупрозрачных углов.
@@ -35,7 +35,7 @@
       здесь платить за него пришлось бы резкостью текста.
   -->
   <shell:WindowChrome.WindowChrome>
-    <shell:WindowChrome CaptionHeight="0"
+    <shell:WindowChrome CaptionHeight="28"
                         CornerRadius="0"
                         GlassFrameThickness="0"
                         ResizeBorderThickness="0"
@@ -53,7 +53,7 @@
   <StackPanel Margin="8,6,8,8">
 
     <!-- Шапка: цветной якорь, подпись, щит. -->
-    <DockPanel LastChildFill="False">
+    <DockPanel LastChildFill="False" Cursor="SizeAll">
 
       <!--
           Якорь — то, чем окно набирает заметность. Оно встаёт в случайную точку

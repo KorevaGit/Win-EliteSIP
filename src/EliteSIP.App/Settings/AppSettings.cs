@@ -437,6 +437,9 @@ public sealed class AppSettings : Observable
     /// <summary>Где стояла панель. Пишется при закрытии, читается при открытии.</summary>
     public PanelPlacementSettings Placement { get; init; } = new();
 
+    /// <summary>Выбранное оператором место входящего, когда случайная позиция выключена.</summary>
+    public IncomingWindowPlacementSettings IncomingPlacement { get; init; } = new();
+
     /// <summary>Пароль учётки. Шифруется DPAPI — см. `SipCredentials`.</summary>
     public SipCredentials Credentials { get; init; } = new();
 
@@ -603,7 +606,7 @@ public sealed class AppSettings : Observable
         Watch(PortKnock.Steps);
         Watch(Profiles);
 
-        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel, PortKnock, Placement })
+        foreach (var section in new Observable[] { Account, Audio, Ringtone, Appearance, Dtmf, History, Admin, Pbx, Queues, IncomingCall, Maintenance, Credentials, Setup, Panel, PortKnock, Placement, IncomingPlacement })
         {
             section.PropertyChanged += (_, _) => TrySave(onFailure);
         }

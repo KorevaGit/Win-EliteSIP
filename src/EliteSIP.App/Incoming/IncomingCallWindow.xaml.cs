@@ -41,6 +41,8 @@ public partial class IncomingCallWindow : Window
 
     private const int WmMouseActivate = 0x0021;
     private const int MaNoActivate = 3;
+    private const int WmEnterSizeMove = 0x0231;
+    private const int WmExitSizeMove = 0x0232;
 
     private static readonly nint HwndTopmost = -1;
     private const uint SwpNoSize = 0x0001;
@@ -59,6 +61,11 @@ public partial class IncomingCallWindow : Window
         Left = -32000;
         Top = -32000;
     }
+
+    public bool IsUserMoving { get; private set; }
+
+    /// <summary>Оператор закончил перенос. Программное размещение события не создаёт.</summary>
+    public event EventHandler? MovedByUser;
 
     /// <summary>Рамка окна в аппаратных пикселях — та, по которой считается защита.</summary>
     public ScreenRect PhysicalFrame
@@ -171,6 +178,16 @@ public partial class IncomingCallWindow : Window
 
     private nint OnWindowMessage(nint handle, int message, nint wParam, nint lParam, ref bool handled)
     {
+        if (message == WmEnterSizeMove)
+        {
+            IsUserMoving = true;
+        }
+        else if (message == WmExitSizeMove && IsUserMoving)
+        {
+            IsUserMoving = false;
+            MovedByUser?.Invoke(this, EventArgs.Empty);
+        }
+
         // Нажатие по окну активирует его даже при NOACTIVATE, если окно об этом
         // не попросит: фокус уходит из CRM ровно в тот момент, когда оператор
         // тянется к кнопке, и набранное в чужом поле теряется.

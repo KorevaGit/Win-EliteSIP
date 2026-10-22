@@ -37,6 +37,7 @@ public sealed class IncomingCallPresenter : IDisposable
     private Stopwatch? _clock;
     private Action? _onAnswer;
     private Action? _onDecline;
+    private CallGuardPolicy? _policy;
 
     /// <summary>
     /// Где окно было в прошлый раз — чтобы следующая позиция гарантированно
@@ -53,6 +54,10 @@ public sealed class IncomingCallPresenter : IDisposable
     }
 
     public bool IsVisible => _window is not null;
+
+    public Func<ScreenPoint?>? RestorePlacement { get; init; }
+
+    public Action<ScreenPoint>? SavePlacement { get; init; }
 
     /// <summary>
     /// Звонить и замолчать. Ставит приложение.
@@ -87,6 +92,7 @@ public sealed class IncomingCallPresenter : IDisposable
         Hide();
 
         policy = policy.Normalized();
+        _policy = policy;
 
         _clock = Stopwatch.StartNew();
         _session = new CallGuardSession(policy, TimeSpan.Zero, Random.Shared);
@@ -110,8 +116,14 @@ public sealed class IncomingCallPresenter : IDisposable
         // потому что позицию считали по нулевому размеру.
         window.Show();
 
-        _placement = PlacementFor(policy, window);
-        var origin = NextOrigin(policy, window.PhysicalFrame.Size);
+        var saved = policy.IsEnabled && policy.IsRandomPositionEnabled ? null : RestorePlacement?.Invoke();
+        if (saved is { } point && (!double.IsFinite(point.X) || !double.IsFinite(point.Y)))
+        {
+            saved = null;
+        }
+        _placement = PlacementFor(policy, window, saved);
+        var size = window.PhysicalFrame.Size;
+        var origin = _placement.Contained(new ScreenRect(saved ?? NextOrigin(policy, size), size)).Origin;
         window.PlaceAt(origin);
         _lastOrigin = origin;
 
@@ -119,6 +131,7 @@ public sealed class IncomingCallPresenter : IDisposable
         // окно внутрь области. Окно, которое оператор не видит целиком, — это не
         // огрех оформления, а непринятый лид.
         window.SizeChanged += OnWindowSizeChanged;
+        window.MovedByUser += OnWindowMovedByUser;
         KeepOnScreen();
 
         _pointer = new PointerWatch(NoteCursor);
@@ -164,6 +177,7 @@ public sealed class IncomingCallPresenter : IDisposable
         if (_window is not null)
         {
             _window.SizeChanged -= OnWindowSizeChanged;
+            _window.MovedByUser -= OnWindowMovedByUser;
             _window.Close();
             _window = null;
         }
@@ -171,6 +185,7 @@ public sealed class IncomingCallPresenter : IDisposable
         _session = null;
         _model = null;
         _placement = null;
+        _policy = null;
         _clock = null;
         _onAnswer = null;
         _onDecline = null;
@@ -281,8 +296,9 @@ public sealed class IncomingCallPresenter : IDisposable
     /// <summary>Область, в которой окну разрешено появиться на этом вызове.</summary>
     ///
     /// <remarks>
-    /// Экран берётся тот, где курсор, а не «главный»: рабочее место вполне может
-    /// быть на втором мониторе. Систему при этом не приходится уговаривать —
+    /// Для случайного показа берётся экран курсора, для сохранённой позиции —
+    /// её экран, для перенесённого окна — экран его центра. Систему при этом
+    /// не приходится уговаривать —
     /// <c>MONITOR_DEFAULTTONEAREST</c> отвечает ровно то, что в оригинале
     /// пришлось писать руками: точный экран, а если курсор оказался на кромке —
     /// ближайший.
@@ -290,11 +306,19 @@ public sealed class IncomingCallPresenter : IDisposable
     /// Рабочая область (<c>rcWork</c>), а не весь экран: под панелью задач окно
     /// видно наполовину, и это тот же непринятый лид.
     /// </remarks>
-    private static IncomingCallPlacement PlacementFor(CallGuardPolicy policy, IncomingCallWindow window)
+    private static IncomingCallPlacement PlacementFor(CallGuardPolicy policy, IncomingCallWindow window, ScreenPoint? origin = null)
     {
-        var work = WorkAreaUnderCursor();
+        var work = WorkAreaAt(origin ?? PointerWatch.CursorPosition());
         var margin = policy.ScreenMargin * ScaleOf(window);
-        return new IncomingCallPlacement(work.Inset(margin), policy.MinimumTravel * ScaleOf(window));
+        var area = work.Inset(margin);
+        // SetWindowPos принимает целые пиксели. При 125 % поле в 10 точек
+        // превращается в 12,5 пикселя: округляем границы внутрь, чтобы
+        // повторное размещение не оставляло окно на полпикселя снаружи.
+        var left = Math.Ceiling(area.MinX);
+        var top = Math.Ceiling(area.MinY);
+        var bounds = new ScreenRect(left, top,
+            Math.Max(0, Math.Floor(area.MaxX) - left), Math.Max(0, Math.Floor(area.MaxY) - top));
+        return new IncomingCallPlacement(bounds, policy.MinimumTravel * ScaleOf(window));
     }
 
     private ScreenPoint NextOrigin(CallGuardPolicy policy, ScreenSize size)
@@ -311,7 +335,29 @@ public sealed class IncomingCallPresenter : IDisposable
         return placement.Origin(size, _lastOrigin, Random.Shared);
     }
 
-    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e) => KeepOnScreen();
+    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_window?.IsUserMoving is false)
+        {
+            KeepOnScreen();
+        }
+    }
+
+    private void OnWindowMovedByUser(object? sender, EventArgs e)
+    {
+        if (sender is not IncomingCallWindow window || window != _window || _policy is not { } policy)
+        {
+            return;
+        }
+
+        KeepOnScreen();
+        var origin = window.PhysicalFrame.Origin;
+        _lastOrigin = origin;
+        if (!policy.IsEnabled || !policy.IsRandomPositionEnabled)
+        {
+            SavePlacement?.Invoke(origin);
+        }
+    }
 
     /// <summary>Возвращает окно внутрь области, если оно оттуда вылезло.</summary>
     ///
@@ -321,12 +367,14 @@ public sealed class IncomingCallPresenter : IDisposable
     /// </remarks>
     private void KeepOnScreen()
     {
-        if (_window is not IncomingCallWindow window || _placement is not IncomingCallPlacement placement)
+        if (_window is not IncomingCallWindow window || _placement is null || _policy is not { } policy)
         {
             return;
         }
 
         var frame = window.PhysicalFrame;
+        var placement = PlacementFor(policy, window, new ScreenPoint(frame.MidX, frame.MidY));
+        _placement = placement;
         var corrected = placement.Contained(frame);
         if (corrected.Origin == frame.Origin)
         {
@@ -344,11 +392,10 @@ public sealed class IncomingCallPresenter : IDisposable
     private static double ScaleOf(Window window)
         => PresentationSource.FromVisual(window)?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
 
-    private static ScreenRect WorkAreaUnderCursor()
+    private static ScreenRect WorkAreaAt(ScreenPoint point)
     {
-        var cursor = PointerWatch.CursorPosition();
         var monitor = MonitorFromPoint(
-            new NativePoint { X = (int)cursor.X, Y = (int)cursor.Y },
+            new NativePoint { X = (int)Math.Clamp(point.X, int.MinValue, int.MaxValue), Y = (int)Math.Clamp(point.Y, int.MinValue, int.MaxValue) },
             MonitorDefaultToNearest);
 
         var info = new MonitorInfo { cbSize = (uint)Marshal.SizeOf<MonitorInfo>() };

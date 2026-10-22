@@ -230,7 +230,11 @@ public partial class App : Application, IDisposable
         // при этом кнопка панели в панели задач — своей у карточки вызова нет.
         _incoming = new IncomingCallPresenter(
             Log,
-            () => _panelWindow is null ? 0 : new WindowInteropHelper(_panelWindow).Handle);
+            () => _panelWindow is null ? 0 : new WindowInteropHelper(_panelWindow).Handle)
+        {
+            RestorePlacement = () => _settings.IncomingPlacement.Origin,
+            SavePlacement = origin => _settings.IncomingPlacement.Origin = origin,
+        };
 
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
         _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
