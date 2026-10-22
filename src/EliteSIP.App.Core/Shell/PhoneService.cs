@@ -82,6 +82,10 @@ public sealed class PhoneService : IDisposable
     /// </remarks>
     private readonly SemaphoreSlim _connection = new(1, 1);
 
+    // BYE может прийти во время запуска звука после 200 OK. Очистка ждёт
+    // завершения запуска, иначе тот заведёт линию уже после её снятия.
+    private readonly SemaphoreSlim _incomingMedia = new(1, 1);
+
     /// <summary>Записи истории по Call-ID: их дописывают по ходу разговора.</summary>
     private readonly Dictionary<string, CallRecord> _records = [];
 
@@ -651,6 +655,11 @@ public sealed class PhoneService : IDisposable
         _records[call.CallId] = record;
         ClientEventLog.Shared.CallStarted(call.CallId, incoming: true);
 
+        // Следим за завершением и при автоподъёме: его ветка ниже выходит
+        // без окна. Иначе BYE/CANCEL закрывает SIP-диалог, но линия, звук
+        // и запись истории остаются живыми, а повторный отбой уже бесполезен.
+        _ = Task.Run(() => FollowIncomingAsync(call));
+
         // Автоподъём (с 0.1.61, как на macOS): режим разрешает — трубка
         // снимается сразу, без мелодии и окна входящего. Не поверх идущего
         // разговора: там снятие трубки поставило бы собеседника на удержание
@@ -677,11 +686,6 @@ public sealed class PhoneService : IDisposable
             _settings.IncomingCall.ToPolicy(),
             onAnswer: () => _ = AnswerAsync(call),
             onDecline: () => _ = DeclineAsync(call));
-
-        // Звонящий вправе передумать, пока оператор тянется к кнопке. Окно в
-        // этом случае надо убрать самим: нажимать в нём уже некуда, а лид,
-        // отменённый секунду назад, оператор всё равно засчитает себе в отказ.
-        _ = Task.Run(() => FollowIncomingAsync(call));
     }
 
     /// <summary>Название очереди из словаря администратора, если номер там есть.</summary>
@@ -703,6 +707,19 @@ public sealed class PhoneService : IDisposable
     /// 200 OK — Asterisk начинает слать RTP сразу по ответу, не дожидаясь ACK.
     /// </remarks>
     private async Task AnswerAsync(SipIncomingCall call)
+    {
+        await _incomingMedia.WaitAsync().ConfigureAwait(true);
+        try
+        {
+            await AnswerIncomingCoreAsync(call).ConfigureAwait(true);
+        }
+        finally
+        {
+            _incomingMedia.Release();
+        }
+    }
+
+    private async Task AnswerIncomingCoreAsync(SipIncomingCall call)
     {
         if (_agent is not SipUserAgent agent || _bus is null || _lines is null)
         {
@@ -828,9 +845,18 @@ public sealed class PhoneService : IDisposable
             // Отбой звучит только у состоявшегося разговора: непринятый
             // входящий кончается вместе со звонком, и второй звук поверх
             // смолкшего рингтона был бы лишним.
-            var hadMedia = _sessions.ContainsKey(call.CallId);
+            bool hadMedia;
+            await _incomingMedia.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                hadMedia = _sessions.ContainsKey(call.CallId);
+                await CloseMediaAsync(call.CallId).ConfigureAwait(false);
+            }
+            finally
+            {
+                _incomingMedia.Release();
+            }
 
-            await CloseMediaAsync(call.CallId).ConfigureAwait(false);
             if (hadMedia)
             {
                 _sounds.PlayHangUp(_settings.Audio.OutputDeviceId);
