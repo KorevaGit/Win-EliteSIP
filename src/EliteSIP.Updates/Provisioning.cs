@@ -87,7 +87,7 @@ internal sealed class Provisioning
             var baseUrl = string.IsNullOrWhiteSpace(ReleasesBaseUrl) ? BaseUrl : ReleasesBaseUrl;
             var root = baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/";
 
-            return Uri.TryCreate(root + "releases/current.json", UriKind.Absolute, out var url)
+            return Uri.TryCreate(root + ReleaseLine.Current.Manifest, UriKind.Absolute, out var url)
                 ? url
                 : null;
         }

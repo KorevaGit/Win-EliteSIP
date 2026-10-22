@@ -458,6 +458,16 @@ internal sealed class UpdateService : IDisposable
                 return;
             }
 
+            // Файл не той ОС — не качаем, даже подписанный (разбор — у
+            // `ReleaseLine.Holds`).
+            if (!ReleaseLine.Current.Holds(manifest))
+            {
+                _log($"обновления: {manifest.Version.ToString(3)} указывает не на выпуск этой ОС "
+                    + $"({manifest.Url.AbsolutePath}) — не качаю");
+                LastResult = Resources.Strings.Get("UpdatesDownloadFailed");
+                return;
+            }
+
             _log($"обновления: есть {manifest.Version.ToString(3)}, качаем");
             LastResult = Resources.Strings.Format("UpdatesDownloading", manifest.Version.ToString(3), 0, Megabytes(manifest.Size));
 
@@ -537,7 +547,7 @@ internal sealed class UpdateService : IDisposable
             var directory = _handoff.UpdatesDirectory;
 
             staged = Directory.Exists(directory)
-                ? Directory.GetFiles(directory, "EliteSIP-*.exe")
+                ? Directory.GetFiles(directory, ReleaseLine.Current.FilePattern)
                 : [];
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
@@ -547,12 +557,7 @@ internal sealed class UpdateService : IDisposable
 
         foreach (var file in staged)
         {
-            const string prefix = "EliteSIP-";
-            var name = Path.GetFileNameWithoutExtension(file);
-
-            if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                || !Version.TryParse(name[prefix.Length..], out var version)
-                || keep(version))
+            if (ReleaseLine.Current.VersionOf(file) is not { } version || keep(version))
             {
                 continue;
             }
@@ -581,7 +586,7 @@ internal sealed class UpdateService : IDisposable
         // `Program Files`, проверив подпись заново.
         var directory = _handoff.UpdatesDirectory;
 
-        var path = Path.Combine(directory, $"EliteSIP-{manifest.Version.ToString(3)}.exe");
+        var path = Path.Combine(directory, ReleaseLine.Current.FileName(manifest.Version));
 
         try
         {

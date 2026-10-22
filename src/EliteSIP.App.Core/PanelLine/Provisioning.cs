@@ -151,10 +151,12 @@ internal static class Provisioning
         /// не добавил бы — оба всё равно видны через `strings`, а настоящую
         /// защиту линии даёт подпись Ed25519.
         ///
-        /// Среза здесь нет, в отличие от appcast оригинала: сборка одна.
+        /// Среза по архитектуре здесь нет, в отличие от appcast оригинала: сборка
+        /// одна. Срез по ОС есть — каталог линии (<see cref="PanelLink.ReleaseLine"/>).
         /// </summary>
         public Uri? ReleasesUrl() => Address(
-            string.IsNullOrWhiteSpace(ReleasesBaseUrl) ? BaseUrl : ReleasesBaseUrl, "releases/current.json");
+            string.IsNullOrWhiteSpace(ReleasesBaseUrl) ? BaseUrl : ReleasesBaseUrl,
+            PanelLink.ReleaseLine.Current.Manifest);
 
         /// <summary>
         /// Адрес помашинного объекта: <c>access/&lt;id&gt;</c> или

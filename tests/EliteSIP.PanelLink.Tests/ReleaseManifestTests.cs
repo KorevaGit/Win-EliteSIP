@@ -156,15 +156,41 @@ public sealed class ReleaseManifestTests
         Assert.Equal(expected, manifest.IsServedFrom(new Uri(manifestAddress)));
     }
 
+    [Theory]
+    [InlineData("https://update.elitesip.vip:8081/releases/linux/EliteSIP-1.4.2.deb", true)]
+    [InlineData("https://update.elitesip.vip:8081/releases/EliteSIP-1.4.2.exe", false)]
+    [InlineData("https://update.elitesip.vip:8081/releases/EliteSIP-1.4.2.deb", false)]
+    [InlineData("https://update.elitesip.vip:8081/releases/linux/EliteSIP-1.4.1.deb", false)]
+    [InlineData("https://update.elitesip.vip:8081/releases/linux/other.deb", false)]
+    public void Linux_качает_только_пакет_своей_линии(string url, bool expected)
+    {
+        var manifest = ReleaseManifest.Verified(Signed(Payload(url)), Pair.Public);
+
+        // Версия в имени обязана совпасть с версией манифеста: обновляльщик
+        // ставит ровно объявленное, а apt поставит то, что внутри файла.
+        Assert.Equal(expected, ReleaseLine.Linux.Holds(manifest));
+    }
+
+    [Fact]
+    public void Windows_проверку_каталога_не_получил()
+    {
+        // Раздел общего кода не меняет поведение Windows-клиента: прежде он
+        // смотрел только на хост, так и осталось.
+        var manifest = ReleaseManifest.Verified(
+            Signed(Payload("https://get.elitesip.vip/elsewhere/setup.exe")), Pair.Public);
+
+        Assert.True(ReleaseLine.Windows.Holds(manifest));
+    }
+
     private const string Digest =
         "9f2c4a1b9d3e5f60a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718";
 
-    private static string Payload() =>
+    private static string Payload(string url = "https://get.elitesip.vip/releases/EliteSIP-1.4.2.exe") =>
         $$"""
         {
           "format": 1,
           "version": "1.4.2",
-          "url": "https://get.elitesip.vip/releases/EliteSIP-1.4.2.exe",
+          "url": "{{url}}",
           "sha256": "{{Digest}}",
           "size": 9000000,
           "published_at": "2026-09-09T10:00:00Z",
