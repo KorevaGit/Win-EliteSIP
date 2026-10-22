@@ -6,7 +6,7 @@ namespace EliteSIP.Audio;
 
 /// <summary>
 /// Служебные звуки: гудки звонящему, рингтон входящего и короткие подсказки —
-/// нажатие клавиши набора и отбой.
+/// нажатие клавиши набора, подключение и отбой.
 ///
 /// <b>Почему это не тракт разговора.</b> Тракт занят кодеком, RTP и
 /// эхоподавлением, поднимается на ответ и владеет одним устройством. Гудки
@@ -319,6 +319,11 @@ public sealed class SignalSoundPlayer : IDisposable
     /// <param name="deviceId">Устройство разговора или <c>null</c> — системное.</param>
     public void PlayHangUp(string? deviceId) => PlayCue(new HangUpToneProvider(), deviceId);
 
+    /// <summary>Тихое подтверждение подключения, только в устройстве оператора.</summary>
+    public void PlayConnected(string? deviceId) => PlayCue(CreateConnectedTone(), deviceId);
+
+    internal static ISampleProvider CreateConnectedTone() => new ConnectedToneProvider();
+
     public void Dispose()
     {
         lock (_gate)
@@ -334,7 +339,7 @@ public sealed class SignalSoundPlayer : IDisposable
         }
     }
 
-    // MARK: - Подсказки: нажатие клавиши, отбой
+    // MARK: - Подсказки: нажатие клавиши, подключение, отбой
 
     /// <summary>
     /// Сколько держать устройство подсказок открытым после последней.
@@ -599,9 +604,41 @@ public sealed class SignalSoundPlayer : IDisposable
     }
 
     /// <summary>
-    /// Отбой: две мягкие ноты вниз, ре и ля, как в звонке, — только тише и
-    /// короче. Подтверждает «разговор кончился», не требуя смотреть на экран.
+    /// Подключение: две мягкие ноты вверх, 340 мс. Уровень ниже сигнала отбоя.
     /// </summary>
+    private sealed class ConnectedToneProvider() : ToneProvider(0.032)
+    {
+        private const int LengthSamples = Rate * 34 / 100;
+
+        protected override double? ValueAt(long sample)
+        {
+            if (sample >= LengthSamples)
+            {
+                return null;
+            }
+
+            double time = (double)sample / Rate;
+            return Note(time, 0, 523.25, 0.19, 0.90)
+                + Note(time, 0.11, 659.25, 0.23, 0.75);
+        }
+
+        private static double Note(double time, double start, double frequency, double length, double gain)
+        {
+            double local = time - start;
+            if (local < 0 || local >= length)
+            {
+                return 0;
+            }
+
+            double attack = Math.Pow(Math.Sin(Math.Min(local / 0.012, 1) * Math.PI / 2), 2);
+            double release = Math.Pow(Math.Sin(Math.Min((length - local) / 0.060, 1) * Math.PI / 2), 2);
+            double phase = 2 * Math.PI * frequency * local;
+            return gain * attack * release * Math.Exp(-7 * local)
+                * (Math.Sin(phase) + 0.08 * Math.Sin(2 * phase)) / 1.08;
+        }
+    }
+
+    /// <summary>Отбой: две мягкие ноты вниз, ре и ля.</summary>
     private sealed class HangUpToneProvider() : ToneProvider(1)
     {
         private const int NoteSamples = Rate * 12 / 100;

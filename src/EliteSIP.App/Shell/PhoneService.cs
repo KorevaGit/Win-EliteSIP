@@ -1637,9 +1637,19 @@ public sealed class PhoneService : IDisposable
             return;
         }
 
+        var firstAnswer = record.AnsweredAt is null;
         record.AnsweredAt ??= DateTimeOffset.Now;
         _history.MarkAnswered(record.Id, record.AnsweredAt);
         ClientEventLog.Shared.CallAnswered(callId);
+
+        // Оба направления приходят сюда уже с поднятым медиа. Повторный
+        // ответ, удержание и звонок, который успел завершиться, не сигналят.
+        if (firstAnswer
+            && _agent?.CallStateOf(callId) is SipCallState.Answered
+            && _lines?.ActiveCallId == callId)
+        {
+            _sounds.PlayConnected(_settings.Audio.OutputDeviceId);
+        }
     }
 
     /// <summary>Снимает отметку о неотвеченном исходящем, если она про этот вызов.</summary>
