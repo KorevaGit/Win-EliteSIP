@@ -183,8 +183,8 @@ internal sealed class UpdateService : IDisposable
     /// <summary>Что делать перед установкой: снять регистрацию и закрыть приложение.</summary>
     internal Action? PrepareForRestart { get; set; }
 
-    internal Version Installed { get; } =
-        typeof(UpdateService).Assembly.GetName().Version ?? new Version(0, 0, 0);
+    /// <summary>Версия приложения, а не этой сборки — см. <see cref="ProductVersion"/>.</summary>
+    internal Version Installed { get; } = ProductVersion.Current;
 
     /// <summary>Заводит общий будильник и делает первую проверку.</summary>
     internal void Start()

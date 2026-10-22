@@ -445,29 +445,10 @@ public sealed class SettingsViewModel : Observable
     /// Первое, что просит поддержка по телефону, — «какая у вас версия». В
     /// оригинале эта строка сперва стояла только за административным паролем, и
     /// менеджеру было нечего ответить.
+    ///
+    /// Версия приложения, а не этой сборки — см. <see cref="ProductVersion"/>.
     /// </remarks>
-    /// <remarks>
-    /// Хвост после «+» отрезается. Сборка кладёт в осведомительную версию
-    /// отпечаток последнего коммита, и человек по телефону читал бы поддержке
-    /// сорок знаков шестнадцатеричного мусора вместо «ноль один один».
-    /// </remarks>
-    public static string Version
-    {
-        get
-        {
-            var full = Assembly.GetExecutingAssembly()
-                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-
-            if (string.IsNullOrEmpty(full))
-            {
-                return "—";
-            }
-
-            var plus = full.IndexOf('+', StringComparison.Ordinal);
-
-            return plus < 0 ? full : full[..plus];
-        }
-    }
+    public static string Version => ProductVersion.Display;
 
     /// <summary>
     /// Линия обновлений. <c>null</c> — не заведена.

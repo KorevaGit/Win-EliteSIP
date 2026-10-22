@@ -354,6 +354,5 @@ internal static class ChannelRequest
         request.Headers.TryAddWithoutValidation("X-EliteSIP-Config", appliedConfigRevision.ToString(invariant));
     }
 
-    internal static string AppVersion { get; } =
-        typeof(ChannelRequest).Assembly.GetName().Version?.ToString(3) ?? string.Empty;
+    internal static string AppVersion { get; } = Platform.ProductVersion.Current.ToString(3);
 }
