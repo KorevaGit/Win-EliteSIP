@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace EliteSIP.App.Theme;
 
@@ -39,6 +40,9 @@ internal static class SystemCaption
     /// <summary>«Скругляй как принято» — то же, что у системных окон.</summary>
     private const int CornerRound = 2;
 
+    private const int CaptionColor = 35;
+    private const int CaptionTextColor = 36;
+
     /// <summary>Ставит окну тёмную или светлую полосу и скруглённые углы.</summary>
     ///
     /// <remarks>
@@ -73,11 +77,28 @@ internal static class SystemCaption
         var corner = CornerRound;
         _ = DwmSetWindowAttribute(handle, WindowCornerPreference, ref corner, sizeof(int));
 
+        // На Windows 11 задаём точные цвета, чтобы системный акцент не
+        // отделял заголовок от клиента. Кнопки и их поведение рисует DWM.
+        // Windows 10 не знает этих атрибутов: там остаётся светлая/тёмная
+        // системная полоса, совпадающая с белым/чёрным фоном нашей палитры.
+        if (window.Background is SolidColorBrush background)
+        {
+            var color = ColorRef(background.Color);
+            _ = DwmSetWindowAttribute(handle, CaptionColor, ref color, sizeof(int));
+        }
+        if (window.TryFindResource("TextPrimaryBrush") is SolidColorBrush foreground)
+        {
+            var color = ColorRef(foreground.Color);
+            _ = DwmSetWindowAttribute(handle, CaptionTextColor, ref color, sizeof(int));
+        }
+
         if (repaint)
         {
             Repaint(handle);
         }
     }
+
+    private static int ColorRef(Color color) => color.R | (color.G << 8) | (color.B << 16);
 
     /// <summary>Заставляет диспетчер нарисовать полосу заново.</summary>
     ///

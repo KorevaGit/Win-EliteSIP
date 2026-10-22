@@ -179,6 +179,11 @@ public partial class PanelWindow : Window
             Width = size.Width;
             Height = Math.Max(size.Height, MinHeight);
         }
+        else
+        {
+            SizeToContent = SizeToContent.Manual;
+            Height = InitialHeight(Width, MinHeight, Math.Min(MaxHeight, WorkArea().Height));
+        }
 
         // Содержимое меняет высоту само — вторая линия, поле перевода, число
         // макросов. Растянутому окну нельзя стать меньше того, что в нём
@@ -393,6 +398,12 @@ public partial class PanelWindow : Window
 
     /// <summary>Ниже этого клавиша перестаёт быть мишенью для мыши.</summary>
     internal const double MinimumMacroHeight = 30;
+
+    // Та же пропорция первого показа, что у Linux-клиента.
+    internal const double PhoneAspect = 4.0 / 3.0;
+
+    internal static double InitialHeight(double width, double content, double room) =>
+        Math.Min(Math.Max(Math.Round(width * PhoneAspect), content), room);
 
     /// <summary>
     /// Высота клавиши, при которой содержимое влезает в экран; <c>null</c> —
