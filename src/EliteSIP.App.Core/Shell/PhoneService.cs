@@ -134,6 +134,7 @@ public sealed class PhoneService : IDisposable
     {
         _settings = settings;
         _panel = panel;
+        _panel.IsMicrophoneMuted = settings.Audio.MicrophoneMuted;
         _history = history;
         _incoming = incoming;
         _ui = ui;
@@ -437,7 +438,10 @@ public sealed class PhoneService : IDisposable
 
         _bus = new VoiceAudioBus(_audio.CreateEngine(audio), _audio.CreateEngine);
 
-        _lines = new LineController(new SipUserAgentSignaling(_agent), _log);
+        _lines = new LineController(new SipUserAgentSignaling(_agent), _log)
+        {
+            IsMicrophoneMuted = _settings.Audio.MicrophoneMuted,
+        };
 
         // Повторные INVITE сервера — в медиа линии. До 1 октября 2026 этой
         // строки не было: SipCore отвечал прежним SDP, а звук продолжал идти
@@ -944,15 +948,19 @@ public sealed class PhoneService : IDisposable
         WindowsProcessing = _settings.Audio.WindowsProcessing,
     };
 
+    /// <summary>
+    /// Глушит или включает микрофон — в звонке и вне его. Вне звонка флаг
+    /// ложится в настройки, и следующая линия поднимается уже заглушённой.
+    /// </summary>
     public void ToggleMicrophone()
     {
-        if (_lines is null)
+        _settings.Audio.MicrophoneMuted = !_settings.Audio.MicrophoneMuted;
+        if (_lines is not null)
         {
-            return;
+            _lines.IsMicrophoneMuted = _settings.Audio.MicrophoneMuted;
         }
 
-        _lines.IsMicrophoneMuted = !_lines.IsMicrophoneMuted;
-        _panel.IsMicrophoneMuted = _lines.IsMicrophoneMuted;
+        _panel.IsMicrophoneMuted = _settings.Audio.MicrophoneMuted;
     }
 
     /// <summary>Отправляет тоны макроса в линию.</summary>

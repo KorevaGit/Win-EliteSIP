@@ -59,6 +59,7 @@ public sealed class AudioSettings : Observable
     private bool _noiseSuppression = true;
     private bool _backgroundVoiceSuppression = true;
     private bool _receiveGainControl;
+    private bool _microphoneMuted;
     private bool _releasesDeviceWhenIdle = true;
     private EliteSIP.Audio.WindowsCaptureProcessing _windowsProcessing = EliteSIP.Audio.WindowsCaptureProcessing.Auto;
 
@@ -111,6 +112,17 @@ public sealed class AudioSettings : Observable
     {
         get => _playbackVolume;
         set => Set(ref _playbackVolume, value);
+    }
+
+    /// <summary>
+    /// Микрофон заглушён кнопкой панели. Хранится, а не живёт только в линиях:
+    /// оператор глушит его и до звонка, и заглушённым он остаётся, пока его
+    /// не включат, — через звонки, переподключение и перезапуск.
+    /// </summary>
+    public bool MicrophoneMuted
+    {
+        get => _microphoneMuted;
+        set => Set(ref _microphoneMuted, value);
     }
 
     /// <summary>Выравнивать громкость собеседника. По умолчанию выключено.</summary>

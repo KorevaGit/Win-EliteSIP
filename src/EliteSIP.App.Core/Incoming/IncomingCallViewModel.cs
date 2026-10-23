@@ -23,6 +23,7 @@ namespace EliteSIP.App.Incoming;
 public sealed class IncomingCallViewModel : Observable
 {
     private string? _refusal;
+    private bool _numberCopied;
 
     public IncomingCallViewModel(
         IncomingCallSubject subject,
@@ -100,7 +101,26 @@ public sealed class IncomingCallViewModel : Observable
         }
     }
 
-    public string Caption => _refusal ?? Strings.Get("IncomingCaption");
+    public string Caption => _refusal ?? Strings.Get(_numberCopied ? "IncomingNumberCopied" : "IncomingCaption");
+
+    /// <summary>Номер для копирования щелчком; <c>null</c> — скрыт или его нет.</summary>
+    public string? CopyableNumber => Subject.CopyableNumber;
+
+    public bool CanCopyNumber => CopyableNumber is not null;
+
+    /// <summary>
+    /// Номер ушёл в буфер обмена: подпись окна на время говорит об этом. На
+    /// месте подписи, а не новой строкой — по той же причине, что отказ.
+    /// </summary>
+    public bool IsNumberCopied
+    {
+        get => _numberCopied;
+        set
+        {
+            Set(ref _numberCopied, value);
+            NotifyChanged(nameof(Caption));
+        }
+    }
 
     public bool IsRefused => _refusal is not null;
 
