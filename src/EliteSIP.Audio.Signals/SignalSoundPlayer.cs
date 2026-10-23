@@ -285,6 +285,12 @@ public sealed class SignalSoundPlayer : ISignalSounds
     /// <param name="deviceId">Устройство разговора или <c>null</c> — системное.</param>
     public void PlayHangUp(string? deviceId) => PlayCue(new HangUpToneProvider(), deviceId);
 
+    /// <summary>Тихое подтверждение подключения, только в устройстве оператора.</summary>
+    /// <param name="deviceId">Устройство разговора или <c>null</c> — системное.</param>
+    public void PlayConnected(string? deviceId) => PlayCue(CreateConnectedTone(), deviceId);
+
+    internal static ISampleProvider CreateConnectedTone() => new ConnectedToneProvider();
+
     public void Dispose()
     {
         lock (_gate)
@@ -300,7 +306,7 @@ public sealed class SignalSoundPlayer : ISignalSounds
         }
     }
 
-    // MARK: - Подсказки: нажатие клавиши, отбой
+    // MARK: - Подсказки: нажатие клавиши, подключение, отбой
 
     /// <summary>
     /// Сколько держать устройство подсказок открытым после последней.
@@ -560,6 +566,42 @@ public sealed class SignalSoundPlayer : ISignalSounds
             double[] rows = [697, 770, 852, 941];
             double[] columns = [1209, 1336, 1477];
             return new KeyToneProvider([(rows[row], 0.025), (columns[column], 0.025)]);
+        }
+    }
+
+    /// <summary>
+    /// Подключение: две мягкие ноты вверх, до и ми, 340 мс. Пик около
+    /// −30 dBFS — тише отбоя примерно на 7 дБ: подтверждение, а не звонок.
+    /// </summary>
+    private sealed class ConnectedToneProvider() : ToneProvider(0.032)
+    {
+        private const int LengthSamples = Rate * 34 / 100;
+
+        protected override double? ValueAt(long sample)
+        {
+            if (sample >= LengthSamples)
+            {
+                return null;
+            }
+
+            double time = (double)sample / Rate;
+            return Note(time, 0, 523.25, 0.19, 0.90)
+                + Note(time, 0.11, 659.25, 0.23, 0.75);
+        }
+
+        private static double Note(double time, double start, double frequency, double length, double gain)
+        {
+            double local = time - start;
+            if (local < 0 || local >= length)
+            {
+                return 0;
+            }
+
+            double attack = Math.Pow(Math.Sin(Math.Min(local / 0.012, 1) * Math.PI / 2), 2);
+            double release = Math.Pow(Math.Sin(Math.Min((length - local) / 0.060, 1) * Math.PI / 2), 2);
+            double phase = 2 * Math.PI * frequency * local;
+            return gain * attack * release * Math.Exp(-7 * local)
+                * (Math.Sin(phase) + 0.08 * Math.Sin(2 * phase)) / 1.08;
         }
     }
 

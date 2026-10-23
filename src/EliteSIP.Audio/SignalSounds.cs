@@ -1,7 +1,7 @@
 namespace EliteSIP.Audio;
 
 /// <summary>
-/// Служебные звуки: гудки, отбой, тоны клавиш, рингтон и его прослушивание.
+/// Служебные звуки: гудки, подключение, отбой, тоны клавиш, рингтон и его прослушивание.
 /// </summary>
 ///
 /// <remarks>
@@ -35,4 +35,7 @@ public interface ISignalSounds : IDisposable
 
     /// <summary>Короткий сигнал отбоя.</summary>
     public void PlayHangUp(string? deviceId);
+
+    /// <summary>Тихое подтверждение подключения, только в устройстве оператора.</summary>
+    public void PlayConnected(string? deviceId);
 }
