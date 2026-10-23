@@ -852,6 +852,12 @@
   <data name="IncomingCaption" xml:space="preserve">
     <value>Входящий вызов</value>
   </data>
+  <data name="IncomingNumberCopied" xml:space="preserve">
+    <value>Номер скопирован</value>
+  </data>
+  <data name="IncomingCopyNumber" xml:space="preserve">
+    <value>Скопировать номер</value>
+  </data>
   <data name="IncomingGuardOn" xml:space="preserve">
     <value>Защита от автокликеров включена</value>
   </data>

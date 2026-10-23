@@ -110,7 +110,28 @@
         Главная строка — одна, с ужатием и без переноса: длина чужого названия
         не имеет права двигать высоту окна.
     -->
-    <StackPanel Margin="0,4,0,0" HorizontalAlignment="Stretch">
+    <!--
+        Имя и номер — щелчком копируют номер. Только видимый: номер под
+        маской не копируется (IncomingCallSubject.CopyableNumber).
+        IsHitTestVisibleInChrome — верх карточки может попасть под полосу
+        WindowChrome, а там щелчок забирает перенос окна.
+    -->
+    <StackPanel x:Name="NumberBlock"
+                Margin="0,4,0,0"
+                HorizontalAlignment="Stretch"
+                Background="Transparent"
+                shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                ToolTip="{res:Loc IncomingCopyNumber}"
+                ToolTipService.IsEnabled="{Binding CanCopyNumber}">
+      <StackPanel.Style>
+        <Style TargetType="StackPanel">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding CanCopyNumber}" Value="True">
+              <Setter Property="Cursor" Value="Hand" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </StackPanel.Style>
       <TextBlock theme:Emoji.Text="{Binding Headline}"
                  HorizontalAlignment="Center"
                  TextAlignment="Center"

@@ -873,6 +873,12 @@
   <data name="IncomingCaption" xml:space="preserve">
     <value>Incoming call</value>
   </data>
+  <data name="IncomingNumberCopied" xml:space="preserve">
+    <value>Number copied</value>
+  </data>
+  <data name="IncomingCopyNumber" xml:space="preserve">
+    <value>Copy number</value>
+  </data>
   <data name="IncomingGuardOn" xml:space="preserve">
     <value>Autoclicker protection is on</value>
   </data>

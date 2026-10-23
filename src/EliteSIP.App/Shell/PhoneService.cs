@@ -128,6 +128,7 @@ public sealed class PhoneService : IDisposable
     {
         _settings = settings;
         _panel = panel;
+        _panel.IsMicrophoneMuted = settings.Audio.MicrophoneMuted;
         _history = history;
         _incoming = incoming;
         _dispatcher = dispatcher;
@@ -433,7 +434,10 @@ public sealed class PhoneService : IDisposable
             new WasapiVoiceAudioEngine(audio),
             settings => new WasapiVoiceAudioEngine(settings));
 
-        _lines = new LineController(new SipUserAgentSignaling(_agent), _log);
+        _lines = new LineController(new SipUserAgentSignaling(_agent), _log)
+        {
+            IsMicrophoneMuted = _settings.Audio.MicrophoneMuted,
+        };
 
         // Повторные INVITE сервера — в медиа линии. До 1 октября 2026 этой
         // строки не было: SipCore отвечал прежним SDP, а звук продолжал идти
@@ -940,15 +944,19 @@ public sealed class PhoneService : IDisposable
         WindowsProcessing = _settings.Audio.WindowsProcessing,
     };
 
+    /// <summary>
+    /// Глушит или включает микрофон — в звонке и вне его. Вне звонка флаг
+    /// ложится в настройки, и следующая линия поднимается уже заглушённой.
+    /// </summary>
     public void ToggleMicrophone()
     {
-        if (_lines is null)
+        _settings.Audio.MicrophoneMuted = !_settings.Audio.MicrophoneMuted;
+        if (_lines is not null)
         {
-            return;
+            _lines.IsMicrophoneMuted = _settings.Audio.MicrophoneMuted;
         }
 
-        _lines.IsMicrophoneMuted = !_lines.IsMicrophoneMuted;
-        _panel.IsMicrophoneMuted = _lines.IsMicrophoneMuted;
+        _panel.IsMicrophoneMuted = _settings.Audio.MicrophoneMuted;
     }
 
     /// <summary>Отправляет тоны макроса в линию.</summary>
@@ -992,6 +1000,11 @@ public sealed class PhoneService : IDisposable
 
         var outcome = await _lines.SendConferenceCodeAsync(code).ConfigureAwait(true);
         _panel.IsConferenceStarted = outcome is DtmfOutcome.Sent;
+
+        // Собирает комнату АТС, и о том, собрала ли, она не сообщает: в журнале
+        // остаётся только то, что код ушёл. Без этой строки «нажал конференцию —
+        // ничего» не отличить от «код не ушёл».
+        _log($"конференция: код {code} — {outcome}");
     }
 
     /// <summary>Переводит активную линию на другой номер.</summary>
@@ -1788,11 +1801,13 @@ public sealed class PhoneService : IDisposable
             _panel.ActiveLine = null;
             _panel.CanSendDtmf = false;
             _panel.IsOnHold = false;
+            _panel.IsConferenceStarted = false;
             _panel.ResyncToggles();
             return;
         }
 
         CallLineViewModel? active = null;
+        var conference = false;
         foreach (var line in _lines.Lines)
         {
             var record = _records.Values.FirstOrDefault(candidate => candidate.CallId == line.CallId);
@@ -1830,10 +1845,16 @@ public sealed class PhoneService : IDisposable
             if (line.IsActive)
             {
                 active = view;
+                conference = line.Conference is ConferenceState.Sent;
             }
         }
 
         _panel.ActiveLine = active;
+
+        // Кнопка конференции — по активной линии, а не флагом на всю панель:
+        // до 23 октября 2026 он ставился один раз и не снимался никогда,
+        // и «Конференция» горела и после конца разговора, и на следующем звонке.
+        _panel.IsConferenceStarted = conference;
         _panel.CallStatus = active?.Status ?? string.Empty;
         _panel.IsOnHold = active?.IsOnHold ?? false;
         _panel.CanSendDtmf = active is not null;

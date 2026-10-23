@@ -493,7 +493,12 @@ public sealed class PanelViewModel : Observable
 
     public bool CanHold => IsInCall;
 
-    public bool CanMuteMicrophone => IsInCall;
+    /// <summary>Микрофон глушится и до звонка — заглушённым он и поднимется.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1822:Пометьте члены как статические",
+        Justification = "Статическое свойство разметка не находит: привязка ищет его у объекта.")]
+    public bool CanMuteMicrophone => true;
 
     public bool CanTransfer => IsInCall && !_isTransferEntryVisible;
 

@@ -127,6 +127,19 @@ public sealed record IncomingCallSubject
         _ => string.IsNullOrEmpty(Name) || Number.Length == 0 ? null : ShownNumber(Number),
     };
 
+    /// <summary>
+    /// Номер, который можно скопировать щелчком в окне входящего. <c>null</c> —
+    /// копировать нечего.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Копируется только то, что оператор и так видит. Номер под маской не
+    /// копируется вовсе: маска — страховка от утечки лидов, и буфер обмена её
+    /// не обходит. Звонок по сделке номера не показывает — его и не копируют.
+    /// </remarks>
+    public string? CopyableNumber
+        => HidesNumber || Number.Length == 0 || ShownNumber(Number) != Number ? null : Number;
+
     /// <summary>Прячет ли этот вызов номер собеседника целиком.</summary>
     public bool HidesNumber => Kind is IncomingCallKind.SelfCall;
 

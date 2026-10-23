@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using EliteSIP.CallGuard;
 
 namespace EliteSIP.App.Incoming;
@@ -48,10 +50,24 @@ public partial class IncomingCallWindow : Window
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoActivate = 0x0010;
 
+    /// <summary>Сколько подпись говорит «номер скопирован».</summary>
+    private static readonly TimeSpan CopiedNoticeTime = TimeSpan.FromSeconds(2);
+
+    private readonly DispatcherTimer _copiedNotice;
+
     public IncomingCallWindow(IncomingCallViewModel model)
     {
         InitializeComponent();
         DataContext = model;
+
+        NumberBlock.MouseLeftButtonUp += OnNumberReleased;
+        _copiedNotice = new DispatcherTimer { Interval = CopiedNoticeTime };
+        _copiedNotice.Tick += (_, _) =>
+        {
+            _copiedNotice.Stop();
+            model.IsNumberCopied = false;
+        };
+        Closed += (_, _) => _copiedNotice.Stop();
 
         // Далеко за пределами любого экрана: настоящий размер окно узнаёт
         // только при показе, а позиция считается по размеру. Показать его на
@@ -158,6 +174,30 @@ public partial class IncomingCallWindow : Window
         };
 
         FlashWindowEx(ref info);
+    }
+
+    /// <summary>Номер — в буфер обмена. Фокус окно при этом не берёт.</summary>
+    private void OnNumberReleased(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not IncomingCallViewModel { CopyableNumber: { } number } model)
+        {
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetDataObject(number, copy: true);
+        }
+        catch (ExternalException)
+        {
+            // Буфер держит другое приложение (CLIPBRD_E_CANT_OPEN): номер не
+            // скопировался, а вызову это не мешает.
+            return;
+        }
+
+        model.IsNumberCopied = true;
+        _copiedNotice.Stop();
+        _copiedNotice.Start();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
