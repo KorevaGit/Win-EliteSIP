@@ -152,8 +152,8 @@ public static class AudioDeviceCatalog
     }
 
     /// <summary>
-    /// Открывает конечную точку для работы. Отдаёт её вызывающему — освобождать
-    /// ему.
+    /// Открывает активную конечную точку для работы. Отдаёт её вызывающему —
+    /// освобождать ему. Недоступное устройство возвращает как null.
     ///
     /// Нужно тракту: описание устройства для открытия потока не годится, работу
     /// ведёт сама конечная точка.
@@ -165,7 +165,14 @@ public static class AudioDeviceCatalog
         try
         {
             using MMDeviceEnumerator enumerator = new();
-            return enumerator.GetDevice(id);
+            MMDevice endpoint = enumerator.GetDevice(id);
+            if (Availability(endpoint) == AudioDeviceAvailability.Active)
+            {
+                return endpoint;
+            }
+
+            endpoint.Dispose();
+            return null;
         }
         catch (Exception e) when (IsAudioFailure(e))
         {

@@ -288,6 +288,10 @@ public sealed class AudioSelfTest : IDisposable
         {
             return new AudioSelfTestResult(false, "проверка остановлена");
         }
+        catch (VoiceAudioException error)
+        {
+            return new AudioSelfTestResult(false, $"проверка сорвалась: {error.Message}");
+        }
         finally
         {
             _released.Set();

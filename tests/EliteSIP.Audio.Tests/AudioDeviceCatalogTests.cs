@@ -103,6 +103,19 @@ public sealed class AudioDeviceCatalogTests
         Assert.Null(found);
     }
 
+    [Theory]
+    [InlineData(AudioDeviceDirection.Capture)]
+    [InlineData(AudioDeviceDirection.Render)]
+    public void Неактивная_конечная_точка_не_открывается(AudioDeviceDirection direction)
+    {
+        foreach (AudioDevice device in AudioDeviceCatalog.Devices(direction, includeInactive: true)
+                     .Where(device => device.Availability != AudioDeviceAvailability.Active))
+        {
+            using var endpoint = AudioDeviceCatalog.Open(device.Id);
+            Assert.Null(endpoint);
+        }
+    }
+
     [Fact]
     public void Пустой_идентификатор_это_ошибка_вызывающего()
     {
