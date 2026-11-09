@@ -30,6 +30,13 @@ public enum PanelMode
 public sealed class PanelSettings : Observable
 {
     private string _installationID = string.Empty;
+    private string? _recoverySubmittedInstallationID;
+
+    public string? RecoverySubmittedInstallationID
+    {
+        get => _recoverySubmittedInstallationID;
+        set => Set(ref _recoverySubmittedInstallationID, value);
+    }
     private string? _protectedChannelKey;
     private string _presetID = string.Empty;
     private string _presetName = string.Empty;

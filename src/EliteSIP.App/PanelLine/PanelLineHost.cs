@@ -134,6 +134,8 @@ internal sealed class PanelLineHost : IDisposable
         await CheckAsync().ConfigureAwait(true);
     }
 
+    private readonly MachineRecovery _recovery = new();
+
     /// <summary>Общий двухчасовой такт и кнопка «Проверить настройки сейчас».</summary>
     internal async Task CheckAsync()
     {
@@ -156,6 +158,7 @@ internal sealed class PanelLineHost : IDisposable
         if (!_settings.Panel.IsOffline)
         {
             await _machine.CheckConfigAsync().ConfigureAwait(true);
+            await _recovery.CheckAsync(_settings, _log).ConfigureAwait(true);
         }
     }
 
