@@ -238,6 +238,7 @@ public partial class App : Application, IDisposable
 
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
         _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
+        _phone.RecoverConnection = () => Reconnect("канал закрыт");
         Mark("телефон");
 
         // Рингтон входящего. Настройка его обещала с самого начала, а играть
@@ -545,6 +546,7 @@ public partial class App : Application, IDisposable
         _networkWatch = new NetworkWatch(
             () => Dispatcher.BeginInvoke(() => Reconnect("сеть сменилась")),
             () => Dispatcher.BeginInvoke(() => Reconnect("машина проснулась")),
+            () => _phone?.HasLocalRouteChanged() == true,
             Log);
 
         // Регистрация поднимается сама при запуске — как в оригинале
@@ -1134,7 +1136,7 @@ public partial class App : Application, IDisposable
     /// </summary>
     private static string ReconnectStatus(string reason) => reason switch
     {
-        "сеть сменилась" or "исправление сети" => "StatusFixingNetwork",
+        "сеть сменилась" or "исправление сети" or "канал закрыт" => "StatusFixingNetwork",
         "смена профиля" or "учётная запись изменена в «Управлении»" => "StatusSwitchingNumber",
         _ => "StatusReconnecting",
     };

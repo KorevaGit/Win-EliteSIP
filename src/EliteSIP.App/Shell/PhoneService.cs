@@ -299,6 +299,10 @@ public sealed class PhoneService : IDisposable
     /// <summary>Служебные звуки: их же берёт окно входящего под рингтон.</summary>
     public SignalSoundPlayer Sounds => _sounds;
 
+    internal Action? RecoverConnection { get; set; }
+
+    internal bool HasLocalRouteChanged() => _transport?.HasLocalRouteChanged() == true;
+
     /// <summary>Поднимает регистрацию по записанным настройкам.</summary>
     ///
     /// <remarks>
@@ -316,6 +320,7 @@ public sealed class PhoneService : IDisposable
         await _connection.WaitAsync().ConfigureAwait(true);
         try
         {
+            _panel.CanPlaceCall = false;
             if (_agent is not null)
             {
                 ShowStatus(StatusSlot.Connection, "StatusDisconnecting", "clock");
@@ -560,7 +565,8 @@ public sealed class PhoneService : IDisposable
     public async Task PlaceCallAsync(string number)
     {
         number = number.Trim();
-        if (_agent is null || _bus is null || _lines is null || number.Length == 0)
+        if (!_panel.CanPlaceCall || _connection.CurrentCount == 0
+            || _agent is null || _bus is null || _lines is null || number.Length == 0)
         {
             return;
         }
@@ -1080,6 +1086,7 @@ public sealed class PhoneService : IDisposable
                     case SipUserAgentEvent.ChannelClosed closed:
                         await _dispatcher.InvokeAsync(() => Trouble("TroubleChannelClosed", opensSettings: false));
                         _log($"канал закрыт: {closed.Reason}");
+                        _ = RecoverClosedChannelAsync(agent, token);
                         break;
 
                     default:
@@ -1090,6 +1097,25 @@ public sealed class PhoneService : IDisposable
         catch (OperationCanceledException)
         {
             // Обычный выход: регистрацию снимают, поток событий закрывают.
+        }
+    }
+
+    private async Task RecoverClosedChannelAsync(SipUserAgent agent, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), token).ConfigureAwait(false);
+            await _dispatcher.InvokeAsync(() =>
+            {
+                if (ReferenceEquals(_agent, agent) && _connection.CurrentCount != 0)
+                {
+                    RecoverConnection?.Invoke();
+                }
+            }, DispatcherPriority.Normal, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Старый агент уже заменён или приложение закрывается.
         }
     }
 

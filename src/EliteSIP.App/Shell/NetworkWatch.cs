@@ -1,4 +1,5 @@
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
@@ -15,9 +16,9 @@ namespace EliteSIP.App.Shell;
 /// <c>Contact</c>. Сервер об этом не знает: регистрация у него живёт до конца
 /// срока, и всё это время вызовы уходят в никуда.
 ///
-/// <b>Событий два, а лечение одно.</b> И пробуждение, и смена адреса означают
-/// «связь надо поднять заново, а стук переиграть»; звать их обоих через одну
-/// дверь дешевле, чем помнить, какое из них что чинит.
+/// Пробуждение и смена адреса требуют заново открыть связь и повторить стук.
+/// При смене таблицы маршрутов сначала проверяем путь до АТС: VPN может
+/// перенаправить его, не меняя IP-адреса компьютера.
 ///
 /// <b>Смена адреса приходит очередью.</b> Одно переключение Wi-Fi даёт несколько
 /// событий подряд: адрес пропал, адрес появился, появился второй у виртуального
@@ -38,25 +39,41 @@ internal sealed class NetworkWatch : IDisposable
     private readonly Action _onNetworkChanged;
     private readonly Action _onResume;
     private readonly Action<string> _log;
+    private readonly Func<bool> _sipRouteChanged;
     private readonly DispatcherTimer _settling;
+    private readonly RouteChangeCallback _routeCallback;
+    private readonly nint _routeNotification;
 
     private bool _disposed;
+    private bool _addressChanged;
 
-    internal NetworkWatch(Action onNetworkChanged, Action onResume, Action<string> log)
+    internal NetworkWatch(Action onNetworkChanged, Action onResume, Func<bool> sipRouteChanged, Action<string> log)
     {
         _onNetworkChanged = onNetworkChanged;
         _onResume = onResume;
+        _sipRouteChanged = sipRouteChanged;
         _log = log;
 
         _settling = new DispatcherTimer { Interval = Settle };
         _settling.Tick += (_, _) =>
         {
             _settling.Stop();
-            _onNetworkChanged();
+            bool addressChanged = _addressChanged;
+            _addressChanged = false;
+            if (addressChanged || _sipRouteChanged())
+            {
+                _onNetworkChanged();
+            }
         };
 
         NetworkChange.NetworkAddressChanged += OnAddressChanged;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        _routeCallback = (_, _, _) => ScheduleCheck(addressChanged: false);
+        uint error = NotifyRouteChange2(0, _routeCallback, 0, false, out _routeNotification);
+        if (error != 0)
+        {
+            _log($"уведомления об IP-маршрутах недоступны: код Windows {error}");
+        }
     }
 
     public void Dispose()
@@ -74,14 +91,28 @@ internal sealed class NetworkWatch : IDisposable
 
         _settling.Stop();
         _disposed = true;
+        if (_routeNotification != 0)
+        {
+            _ = CancelMibChangeNotify2(_routeNotification);
+            GC.KeepAlive(_routeCallback);
+        }
     }
 
     private void OnAddressChanged(object? sender, EventArgs e)
+        => ScheduleCheck(addressChanged: true);
+
+    private void ScheduleCheck(bool addressChanged)
     {
         // Событие приходит не в потоке интерфейса, а таймер — его. Перезапуск
         // таймера и есть склейка очереди событий в одно.
         _settling.Dispatcher.BeginInvoke(() =>
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _addressChanged |= addressChanged;
             _settling.Stop();
             _settling.Start();
         });
@@ -100,4 +131,15 @@ internal sealed class NetworkWatch : IDisposable
         _log("машина проснулась: связь поднимается заново");
         _onResume();
     }
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate void RouteChangeCallback(nint context, nint row, int notificationType);
+
+    [DllImport("iphlpapi.dll", ExactSpelling = true)]
+    private static extern uint NotifyRouteChange2(
+        ushort addressFamily, RouteChangeCallback callback, nint context,
+        [MarshalAs(UnmanagedType.U1)] bool initialNotification, out nint notificationHandle);
+
+    [DllImport("iphlpapi.dll", ExactSpelling = true)]
+    private static extern uint CancelMibChangeNotify2(nint notificationHandle);
 }

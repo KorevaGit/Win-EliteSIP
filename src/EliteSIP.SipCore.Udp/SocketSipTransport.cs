@@ -301,6 +301,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     /// </summary>
     private async Task<string?> ConnectAsync(CancellationToken token)
     {
+        Socket? socket = null;
         try
         {
             IPAddress[] addresses = IPAddress.TryParse(Remote.Host, out IPAddress? literal)
@@ -313,7 +314,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             }
 
             var endpoint = new IPEndPoint(addresses[0], Remote.Port);
-            var socket = new Socket(
+            socket = new Socket(
                 endpoint.AddressFamily,
                 Transport == SipTransport.Udp ? SocketType.Dgram : SocketType.Stream,
                 Transport == SipTransport.Udp ? ProtocolType.Udp : ProtocolType.Tcp);
@@ -332,26 +333,25 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
                 {
                     // Причина уже описана внутри — там же, где известно, чем
                     // именно кончилось рукопожатие.
-                    socket.Dispose();
                     return _handshakeFailure;
                 }
             }
 
+            var local = socket.LocalEndPoint as IPEndPoint;
             lock (_gate)
             {
                 if (_isStopped)
                 {
                     stream?.Dispose();
-                    socket.Dispose();
                     return null;
                 }
                 _stream?.Dispose();
                 _socket?.Dispose();
                 _socket = socket;
                 _stream = stream;
+                socket = null;
             }
 
-            var local = socket.LocalEndPoint as IPEndPoint;
             _events.Writer.TryWrite(new SipTransportEvent.Ready(
                 new SipEndpoint(local?.Address.ToString() ?? "0.0.0.0", (ushort)(local?.Port ?? 0))));
 
@@ -364,6 +364,40 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
         catch (SocketException error)
         {
             return SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport);
+        }
+        finally
+        {
+            socket?.Dispose();
+        }
+    }
+
+    /// <summary>Проверяет, какой локальный адрес Windows выберет для нового сокета до АТС.</summary>
+    public bool HasLocalRouteChanged()
+    {
+        IPEndPoint remote;
+        IPAddress current;
+        lock (_gate)
+        {
+            if (_socket?.RemoteEndPoint is not IPEndPoint peer
+                || _socket.LocalEndPoint is not IPEndPoint local)
+            {
+                return false;
+            }
+            remote = peer;
+            current = local.Address;
+        }
+
+        // UDP Connect выбирает адрес по таблице маршрутов без отправки пакета.
+        try
+        {
+            using var probe = new Socket(remote.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+            probe.Connect(remote);
+            return probe.LocalEndPoint is IPEndPoint selected && !selected.Address.Equals(current);
+        }
+        catch (SocketException error)
+        {
+            return error.SocketErrorCode is SocketError.NetworkUnreachable
+                or SocketError.HostUnreachable or SocketError.AddressNotAvailable;
         }
     }
 
