@@ -14,6 +14,59 @@ namespace EliteSIP.SipCore.Tests;
 /// </summary>
 public sealed class IncomingCallTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Исходящий_не_использует_Contact_предыдущего_входящего_и_ждёт_ответа(int previousCall)
+    {
+        ScriptedSipServer server = new((request, _) => request.Method switch
+        {
+            SipMethod.Register => ScriptedSipServer.RegistrationAccepted(request),
+            SipMethod.Invite => null,
+            _ => ScriptedSipServer.Response(request, 200),
+        });
+        using SipUserAgent agent = await RegisteredAgentAsync(server);
+
+        if (previousCall > 0)
+        {
+            Task<SipIncomingCall?> incoming = AwaitIncomingCallAsync(agent);
+            server.Inject(MakeInvite(from: "<sip:172@192.0.2.172>;tag=remote172", contact: "<sip:172@192.0.2.172:5099>"));
+            SipIncomingCall? call = await incoming.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.NotNull(call);
+            if (previousCall == 1)
+            {
+                await agent.RejectIncomingCallAsync(call.CallId);
+            }
+            else
+            {
+                Assert.True(await agent.AnswerIncomingCallAsync(call.CallId, Encoding.UTF8.GetBytes(AnswerSdp)));
+                await agent.HangUpAsync(call.CallId);
+            }
+        }
+
+        SipOutgoingCall outgoing = agent.PlaceCall("172", Encoding.UTF8.GetBytes(AnswerSdp));
+        Assert.True(await TestSupport.WaitUntilAsync(() => server.ReceivedRequests.Any(r => r.Method == SipMethod.Invite)));
+        SipRequest invite = server.ReceivedRequests.Last(r => r.Method == SipMethod.Invite);
+        Assert.Equal(TestSupport.TestAccount().Domain, invite.Uri.Host);
+        Assert.Equal("172", invite.Uri.User);
+        Assert.Null(invite.Headers.First("Alert-Info"));
+        Assert.Null(invite.Headers.First("Call-Info"));
+        Assert.Null(invite.Headers.First("Answer-Mode"));
+
+        server.Inject(ScriptedSipServer.Response(invite, 180));
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.CallStateOf(outgoing.CallId) is SipCallState.Ringing));
+        server.Inject(ScriptedSipServer.Response(invite, 486));
+        List<SipCallEvent> events = [];
+        await foreach (SipCallEvent value in outgoing.Events)
+        {
+            events.Add(value);
+        }
+        Assert.Empty(events.OfType<SipCallEvent.Answered>());
+        Assert.Single(events.OfType<SipCallEvent.Failed>());
+        await agent.StopAsync();
+    }
+
     private const string OfferSdp =
         "v=0\r\no=root 1 1 IN IP4 172.17.0.2\r\ns=Asterisk\r\nc=IN IP4 172.17.0.2\r\nt=0 0\r\n"
         + "m=audio 14002 RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\n"

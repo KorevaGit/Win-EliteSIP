@@ -132,7 +132,7 @@ public sealed partial class SipUserAgent
             });
 
             EmitCallState(new SipCallState.Dialing(), callId);
-            Log(SipLogLevel.Info, $"-> INVITE {target}");
+            Log(SipLogLevel.Info, $"-> INVITE {target}, Call-ID {callId}, CSeq {sequence}, сервер {_transactions.Remote}");
 
             bool needsRetry = false;
             bool finished = false;
@@ -322,7 +322,7 @@ public sealed partial class SipUserAgent
 
         await SendQuietlyAsync(ack).ConfigureAwait(false);
 
-        Log(SipLogLevel.Info, "<- 200 OK, отправлен ACK");
+        Log(SipLogLevel.Info, $"<- 200 OK, отправлен ACK, Call-ID {callId}, CSeq {call.InviteSequence}, Contact {dialog.RemoteTarget.Host}:{dialog.RemoteTarget.Port}");
         call.Writer.TryWrite(new SipCallEvent.State(new SipCallState.Answered()));
         call.Writer.TryWrite(new SipCallEvent.Answered(response.Body, response.ContentType));
     }

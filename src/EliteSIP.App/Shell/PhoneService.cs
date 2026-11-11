@@ -1529,6 +1529,8 @@ public sealed class PhoneService : IDisposable
     /// </remarks>
     private MediaSession OpenSession(string callId, NegotiatedMedia negotiated, RtpPortReservation reservation)
     {
+        _log($"медиа, Call-ID {callId}: удалённый RTP {negotiated.RemoteAddress}:{negotiated.RemotePort}, "
+            + $"кодек {negotiated.Codec}, пакет {negotiated.PacketTimeMilliseconds} мс, {negotiated.Direction.AttributeName()}");
         var session = new MediaSession(negotiated, reservation, _bus!, AudioConfiguration())
         {
             OnDiagnostic = message => _log($"медиа: {message}"),
@@ -2114,10 +2116,18 @@ public sealed class PhoneService : IDisposable
 
         if (poor)
         {
+            if (!_statuses.ContainsKey(StatusSlot.Network))
+            {
+                _log($"плохая связь, начало предупреждения: {session.Summary()}");
+            }
             ShowStatus(StatusSlot.Network, "StatusPoorNetwork", "exclamationmark.triangle", isWarning: true);
         }
         else
         {
+            if (_statuses.ContainsKey(StatusSlot.Network))
+            {
+                _log($"плохая связь, предупреждение снято: {session.Summary()}");
+            }
             ClearStatus(StatusSlot.Network);
         }
 
