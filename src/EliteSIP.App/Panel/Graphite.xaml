@@ -3,6 +3,22 @@
   <!-- Локальные стили панели: нейтральные поверхности, независимые от акцента Windows. -->
   <CornerRadius x:Key="PanelCornerRadius">10</CornerRadius>
   <DropShadowEffect x:Key="PanelShadow" Color="Black" BlurRadius="9" ShadowDepth="3" Opacity="0.16" />
+  <Style x:Key="PanelCaptionButtonStyle" TargetType="Button">
+    <Setter Property="Width" Value="38" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="Button">
+        <Border x:Name="Surface" Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" /></Trigger>
+          <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsMouseOver" Value="True" /><Condition Property="Tag" Value="Close" /></MultiTrigger.Conditions><Setter TargetName="Surface" Property="Background" Value="{DynamicResource DeclineFillBrush}" /><Setter Property="Foreground" Value="White" /></MultiTrigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.7" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
   <Style x:Key="PanelSurfaceButtonStyle" TargetType="Button" BasedOn="{StaticResource SurfaceButtonStyle}">
     <Setter Property="Background" Value="{DynamicResource PanelControlBrush}" />
     <Setter Property="Padding" Value="10,6" />
@@ -59,10 +75,12 @@
             <Trigger Property="IsChecked" Value="True">
               <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelSelectedBrush}" />
               <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource TextTertiaryBrush}" />
+              <Setter TargetName="Surface" Property="BorderThickness" Value="0" />
             </Trigger>
             <MultiTrigger>
               <MultiTrigger.Conditions><Condition Property="IsChecked" Value="True" /><Condition Property="Tag" Value="Warning" /></MultiTrigger.Conditions>
-              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelMutedBrush}" />
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource DeclineFillBrush}" />
+              <Setter Property="Foreground" Value="White" />
             </MultiTrigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Surface" Property="Opacity" Value="0.8" />

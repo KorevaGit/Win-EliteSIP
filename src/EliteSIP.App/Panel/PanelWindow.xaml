@@ -4,6 +4,7 @@
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:panel="clr-namespace:EliteSIP.App.Panel"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         d:DataContext="{d:DesignInstance Type=panel:PanelViewModel}"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -13,6 +14,7 @@
         MinWidth="270"
         SizeToContent="Height"
         ResizeMode="CanResize"
+        WindowStyle="None"
         WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
@@ -29,25 +31,7 @@
       на месте верхний край, а неподвижным в панели обязан быть нижний.
   -->
 
-  <!--
-      Полоса заголовка — системная, своей у панели больше нет.
-
-      Своя была попыткой повторить macOS, где заголовок панели и есть часть
-      панели. На Windows это читается наоборот: окно, которое рисует себе
-      заголовок само, выглядит окном, которое окном притворяется. Системная
-      полоса приносит с собой и то, чего своя не давала даром — значок и
-      подпись в привычном месте, меню окна по правому щелчку, «Свернуть» в том
-      же пикселе, что у всех прочих окон, и подсветку под курсором ровно такую,
-      как в остальной системе.
-
-      `CanMinimize`, а не `NoResize`: панель по-прежнему не тянется за угол — её
-      высоту задаёт содержимое, — но `NoResize` убирает из полосы заодно и
-      кнопку свёртывания, а сворачивают панель каждый день.
-
-      Тёмная полоса в тёмной теме и скруглённые по-одиннадцатому углы задаются
-      не здесь: у WPF нет ни того, ни другого свойства, оба ставятся диспетчеру
-      окон из <see cref="Theme.SystemCaption"/>.
-  -->
+  <!-- Windows 11 использует штатный заголовок с цветом DWM; Windows 10 — общий фон и свой заголовок. -->
 
   <!--
       Поля 12 со всех сторон и шаг сетки, кратный четырём: это тот же ритм, по
@@ -71,6 +55,36 @@
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Window.Resources>
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="6" GlassFrameThickness="0"
+                        CornerRadius="0" UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+  <Window.Template>
+    <ControlTemplate TargetType="Window">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
+        <DockPanel LastChildFill="True">
+          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
+              <Image Source="/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico" Width="14" Height="14" />
+              <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMinimizeClick" ToolTip="{res:Loc WindowMinimize}" AutomationProperties.Name="{res:Loc WindowMinimize}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE921;" FontSize="10" /></Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMaximizeClick" ToolTip="{res:Loc WindowMaximize}" AutomationProperties.Name="{res:Loc WindowMaximize}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="10">
+                  <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="&#xE922;" /><Style.Triggers><DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized"><Setter Property="Text" Value="&#xE923;" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+              </Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Tag="Close" Click="OnCaptionCloseClick" ToolTip="{res:Loc WindowClose}" AutomationProperties.Name="{res:Loc WindowClose}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BB;" FontSize="10" /></Button>
+            </StackPanel>
+          </Grid>
+          <AdornerDecorator><ContentPresenter /></AdornerDecorator>
+        </DockPanel>
+      </Border>
+    </ControlTemplate>
+  </Window.Template>
+
 
   <Border x:Name="Frame">
   <Grid x:Name="Root" Margin="8">

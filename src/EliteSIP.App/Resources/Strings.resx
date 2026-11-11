@@ -1338,4 +1338,7 @@
   <data name="StatusMediaNetworkError" xml:space="preserve">
     <value>Audio network error</value>
   </data>
+  <data name="WindowMinimize" xml:space="preserve"><value>Minimize</value></data>
+  <data name="WindowMaximize" xml:space="preserve"><value>Maximize / restore</value></data>
+  <data name="WindowClose" xml:space="preserve"><value>Close</value></data>
 </root>

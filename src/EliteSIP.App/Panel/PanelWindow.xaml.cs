@@ -21,6 +21,14 @@ public partial class PanelWindow : Window
     public PanelWindow(PanelViewModel model)
     {
         InitializeComponent();
+        // Windows 11 умеет красить штатную рамку; Windows 10 использует
+        // заголовок из шаблона, чтобы фон оставался цельным.
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            System.Windows.Shell.WindowChrome.SetWindowChrome(this, null);
+            ClearValue(TemplateProperty);
+            WindowStyle = WindowStyle.SingleBorderWindow;
+        }
         Model = model;
         DataContext = model;
 
@@ -39,6 +47,23 @@ public partial class PanelWindow : Window
     }
 
     public PanelViewModel Model { get; }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+    {
+        SizeToContent = SizeToContent.Manual;
+        if (WindowState is WindowState.Maximized)
+        {
+            SystemCommands.RestoreWindow(this);
+        }
+        else
+        {
+            SystemCommands.MaximizeWindow(this);
+        }
+    }
+
+    private void OnCaptionCloseClick(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
     /// Где панель стояла в прошлый раз и куда её вернуть.

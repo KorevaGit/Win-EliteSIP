@@ -1316,4 +1316,7 @@
   <data name="StatusMediaNetworkError" xml:space="preserve">
     <value>Сбой сети звука</value>
   </data>
+  <data name="WindowMinimize" xml:space="preserve"><value>Свернуть</value></data>
+  <data name="WindowMaximize" xml:space="preserve"><value>Развернуть / восстановить</value></data>
+  <data name="WindowClose" xml:space="preserve"><value>Закрыть</value></data>
 </root>

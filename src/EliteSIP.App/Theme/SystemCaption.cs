@@ -40,6 +40,7 @@ internal static class SystemCaption
     /// <summary>«Скругляй как принято» — то же, что у системных окон.</summary>
     private const int CornerRound = 2;
 
+    private const int BorderColor = 34;
     private const int CaptionColor = 35;
     private const int CaptionTextColor = 36;
 
@@ -85,6 +86,7 @@ internal static class SystemCaption
         {
             var color = ColorRef(background.Color);
             _ = DwmSetWindowAttribute(handle, CaptionColor, ref color, sizeof(int));
+            _ = DwmSetWindowAttribute(handle, BorderColor, ref color, sizeof(int));
         }
         if (window.TryFindResource("TextPrimaryBrush") is SolidColorBrush foreground)
         {

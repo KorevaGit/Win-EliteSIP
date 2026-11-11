@@ -20,6 +20,23 @@ namespace EliteSIP.App.Tests;
 /// </remarks>
 public sealed class LayoutTests
 {
+    [Theory]
+    [InlineData(Appearance.Dark)]
+    [InlineData(Appearance.Light)]
+    public void Заголовок_панели_загружается_и_содержимое_доходит_до_нижней_рамки(Appearance theme) => WpfHost.Run(() =>
+    {
+        WpfHost.UseTheme(theme);
+        var window = new PanelWindow(new PanelViewModel());
+        Assert.True(window.ApplyTemplate());
+        var chrome = (FrameworkElement)VisualTreeHelper.GetChild(window, 0);
+        chrome.Measure(new Size(400, 1000));
+        chrome.Arrange(new Rect(0, 0, 400, 1000));
+        chrome.UpdateLayout();
+        var content = (FrameworkElement)window.Content;
+        var bounds = content.TransformToAncestor(chrome).TransformBounds(new Rect(content.RenderSize));
+        Assert.InRange(chrome.ActualHeight - bounds.Bottom, 0, 1.5);
+    });
+
     // Клиентская область мастера на Windows 10 при 100 %: окно 460 × 440 без
     // рамок по 8 точек и заголовка в 31.
     private const double WizardClientWidth = 460 - 16;
