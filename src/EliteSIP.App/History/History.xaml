@@ -13,7 +13,7 @@
   <history:EqualityConverter x:Key="Equality" />
 
   <!--
-      Значок исхода. Кружок залит, когда поговорили, и обведён, когда нет;
+      Значок исхода. Кружок залит, когда поговорили; без ответа остаётся только стрелка;
       стрелка показывает направление, цвет — исход.
 
       Толщина обводки и стрелки — size/14, как в оригинале: на любом из двух
@@ -34,12 +34,6 @@
                        Fill="{TemplateBinding Foreground}"
                        Visibility="Collapsed" />
 
-              <!-- Не поговорили: одно кольцо. -->
-              <Ellipse x:Name="Ring"
-                       Stroke="{TemplateBinding Foreground}"
-                       StrokeThickness="1.43"
-                       Margin="0.7" />
-
               <!--
                   Стрелка. Внутри залитого кружка она рисуется фоном окна, а не
                   белым: в тёмной теме белая стрелка на светлом кружке
@@ -59,7 +53,6 @@
           <ControlTemplate.Triggers>
             <Trigger Property="IsCompleted" Value="True">
               <Setter TargetName="Disc" Property="Visibility" Value="Visible" />
-              <Setter TargetName="Ring" Property="Visibility" Value="Collapsed" />
               <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource WindowBackgroundBrush}" />
             </Trigger>
 

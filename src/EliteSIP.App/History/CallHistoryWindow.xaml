@@ -98,12 +98,14 @@
                     кнопка обязана показывать ровно ту фигуру, которую человек
                     будет искать глазами в списке.
                 -->
-                <history:OutcomeBadge Style="{StaticResource HistoryBadgeStyle}" Size="16"
+                <history:OutcomeBadge Size="16"
                                       VerticalAlignment="Center"
                                       IsIncoming="{Binding IsIncoming}"
                                       IsCompleted="{Binding IsCompleted}"
-                                      Outcome="{Binding Outcome}" />
-                <TextBlock Text="{Binding Title}" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                      Outcome="{Binding Outcome}">
+                  <history:OutcomeBadge.Style><Style TargetType="history:OutcomeBadge" BasedOn="{StaticResource HistoryBadgeStyle}"><Style.Triggers><DataTrigger Binding="{Binding Filter}" Value="All"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></history:OutcomeBadge.Style>
+                </history:OutcomeBadge>
+                <TextBlock Text="{Binding Title}" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Margin" Value="4,0,0,0" /><Style.Triggers><DataTrigger Binding="{Binding Filter}" Value="All"><Setter Property="Margin" Value="0" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
               </StackPanel>
             </RadioButton>
           </DataTemplate>
