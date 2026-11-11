@@ -1,0 +1,104 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Локальные стили панели: нейтральные поверхности, независимые от акцента Windows. -->
+  <CornerRadius x:Key="PanelCornerRadius">10</CornerRadius>
+  <DropShadowEffect x:Key="PanelShadow" Color="Black" BlurRadius="9" ShadowDepth="3" Opacity="0.16" />
+  <Style x:Key="PanelSurfaceButtonStyle" TargetType="Button" BasedOn="{StaticResource SurfaceButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelControlBrush}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource PanelCornerRadius}"
+                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0"
+                  Effect="{StaticResource PanelShadow}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter x:Name="Label" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelPressedBrush}" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+              <Setter TargetName="Label" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.55" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="PanelMacroKeyStyle" TargetType="Button" BasedOn="{StaticResource PanelSurfaceButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelMacroBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Padding" Value="12,4" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+  <Style x:Key="PanelControlKeyStyle" TargetType="ToggleButton" BasedOn="{StaticResource ControlKeyStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelControlBrush}" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource PanelCornerRadius}"
+                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0"
+                  Effect="{StaticResource PanelShadow}">
+            <ContentPresenter x:Name="Label" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelSelectedBrush}" />
+              <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource TextTertiaryBrush}" />
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions><Condition Property="IsChecked" Value="True" /><Condition Property="Tag" Value="Warning" /></MultiTrigger.Conditions>
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelMutedBrush}" />
+            </MultiTrigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.8" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+              <Setter TargetName="Label" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="PanelCallButtonStyle" TargetType="Button" BasedOn="{StaticResource CallButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelAnswerBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource PanelCornerRadius}"
+                  BorderBrush="#30FFFFFF" BorderThickness="0,1,0,0" Effect="{StaticResource PanelShadow}">
+            <ContentPresenter x:Name="Label" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.9" /></Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.75" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+              <Setter TargetName="Label" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+</ResourceDictionary>

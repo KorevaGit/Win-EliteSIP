@@ -161,15 +161,15 @@ public sealed class LayoutTests
     }
 
     [Fact]
-    public void Растянутое_окно_с_клавишами_растит_управление_на_половину_остальное_клавишам() => WpfHost.Run(() =>
+    public void Растянутое_окно_сохраняет_компактное_управление_и_отдаёт_высоту_клавишам() => WpfHost.Run(() =>
     {
         var natural = MeasurePanel(double.PositiveInfinity, withMacros: true);
         var tall = MeasurePanel(1000, withMacros: true);
 
-        Assert.Equal(68, natural.Controls, 0.5);
-        Assert.Equal(102, tall.Controls, 0.5);
+        Assert.Equal(96, natural.Controls, 0.5);
+        Assert.Equal(112, tall.Controls, 0.5);
         Assert.True(tall.Key > natural.Key + 20, $"клавиша {natural.Key:0} → {tall.Key:0}");
-        Assert.True(tall.Font > natural.Font + 4, $"кегль {natural.Font:0.#} → {tall.Font:0.#}");
+        Assert.InRange(tall.Font, 10.8, 18);
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
     });
 
@@ -188,7 +188,7 @@ public sealed class LayoutTests
         var natural = frame.DesiredSize.Height;
 
         var tight = MeasurePanel(natural, withMacros: true);
-        Assert.Equal(68, tight.Controls, 0.5);
+        Assert.Equal(96, tight.Controls, 0.5);
     });
 
     [Fact]
@@ -201,7 +201,7 @@ public sealed class LayoutTests
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
     });
     [Fact]
-    public void Пробный_замер_окна_не_сбрасывает_выросший_кегль() => WpfHost.Run(() =>
+    public void Пробный_замер_окна_сохраняет_спокойный_кегль_макросов() => WpfHost.Run(() =>
     {
         // Окно после растягивания мерит содержимое на бесконечной высоте, чтобы
         // узнать свой нижний предел. В 0.1.64 этот замер возвращал подписям
@@ -222,7 +222,7 @@ public sealed class LayoutTests
         frame.Arrange(new Rect(0, 0, 300, 1000));
         frame.UpdateLayout();
 
-        Assert.True(grown > 20, $"кегль не вырос: {grown:0.#}");
+        Assert.InRange(grown, 10.8, 18);
         Assert.Equal(grown, text.FontSize, 0.5);
     });
 

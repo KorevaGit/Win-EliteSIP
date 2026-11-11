@@ -66,4 +66,17 @@
   <SolidColorBrush x:Key="CautionBrush" Color="#FFFCA02E" />
   <SolidColorBrush x:Key="UnsavedBrush" Color="#FFFCA02E" />
 
+
+  <!-- Нейтральная палитра основной панели, без системного оттенка. -->
+  <SolidColorBrush x:Key="PanelWindowBackgroundBrush" Color="#191919" />
+  <LinearGradientBrush x:Key="PanelCallBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3c3c3c" Offset="0" /><GradientStop Color="#303030" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelControlBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#363636" Offset="0" /><GradientStop Color="#2e2e2e" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelMacroBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#292929" Offset="0" /><GradientStop Color="#242424" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#424242" Offset="0" /><GradientStop Color="#363636" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelPressedBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#222222" Offset="0" /><GradientStop Color="#282828" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelSelectedBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#505050" Offset="0" /><GradientStop Color="#424242" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelMutedBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#653c3c" Offset="0" /><GradientStop Color="#513131" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelAnswerBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#428067" Offset="0" /><GradientStop Color="#326b54" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelDeclineBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#bd4545" Offset="0" /><GradientStop Color="#a43131" Offset="1" /></LinearGradientBrush>
+  <SolidColorBrush x:Key="PanelEdgeBrush" Color="#20FFFFFF" />
 </ResourceDictionary>
