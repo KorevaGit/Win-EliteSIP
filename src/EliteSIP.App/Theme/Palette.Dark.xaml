@@ -82,4 +82,7 @@
   <LinearGradientBrush x:Key="PanelProfileBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3b3b3b" Offset="0" /><GradientStop Color="#303030" Offset="1" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="PanelProfileHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#404040" Offset="0" /><GradientStop Color="#353535" Offset="1" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="PanelMacroHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#2f2f2f" Offset="0" /><GradientStop Color="#292929" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="HistoryFilterBackgroundBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#252525" Offset="0" /><GradientStop Color="#222222" Offset="1" /></LinearGradientBrush>
+  <Color x:Key="HistoryScrollThumbColor">#40FFFFFF</Color>
+  <Color x:Key="HistoryScrollHoverColor">#70FFFFFF</Color>
 </ResourceDictionary>

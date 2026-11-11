@@ -4,6 +4,7 @@
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:history="clr-namespace:EliteSIP.App.History"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
@@ -13,6 +14,7 @@
         MinWidth="640"
         MinHeight="380"
         WindowStartupLocation="CenterScreen"
+        WindowStyle="None" ResizeMode="CanResize"
         UseLayoutRounding="True"
         Background="{DynamicResource PanelWindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
@@ -31,7 +33,36 @@
       на «кому я звонил» одним звонком.
   -->
 
-  <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="../Panel/Graphite.xaml" /><ResourceDictionary Source="GraphiteHistory.xaml" /></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
+  <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="GraphiteHistory.xaml" /></ResourceDictionary.MergedDictionaries><SolidColorBrush x:Key="ScrollThumbBrush" Color="{DynamicResource HistoryScrollThumbColor}" /><SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="{DynamicResource HistoryScrollHoverColor}" /><SolidColorBrush x:Key="ScrollTrackBrush" Color="Transparent" /></ResourceDictionary></Window.Resources>
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="6" GlassFrameThickness="0"
+                        CornerRadius="0" UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+  <Window.Template>
+    <ControlTemplate TargetType="Window">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
+        <DockPanel LastChildFill="True">
+          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
+              <Image Source="/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico" Width="14" Height="14" />
+              <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMinimizeClick" ToolTip="{res:Loc WindowMinimize}" AutomationProperties.Name="{res:Loc WindowMinimize}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE921;" FontSize="10" /></Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMaximizeClick" ToolTip="{res:Loc WindowMaximize}" AutomationProperties.Name="{res:Loc WindowMaximize}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="10">
+                  <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="&#xE922;" /><Style.Triggers><DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized"><Setter Property="Text" Value="&#xE923;" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+              </Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Tag="Close" Click="OnCaptionCloseClick" ToolTip="{res:Loc WindowClose}" AutomationProperties.Name="{res:Loc WindowClose}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BB;" FontSize="10" /></Button>
+            </StackPanel>
+          </Grid>
+          <AdornerDecorator><ContentPresenter /></AdornerDecorator>
+        </DockPanel>
+      </Border>
+    </ControlTemplate>
+  </Window.Template>
   <Grid Margin="8">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
@@ -42,7 +73,7 @@
     <!-- Фильтры слева, календарь и снимок справа. -->
     <Grid Grid.Row="0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <Border Grid.Column="0" HorizontalAlignment="Left" Background="{DynamicResource PanelMacroBrush}" CornerRadius="10" Padding="2">
+      <Border Grid.Column="0" HorizontalAlignment="Left" Background="{DynamicResource HistoryFilterBackgroundBrush}" CornerRadius="10" Padding="2">
       <ItemsControl ItemsSource="{Binding Filters}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
@@ -89,9 +120,9 @@
                 AutomationProperties.AutomationId="CalendarButton"
                 AutomationProperties.Name="{res:Loc HistoryPickDay}"
                 ToolTip="{res:Loc HistoryPickDay}"
-                Click="OnCalendarClick">
+                Click="OnCalendarClick" MinWidth="100">
           <Button.Style>
-            <Style TargetType="Button" BasedOn="{StaticResource PanelSurfaceButtonStyle}">
+            <Style TargetType="Button" BasedOn="{StaticResource HistoryToolbarButtonStyle}">
               <Style.Triggers>
                 <DataTrigger Binding="{Binding Calendar.HasSelectedDay}" Value="True">
                   <Setter Property="FontWeight" Value="SemiBold" />
@@ -103,10 +134,7 @@
             <theme:Icon Glyph="calendar" Size="16" VerticalAlignment="Center" />
             <!-- Дата не ужимается: «04.08.20…» — это дата, по которой нельзя
                  сказать, какой год выбран. -->
-            <TextBlock Text="{Binding Calendar.SelectedDayTitle}"
-                       Margin="4,0,0,0"
-                       VerticalAlignment="Center"
-                       Visibility="{Binding Calendar.HasSelectedDay, Converter={StaticResource BoolToVisibility}}" />
+            <TextBlock Margin="6,0,0,0" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="{res:Loc HistoryAllDaysLabel}" /><Style.Triggers><DataTrigger Binding="{Binding Calendar.HasSelectedDay}" Value="True"><Setter Property="Text" Value="{Binding Calendar.SelectedDayTitle}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
           </StackPanel>
         </Button>
 
@@ -227,11 +255,11 @@
           выходил меньше соседа, стоя с ним в одном ряду.
       -->
       <Button Grid.Column="2" HorizontalAlignment="Right"
-              Style="{StaticResource PanelSurfaceButtonStyle}"
+              Style="{StaticResource HistoryToolbarButtonStyle}" Width="40"
               Click="OnSnapshotClick"
               IsEnabled="{Binding HasRecords}"
               ToolTip="{res:Loc HistorySnapshot}">
-        <theme:Icon Glyph="camera.fill" Size="16" VerticalAlignment="Center" />
+        <theme:Icon Glyph="camera" Size="16" VerticalAlignment="Center" />
       </Button>
     </Grid>
 
@@ -256,7 +284,8 @@
         <ScrollViewer x:Name="Scroller"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
-                      Padding="0,8"
+                      Margin="0,8,6,8"
+                      Padding="0"
                       ScrollChanged="OnScrollChanged"
                       Visibility="{Binding IsEmpty, Converter={StaticResource NotBoolToVisibility}}">
           <ItemsControl ItemsSource="{Binding Days}">
@@ -283,10 +312,10 @@
                               <TextBlock Margin="0,4,0,0" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"><theme:Emoji.Text><MultiBinding Converter="{StaticResource CallSubtitle}"><Binding /><Binding Path="DataContext.OwnNumber" RelativeSource="{RelativeSource AncestorType=Window}" /><Binding Path="DataContext.MasksMobileNumbers" RelativeSource="{RelativeSource AncestorType=Window}" /></MultiBinding></theme:Emoji.Text></TextBlock>
                             </StackPanel>
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0">
-                              <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}, ConverterParameter=time}" FontSize="18" FontWeight="Medium" TextAlignment="Center" />
+                              <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}, ConverterParameter=time}" FontSize="18" FontWeight="SemiBold" TextAlignment="Center" />
                               <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}, ConverterParameter=date}" FontSize="14" Margin="0,4,0,0" TextAlignment="Center" />
                             </StackPanel>
-                            <TextBlock Grid.Column="3" Text="{Binding Converter={StaticResource OutcomeText}}" FontSize="18" VerticalAlignment="Center" TextAlignment="Right">
+                            <TextBlock Grid.Column="3" Text="{Binding Converter={StaticResource OutcomeText}}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" TextAlignment="Right">
                               <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding IsMissed}" Value="True"><Setter Property="Foreground" Value="{DynamicResource OutcomeMissedBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>
                           </Grid>

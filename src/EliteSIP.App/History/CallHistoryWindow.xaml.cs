@@ -19,6 +19,12 @@ public partial class CallHistoryWindow : Window
     public CallHistoryWindow(CallHistoryViewModel model, AppearanceService appearance)
     {
         InitializeComponent();
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            System.Windows.Shell.WindowChrome.SetWindowChrome(this, null);
+            ClearValue(TemplateProperty);
+            WindowStyle = WindowStyle.SingleBorderWindow;
+        }
         Model = model;
         _appearance = appearance;
         DataContext = model;
@@ -41,6 +47,22 @@ public partial class CallHistoryWindow : Window
 
     public CallHistoryViewModel Model { get; }
 
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState is WindowState.Maximized)
+        {
+            SystemCommands.RestoreWindow(this);
+        }
+        else
+        {
+            SystemCommands.MaximizeWindow(this);
+        }
+    }
+
+    private void OnCaptionCloseClick(object sender, RoutedEventArgs e) => Close();
+
     /// <summary>Кому перезвонить по кнопке в строке. Ставит слой приложения.</summary>
     ///
     /// <remarks>
@@ -53,7 +75,7 @@ public partial class CallHistoryWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        WindowCaption.Apply(this, _appearance.IsDark);
+        SystemCaption.Apply(this, _appearance.IsDark);
     }
 
     protected override void OnClosed(EventArgs e)
