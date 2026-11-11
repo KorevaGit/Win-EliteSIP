@@ -380,6 +380,7 @@ public sealed class PanelViewModel : Observable
             Set(ref _activeLine, value);
             NotifyCallControls();
             NotifyChanged(nameof(CallTitle));
+            NotifyChanged(nameof(IsOutgoingPending));
         }
     }
 
@@ -408,10 +409,14 @@ public sealed class PanelViewModel : Observable
             Set(ref _pendingNumber, value);
             NotifyCallControls();
             NotifyChanged(nameof(CallTitle));
+            NotifyChanged(nameof(IsOutgoingPending));
         }
     }
 
     private string? _pendingNumber;
+
+    /// <summary>Исходящий вызов до ответа: номер и статус занимают всю высоту шапки.</summary>
+    public bool IsOutgoingPending => ActiveLine is null && PendingNumber is not null;
 
     /// <summary>Что показывать в шапке: собеседник или набираемый номер.</summary>
     public string CallTitle => ActiveLine?.Title ?? _pendingNumber ?? string.Empty;

@@ -1,4 +1,4 @@
-﻿<Window x:Class="EliteSIP.App.Panel.PanelWindow"
+<Window x:Class="EliteSIP.App.Panel.PanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
@@ -422,49 +422,80 @@
             </Grid>
 
             <!--
-                Карточка собеседника. Две строки: имя крупно, а номер, таймер и
-                состояние — одной мелкой строкой под ним.
+                Карточка собеседника. Слева имя и номер, справа таймер и состояние.
             -->
-            <StackPanel VerticalAlignment="Center"
-                        Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
-              <!--
-                  `CallTitle`, а не `ActiveLine.Title`: во время гудков линии
-                  ещё нет, и шапка оставалась пустой — панель показывала, что
-                  идёт разговор, и не говорила с кем.
-              -->
-              <TextBlock theme:Emoji.Text="{Binding CallTitle}"
-                         FontSize="18"
-                         FontWeight="Medium"
+            <Grid VerticalAlignment="Center"
+                  Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" MaxWidth="110" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Grid.Column="0"
+                         theme:Emoji.Text="{Binding CallTitle}"
+                         Margin="0,0,12,0"
+                         FontSize="18" FontWeight="Medium"
                          TextTrimming="CharacterEllipsis"
-                         Foreground="{DynamicResource TextPrimaryBrush}" />
-
-              <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                <!--
-                    Номер показывается только когда крупным идёт имя, иначе он
-                    повторил бы сам себя. На раздаче из очереди его нет вовсе —
-                    решает это разбор вызова, тот же, что и в окне входящего.
-                -->
-                <TextBlock Text="{Binding ActiveLine.SecondaryNumber}"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
-                <TextBlock Text=" · "
-                           FontSize="12"
-                           Foreground="{DynamicResource TextTertiaryBrush}"
-                           Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
-
-                <TextBlock Text="{Binding ActiveLine.Duration}"
-                           FontSize="12"
-                           FontWeight="Medium"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Visibility="{Binding ActiveLine.Duration, Converter={StaticResource PresenceToVisibility}}" />
-
-                <TextBlock Text="{Binding CallStatus}"
-                           Margin="4,0,0,0"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </StackPanel>
-            </StackPanel>
+                         Foreground="{DynamicResource TextPrimaryBrush}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
+                        <Setter Property="Grid.RowSpan" Value="2" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+              <TextBlock Grid.Row="1" Grid.Column="0"
+                         Text="{Binding ActiveLine.SecondaryNumber}"
+                         Margin="0,2,12,0" FontSize="12"
+                         TextTrimming="CharacterEllipsis"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
+              <TextBlock Grid.Row="0" Grid.Column="1"
+                         Text="{Binding ActiveLine.Duration}"
+                         HorizontalAlignment="Right"
+                         FontSize="18" FontWeight="Medium"
+                         Foreground="{DynamicResource TextPrimaryBrush}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
+                        <Setter Property="Grid.RowSpan" Value="2" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+              <TextBlock Grid.Column="1"
+                         Text="{Binding CallStatus}"
+                         HorizontalAlignment="Right"
+                         TextTrimming="CharacterEllipsis"
+                         Foreground="{DynamicResource TextSecondaryBrush}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Grid.Row" Value="1" />
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="Margin" Value="0,2,0,0" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
+                        <Setter Property="Grid.Row" Value="0" />
+                        <Setter Property="Grid.RowSpan" Value="2" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                        <Setter Property="FontSize" Value="18" />
+                        <Setter Property="Margin" Value="0" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </Grid>
           </Grid>
         </Border>
 
