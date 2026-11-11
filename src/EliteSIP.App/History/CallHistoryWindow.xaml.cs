@@ -47,6 +47,14 @@ public partial class CallHistoryWindow : Window
 
     public CallHistoryViewModel Model { get; }
 
+    private void OnListViewportSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is FrameworkElement viewport)
+        {
+            viewport.Clip = new RectangleGeometry(new Rect(e.NewSize), 12, 12);
+        }
+    }
+
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
 
     private void OnMaximizeClick(object sender, RoutedEventArgs e)
@@ -154,44 +162,74 @@ public partial class CallHistoryWindow : Window
     ///
     /// <remarks>
     /// Снимок, а не выгрузка в файл: его пересылают в переписке — «вот эти три
-    /// звонка», — и файл на этом пути лишний шаг. Снимается ровно плашка со
-    /// списком: окно целиком принесло бы в переписку и полосу заголовка с
-    /// именем профиля, и кнопки, по которым собеседник щёлкать всё равно не
-    /// сможет.
+    /// звонка», — и файл на этом пути лишний шаг. Список дополняется шапкой с профилем и текущим отбором.
+    /// Кнопки окна и фильтров в снимок не входят.
     ///
     /// Разрешение вдвое против точек: снимок смотрят с телефона, увеличив
     /// пальцами, и на своей плотности он там рассыпается.
     /// </remarks>
     private void OnSnapshotClick(object sender, RoutedEventArgs e)
     {
-        const double scale = 2;
-
-        var width = (int)Math.Ceiling(ListSurface.ActualWidth * scale);
-        var height = (int)Math.Ceiling(ListSurface.ActualHeight * scale);
-        if (width <= 0 || height <= 0)
+        if (ListSurface.ActualWidth <= 0 || ListSurface.ActualHeight <= 0)
         {
             return;
         }
-
-        var image = new RenderTargetBitmap(width, height, 96 * scale, 96 * scale, PixelFormats.Pbgra32);
-
-        // Плашка полупрозрачна, и снятая как есть она приезжает в переписку с
-        // дырами вместо фона. Поэтому под неё подкладывается фон окна — тот
-        // самый, поверх которого её и видел человек.
-        var backdrop = new DrawingVisual();
-        using (var canvas = backdrop.RenderOpen())
-        {
-            canvas.DrawRectangle(
-                Background,
-                pen: null,
-                new Rect(0, 0, ListSurface.ActualWidth, ListSurface.ActualHeight));
-        }
-
-        image.Render(backdrop);
-        image.Render(ListSurface);
-
-        Clipboard.SetImage(image);
+        Clipboard.SetImage(CreateSnapshot());
         ShowNotice(Strings.Get("HistorySnapshotDone"));
+    }
+
+    /// <summary>Снимок в собственных координатах: шапка, профиль, отбор и скруглённый список.</summary>
+    internal BitmapSource CreateSnapshot()
+    {
+        const double scale = 2;
+        const double padding = 12;
+        const double header = 56;
+        var width = ListSurface.ActualWidth + padding * 2;
+        var height = ListSurface.ActualHeight + header + padding * 2;
+        var body = new Rect(padding, header + padding, ListSurface.ActualWidth, ListSurface.ActualHeight);
+        var image = new RenderTargetBitmap((int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+        var notice = Notice.Visibility;
+        Notice.Visibility = Visibility.Collapsed;
+        try
+        {
+            ListSurface.UpdateLayout();
+            var drawing = new DrawingVisual();
+            using (var canvas = drawing.RenderOpen())
+            {
+                canvas.DrawRectangle(Background, null, new Rect(0, 0, width, height));
+                canvas.PushClip(new RectangleGeometry(body, 12, 12));
+                canvas.DrawRectangle(ListSurface.Background, null, body);
+                canvas.DrawRectangle(new VisualBrush(ListViewport)
+                {
+                    ViewboxUnits = BrushMappingMode.Absolute,
+                    Viewbox = new Rect(0, 0, ListSurface.ActualWidth, ListSurface.ActualHeight),
+                    Stretch = Stretch.Fill,
+                }, null, body);
+                canvas.Pop();
+            }
+            image.Render(drawing);
+            var heading = new DrawingVisual();
+            using (var canvas = heading.RenderOpen())
+            {
+                canvas.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, width, height));
+                var text = (Brush)FindResource("TextPrimaryBrush");
+                var secondary = (Brush)FindResource("TextSecondaryBrush");
+                var title = new FormattedText(Title, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                    new Typeface(FontFamily, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal), 15, text, scale)
+                    { MaxTextWidth = width - padding * 2, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis };
+                canvas.DrawText(title, new Point(padding, padding));
+                var scope = Model.Filter.Title() + " · " + (Model.Calendar.HasSelectedDay ? Model.Calendar.SelectedDayTitle : Strings.Get("HistoryAllDaysLabel"));
+                canvas.DrawText(new FormattedText(scope, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                    new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), 12, secondary, scale), new Point(padding, padding + 25));
+            }
+            image.Render(heading);
+            image.Freeze();
+            return image;
+        }
+        finally
+        {
+            Notice.Visibility = notice;
+        }
     }
 
     /// <summary>Показывает сообщение и убирает его само.</summary>
