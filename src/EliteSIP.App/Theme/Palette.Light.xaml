@@ -133,4 +133,5 @@
   <LinearGradientBrush x:Key="HistoryFilterBackgroundBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#ececec" Offset="0" /><GradientStop Color="#e3e3e3" Offset="1" /></LinearGradientBrush>
   <Color x:Key="HistoryScrollThumbColor">#38000000</Color>
   <Color x:Key="HistoryScrollHoverColor">#60000000</Color>
+  <SolidColorBrush x:Key="HistoryFilterHoverBrush" Color="#70FFFFFF" />
 </ResourceDictionary>
