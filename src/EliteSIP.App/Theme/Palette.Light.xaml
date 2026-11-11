@@ -127,7 +127,7 @@
   <LinearGradientBrush x:Key="PanelAnswerBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#178C17" Offset="0" /><GradientStop Color="#107C10" Offset="1" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="PanelDeclineBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#bd4545" Offset="0" /><GradientStop Color="#a43131" Offset="1" /></LinearGradientBrush>
   <SolidColorBrush x:Key="PanelEdgeBrush" Color="#B0FFFFFF" />
-  <LinearGradientBrush x:Key="PanelProfileBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#e0e0e0" Offset="0" /><GradientStop Color="#cccccc" Offset="1" /></LinearGradientBrush>
-  <LinearGradientBrush x:Key="PanelProfileHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#e5e5e5" Offset="0" /><GradientStop Color="#d1d1d1" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelProfileBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#ffffff" Offset="0" /><GradientStop Color="#e9e9e9" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelProfileHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#ffffff" Offset="0" /><GradientStop Color="#efefef" Offset="1" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="PanelMacroHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#ececec" Offset="0" /><GradientStop Color="#e5e5e5" Offset="1" /></LinearGradientBrush>
 </ResourceDictionary>
