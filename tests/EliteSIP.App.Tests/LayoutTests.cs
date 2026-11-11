@@ -23,7 +23,7 @@ public sealed class LayoutTests
     [Theory]
     [InlineData(Appearance.Dark)]
     [InlineData(Appearance.Light)]
-    public void Меню_профиля_отображает_подпись_через_Emoji_и_разделитель(Appearance theme) => WpfHost.Run(() =>
+    public void Меню_профиля_отображает_подпись_через_Emoji_без_разделителя(Appearance theme) => WpfHost.Run(() =>
     {
         WpfHost.UseTheme(theme);
         var model = new PanelViewModel { StatusTitle = "176", StatusLabel = "Апатия 🎶 🧹 📢" };
@@ -35,7 +35,7 @@ public sealed class LayoutTests
         menu.Arrange(new Rect(menu.DesiredSize));
         menu.UpdateLayout();
         Assert.True(menu.DesiredSize.Width >= 190);
-        Assert.Single(menu.Items.OfType<Separator>());
+        Assert.Empty(menu.Items.OfType<Separator>());
         var header = Assert.IsType<TextBlock>(menu.Items.OfType<MenuItem>().First().Header);
         Assert.Equal(model.ProfileMenuTitle, Emoji.GetText(header));
     });

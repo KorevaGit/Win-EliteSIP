@@ -158,7 +158,6 @@
                 <TextBlock theme:Emoji.Text="{Binding ProfileMenuTitle}" MaxWidth="260" TextWrapping="Wrap" />
               </MenuItem.Header>
             </MenuItem>
-            <Separator />
             <MenuItem Header="{res:Loc PanelOffline}"
                       IsChecked="{Binding IsOfflineByChoice, Mode=OneWay}"
                       Command="{Binding GoOffline}" />

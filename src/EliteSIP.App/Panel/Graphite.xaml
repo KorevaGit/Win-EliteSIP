@@ -30,8 +30,11 @@
           </Grid>
         </Border>
         <ControlTemplate.Triggers>
-          <Trigger Property="IsChecked" Value="True"><Setter TargetName="Tick" Property="Visibility" Value="Visible" /><Setter TargetName="Row" Property="Background" Value="{DynamicResource PanelProfileBrush}" /></Trigger>
-          <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource PanelHoverBrush}" /></Trigger>
+          <Trigger Property="IsChecked" Value="True"><Setter TargetName="Tick" Property="Visibility" Value="Visible" /></Trigger>
+          <MultiTrigger>
+            <MultiTrigger.Conditions><Condition Property="IsHighlighted" Value="True" /><Condition Property="IsChecked" Value="False" /></MultiTrigger.Conditions>
+            <Setter TargetName="Row" Property="Background" Value="{DynamicResource PanelHoverBrush}" />
+          </MultiTrigger>
           <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55" /><Setter TargetName="Row" Property="Background" Value="Transparent" /></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
