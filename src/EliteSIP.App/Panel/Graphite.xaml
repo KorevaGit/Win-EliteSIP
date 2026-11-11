@@ -3,6 +3,34 @@
   <!-- Локальные стили панели: нейтральные поверхности, независимые от акцента Windows. -->
   <CornerRadius x:Key="PanelCornerRadius">10</CornerRadius>
   <DropShadowEffect x:Key="PanelShadow" Color="Black" BlurRadius="9" ShadowDepth="3" Opacity="0.16" />
+  <Style x:Key="PanelProfilePillStyle" TargetType="Button" BasedOn="{StaticResource ProfilePillStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelProfileBrush}" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="Button">
+        <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="11"
+                BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0"
+                Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+          <Border.Effect><DropShadowEffect Color="Black" BlurRadius="4" ShadowDepth="1" Opacity="0.14" /></Border.Effect>
+          <ContentPresenter VerticalAlignment="Center" />
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelProfileHoverBrush}" /></Trigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelPressedBrush}" /><Setter TargetName="Surface" Property="Effect" Value="{x:Null}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PanelIconButtonStyle" TargetType="Button" BasedOn="{StaticResource ChromeButtonStyle}">
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="Button">
+        <Border x:Name="Surface" Background="Transparent" CornerRadius="6"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelProfileHoverBrush}" /></Trigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelPressedBrush}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
   <Style x:Key="PanelCaptionButtonStyle" TargetType="Button">
     <Setter Property="Width" Value="38" />
     <Setter Property="Height" Value="32" />
@@ -36,6 +64,10 @@
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" />
             </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions><Condition Property="IsMouseOver" Value="True" /><Condition Property="Tag" Value="Macro" /></MultiTrigger.Conditions>
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelMacroHoverBrush}" />
+            </MultiTrigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelPressedBrush}" />
               <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
@@ -51,6 +83,7 @@
     </Setter>
   </Style>
   <Style x:Key="PanelMacroKeyStyle" TargetType="Button" BasedOn="{StaticResource PanelSurfaceButtonStyle}">
+    <Setter Property="Tag" Value="Macro" />
     <Setter Property="Background" Value="{DynamicResource PanelMacroBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Padding" Value="12,4" />
@@ -107,7 +140,7 @@
             <ContentPresenter x:Name="Label" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.9" /></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.95" /></Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Surface" Property="Opacity" Value="0.75" />
               <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
