@@ -38,7 +38,7 @@
     <Setter Property="Background" Value="{DynamicResource PanelMacroBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Padding" Value="12,4" />
-    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
   </Style>
   <Style x:Key="PanelControlKeyStyle" TargetType="ToggleButton" BasedOn="{StaticResource ControlKeyStyle}">
     <Setter Property="Background" Value="{DynamicResource PanelControlBrush}" />

@@ -73,14 +73,14 @@
   </Window.Resources>
 
   <Border x:Name="Frame">
-  <Grid x:Name="Root" Margin="12">
+  <Grid x:Name="Root" Margin="8">
     <Grid.LayoutTransform>
       <ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1" />
     </Grid.LayoutTransform>
     <Grid.RowDefinitions>
       <!-- Строка состояния. -->
       <RowDefinition Height="22" />
-      <RowDefinition Height="12" />
+      <RowDefinition Height="8" />
       <!--
           Изменчивая середина. Всё, что может поменять высоту — вторая линия,
           поле перевода, число макросов, — живёт здесь.
@@ -122,6 +122,7 @@
               Grid.Column="0"
               HorizontalContentAlignment="Stretch"
               Style="{StaticResource ProfilePillStyle}"
+              Padding="6,0"
               IsEnabled="{Binding CanOpenProfileMenu}"
               Click="OnProfileClick"
               AutomationProperties.Name="{Binding StatusTitle, StringFormat=Профиль {0}}">
@@ -187,7 +188,7 @@
           <TextBlock Grid.Column="1"
                      Text="{Binding StatusTitle}"
                      TextTrimming="CharacterEllipsis"
-                     Margin="4,0,0,0"
+                     Margin="3,0,0,0"
                      FontSize="12"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center"
@@ -200,7 +201,7 @@
           -->
           <TextBlock Grid.Column="2"
                      theme:Emoji.Text="{Binding StatusLabel}"
-                     Margin="4,0,0,0"
+                     Margin="3,0,0,0"
                      FontSize="12"
                      VerticalAlignment="Center"
                      TextTrimming="CharacterEllipsis"
@@ -214,7 +215,7 @@
           <theme:Icon Grid.Column="3"
                       Glyph="chevron.down"
                       Size="10"
-                      Margin="5,1,0,0"
+                      Margin="3,1,0,0"
                       VerticalAlignment="Center"
                       Foreground="{DynamicResource TextTertiaryBrush}"
                       Visibility="{Binding CanOpenProfileMenu, Converter={StaticResource BoolToVisibility}}" />
@@ -312,7 +313,7 @@
               Style="{StaticResource ChromeButtonStyle}"
               Command="{Binding ShowSettings}"
               ToolTip="{res:Loc PanelSettings}">
-        <theme:Icon Glyph="gearshape" Size="12" />
+        <theme:Icon Glyph="slider.horizontal.2" Size="16" />
       </Button>
     </Grid>
 
@@ -795,7 +796,7 @@
                                FallbackHeight="{Binding DataContext.MacroLabelMaxHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                 <TextBlock theme:Emoji.Text="{Binding Title}"
                            FontWeight="Normal"
-                           TextAlignment="Left"
+                           TextAlignment="Center"
                            TextWrapping="WrapWithOverflow" />
               </theme:ShrinkBox>
             </Button>
