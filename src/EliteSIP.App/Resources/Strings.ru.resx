@@ -1319,4 +1319,6 @@
   <data name="WindowMinimize" xml:space="preserve"><value>Свернуть</value></data>
   <data name="WindowMaximize" xml:space="preserve"><value>Развернуть / восстановить</value></data>
   <data name="WindowClose" xml:space="preserve"><value>Закрыть</value></data>
+  <data name="HistoryDirectionIncoming" xml:space="preserve"><value>Входящий</value></data>
+  <data name="HistoryDirectionOutgoing" xml:space="preserve"><value>Исходящий</value></data>
 </root>

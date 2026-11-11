@@ -1341,4 +1341,6 @@
   <data name="WindowMinimize" xml:space="preserve"><value>Minimize</value></data>
   <data name="WindowMaximize" xml:space="preserve"><value>Maximize / restore</value></data>
   <data name="WindowClose" xml:space="preserve"><value>Close</value></data>
+  <data name="HistoryDirectionIncoming" xml:space="preserve"><value>Incoming</value></data>
+  <data name="HistoryDirectionOutgoing" xml:space="preserve"><value>Outgoing</value></data>
 </root>

@@ -20,9 +20,11 @@ public sealed record HistoryFilterItem(
 /// прокрутке на три недели назад. Поэтому заголовок группы набран кеглем
 /// раздела, а не мелкой серой подписью.
 /// </remarks>
-public sealed class HistoryDay(string title)
+public sealed class HistoryDay(string title, bool isToday = false)
 {
     public string Title { get; } = title;
+
+    public bool IsToday { get; } = isToday;
 
     public ObservableCollection<CallRecord> Records { get; } = [];
 }
@@ -201,7 +203,7 @@ public sealed class CallHistoryViewModel : Observable
             // сбитую сортировку, и склеивать их было бы враньём.
             if (Days.Count == 0 || Days[^1].Title != title)
             {
-                Days.Add(new HistoryDay(title));
+                Days.Add(new HistoryDay(title, record.StartedAt.LocalDateTime.Date == DateTime.Today));
             }
 
             Days[^1].Records.Add(record);

@@ -167,7 +167,8 @@
         <!-- Сетка, а не StackPanel: в горизонтальной стопке обрезка не срабатывает,
              и длинное имя профиля выталкивало шестерёнку за край панели.
              Сжимается первой подпись, номер — только когда места нет совсем. -->
-        <Grid VerticalAlignment="Center">
+        <Grid><TextBlock x:Name="OfflineProfileLabel" Text="{res:Loc PanelOffline}" FontSize="12" VerticalAlignment="Center" Visibility="{Binding IsOfflineByChoice, Converter={StaticResource BoolToVisibility}}" />
+        <Grid x:Name="OnlineProfileIdentity" VerticalAlignment="Center" Visibility="{Binding IsOfflineByChoice, Converter={StaticResource NotBoolToVisibility}}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
@@ -238,7 +239,7 @@
                       VerticalAlignment="Center"
                       Foreground="{DynamicResource TextTertiaryBrush}"
                       Visibility="{Binding CanOpenProfileMenu, Converter={StaticResource BoolToVisibility}}" />
-        </Grid>
+        </Grid></Grid>
       </Button>
 
       <!--

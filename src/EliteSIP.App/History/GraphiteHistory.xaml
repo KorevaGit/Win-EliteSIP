@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:history="clr-namespace:EliteSIP.App.History">
+  <Style x:Key="HistoryBadgeStyle" TargetType="history:OutcomeBadge" BasedOn="{StaticResource {x:Type history:OutcomeBadge}}">
+    <Style.Triggers>
+      <Trigger Property="IsIncoming" Value="False"><Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" /></Trigger>
+      <Trigger Property="IsIncoming" Value="True"><Setter Property="Foreground" Value="{DynamicResource OutcomeAnsweredBrush}" /></Trigger>
+      <Trigger Property="Outcome" Value="Missed"><Setter Property="Foreground" Value="{DynamicResource OutcomeMissedBrush}" /></Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style x:Key="HistoryFilterStyle" TargetType="RadioButton">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="RadioButton">
+        <Border x:Name="Surface" Padding="9,8" Margin="2" CornerRadius="8" Background="Transparent">
+          <ContentPresenter VerticalAlignment="Center" />
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" /></Trigger>
+          <Trigger Property="IsChecked" Value="True">
+            <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelControlBrush}" />
+            <Setter TargetName="Surface" Property="Effect" Value="{DynamicResource PanelShadow}" />
+            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource PanelEdgeBrush}" />
+            <Setter TargetName="Surface" Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+          </Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+</ResourceDictionary>

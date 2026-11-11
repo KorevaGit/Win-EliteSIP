@@ -8,13 +8,13 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=history:CallHistoryViewModel}"
-        Width="640"
+        Width="760"
         Height="520"
-        MinWidth="600"
+        MinWidth="640"
         MinHeight="380"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
-        Background="{DynamicResource WindowBackgroundBrush}"
+        Background="{DynamicResource PanelWindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
         TextOptions.TextFormattingMode="Display">
 
@@ -31,16 +31,19 @@
       на «кому я звонил» одним звонком.
   -->
 
-  <Grid Margin="12">
+  <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="../Panel/Graphite.xaml" /><ResourceDictionary Source="GraphiteHistory.xaml" /></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
+  <Grid Margin="8">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="8" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- Фильтры и снимок одним рядом по центру. -->
+    <!-- Фильтры слева, календарь и снимок справа. -->
     <Grid Grid.Row="0">
-      <ItemsControl ItemsSource="{Binding Filters}" HorizontalAlignment="Center">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <Border Grid.Column="0" HorizontalAlignment="Left" Background="{DynamicResource PanelMacroBrush}" CornerRadius="10" Padding="2">
+      <ItemsControl ItemsSource="{Binding Filters}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" />
@@ -48,7 +51,7 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="{x:Type history:HistoryFilterItem}">
-            <RadioButton Style="{StaticResource FilterChipStyle}"
+            <RadioButton Style="{StaticResource HistoryFilterStyle}"
                          GroupName="HistoryFilter"
                          Tag="{Binding Filter}"
                          Checked="OnFilterChosen">
@@ -64,7 +67,7 @@
                     кнопка обязана показывать ровно ту фигуру, которую человек
                     будет искать глазами в списке.
                 -->
-                <history:OutcomeBadge Size="14"
+                <history:OutcomeBadge Style="{StaticResource HistoryBadgeStyle}" Size="16"
                                       VerticalAlignment="Center"
                                       IsIncoming="{Binding IsIncoming}"
                                       IsCompleted="{Binding IsCompleted}"
@@ -74,21 +77,21 @@
             </RadioButton>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
-      </ItemsControl>
+      </ItemsControl></Border>
 
       <!--
           Кнопка дня и календарь под ней. Стоят в том же ряду, что фильтры:
           день — такой же отбор, как направление звонка, и разводить их по
           разным местам окна значило бы делить один вопрос надвое.
       -->
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,34,0">
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="8,0">
         <Button x:Name="CalendarButton"
                 AutomationProperties.AutomationId="CalendarButton"
                 AutomationProperties.Name="{res:Loc HistoryPickDay}"
                 ToolTip="{res:Loc HistoryPickDay}"
                 Click="OnCalendarClick">
           <Button.Style>
-            <Style TargetType="Button" BasedOn="{StaticResource ChipButtonStyle}">
+            <Style TargetType="Button" BasedOn="{StaticResource PanelSurfaceButtonStyle}">
               <Style.Triggers>
                 <DataTrigger Binding="{Binding Calendar.HasSelectedDay}" Value="True">
                   <Setter Property="FontWeight" Value="SemiBold" />
@@ -97,7 +100,7 @@
             </Style>
           </Button.Style>
           <StackPanel Orientation="Horizontal">
-            <theme:Icon Glyph="clock" Size="12" VerticalAlignment="Center" />
+            <theme:Icon Glyph="calendar" Size="16" VerticalAlignment="Center" />
             <!-- Дата не ужимается: «04.08.20…» — это дата, по которой нельзя
                  сказать, какой год выбран. -->
             <TextBlock Text="{Binding Calendar.SelectedDayTitle}"
@@ -108,7 +111,7 @@
         </Button>
 
         <!-- Крестик снимает отбор, не открывая того, что его поставило. -->
-        <Button Style="{StaticResource ChromeButtonStyle}"
+        <Button Style="{StaticResource PanelIconButtonStyle}"
                 Margin="2,0,0,0"
                 ToolTip="{res:Loc HistoryAllDays}"
                 Click="OnClearDayClick"
@@ -121,9 +124,9 @@
              PlacementTarget="{Binding ElementName=CalendarButton}"
              Placement="Bottom"
              StaysOpen="False"
-             AllowsTransparency="True"
+             AllowsTransparency="True" HorizontalOffset="-8" VerticalOffset="4"
              Opened="OnCalendarOpened">
-        <Border Background="{DynamicResource SurfaceBrush}"
+        <Border Margin="8" Background="{DynamicResource PanelControlBrush}" Effect="{StaticResource PanelShadow}"
                 BorderBrush="{DynamicResource SeparatorBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
@@ -131,7 +134,7 @@
                 DataContext="{Binding Calendar}">
           <StackPanel>
             <Grid>
-              <Button Style="{StaticResource ChromeButtonStyle}"
+              <Button Style="{StaticResource PanelIconButtonStyle}"
                       HorizontalAlignment="Left"
                       Content="‹"
                       FontSize="17"
@@ -144,7 +147,7 @@
                          FontSize="14"
                          FontWeight="SemiBold" />
 
-              <Button Style="{StaticResource ChromeButtonStyle}"
+              <Button Style="{StaticResource PanelIconButtonStyle}"
                       HorizontalAlignment="Right"
                       Content="›"
                       FontSize="17"
@@ -197,11 +200,12 @@
                                      Visibility="{Binding HasCalls, Converter={StaticResource BoolToVisibility}}" />
                           </StackPanel>
                           <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource SurfaceButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource PanelSurfaceButtonStyle}">
+                              <Setter Property="Padding" Value="0" />
                               <Setter Property="Background" Value="Transparent" />
                               <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                  <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+                                  <Setter Property="Background" Value="{DynamicResource PanelSelectedBrush}" />
                                 </DataTrigger>
                               </Style.Triggers>
                             </Style>
@@ -222,12 +226,12 @@
           Прежде снимок был кнопкой настроек со своей рамкой и полями и
           выходил меньше соседа, стоя с ним в одном ряду.
       -->
-      <Button HorizontalAlignment="Right"
-              Style="{StaticResource ChipButtonStyle}"
+      <Button Grid.Column="2" HorizontalAlignment="Right"
+              Style="{StaticResource PanelSurfaceButtonStyle}"
               Click="OnSnapshotClick"
               IsEnabled="{Binding HasRecords}"
               ToolTip="{res:Loc HistorySnapshot}">
-        <theme:Icon Glyph="camera.fill" Size="12" VerticalAlignment="Center" />
+        <theme:Icon Glyph="camera.fill" Size="16" VerticalAlignment="Center" />
       </Button>
     </Grid>
 
@@ -239,7 +243,8 @@
     -->
     <Border Grid.Row="2"
             x:Name="ListSurface"
-            Background="{DynamicResource ControlBackgroundBrush}"
+            Background="{DynamicResource PanelCallBrush}"
+            Effect="{StaticResource PanelShadow}"
             CornerRadius="12">
       <Grid>
         <TextBlock Text="{res:Loc HistoryEmpty}"
@@ -263,109 +268,29 @@
                       подписью: день это то, по чему в списке ориентируются, и
                       вторым планом ему стоять нельзя.
                   -->
-                  <TextBlock Text="{Binding Title}"
-                             Margin="8,12,8,4"
-                             FontSize="14"
-                             FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Title}" Margin="14,18,14,6" FontSize="17" FontWeight="SemiBold" Visibility="{Binding IsToday, Converter={StaticResource NotBoolToVisibility}}" />
 
-                  <!--
-                      Разделительных линий между звонками нет: строка
-                      двухъярусная, значок исхода задаёт ей чёткое начало, а дни
-                      разделены заголовками. Линия поверх этого делит уже
-                      разделённое и превращает список в таблицу — а таблицу
-                      читают по колонкам, тогда как историю читают по строкам.
-                  -->
+                  <!-- Тонкие линии разделяют записи; даты старых дней выделены отдельно. -->
                   <ItemsControl ItemsSource="{Binding Records}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate>
-                        <Grid Margin="8,6">
-                          <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="124" />
-                            <ColumnDefinition Width="Auto" />
-                          </Grid.ColumnDefinitions>
-
-                          <history:OutcomeBadge Grid.Column="0"
-                                                Size="22"
-                                                VerticalAlignment="Center"
-                                                Outcome="{Binding Outcome}"
-                                                IsCompleted="{Binding IsAnswered}"
-                                                IsIncoming="{Binding Converter={StaticResource IsIncoming}}" />
-
-                          <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
-                            <!--
-                                Заголовок и нижняя строка — по правилу окна
-                                входящего (HistoryPresentation): раздача и
-                                звонок по сделке словами, мобильный под маской.
-                                Свой добавочный — у модели окна.
-                            -->
-                            <TextBlock TextTrimming="CharacterEllipsis">
-                              <TextBlock.Text>
-                                <MultiBinding Converter="{StaticResource CallTitle}">
-                                  <Binding />
-                                  <Binding Path="DataContext.OwnNumber"
-                                           RelativeSource="{RelativeSource AncestorType=Window}" />
-                                  <Binding Path="DataContext.MasksMobileNumbers"
-                                           RelativeSource="{RelativeSource AncestorType=Window}" />
-                                </MultiBinding>
-                              </TextBlock.Text>
+                        <Border Margin="14,0" Padding="0,13" BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+                          <Grid MinHeight="48">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /><ColumnDefinition Width="112" /></Grid.ColumnDefinitions>
+                            <history:OutcomeBadge Grid.Column="0" Style="{StaticResource HistoryBadgeStyle}" Size="40" VerticalAlignment="Center" Outcome="{Binding Outcome}" IsCompleted="{Binding IsAnswered}" IsIncoming="{Binding Converter={StaticResource IsIncoming}}" />
+                            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                              <TextBlock FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"><theme:Emoji.Text><MultiBinding Converter="{StaticResource CallTitle}"><Binding /><Binding Path="DataContext.OwnNumber" RelativeSource="{RelativeSource AncestorType=Window}" /><Binding Path="DataContext.MasksMobileNumbers" RelativeSource="{RelativeSource AncestorType=Window}" /></MultiBinding></theme:Emoji.Text></TextBlock>
+                              <TextBlock Margin="0,4,0,0" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"><theme:Emoji.Text><MultiBinding Converter="{StaticResource CallSubtitle}"><Binding /><Binding Path="DataContext.OwnNumber" RelativeSource="{RelativeSource AncestorType=Window}" /><Binding Path="DataContext.MasksMobileNumbers" RelativeSource="{RelativeSource AncestorType=Window}" /></MultiBinding></theme:Emoji.Text></TextBlock>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0">
+                              <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}, ConverterParameter=time}" FontSize="18" FontWeight="Medium" TextAlignment="Center" />
+                              <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}, ConverterParameter=date}" FontSize="14" Margin="0,4,0,0" TextAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="3" Text="{Binding Converter={StaticResource OutcomeText}}" FontSize="18" VerticalAlignment="Center" TextAlignment="Right">
+                              <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding IsMissed}" Value="True"><Setter Property="Foreground" Value="{DynamicResource OutcomeMissedBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>
-                            <TextBlock Margin="0,2,0,0"
-                                       FontSize="12"
-                                       TextTrimming="CharacterEllipsis"
-                                       Foreground="{DynamicResource TextSecondaryBrush}">
-                              <TextBlock.Text>
-                                <MultiBinding Converter="{StaticResource CallSubtitle}">
-                                  <Binding />
-                                  <Binding Path="DataContext.OwnNumber"
-                                           RelativeSource="{RelativeSource AncestorType=Window}" />
-                                  <Binding Path="DataContext.MasksMobileNumbers"
-                                           RelativeSource="{RelativeSource AncestorType=Window}" />
-                                </MultiBinding>
-                              </TextBlock.Text>
-                            </TextBlock>
-                          </StackPanel>
-
-                          <!--
-                              Колонка постоянной ширины: иначе исход и время
-                              ездят по горизонтали от длины слова исхода, и
-                              кнопки повтора всех строк перестают стоять на
-                              одной вертикали.
-                          -->
-                          <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Converter={StaticResource OutcomeText}}"
-                                       TextAlignment="Right">
-                              <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                  <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                                  <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsMissed}" Value="True">
-                                      <Setter Property="Foreground" Value="{DynamicResource OutcomeMissedBrush}" />
-                                    </DataTrigger>
-                                  </Style.Triggers>
-                                </Style>
-                              </TextBlock.Style>
-                            </TextBlock>
-
-                            <TextBlock Text="{Binding StartedAt, Converter={StaticResource CallStamp}}"
-                                       Margin="0,2,0,0"
-                                       FontSize="12"
-                                       TextAlignment="Right"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                          </StackPanel>
-
-                          <!--
-                              Повтора набора здесь больше нет.
-
-                              Кнопка была своя, не выбор строки, — и довод про
-                              случайный щелчок остаётся верным. Убрана она по
-                              другой причине: история открывается, чтобы
-                              посмотреть, а не чтобы звонить. Номер набирают на
-                              панели, и второе место, откуда уходит вызов, — это
-                              второе место, где он уходит не туда.
-                          -->
-                        </Grid>
+                          </Grid>
+                        </Border>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>

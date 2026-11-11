@@ -20,6 +20,15 @@ namespace EliteSIP.App.Tests;
 /// </remarks>
 public sealed class LayoutTests
 {
+    [Fact]
+    public void Отключённый_профиль_показывает_только_подпись_без_номера_и_точки() => WpfHost.Run(() =>
+    {
+        var window = new PanelWindow(new PanelViewModel { StatusTitle = "176", StatusLabel = "Офис", IsOfflineByChoice = true });
+        WpfHost.Layout(window, 324, 600);
+        Assert.Equal(Visibility.Visible, ((TextBlock)window.FindName("OfflineProfileLabel")).Visibility);
+        Assert.Equal(Visibility.Collapsed, ((Grid)window.FindName("OnlineProfileIdentity")).Visibility);
+    });
+
     [Theory]
     [InlineData(Appearance.Dark)]
     [InlineData(Appearance.Light)]
