@@ -141,7 +141,10 @@
               Click="OnProfileClick"
               AutomationProperties.Name="{Binding StatusTitle, StringFormat=Профиль {0}}">
         <Button.ContextMenu>
-          <ContextMenu>
+          <ContextMenu Style="{StaticResource PanelProfileMenuStyle}">
+            <ContextMenu.Resources>
+              <Style TargetType="MenuItem" BasedOn="{StaticResource PanelProfileMenuItemStyle}" />
+            </ContextMenu.Resources>
             <!--
                 Профиль пока один — их список приедет с «Управлением», и
                 тогда здесь встанет `ItemsSource`. Одна строка в меню не
@@ -149,9 +152,12 @@
                 галочка рядом с ней — на вопрос «на линии ли».
             -->
             <MenuItem Tag="single-profile"
-                      Header="{Binding ProfileMenuTitle}"
                       IsChecked="{Binding IsOnline, Mode=OneWay}"
-                      Command="{Binding GoOnline}" />
+                      Command="{Binding GoOnline}">
+              <MenuItem.Header>
+                <TextBlock theme:Emoji.Text="{Binding ProfileMenuTitle}" MaxWidth="260" TextWrapping="Wrap" />
+              </MenuItem.Header>
+            </MenuItem>
             <Separator />
             <MenuItem Header="{res:Loc PanelOffline}"
                       IsChecked="{Binding IsOfflineByChoice, Mode=OneWay}"

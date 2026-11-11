@@ -1,8 +1,42 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theme="clr-namespace:EliteSIP.App.Theme">
   <!-- Локальные стили панели: нейтральные поверхности, независимые от акцента Windows. -->
   <CornerRadius x:Key="PanelCornerRadius">10</CornerRadius>
   <DropShadowEffect x:Key="PanelShadow" Color="Black" BlurRadius="9" ShadowDepth="3" Opacity="0.16" />
+  <Style x:Key="PanelProfileMenuStyle" TargetType="ContextMenu">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="ContextMenu">
+        <Border Margin="8" Padding="6" CornerRadius="12" Background="{DynamicResource PanelControlBrush}"
+                BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0">
+          <Border.Effect><DropShadowEffect Color="Black" BlurRadius="16" ShadowDepth="5" Opacity="0.22" /></Border.Effect>
+          <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+        </Border>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PanelProfileMenuItemStyle" TargetType="MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="MenuItem">
+        <Border x:Name="Row" MinHeight="36" MinWidth="190" Padding="9,8" CornerRadius="8" Background="Transparent">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <theme:Icon x:Name="Tick" Glyph="checkmark" Size="12" Visibility="Hidden" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+            <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" RecognizesAccessKey="True" />
+          </Grid>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsChecked" Value="True"><Setter TargetName="Tick" Property="Visibility" Value="Visible" /><Setter TargetName="Row" Property="Background" Value="{DynamicResource PanelProfileBrush}" /></Trigger>
+          <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource PanelHoverBrush}" /></Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55" /><Setter TargetName="Row" Property="Background" Value="Transparent" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
   <Style x:Key="PanelProfilePillStyle" TargetType="Button" BasedOn="{StaticResource ProfilePillStyle}">
     <Setter Property="Background" Value="{DynamicResource PanelProfileBrush}" />
     <Setter Property="Template"><Setter.Value>

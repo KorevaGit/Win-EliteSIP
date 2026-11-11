@@ -23,6 +23,26 @@ public sealed class LayoutTests
     [Theory]
     [InlineData(Appearance.Dark)]
     [InlineData(Appearance.Light)]
+    public void Меню_профиля_отображает_подпись_через_Emoji_и_разделитель(Appearance theme) => WpfHost.Run(() =>
+    {
+        WpfHost.UseTheme(theme);
+        var model = new PanelViewModel { StatusTitle = "176", StatusLabel = "Апатия 🎶 🧹 📢" };
+        var window = new PanelWindow(model);
+        var menu = ((Button)window.FindName("ProfilePill")).ContextMenu!;
+        menu.DataContext = model;
+        menu.ApplyTemplate();
+        menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        menu.Arrange(new Rect(menu.DesiredSize));
+        menu.UpdateLayout();
+        Assert.True(menu.DesiredSize.Width >= 190);
+        Assert.Single(menu.Items.OfType<Separator>());
+        var header = Assert.IsType<TextBlock>(menu.Items.OfType<MenuItem>().First().Header);
+        Assert.Equal(model.ProfileMenuTitle, Emoji.GetText(header));
+    });
+
+    [Theory]
+    [InlineData(Appearance.Dark)]
+    [InlineData(Appearance.Light)]
     public void Заголовок_панели_загружается_и_содержимое_доходит_до_нижней_рамки(Appearance theme) => WpfHost.Run(() =>
     {
         WpfHost.UseTheme(theme);
