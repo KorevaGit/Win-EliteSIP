@@ -27,10 +27,9 @@ public sealed class TrayAppearanceTests
         bitmap.CopyPixels(pixels, width * 4, 0);
         var rows = Enumerable.Range(0, height).Where(y => Enumerable.Range(0, width).Any(x => pixels[(y * width + x) * 4 + 3] > 128)).ToArray();
         Assert.NotEmpty(rows);
-        var text = new FormattedText("H", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.White, 1);
+        var text = new FormattedText("E", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.White, 1);
         var capital = text.BuildGeometry(new Point()).Bounds;
-        capital.Offset(0, -1.5);
-        Assert.InRange(Math.Abs(rows[0] - capital.Top), 0, 1);
+        Assert.InRange(Math.Abs(rows[0] - (capital.Top - 1.5)), 0, 1);
         Assert.InRange(Math.Abs(rows[^1] + 1 - capital.Bottom), 0, 1);
     });
 

@@ -10,7 +10,7 @@ internal static class CrownArtwork
 {
     internal static RenderTargetBitmap Render(Brush glyph, Brush status, int size, bool emphasizeStatus)
     {
-        var source = (Canvas)Application.Current.FindResource("settings.crown");
+        var source = (Canvas)Application.Current.FindResource("settings.crown-split");
         var paths = source.Children.OfType<System.Windows.Shapes.Path>().ToArray();
         var visual = new DrawingVisual();
         using (var canvas = visual.RenderOpen())
@@ -35,7 +35,7 @@ internal static class CrownArtwork
                 }
                 else
                 {
-                    canvas.DrawGeometry(null, pen, isBase ? Geometry.Parse("M5 21H10 M14 21H19") : paths[index].Data);
+                    canvas.DrawGeometry(null, pen, paths[index].Data);
                 }
             }
             canvas.Pop();

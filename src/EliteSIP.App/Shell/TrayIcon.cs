@@ -207,7 +207,7 @@ public sealed class TrayIcon : IDisposable
         // Первая строка — состояние словами. Цветная точка на значке говорит
         // «плохо», но не говорит «почему», а при спрятанной панели узнать
         // причину больше неоткуда.
-        _menu.Items.Add(new MenuItem { Header = StatusTitle, IsEnabled = false, Icon = MenuIcon("settings.crown") });
+        _menu.Items.Add(new MenuItem { Header = StatusTitle, IsEnabled = false, Icon = MenuIcon("settings.crown-split") });
         _menu.Items.Add(new Separator());
 
         // «Показать» и «Скрыть» — один пункт с двумя подписями: два отдельных,

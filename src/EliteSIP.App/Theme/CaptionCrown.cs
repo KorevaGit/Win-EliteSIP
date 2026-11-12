@@ -38,24 +38,24 @@ public sealed class CaptionCrown : Control
     }
 
     private static FormattedText Capital(FontFamily family, double fontSize, double pixelsPerDip)
-        => new("H", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+        => new("E", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
             new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, pixelsPerDip);
 
     private static void Draw(DrawingContext canvas, Brush brush, double width, double height, FontFamily family, double fontSize, double pixelsPerDip)
     {
         var text = Capital(family, fontSize, pixelsPerDip);
         var capital = text.BuildGeometry(new Point()).Bounds;
-        var source = (Canvas)Application.Current.FindResource("settings.crown");
+        var source = (Canvas)Application.Current.FindResource("settings.crown-split");
         var drawing = new DrawingGroup();
         var pen = new Pen(brush, 2.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         var paths = source.Children.OfType<System.Windows.Shapes.Path>().ToArray();
         for (var index = 0; index < paths.Length; index++)
         {
-            drawing.Children.Add(new GeometryDrawing(null, pen,
-                index == paths.Length - 1 ? Geometry.Parse("M5 21H10 M14 21H19") : paths[index].Data));
+            drawing.Children.Add(new GeometryDrawing(null, pen, paths[index].Data));
         }
         var bounds = drawing.Bounds;
-        var scale = capital.Height / bounds.Height;
+        // Верх уже выровнен оптически; добавляем высоту вниз до основания E.
+        var scale = (capital.Height + 1.5) / bounds.Height;
         canvas.PushTransform(new TranslateTransform((width - bounds.Width * scale) / 2 - bounds.X * scale,
             (height - text.Height) / 2 + capital.Top - bounds.Y * scale - 1.5));
         canvas.PushTransform(new ScaleTransform(scale, scale));
