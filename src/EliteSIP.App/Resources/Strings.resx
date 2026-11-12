@@ -1391,4 +1391,17 @@
   <data name="SettingsRestartRequired" xml:space="preserve"><value>Restart required</value></data>
   <data name="SettingsApplicationUpdates" xml:space="preserve"><value>Application and updates</value></data>
   <data name="SettingsSparkProfile" xml:space="preserve"><value>Spark · profile and presets</value></data>
+  <data name="SettingsWholeWorkplace" xml:space="preserve"><value>Settings for this workstation</value></data>
+  <data name="SettingsAdminPassword" xml:space="preserve"><value>Administrator password</value></data>
+  <data name="SettingsPasswordAbsent" xml:space="preserve"><value>No password is set. Settings access is unprotected.</value></data>
+  <data name="SettingsManageEffect" xml:space="preserve"><value>Changes apply to the entire workstation.</value></data>
+  <data name="SettingsUnlockEffect" xml:space="preserve"><value>Office / Home selection is available until settings close.</value></data>
+  <data name="SettingsOfflineEffect" xml:space="preserve"><value>Changing location → offline: Spark stops sending settings, keys and PBX addresses.</value></data>
+  <data name="SettingsOnlineEffect" xml:space="preserve"><value>Reconnect: System → Return online. Spark settings replace local changes.</value></data>
+  <data name="SettingsOnlyOnSwitch" xml:space="preserve"><value>Offline mode starts only when you change location.</value></data>
+  <data name="SettingsCallWillEnd" xml:space="preserve"><value>The current call will end.</value></data>
+  <data name="SettingsRestartEffect" xml:space="preserve"><value>EliteSIP restarts with the selected language.</value></data>
+  <data name="SettingsRegistrationEffect" xml:space="preserve"><value>PBX registration reconnects after startup.</value></data>
+  <data name="SettingsUpdateReady" xml:space="preserve"><value>The new version is downloaded and ready to install.</value></data>
+  <data name="SettingsUpdateRestart" xml:space="preserve"><value>EliteSIP closes during installation and starts again.</value></data>
 </root>

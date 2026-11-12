@@ -231,7 +231,13 @@ public partial class SettingsWindow : Window
             this,
             Strings.Get("AppearanceLanguageQuestion"),
             Strings.Get("AppearanceLanguageQuestionBody"),
-            confirmTitle: Strings.Get("AppearanceLanguageConfirm"));
+            confirmTitle: Strings.Get("AppearanceLanguageConfirm"),
+            visual: new DialogVisual("settings.languages",
+            [
+                new("settings.phone-off", Strings.Get("SettingsCallWillEnd")),
+                new("settings.rotate-cw", Strings.Get("SettingsRestartEffect")),
+                new("settings.server", Strings.Get("SettingsRegistrationEffect")),
+            ]));
 
         if (answer is not DialogAnswer.Confirm)
         {

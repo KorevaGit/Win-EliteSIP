@@ -52,7 +52,7 @@
       </Border>
     </ControlTemplate>
   </Window.Template>
-  <Grid Margin="8,4,8,8">
+  <Grid Margin="8">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="142" />
       <ColumnDefinition Width="*" />
@@ -83,7 +83,7 @@
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
       <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled" Padding="8,0,0,0" Style="{StaticResource SettingsContentScrollViewerStyle}" x:Name="SettingsScroller">
-        <StackPanel>
+        <StackPanel Margin="0,0,0,8">
           <Grid Height="43">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*" />
@@ -169,7 +169,7 @@
               <theme:SettingsSection Header="" Tag="settings.power">
                 <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding StartsWithWindows}">
                   <StackPanel Orientation="Horizontal">
-                    <theme:Icon Glyph="settings.power" Size="16" VerticalAlignment="Center" />
+                    <theme:Icon Glyph="settings.power" Size="18" VerticalAlignment="Center" />
                     <TextBlock Text="{res:Loc SettingsStartup}" Margin="7,0,0,0" VerticalAlignment="Center" />
                   </StackPanel>
                 </CheckBox>
@@ -177,7 +177,7 @@
                   <theme:SettingsRow.Header>
                     <StackPanel Orientation="Horizontal">
                       <theme:Icon Glyph="settings.wrench" Size="18" VerticalAlignment="Center" />
-                      <TextBlock Text="{res:Loc SettingsRestoreConnection}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsRestoreConnection}" Margin="7,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                   </theme:SettingsRow.Header>
                   <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Right" Command="{Binding RepairNetwork}" IsEnabled="{Binding CanRepairNetwork}">
@@ -198,7 +198,7 @@
                     <theme:SettingsRow Tag="Device">
                       <theme:SettingsRow.Header>
                         <StackPanel Orientation="Horizontal">
-                          <theme:Icon Glyph="settings.mic" Size="19" VerticalAlignment="Center" />
+                          <theme:Icon Glyph="settings.mic" Size="18" VerticalAlignment="Center" />
                           <TextBlock Text="{res:Loc SettingsMicrophone}" VerticalAlignment="Center" Margin="7,0,0,0" />
                         </StackPanel>
                       </theme:SettingsRow.Header>
@@ -213,7 +213,7 @@
                     <theme:SettingsRow Tag="Compact" Margin="0,9,0,0">
                       <theme:SettingsRow.Header>
                         <StackPanel Orientation="Horizontal">
-                          <theme:Icon Glyph="settings.mic" Size="14" VerticalAlignment="Center" />
+                          <theme:Icon Glyph="settings.mic" Size="18" VerticalAlignment="Center" />
                         </StackPanel>
                       </theme:SettingsRow.Header>
                       <Grid>
@@ -258,7 +258,7 @@
                     <theme:SettingsRow Tag="Device">
                       <theme:SettingsRow.Header>
                         <StackPanel Orientation="Horizontal">
-                          <theme:Icon Glyph="settings.headphones" Size="19" VerticalAlignment="Center" />
+                          <theme:Icon Glyph="settings.headphones" Size="18" VerticalAlignment="Center" />
                           <TextBlock Text="{res:Loc SettingsSpeakers}" VerticalAlignment="Center" Margin="7,0,0,0" />
                         </StackPanel>
                       </theme:SettingsRow.Header>
@@ -273,7 +273,7 @@
                     <theme:SettingsRow Tag="Compact" Margin="0,9,0,0">
                       <theme:SettingsRow.Header>
                         <StackPanel Orientation="Horizontal">
-                          <theme:Icon Glyph="settings.volume-1" Size="14" VerticalAlignment="Center" />
+                          <theme:Icon Glyph="settings.volume-1" Size="18" VerticalAlignment="Center" />
                         </StackPanel>
                       </theme:SettingsRow.Header>
                       <Grid>
@@ -306,7 +306,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{res:Loc SettingsAgc}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
                     <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Level" IsActive="{Binding Settings.Audio.AutomaticGainControl}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
-                    <theme:Icon Glyph="settings.mic" Size="19" VerticalAlignment="Center" />
+                    <theme:Icon Glyph="settings.mic" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
                   </Grid>
                 </CheckBox>
                 <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.ReceiveGainControl}" Tag="Processor">
@@ -318,7 +318,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{res:Loc SettingsReceive}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
                     <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Level" IsActive="{Binding Settings.Audio.ReceiveGainControl}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
-                    <theme:Icon Glyph="settings.volume-2" Size="19" VerticalAlignment="Center" />
+                    <theme:Icon Glyph="settings.volume-2" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
                   </Grid>
                 </CheckBox>
                 <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.NoiseSuppression}" Tag="Processor">
@@ -330,7 +330,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{res:Loc AudioNoiseSuppression}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
                     <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Noise" IsActive="{Binding Settings.Audio.NoiseSuppression}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
-                    <theme:Icon Glyph="settings.audio-lines" Size="19" VerticalAlignment="Center" />
+                    <theme:Icon Glyph="settings.audio-lines" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
                   </Grid>
                 </CheckBox>
                 <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.BackgroundVoiceSuppression}" Tag="Processor">
@@ -342,14 +342,14 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{res:Loc SettingsVoices}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
                     <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Voices" IsActive="{Binding Settings.Audio.BackgroundVoiceSuppression}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
-                    <theme:Icon Glyph="settings.users-round" Size="19" VerticalAlignment="Center" />
+                    <theme:Icon Glyph="settings.users-round" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
                   </Grid>
                 </CheckBox>
                 <theme:SettingsRow>
                   <theme:SettingsRow.Header>
                     <StackPanel Orientation="Horizontal">
-                      <theme:Icon Glyph="windows" Size="16" VerticalAlignment="Center" />
-                      <TextBlock Text="Windows" Margin="6,0,0,0" VerticalAlignment="Center" />
+                      <theme:Icon Glyph="windows" Size="18" VerticalAlignment="Center" />
+                      <TextBlock Text="Windows" Margin="7,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                   </theme:SettingsRow.Header>
                   <Border Background="{DynamicResource SettingsLineBrush}" CornerRadius="9" Padding="3" Width="168" HorizontalAlignment="Right">
@@ -362,7 +362,7 @@
                 </theme:SettingsRow>
                 <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.ReleasesDeviceWhenIdle}">
                   <StackPanel Orientation="Horizontal">
-                    <theme:Icon Glyph="settings.unplug" Size="16" VerticalAlignment="Center" />
+                    <theme:Icon Glyph="settings.unplug" Size="18" VerticalAlignment="Center" />
                     <TextBlock Text="{res:Loc SettingsReleaseDevices}" Margin="7,0,0,0" VerticalAlignment="Center" />
                   </StackPanel>
                 </CheckBox>
@@ -411,7 +411,7 @@
               <theme:SettingsSection Header="{res:Loc SettingsMelody}" Tag="settings.bell">
                 <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Ringtone.IsEnabled}">
                   <StackPanel Orientation="Horizontal">
-                    <theme:Icon Glyph="settings.bell" Size="16" VerticalAlignment="Center" />
+                    <theme:Icon Glyph="settings.bell" Size="18" VerticalAlignment="Center" />
                     <TextBlock Text="{res:Loc SettingsPlayMelody}" Margin="7,0,0,0" VerticalAlignment="Center" />
                   </StackPanel>
                 </CheckBox>
@@ -453,7 +453,7 @@
                 <theme:SettingsRow IsEnabled="{Binding Settings.Ringtone.IsEnabled}" Tag="Compact">
                   <theme:SettingsRow.Header>
                     <StackPanel Orientation="Horizontal">
-                      <theme:Icon Glyph="settings.volume-2" Size="14" VerticalAlignment="Center" />
+                      <theme:Icon Glyph="settings.volume-2" Size="18" VerticalAlignment="Center" />
                     </StackPanel>
                   </theme:SettingsRow.Header>
                   <Grid>

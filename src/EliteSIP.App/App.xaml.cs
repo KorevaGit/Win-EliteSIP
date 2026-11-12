@@ -1248,7 +1248,13 @@ public partial class App : Application, IDisposable
             owner,
             Strings.Format("UpdateOfferTitle", version.ToString(3)),
             Strings.Get("UpdateOfferBody"),
-            confirmTitle: Strings.Get("UpdateOfferInstall"));
+            confirmTitle: Strings.Get("UpdateOfferInstall"),
+            visual: new DialogVisual("settings.cloud-download",
+            [
+                new("settings.package", Strings.Get("SettingsUpdateReady")),
+                new("settings.rotate-cw", Strings.Get("SettingsUpdateRestart")),
+                new("settings.server", Strings.Get("SettingsRegistrationEffect")),
+            ]));
 
         return answer is DialogAnswer.Confirm;
     }

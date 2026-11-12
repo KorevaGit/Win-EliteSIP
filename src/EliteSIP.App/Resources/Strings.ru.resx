@@ -1369,4 +1369,17 @@
   <data name="SettingsRestartRequired" xml:space="preserve"><value>Требуется перезапуск</value></data>
   <data name="SettingsApplicationUpdates" xml:space="preserve"><value>Приложение и обновления</value></data>
   <data name="SettingsSparkProfile" xml:space="preserve"><value>Spark · профиль и предустановки</value></data>
+  <data name="SettingsWholeWorkplace" xml:space="preserve"><value>Настройки всего рабочего места</value></data>
+  <data name="SettingsAdminPassword" xml:space="preserve"><value>Пароль администратора</value></data>
+  <data name="SettingsPasswordAbsent" xml:space="preserve"><value>Пароль не установлен. Доступ к настройкам не защищён.</value></data>
+  <data name="SettingsManageEffect" xml:space="preserve"><value>Изменения применяются ко всему рабочему месту.</value></data>
+  <data name="SettingsUnlockEffect" xml:space="preserve"><value>Выбор «Офис / Из дома» доступен до закрытия настроек.</value></data>
+  <data name="SettingsOfflineEffect" xml:space="preserve"><value>Смена места → офлайн: Spark больше не присылает настройки, клавиши и адреса АТС.</value></data>
+  <data name="SettingsOnlineEffect" xml:space="preserve"><value>Вернуть связь: Система → Вернуться в онлайн. Настройки Spark заменят местные.</value></data>
+  <data name="SettingsOnlyOnSwitch" xml:space="preserve"><value>Офлайн включится только при смене места.</value></data>
+  <data name="SettingsCallWillEnd" xml:space="preserve"><value>Текущий разговор завершится.</value></data>
+  <data name="SettingsRestartEffect" xml:space="preserve"><value>EliteSIP перезапустится с выбранным языком.</value></data>
+  <data name="SettingsRegistrationEffect" xml:space="preserve"><value>Регистрация на АТС восстановится после запуска.</value></data>
+  <data name="SettingsUpdateReady" xml:space="preserve"><value>Новая версия скачана и готова к установке.</value></data>
+  <data name="SettingsUpdateRestart" xml:space="preserve"><value>EliteSIP закроется на время установки и запустится снова.</value></data>
 </root>
