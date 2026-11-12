@@ -15,6 +15,36 @@ namespace EliteSIP.App.Panel;
 /// </remarks>
 public partial class PanelWindow : Window
 {
+    public static readonly DependencyProperty UsesWideCallTitleProperty = DependencyProperty.Register(
+        nameof(UsesWideCallTitle), typeof(bool), typeof(PanelWindow), new PropertyMetadata(false));
+
+    public bool UsesWideCallTitle
+    {
+        get => (bool)GetValue(UsesWideCallTitleProperty);
+        private set => SetValue(UsesWideCallTitleProperty, value);
+    }
+
+    // Кэш измерения исключает повторную работу на каждом LayoutUpdated.
+    private (string Title, string Status, string Duration, double Width, bool Pending)? _callHeaderMeasure;
+
+    private void OnCallHeaderLayoutUpdated(object? sender, EventArgs e)
+    {
+        if (DataContext is not PanelViewModel model || CallHeader.ActualWidth <= 0)
+        {
+            return;
+        }
+        var key = (model.CallTitle ?? "", model.CallStatus ?? "", model.ActiveLine?.Duration ?? "", CallHeader.ActualWidth, model.IsOutgoingPending);
+        if (_callHeaderMeasure == key)
+        {
+            return;
+        }
+        _callHeaderMeasure = key;
+        double Width(string text, double size) => new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight, new Typeface(CallTitleLabel.FontFamily, FontStyles.Normal, FontWeights.Medium, FontStretches.Normal),
+            size, Brushes.Black, VisualTreeHelper.GetDpi(this).PixelsPerDip).WidthIncludingTrailingWhitespace;
+        UsesWideCallTitle = !model.IsOutgoingPending && Width(key.Item1, 18) + Math.Max(Width(key.Item2, 12), Width(key.Item3, 18)) + 12 > CallHeader.ActualWidth;
+    }
+
     private readonly DispatcherTimer _clock;
     private double _bottomEdge;
 

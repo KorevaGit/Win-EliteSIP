@@ -66,7 +66,7 @@
           <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
-              <Image Source="/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico" Width="14" Height="14" />
+              <theme:Icon Glyph="crown.fill" Size="14" Foreground="{DynamicResource TextPrimaryBrush}" />
               <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
@@ -225,7 +225,7 @@
                      FontSize="12"
                      VerticalAlignment="Center"
                      TextTrimming="CharacterEllipsis"
-                     Foreground="{DynamicResource TextTertiaryBrush}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
                      Visibility="{Binding StatusLabel, Converter={StaticResource PresenceToVisibility}}" />
 
           <!--
@@ -455,17 +455,17 @@
             <!--
                 Карточка собеседника. Слева имя и номер, справа таймер и состояние.
             -->
-            <Grid VerticalAlignment="Center"
+            <Grid x:Name="CallHeader" LayoutUpdated="OnCallHeaderLayoutUpdated" VerticalAlignment="Center"
                   Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" MaxWidth="110" />
+                <ColumnDefinition Width="Auto" MaxWidth="145" />
               </Grid.ColumnDefinitions>
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
-              <TextBlock Grid.Row="0" Grid.Column="0"
+              <TextBlock x:Name="CallTitleLabel" Grid.Row="0" Grid.Column="0"
                          theme:Emoji.Text="{Binding CallTitle}"
                          Margin="0,0,12,0"
                          FontSize="18" FontWeight="Medium"
@@ -474,6 +474,7 @@
                 <TextBlock.Style>
                   <Style TargetType="TextBlock">
                     <Style.Triggers>
+                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Grid.ColumnSpan" Value="2" /></DataTrigger>
                       <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
                         <Setter Property="Grid.RowSpan" Value="2" />
                         <Setter Property="VerticalAlignment" Value="Center" />
@@ -496,6 +497,7 @@
                 <TextBlock.Style>
                   <Style TargetType="TextBlock">
                     <Style.Triggers>
+                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                       <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
                         <Setter Property="Grid.RowSpan" Value="2" />
                         <Setter Property="VerticalAlignment" Value="Center" />
@@ -515,6 +517,7 @@
                     <Setter Property="FontSize" Value="12" />
                     <Setter Property="Margin" Value="0,2,0,0" />
                     <Style.Triggers>
+                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                       <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
                         <Setter Property="Grid.Row" Value="0" />
                         <Setter Property="Grid.RowSpan" Value="2" />
@@ -526,6 +529,10 @@
                   </Style>
                 </TextBlock.Style>
               </TextBlock>
+              <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0" Visibility="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="{Binding ActiveLine.Duration}" FontSize="12" FontWeight="Medium" Margin="0,0,6,0" />
+                <TextBlock Text="{Binding CallStatus}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+              </StackPanel>
             </Grid>
           </Grid>
         </Border>

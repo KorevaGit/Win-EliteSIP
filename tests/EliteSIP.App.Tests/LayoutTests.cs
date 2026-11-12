@@ -21,6 +21,26 @@ namespace EliteSIP.App.Tests;
 public sealed class LayoutTests
 {
     [Fact]
+    public void Длинное_имя_переносит_таймер_вниз_и_возвращает_при_расширении() => WpfHost.Run(() =>
+    {
+        var model = new PanelViewModel();
+        var line = new CallLineViewModel { SecondaryNumber = "172", Title = "Очень длинное название собеседника", IsActive = true, ConnectedAt = DateTimeOffset.Now.AddSeconds(-34) };
+        model.Lines.Add(line);
+        model.ActiveLine = line;
+        model.CallStatus = "разговор";
+        var window = new PanelWindow(model);
+        var root = (FrameworkElement)window.Content;
+        root.Measure(new Size(324, 700));
+        root.Arrange(new Rect(0, 0, 324, 700));
+        root.UpdateLayout();
+        Assert.True(window.UsesWideCallTitle);
+        root.Measure(new Size(900, 700));
+        root.Arrange(new Rect(0, 0, 900, 700));
+        root.UpdateLayout();
+        Assert.False(window.UsesWideCallTitle);
+    });
+
+    [Fact]
     public void Отключённый_профиль_показывает_только_подпись_без_номера_и_точки() => WpfHost.Run(() =>
     {
         var window = new PanelWindow(new PanelViewModel { StatusTitle = "176", StatusLabel = "Офис", IsOfflineByChoice = true });

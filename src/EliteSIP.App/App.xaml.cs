@@ -1420,7 +1420,7 @@ public partial class App : Application, IDisposable
 
             // Срок хранения спрашивается у настроек каждый раз, а не берётся
             // копией: администратор мог сменить его, пока окно было закрыто.
-            () => _settings.History.MaximumAgeInDays);
+            () => _settings.History.MaximumAgeInDays, PhoneService.ProfileLabel(_settings) ?? "");
 
         _historyWindow = new CallHistoryWindow(model, _appearance!);
 

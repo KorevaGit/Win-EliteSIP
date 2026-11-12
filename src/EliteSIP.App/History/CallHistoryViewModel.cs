@@ -64,12 +64,13 @@ public sealed class CallHistoryViewModel : Observable
         Guid profileId,
         string profileTitle,
         bool masksMobileNumbers,
-        Func<int> retentionDays)
+        Func<int> retentionDays, string profileLabel = "")
     {
         _store = store;
         _profileId = profileId;
         ProfileTitle = profileTitle;
         OwnNumber = profileTitle;
+        ProfileLabel = profileLabel;
         MasksMobileNumbers = masksMobileNumbers;
 
         Calendar = new HistoryCalendar(
@@ -115,6 +116,8 @@ public sealed class CallHistoryViewModel : Observable
     /// Свой добавочный — по нему вызов по сделке узнаётся в строке истории.
     /// Метка профиля и есть добавочный: профиль называется номером.
     /// </summary>
+    public string ProfileLabel { get; }
+
     public string OwnNumber { get; }
 
     /// <summary>

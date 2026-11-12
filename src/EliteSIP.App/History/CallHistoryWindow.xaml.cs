@@ -134,7 +134,11 @@ public partial class CallHistoryWindow : Window
 
     private void OnNextMonthClick(object sender, RoutedEventArgs e) => Model.Calendar.ShiftMonth(1);
 
-    private void OnClearDayClick(object sender, RoutedEventArgs e) => Model.Calendar.SelectedDay = null;
+    private void OnClearDayClick(object sender, RoutedEventArgs e)
+    {
+        Model.Calendar.SelectedDay = null;
+        CalendarPopup.IsOpen = false;
+    }
 
     private void OnDayClick(object sender, RoutedEventArgs e)
     {
@@ -183,7 +187,8 @@ public partial class CallHistoryWindow : Window
     {
         const double scale = 2;
         const double padding = 12;
-        const double header = 56;
+        const double header = 88;
+        var capturedAt = DateTimeOffset.Now;
         var width = ListSurface.ActualWidth + padding * 2;
         var height = ListSurface.ActualHeight + header + padding * 2;
         var body = new Rect(padding, header + padding, ListSurface.ActualWidth, ListSurface.ActualHeight);
@@ -214,13 +219,33 @@ public partial class CallHistoryWindow : Window
                 canvas.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, width, height));
                 var text = (Brush)FindResource("TextPrimaryBrush");
                 var secondary = (Brush)FindResource("TextSecondaryBrush");
-                var title = new FormattedText(Title, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                    new Typeface(FontFamily, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal), 15, text, scale)
-                    { MaxTextWidth = width - padding * 2, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis };
-                canvas.DrawText(title, new Point(padding, padding));
+                var leftWidth = Math.Max(100, width - padding * 2 - 220);
+                var number = new FormattedText(Model.OwnNumber, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                    new Typeface(FontFamily, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal), 26, text, scale)
+                    { MaxTextWidth = leftWidth, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis };
+                canvas.DrawText(number, new Point(padding, padding));
+                if (!string.IsNullOrWhiteSpace(Model.ProfileLabel) && leftWidth > number.Width + 30)
+                {
+                    var label = new FormattedText(Model.ProfileLabel, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                        new Typeface(FontFamily, FontStyles.Normal, FontWeights.Medium, FontStretches.Normal), 18, text, scale)
+                        { MaxTextWidth = leftWidth - number.Width - 12, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis };
+                    canvas.DrawText(label, new Point(padding + number.Width + 12, padding + 7));
+                }
+                canvas.DrawText(new FormattedText(Strings.Get("HistoryWindowTitle"), CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                    new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), 14, secondary, scale), new Point(padding, padding + 36));
                 var scope = Model.Filter.Title() + " · " + (Model.Calendar.HasSelectedDay ? Model.Calendar.SelectedDayTitle : Strings.Get("HistoryAllDaysLabel"));
                 canvas.DrawText(new FormattedText(scope, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                    new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), 12, secondary, scale), new Point(padding, padding + 25));
+                    new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), 12, secondary, scale)
+                    { MaxTextWidth = leftWidth, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis }, new Point(padding, padding + 58));
+                void Right(string value, double size, double top, FontWeight weight, Brush brush)
+                {
+                    var line = new FormattedText(value, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                        new Typeface(FontFamily, FontStyles.Normal, weight, FontStretches.Normal), size, brush, scale);
+                    canvas.DrawText(line, new Point(width - padding - line.Width, padding + top));
+                }
+                Right(capturedAt.ToString("HH:mm:ss", CultureInfo.CurrentCulture), 22, 0, FontWeights.SemiBold, text);
+                Right(capturedAt.ToString("dd.MM.yyyy", CultureInfo.CurrentCulture), 16, 32, FontWeights.Medium, text);
+                Right(capturedAt.ToString("'UTC'zzz", CultureInfo.InvariantCulture), 12, 58, FontWeights.Normal, secondary);
             }
             image.Render(heading);
             image.Freeze();

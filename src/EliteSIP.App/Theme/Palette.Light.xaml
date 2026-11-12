@@ -134,4 +134,4 @@
   <Color x:Key="HistoryScrollThumbColor">#38000000</Color>
   <Color x:Key="HistoryScrollHoverColor">#60000000</Color>
   <SolidColorBrush x:Key="HistoryFilterHoverBrush" Color="#70FFFFFF" />
-</ResourceDictionary>
+<SolidColorBrush x:Key="HistoryOutgoingBrush" Color="#B77900" /><SolidColorBrush x:Key="HistoryMissedBrush" Color="#D51E32" /></ResourceDictionary>
