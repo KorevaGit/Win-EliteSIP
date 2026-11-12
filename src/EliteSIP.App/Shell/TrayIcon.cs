@@ -316,29 +316,8 @@ public sealed class TrayIcon : IDisposable
         => ToIcon(RenderIcon(glyph, status, 32));
 
     internal static RenderTargetBitmap RenderIcon(Brush glyph, Brush status, int size)
-    {
-        var source = (Canvas)Application.Current.FindResource("settings.crown");
-        var paths = source.Children.OfType<System.Windows.Shapes.Path>().ToArray();
-        var visual = new DrawingVisual();
-        using (var canvas = visual.RenderOpen())
-        {
-            canvas.PushTransform(new ScaleTransform(size / 24d, size / 24d));
-            for (var index = 0; index < paths.Length; index++)
-            {
-                var pen = new Pen(index == paths.Length - 1 ? status : glyph, 2)
-                {
-                    StartLineCap = PenLineCap.Round,
-                    EndLineCap = PenLineCap.Round,
-                    LineJoin = PenLineJoin.Round,
-                };
-                canvas.DrawGeometry(null, pen, paths[index].Data);
-            }
-            canvas.Pop();
-        }
-        var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
-        return bitmap;
-    }
+        => Theme.CrownArtwork.Render(glyph, status, size, emphasizeStatus: true);
+
     /// <summary>Собирает ручку значка из растра.</summary>
     ///
     /// <remarks>
