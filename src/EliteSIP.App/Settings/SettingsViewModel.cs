@@ -49,13 +49,10 @@ public sealed class SettingsViewModel : Observable
 
         Sections =
         [
-            new(SettingsSectionKind.Work, Strings.Get("SectionWork"), "person.crop.circle"),
-            new(SettingsSectionKind.Audio, Strings.Get("SectionAudio"), "mic.fill"),
-            // Своего значка у оформления в комплекте нет. `gearshape` — не
-            // «тема», а «настройка вообще», и это признанная неточность: раздел
-            // опознаётся подписью, а значок держит строку в колонке с прочими.
-            new(SettingsSectionKind.Appearance, Strings.Get("SectionAppearance"), "gearshape"),
-            new(SettingsSectionKind.Support, Strings.Get("SettingsSystem"), "stethoscope"),
+            new(SettingsSectionKind.Work, Strings.Get("SectionWork"), "settings.briefcase-business"),
+            new(SettingsSectionKind.Audio, Strings.Get("SectionAudio"), "settings.headphones"),
+            new(SettingsSectionKind.Appearance, Strings.Get("SectionAppearance"), "settings.panels-top-left"),
+            new(SettingsSectionKind.Support, Strings.Get("SettingsSystem"), "settings.activity"),
         ];
 
         ReloadDevices();
@@ -102,6 +99,8 @@ public sealed class SettingsViewModel : Observable
     }
 
     public AppSettings Settings { get; }
+
+    public string? ProfileLabel => Shell.PhoneService.ProfileLabel(Settings);
 
     // --- Кнопки, которые прежде были нарисованы и никуда не вели --------------
     //
@@ -296,6 +295,10 @@ public sealed class SettingsViewModel : Observable
 
     private void OnWorkplaceSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(AccountSettings.DisplayName) or nameof(AccountSettings.Username))
+        {
+            NotifyChanged(nameof(ProfileLabel));
+        }
         if (e.PropertyName is nameof(AccountSettings.Site)
             or nameof(PanelSettings.Mode)
             or nameof(PanelSettings.LockedWorkFormat))
@@ -376,9 +379,11 @@ public sealed class SettingsViewModel : Observable
     /// <summary>Во время звонка проверка не запускается: это отнятый у собеседника микрофон.</summary>
     public bool CanRunSelfTest => _isSelfTestRunning || !_isInCall;
 
+    public bool CanTestOutput => !_isSelfTestRunning && !_isInCall;
+
     public bool IsSelfTestBlockedByCall => _isInCall && !_isSelfTestRunning;
 
-    public string SelfTestButtonText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "AudioSelfTestStart");
+    public string SelfTestButtonText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "SettingsRecordFiveSeconds");
 
     /// <summary>Шкалы видны во время проверки и разговора, в остальное время — подсказка.</summary>
     public bool ShowsMeters => _isSelfTestRunning || _isInCall;
@@ -471,6 +476,7 @@ public sealed class SettingsViewModel : Observable
             _isInCall = inCall;
             NotifyChanged(nameof(IsSelfTestRunning));
             NotifyChanged(nameof(CanRunSelfTest));
+            NotifyChanged(nameof(CanTestOutput));
             NotifyChanged(nameof(IsSelfTestBlockedByCall));
             NotifyChanged(nameof(SelfTestButtonText));
             NotifyChanged(nameof(ShowsMeters));
@@ -543,7 +549,7 @@ public sealed class SettingsViewModel : Observable
     /// </summary>
     ///
     /// <remarks>
-    /// Здесь, в «Техподдержке», а не в «Управлении»: автозапуск пишется в ветку
+    /// Здесь, в «Работе», а не в «Управлении»: автозапуск пишется в ветку
     /// пользователя, прав администратора не требует, и решать его должен тот,
     /// кто за машиной работает. Действует сразу — правда о нём живёт в реестре,
     /// его же показывает диспетчер задач, и читается тоже у системы: снятый там

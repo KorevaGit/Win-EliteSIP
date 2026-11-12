@@ -69,6 +69,36 @@ public partial class SettingsWindow : Window
 
     private void OnCaptionCloseClick(object sender, RoutedEventArgs e) => Close();
 
+    private void OnCopyMachineClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetDataObject(Model.MachineID, copy: true);
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            // Буфер занят другим приложением; настройки остаются доступны.
+        }
+    }
+
+    private void OnTestMicrophoneClick(object sender, RoutedEventArgs e)
+    {
+        if (Model.CanRunSelfTest)
+        {
+            Model.RunSelfTest.Execute(null);
+        }
+    }
+
+    private void OnTestOutputClick(object sender, RoutedEventArgs e)
+    {
+        if (!Model.CanTestOutput)
+        {
+            return;
+        }
+        _sounds.StopPreview();
+        _ = _sounds.PreviewRingtone(null, Math.Clamp(Model.Settings.Audio.PlaybackVolume, 0, 1), Model.Settings.Audio.OutputDeviceId);
+    }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -181,18 +211,17 @@ public partial class SettingsWindow : Window
     /// на перезапуск со снятием регистрации, и узнавать о нём постфактум
     /// оператор не должен.
     ///
-    /// Привязка у сегментов односторонняя именно поэтому: выбор в свойство
+    /// Привязка у списка односторонняя именно поэтому: выбор в свойство
     /// кладёт не она, а этот обработчик — и только после согласия. Отказ
-    /// возвращает сегменты к тому, что записано в настройках.
+    /// возвращает список к тому, что записано в настройках.
     /// </remarks>
-    private void OnLanguageChosen(object sender, RoutedEventArgs e)
+    private void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!IsLoaded || sender is not RadioButton { Tag: string name })
+        if (!IsLoaded || sender is not ComboBox { SelectedValue: LanguageSetting chosen })
         {
             return;
         }
 
-        var chosen = Enum.Parse<LanguageSetting>(name);
         if (chosen == Model.Settings.Appearance.Language)
         {
             return;
@@ -206,7 +235,7 @@ public partial class SettingsWindow : Window
 
         if (answer is not DialogAnswer.Confirm)
         {
-            // Вернуть сегменты к записанному: отказ не должен оставлять
+            // Вернуть список к записанному: отказ не должен оставлять
             // выбранным то, чего не произошло.
             Model.NotifyLanguage();
             return;

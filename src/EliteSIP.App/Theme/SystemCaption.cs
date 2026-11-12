@@ -68,10 +68,7 @@ internal static class SystemCaption
 
         // Малый значок остаётся короной в заголовке. Большой Windows использует
         // в панели задач и Alt+Tab: там должен быть исходный значок приложения.
-        if (TaskbarIcon.Value != 0)
-        {
-            _ = SendMessage(handle, 0x0080, 1, TaskbarIcon.Value);
-        }
+        RestoreTaskbarIcon(window);
 
         var value = dark ? 1 : 0;
 
@@ -110,27 +107,71 @@ internal static class SystemCaption
 
     private static readonly System.Windows.Media.Imaging.BitmapSource LightIcon = DrawCrown(Brushes.Black);
     private static readonly System.Windows.Media.Imaging.BitmapSource DarkIcon = DrawCrown(Brushes.White);
-    private static readonly Lazy<nint> TaskbarIcon = new(LoadTaskbarIcon);
+    private static readonly Lazy<System.Windows.Media.Imaging.BitmapSource> TaskbarSource = new(LoadTaskbarSource);
+    private static readonly Dictionary<int, nint> TaskbarIcons = [];
+    private static readonly DependencyProperty TracksDpiProperty = DependencyProperty.RegisterAttached(
+        "TracksDpi", typeof(bool), typeof(SystemCaption), new PropertyMetadata(false));
 
-    private static nint LoadTaskbarIcon()
+    internal static int TaskbarSourceSize => TaskbarSource.Value.PixelWidth;
+
+    private static System.Windows.Media.Imaging.BitmapSource LoadTaskbarSource()
     {
-        var resource = Application.GetResourceStream(new Uri("pack://application:,,,/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico"));
-        if (resource is null)
-        {
-            return 0;
-        }
+        var resource = Application.GetResourceStream(new Uri("pack://application:,,,/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico"))!;
         using var stream = resource.Stream;
-        using var copy = new System.IO.MemoryStream();
-        stream.CopyTo(copy);
-        var bytes = copy.ToArray();
+        var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(stream,
+            System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+        var frame = decoder.Frames.MaxBy(item => item.PixelWidth)!.CloneCurrentValue();
+        frame.Freeze();
+        return frame;
+    }
+
+    private static void RestoreTaskbarIcon(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == 0)
+        {
+            return;
+        }
+        var dpi = GetDpiForWindow(handle);
+        var size = Math.Clamp(GetSystemMetricsForDpi(11, dpi == 0 ? 96 : dpi), 16, 256);
+        if (!TaskbarIcons.TryGetValue(size, out var icon))
+        {
+            icon = RenderTaskbarIcon(size);
+            TaskbarIcons.Add(size, icon);
+        }
+        if (icon != 0)
+        {
+            _ = SendMessage(handle, 0x0080, 1, icon);
+        }
+        if (!(bool)window.GetValue(TracksDpiProperty))
+        {
+            window.SetValue(TracksDpiProperty, true);
+            // WPF при смене DPI заново ставит обе коронки; большой значок
+            // возвращаем после его обработки, в точном физическом размере.
+            window.DpiChanged += (_, _) => window.Dispatcher.BeginInvoke(() => RestoreTaskbarIcon(window));
+        }
+    }
+
+    private static nint RenderTaskbarIcon(int size)
+    {
+        var visual = new DrawingVisual();
+        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+        using (var canvas = visual.RenderOpen())
+        {
+            canvas.DrawImage(TaskbarSource.Value, new System.Windows.Rect(0, 0, size, size));
+        }
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var png = new System.IO.MemoryStream();
+        encoder.Save(png);
+        var bytes = png.ToArray();
         var buffer = Marshal.AllocHGlobal(bytes.Length);
         try
         {
             Marshal.Copy(bytes, 0, buffer, bytes.Length);
-            var offset = LookupIconIdFromDirectoryEx(buffer, true, 32, 32, 0);
-            return offset > 0 && offset < bytes.Length
-                ? CreateIconFromResourceEx(buffer + offset, (uint)(bytes.Length - offset), true, 0x30000, 32, 32, 0)
-                : 0;
+            return CreateIconFromResourceEx(buffer, (uint)bytes.Length, true, 0x30000, size, size, 0);
         }
         finally
         {
@@ -274,7 +315,10 @@ internal static class SystemCaption
     private static extern nint SendMessage(nint window, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll")]
-    private static extern int LookupIconIdFromDirectoryEx(nint directory, bool fIcon, int width, int height, uint flags);
+    private static extern uint GetDpiForWindow(nint window);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetricsForDpi(int index, uint dpi);
 
     [DllImport("user32.dll")]
     private static extern nint CreateIconFromResourceEx(nint bits, uint size, bool fIcon, uint version, int width, int height, uint flags);

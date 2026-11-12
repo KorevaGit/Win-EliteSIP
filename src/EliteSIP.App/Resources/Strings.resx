@@ -1356,4 +1356,27 @@
   <data name="SettingsConnection" xml:space="preserve"><value>Startup and connection</value></data>
   <data name="SettingsApplication" xml:space="preserve"><value>Application</value></data>
   <data name="SettingsProcessing" xml:space="preserve"><value>Processing · before → after</value></data>
+  <data name="SettingsManagement" xml:space="preserve"><value>Management</value></data>
+  <data name="SettingsTest" xml:space="preserve"><value>Test</value></data>
+  <data name="SettingsListen" xml:space="preserve"><value>Listen</value></data>
+  <data name="SettingsAgc" xml:space="preserve"><value>Microphone auto level</value></data>
+  <data name="SettingsReceive" xml:space="preserve"><value>Level the other voice</value></data>
+  <data name="SettingsVoices" xml:space="preserve"><value>Suppress background voices</value></data>
+  <data name="SettingsOfficeNetwork" xml:space="preserve"><value>Office network</value></data>
+  <data name="SettingsInternet" xml:space="preserve"><value>Internet</value></data>
+  <data name="SettingsRecordFiveSeconds" xml:space="preserve"><value>Record 5 sec</value></data>
+  <data name="SettingsRecordingFlow" xml:space="preserve"><value>Recording → playback</value></data>
+  <data name="SettingsSupportArchive" xml:space="preserve"><value>Support archive</value></data>
+  <data name="SettingsCollect" xml:space="preserve"><value>Collect</value></data>
+  <data name="SettingsMachineId" xml:space="preserve"><value>Machine ID</value></data>
+  <data name="SettingsCopyId" xml:space="preserve"><value>Copy machine ID</value></data>
+  <data name="SettingsPresets" xml:space="preserve"><value>Presets</value></data>
+  <data name="SettingsCheckNow" xml:space="preserve"><value>Check now</value></data>
+  <data name="SettingsMelodyShort" xml:space="preserve"><value>Melody</value></data>
+  <data name="SettingsOutput" xml:space="preserve"><value>Output</value></data>
+  <data name="SettingsPlayMelody" xml:space="preserve"><value>Play call melody</value></data>
+  <data name="SettingsStartup" xml:space="preserve"><value>Start with Windows</value></data>
+  <data name="SettingsReleaseDevices" xml:space="preserve"><value>Release devices when idle</value></data>
+  <data name="SettingsSelfTest" xml:space="preserve"><value>Self-test</value></data>
+  <data name="SettingsOutputTestNote" xml:space="preserve"><value>Play a test signal through the selected speakers</value></data>
 </root>

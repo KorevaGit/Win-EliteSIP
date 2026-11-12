@@ -1334,4 +1334,27 @@
   <data name="SettingsConnection" xml:space="preserve"><value>Запуск и подключение</value></data>
   <data name="SettingsApplication" xml:space="preserve"><value>Приложение</value></data>
   <data name="SettingsProcessing" xml:space="preserve"><value>Обработка · до → после</value></data>
+  <data name="SettingsManagement" xml:space="preserve"><value>Управление</value></data>
+  <data name="SettingsTest" xml:space="preserve"><value>Проверить</value></data>
+  <data name="SettingsListen" xml:space="preserve"><value>Слушать</value></data>
+  <data name="SettingsAgc" xml:space="preserve"><value>Автоуровень микрофона</value></data>
+  <data name="SettingsReceive" xml:space="preserve"><value>Выравнивание собеседника</value></data>
+  <data name="SettingsVoices" xml:space="preserve"><value>Подавление чужих голосов</value></data>
+  <data name="SettingsOfficeNetwork" xml:space="preserve"><value>Офисная сеть</value></data>
+  <data name="SettingsInternet" xml:space="preserve"><value>Интернет</value></data>
+  <data name="SettingsRecordFiveSeconds" xml:space="preserve"><value>Записать 5 сек</value></data>
+  <data name="SettingsRecordingFlow" xml:space="preserve"><value>Запись → прослушивание</value></data>
+  <data name="SettingsSupportArchive" xml:space="preserve"><value>Архив для поддержки</value></data>
+  <data name="SettingsCollect" xml:space="preserve"><value>Собрать</value></data>
+  <data name="SettingsMachineId" xml:space="preserve"><value>ID машины</value></data>
+  <data name="SettingsCopyId" xml:space="preserve"><value>Копировать ID машины</value></data>
+  <data name="SettingsPresets" xml:space="preserve"><value>Предустановки</value></data>
+  <data name="SettingsCheckNow" xml:space="preserve"><value>Проверить сейчас</value></data>
+  <data name="SettingsMelodyShort" xml:space="preserve"><value>Мелодия</value></data>
+  <data name="SettingsOutput" xml:space="preserve"><value>Вывод</value></data>
+  <data name="SettingsPlayMelody" xml:space="preserve"><value>Проигрывать мелодию</value></data>
+  <data name="SettingsStartup" xml:space="preserve"><value>Запускать с Windows</value></data>
+  <data name="SettingsReleaseDevices" xml:space="preserve"><value>Освобождать устройства в простое</value></data>
+  <data name="SettingsSelfTest" xml:space="preserve"><value>Самопроверка</value></data>
+  <data name="SettingsOutputTestNote" xml:space="preserve"><value>Воспроизвести тестовый сигнал на выбранных динамиках</value></data>
 </root>

@@ -20,7 +20,7 @@
     <Setter Property="Margin" Value="0,0,0,8" />
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="theme:SettingsSection">
       <Border Background="{DynamicResource PanelControlBrush}" CornerRadius="10" Padding="12" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource PanelEdgeBrush}" Effect="{StaticResource PanelShadow}">
-        <StackPanel><TextBlock Text="{TemplateBinding Header}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8" /><ItemsPresenter /></StackPanel>
+        <StackPanel><StackPanel Orientation="Horizontal" Margin="0,0,0,8"><theme:Icon Glyph="{TemplateBinding Tag}" Size="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,6,0" Visibility="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource PresenceToVisibility}}" /><TextBlock Text="{TemplateBinding Header}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" /></StackPanel><ItemsPresenter /></StackPanel>
       </Border>
     </ControlTemplate></Setter.Value></Setter>
     <Setter Property="ItemsPanel"><Setter.Value><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></Setter.Value></Setter>
@@ -32,7 +32,7 @@
         <ContentPresenter x:Name="RowLabel" Content="{TemplateBinding Header}" VerticalAlignment="Center" Margin="0,0,8,0" />
         <ContentPresenter Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" />
       </Grid>
-      <ControlTemplate.Triggers><Trigger Property="Header" Value=""><Setter TargetName="LabelColumn" Property="Width" Value="0" /><Setter TargetName="RowLabel" Property="Visibility" Value="Collapsed" /></Trigger></ControlTemplate.Triggers>
+      <ControlTemplate.Triggers><Trigger Property="Header" Value=""><Setter TargetName="LabelColumn" Property="Width" Value="0" /><Setter TargetName="RowLabel" Property="Visibility" Value="Collapsed" /></Trigger><Trigger Property="Tag" Value="Compact"><Setter TargetName="LabelColumn" Property="Width" Value="29" /><Setter TargetName="RowLabel" Property="Margin" Value="0" /></Trigger><Trigger Property="Tag" Value="WideLabel"><Setter TargetName="LabelColumn" Property="Width" Value="160" /></Trigger></ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style TargetType="theme:SettingsIndented"><Setter Property="Margin" Value="0,0,0,8" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="theme:SettingsIndented"><ContentPresenter /></ControlTemplate></Setter.Value></Setter></Style>
@@ -41,6 +41,7 @@
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="theme:SettingsNote"><TextBlock x:Name="Note" Text="{TemplateBinding Text}" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" /><ControlTemplate.Triggers><Trigger Property="IsAlarming" Value="True"><Setter TargetName="Note" Property="Foreground" Value="{DynamicResource StatusFailureBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="SettingsButtonStyle" TargetType="Button" BasedOn="{StaticResource PanelSurfaceButtonStyle}"><Setter Property="Height" Value="34" /><Setter Property="Padding" Value="10,0" /><Setter Property="FontSize" Value="12" /><Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+  <Style x:Key="SettingsAdministrationButtonStyle" TargetType="Button" BasedOn="{StaticResource SettingsButtonStyle}"><Setter Property="Height" Value="38" /><Setter Property="HorizontalContentAlignment" Value="Left" /><Setter Property="Padding" Value="10,0" /></Style>
   <Style x:Key="SettingsSegmentStyle" TargetType="RadioButton">
     <Setter Property="Margin" Value="0,0,4,0" /><Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><Border x:Name="Surface" Padding="10,7" CornerRadius="8" Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers>

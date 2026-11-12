@@ -69,6 +69,19 @@ public sealed class SettingsRedesignTests
             var taskbarIcon = SendMessage(handle, 0x007F, 1, 0);
             var lightCaption = window.Icon;
             Assert.NotEqual(0, taskbarIcon);
+            Assert.True(GetIconInfo(taskbarIcon, out var iconInfo));
+            try
+            {
+                Assert.NotEqual(0, GetObject(iconInfo.ColorBitmap, Marshal.SizeOf<NativeBitmap>(), out var bitmap));
+                Assert.True(SystemCaption.TaskbarSourceSize >= 256);
+                Assert.InRange(bitmap.Width, 32, 256);
+                Assert.Equal(bitmap.Width, bitmap.Height);
+            }
+            finally
+            {
+                _ = DeleteObject(iconInfo.ColorBitmap);
+                _ = DeleteObject(iconInfo.MaskBitmap);
+            }
             SystemCaption.Apply(window, true);
             Assert.Equal(taskbarIcon, SendMessage(handle, 0x007F, 1, 0));
             Assert.NotSame(lightCaption, window.Icon);
@@ -78,6 +91,35 @@ public sealed class SettingsRedesignTests
         {
             window.Close();
         }
+    });
+
+    [Fact]
+    public void Управление_в_боковом_меню_а_закрепление_справа_от_адреса_АТС() => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Light };
+        using var sounds = new SignalSoundPlayer();
+        var settings = new AppSettings();
+        settings.Account.Username = "176";
+        settings.Account.Domain = "pbx.example";
+        settings.Panel.Mode = PanelMode.Managed;
+        settings.Panel.LockedWorkFormat = "office";
+        var model = new SettingsViewModel(settings);
+        var window = new SettingsWindow(model, appearance, sounds);
+        var requested = false;
+        window.AdministrationRequested += () => requested = true;
+        var root = WpfHost.Layout(window, 780, 600);
+        var admin = (Button)window.FindName("AdministrationButton");
+        var unlock = (Button)window.FindName("UnlockWorkplaceButton");
+        Assert.True(admin.TranslatePoint(new Point(), root).X < 146);
+        admin.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(requested);
+        Assert.Same(model.UnlockWorkplace, unlock.Command);
+        var domain = Descendants(root).OfType<TextBlock>().Single(block => block.Text == "pbx.example");
+        Assert.True(unlock.TranslatePoint(new Point(), root).X > domain.TranslatePoint(new Point(), root).X);
+        Assert.Equal(Visibility.Visible, unlock.Visibility);
+        Assert.InRange(Math.Abs(domain.TranslatePoint(new Point(0, domain.ActualHeight / 2), root).Y
+            - unlock.TranslatePoint(new Point(0, unlock.ActualHeight / 2), root).Y), 0, 1);
+        window.Close();
     });
 
     private static bool IsExpanded(DependencyObject child)
@@ -107,4 +149,35 @@ public sealed class SettingsRedesignTests
 
     [DllImport("user32.dll")]
     private static extern nint SendMessage(nint window, uint message, nint wParam, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetIconInfo(nint icon, out NativeIconInfo info);
+
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetObject(nint bitmap, int size, out NativeBitmap info);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(nint handle);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeIconInfo
+    {
+        public bool IsIcon;
+        public uint HotspotX;
+        public uint HotspotY;
+        public nint MaskBitmap;
+        public nint ColorBitmap;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeBitmap
+    {
+        public int Type;
+        public int Width;
+        public int Height;
+        public int WidthBytes;
+        public ushort Planes;
+        public ushort BitsPixel;
+        public nint Bits;
+    }
 }
