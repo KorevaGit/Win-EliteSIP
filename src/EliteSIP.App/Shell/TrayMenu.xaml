@@ -1,0 +1,22 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:theme="clr-namespace:EliteSIP.App.Theme">
+  <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="../Settings/GraphiteSettings.xaml" /></ResourceDictionary.MergedDictionaries>
+  <Style x:Key="TrayMenuStyle" TargetType="ContextMenu" BasedOn="{StaticResource PanelProfileMenuStyle}"><Setter Property="FontSize" Value="13" /></Style>
+  <Style TargetType="MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
+      <Border x:Name="Row" MinHeight="38" MinWidth="230" Padding="10,8" CornerRadius="8" Background="Transparent">
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="26" /><ColumnDefinition Width="*" /><ColumnDefinition Width="22" /></Grid.ColumnDefinitions>
+          <ContentPresenter ContentSource="Icon" VerticalAlignment="Center" HorizontalAlignment="Left" />
+          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" RecognizesAccessKey="True" />
+          <theme:Icon x:Name="Tick" Grid.Column="2" Glyph="settings.check" Size="14" Visibility="Hidden" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsChecked" Value="True"><Setter TargetName="Tick" Property="Visibility" Value="Visible" /></Trigger>
+        <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsHighlighted" Value="True" /><Condition Property="IsEnabled" Value="True" /></MultiTrigger.Conditions><Setter TargetName="Row" Property="Background" Value="{DynamicResource PanelHoverBrush}" /></MultiTrigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="Separator"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator"><Border Height="1" Margin="10,5" Background="{DynamicResource SettingsLineBrush}" /></ControlTemplate></Setter.Value></Setter></Style>
+</ResourceDictionary>

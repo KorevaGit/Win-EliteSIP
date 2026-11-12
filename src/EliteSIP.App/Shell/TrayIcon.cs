@@ -73,6 +73,11 @@ public sealed class TrayIcon : IDisposable
     {
         _model = model;
         _actions = actions;
+        _menu.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("/EliteSIP.App;component/Shell/TrayMenu.xaml", UriKind.Relative),
+        });
+        _menu.SetResourceReference(FrameworkElement.StyleProperty, "TrayMenuStyle");
 
         // Своё окно, никогда не показываемое: щелчки по значку система
         // присылает сообщением, а слать его некуда, кроме как окну.
@@ -202,21 +207,21 @@ public sealed class TrayIcon : IDisposable
         // Первая строка — состояние словами. Цветная точка на значке говорит
         // «плохо», но не говорит «почему», а при спрятанной панели узнать
         // причину больше неоткуда.
-        _menu.Items.Add(new MenuItem { Header = StatusTitle, IsEnabled = false });
+        _menu.Items.Add(new MenuItem { Header = StatusTitle, IsEnabled = false, Icon = MenuIcon("settings.crown") });
         _menu.Items.Add(new Separator());
 
         // «Показать» и «Скрыть» — один пункт с двумя подписями: два отдельных,
         // из которых один всегда погашен, читаются как поломка.
-        Add(Strings.Get(_actions.IsPanelVisible() ? "TrayHidePanel" : "TrayShowPanel"), _actions.TogglePanel);
-        Add(Strings.Get("TrayHistory"), _actions.ShowHistory);
-        Add(Strings.Get("TraySettings"), _actions.ShowSettings);
+        Add(Strings.Get(_actions.IsPanelVisible() ? "TrayHidePanel" : "TrayShowPanel"), _actions.TogglePanel, "settings.monitor");
+        Add(Strings.Get("TrayHistory"), _actions.ShowHistory, "settings.activity");
+        Add(Strings.Get("TraySettings"), _actions.ShowSettings, "settings.sliders-horizontal");
 
         _menu.Items.Add(new Separator());
 
         // Уход с линии — единственное здесь, что меняет состояние телефона.
         // Держится в меню потому, что сняться на обед надо каждый день, а ради
         // этого иначе приходится разворачивать панель.
-        var offline = Add(Strings.Get("TrayDoNotDisturb"), _actions.ToggleOffline);
+        var offline = Add(Strings.Get("TrayDoNotDisturb"), _actions.ToggleOffline, "settings.power");
         offline.IsChecked = _model.IsOfflineByChoice;
         offline.IsCheckable = true;
 
@@ -225,7 +230,7 @@ public sealed class TrayIcon : IDisposable
         offline.IsEnabled = !_model.IsInCall;
 
         _menu.Items.Add(new Separator());
-        Add(Strings.Get("TrayQuit"), _actions.Quit);
+        Add(Strings.Get("TrayQuit"), _actions.Quit, "settings.unplug");
 
         // Меню закрывается по щелчку мимо только у окна, которое система
         // считает передним. Своё окно у значка невидимое, но передним стать
@@ -237,9 +242,19 @@ public sealed class TrayIcon : IDisposable
         _menu.IsOpen = true;
     }
 
-    private MenuItem Add(string title, Action action)
+    private static Theme.Icon MenuIcon(string glyph)
     {
-        var item = new MenuItem { Header = title };
+        var icon = new Theme.Icon { Glyph = glyph, Size = 17 };
+        icon.SetBinding(Control.ForegroundProperty, new System.Windows.Data.Binding(nameof(Control.Foreground))
+        {
+            RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.FindAncestor, typeof(MenuItem), 1),
+        });
+        return icon;
+    }
+
+    private MenuItem Add(string title, Action action, string glyph)
+    {
+        var item = new MenuItem { Header = title, Icon = MenuIcon(glyph) };
         item.Click += (_, _) => action();
         _menu.Items.Add(item);
         return item;

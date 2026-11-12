@@ -25,10 +25,11 @@ public sealed class TrayAppearanceTests
         bitmap.Render(crown);
         var pixels = new byte[width * height * 4];
         bitmap.CopyPixels(pixels, width * 4, 0);
-        var rows = Enumerable.Range(0, height).Where(y => Enumerable.Range(0, width).Any(x => pixels[(y * width + x) * 4 + 3] > 32)).ToArray();
+        var rows = Enumerable.Range(0, height).Where(y => Enumerable.Range(0, width).Any(x => pixels[(y * width + x) * 4 + 3] > 128)).ToArray();
         Assert.NotEmpty(rows);
         var text = new FormattedText("H", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.White, 1);
         var capital = text.BuildGeometry(new Point()).Bounds;
+        capital.Offset(0, -1.5);
         Assert.InRange(Math.Abs(rows[0] - capital.Top), 0, 1);
         Assert.InRange(Math.Abs(rows[^1] + 1 - capital.Bottom), 0, 1);
     });
@@ -44,11 +45,13 @@ public sealed class TrayAppearanceTests
         var b = new byte[a.Length];
         green.CopyPixels(a, size * 4, 0);
         red.CopyPixels(b, size * 4, 0);
-        var line = ((int)(size * 21d / 24) * size + size / 2) * 4;
+        var line = ((int)(size * 21d / 24) * size + (int)(size * 0.35)) * 4;
         Assert.True(a[line + 1] > a[line + 2]);
         Assert.True(b[line + 2] > b[line + 1]);
         var body = size * (int)(size * 18d / 24) * 4;
         Assert.Equal(a.AsSpan(0, body).ToArray(), b.AsSpan(0, body).ToArray());
+        var gap = ((int)(size * 21d / 24) * size + size / 2) * 4;
+        Assert.True(a[gap + 3] < 96);
         var centre = (size / 2 * size + size / 2) * 4;
         Assert.Equal(0, a[centre + 3]);
     });

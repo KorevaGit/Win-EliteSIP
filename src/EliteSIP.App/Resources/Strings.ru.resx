@@ -750,7 +750,7 @@
     <value>Настройки…</value>
   </data>
   <data name="TrayDoNotDisturb" xml:space="preserve">
-    <value>Не беспокоить</value>
+    <value>Отключен</value>
   </data>
   <data name="TrayQuit" xml:space="preserve">
     <value>Завершить EliteSIP</value>

@@ -15,7 +15,8 @@ internal static class CrownArtwork
         var visual = new DrawingVisual();
         using (var canvas = visual.RenderOpen())
         {
-            canvas.PushTransform(new TranslateTransform(-size * 0.03, -size * 0.03));
+            canvas.PushTransform(new TranslateTransform(-size * 0.03,
+                -size * 0.03 - (emphasizeStatus ? size * 1.06 * 0.8 / 24 : 0)));
             canvas.PushTransform(new ScaleTransform(size * 1.06 / 24, size * 1.06 / 24));
             for (var index = 0; index < paths.Length; index++)
             {
@@ -28,13 +29,13 @@ internal static class CrownArtwork
                 };
                 if (isBase && emphasizeStatus)
                 {
-                    // Края совпадают с основанием контура (x=5.81..18.19
-                    // плюс половина толщины), а верх примыкает к его низу.
-                    canvas.DrawRoundedRectangle(status, null, new Rect(4.7, 18.1, 14.6, 5), 2, 2);
+                    // Две половины основания с просветом до контура и между ними.
+                    canvas.DrawRoundedRectangle(status, null, new Rect(4.7, 19, 6.3, 5), 1.3, 1.3);
+                    canvas.DrawRoundedRectangle(status, null, new Rect(13, 19, 6.3, 5), 1.3, 1.3);
                 }
                 else
                 {
-                    canvas.DrawGeometry(null, pen, paths[index].Data);
+                    canvas.DrawGeometry(null, pen, isBase ? Geometry.Parse("M5 21H10 M14 21H19") : paths[index].Data);
                 }
             }
             canvas.Pop();

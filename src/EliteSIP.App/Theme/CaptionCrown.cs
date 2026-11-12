@@ -48,15 +48,27 @@ public sealed class CaptionCrown : Control
         var source = (Canvas)Application.Current.FindResource("settings.crown");
         var drawing = new DrawingGroup();
         var pen = new Pen(brush, 2.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-        foreach (var path in source.Children.OfType<System.Windows.Shapes.Path>())
+        var paths = source.Children.OfType<System.Windows.Shapes.Path>().ToArray();
+        for (var index = 0; index < paths.Length; index++)
         {
-            drawing.Children.Add(new GeometryDrawing(null, pen, path.Data));
+            drawing.Children.Add(new GeometryDrawing(null, pen,
+                index == paths.Length - 1 ? Geometry.Parse("M5 21H10 M14 21H19") : paths[index].Data));
         }
         var bounds = drawing.Bounds;
         var scale = capital.Height / bounds.Height;
         canvas.PushTransform(new TranslateTransform((width - bounds.Width * scale) / 2 - bounds.X * scale,
-            (height - text.Height) / 2 + capital.Top - bounds.Y * scale));
+            (height - text.Height) / 2 + capital.Top - bounds.Y * scale - 1.5));
         canvas.PushTransform(new ScaleTransform(scale, scale));
+        var shadow = drawing.CloneCurrentValue();
+        foreach (var part in shadow.Children.Cast<GeometryDrawing>())
+        {
+            part.Pen = new Pen(Brushes.Black, 2.8) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        }
+        canvas.PushOpacity(0.2);
+        canvas.PushTransform(new TranslateTransform(0, 0.7 / scale));
+        canvas.DrawDrawing(shadow);
+        canvas.Pop();
+        canvas.Pop();
         canvas.DrawDrawing(drawing);
         canvas.Pop();
         canvas.Pop();

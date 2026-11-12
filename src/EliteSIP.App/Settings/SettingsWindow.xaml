@@ -57,7 +57,7 @@
       <ColumnDefinition Width="142" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
-    <Border Grid.Column="0" Background="Transparent" Padding="0,4,0,0">
+    <Border Grid.Column="0" Background="Transparent" Padding="0,10,0,0">
       <DockPanel LastChildFill="True">
         <Button x:Name="AdministrationButton" DockPanel.Dock="Bottom" Click="OnAdministrationClick" Style="{StaticResource SettingsAdministrationButtonStyle}" Margin="0,8,0,0" ToolTip="{res:Loc AdminModeNeedsPassword}">
           <StackPanel Orientation="Horizontal">
@@ -82,7 +82,7 @@
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
-      <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="8,0,0,0" Style="{StaticResource SettingsContentScrollViewerStyle}" x:Name="SettingsScroller">
+      <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="26,0,0,0" Style="{StaticResource SettingsContentScrollViewerStyle}" x:Name="SettingsScroller">
         <StackPanel Margin="0,0,0,4">
           <Grid Height="43">
             <Grid.ColumnDefinitions>

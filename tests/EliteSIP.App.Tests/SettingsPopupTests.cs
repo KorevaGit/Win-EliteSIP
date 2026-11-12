@@ -19,6 +19,49 @@ public sealed class SettingsPopupIsolation;
 public sealed class SettingsPopupTests
 {
     [Fact]
+    public void Меню_трея_показывает_иконку_и_отметку_отключения() => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Dark };
+        var menu = new ContextMenu();
+        menu.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/EliteSIP.App;component/Shell/TrayMenu.xaml", UriKind.Relative) });
+        menu.Style = (Style)menu.FindResource("TrayMenuStyle");
+        var item = new MenuItem { Header = "Отключен", IsCheckable = true, IsChecked = true, Icon = new Icon { Glyph = "settings.power", Size = 17 } };
+        menu.Items.Add(item);
+        try
+        {
+            menu.IsOpen = true;
+            menu.UpdateLayout();
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Assert.Equal(new CornerRadius(8), ((Border)item.Template.FindName("Row", item)).CornerRadius);
+            Assert.Equal(Visibility.Visible, ((Icon)item.Template.FindName("Tick", item)).Visibility);
+            Assert.NotNull(((Icon)item.Icon).Shape);
+        }
+        finally { menu.IsOpen = false; }
+    });
+
+    [Fact]
+    public void Отступы_контента_симметричны_а_выбранный_пункт_на_уровне_заголовка() => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Dark };
+        using var sounds = new SignalSoundPlayer();
+        var model = new SettingsViewModel(new AppSettings());
+        var window = new SettingsWindow(model, appearance, sounds);
+        var root = WpfHost.Layout(window, 778, 426);
+        var nav = Walk(root).OfType<ListBox>().Single();
+        var first = (ListBoxItem)nav.ItemContainerGenerator.ContainerFromIndex(0);
+        var section = Walk(root).OfType<SettingsSection>().Single(card => card.Tag is "settings.map-pin");
+        var left = section.TranslatePoint(new Point(), root).X - nav.TranslatePoint(new Point(nav.ActualWidth, 0), root).X;
+        var right = root.ActualWidth + root.Margin.Right - section.TranslatePoint(new Point(section.ActualWidth, 0), root).X;
+        Assert.InRange(Math.Abs(left - right), 0, 1);
+        var title = Walk(root).OfType<TextBlock>().Single(text => text.Text == model.SectionTitle && text.FontSize == 21);
+        var text = new FormattedText(title.Text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            new Typeface(title.FontFamily, title.FontStyle, title.FontWeight, title.FontStretch), title.FontSize, Brushes.White, 1);
+        var top = title.TranslatePoint(new Point(0, text.BuildGeometry(new Point()).Bounds.Top), root).Y;
+        Assert.InRange(Math.Abs(first.TranslatePoint(new Point(), root).Y - top), 0, 2);
+        window.Close();
+    });
+
+    [Fact]
     public void Скролл_появляется_при_переполнении_и_не_перекрывает_карточки() => WpfHost.Run(() =>
     {
         using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Dark };

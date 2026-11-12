@@ -770,7 +770,7 @@
     <value>Settings…</value>
   </data>
   <data name="TrayDoNotDisturb" xml:space="preserve">
-    <value>Do not disturb</value>
+    <value>Offline</value>
   </data>
   <data name="TrayQuit" xml:space="preserve">
     <value>Quit EliteSIP</value>
