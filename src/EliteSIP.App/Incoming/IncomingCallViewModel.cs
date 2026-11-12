@@ -30,12 +30,13 @@ public sealed class IncomingCallViewModel : Observable
         CallGuardChallenge challenge,
         bool isGuarded,
         Action<char> attempt,
-        Action decline)
+        Action decline, string? profileCaption = null)
     {
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(challenge);
 
         Subject = subject;
+        ProfileCaption = string.IsNullOrWhiteSpace(profileCaption) ? null : Strings.Get("IncomingProfilePrefix") + " " + profileCaption;
         Targets = [.. challenge.Targets.Select(target => target.ToString())];
         Answer = challenge.Answer.ToString();
         HasChoice = challenge.HasChoice;
@@ -53,6 +54,8 @@ public sealed class IncomingCallViewModel : Observable
     }
 
     public IncomingCallSubject Subject { get; }
+
+    public string? ProfileCaption { get; }
 
     /// <summary>Что стоит на главном месте окна.</summary>
     public string Headline => Subject.Headline;

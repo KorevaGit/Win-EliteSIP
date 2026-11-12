@@ -1344,4 +1344,5 @@
   <data name="HistoryDirectionIncoming" xml:space="preserve"><value>Incoming</value></data>
   <data name="HistoryDirectionOutgoing" xml:space="preserve"><value>Outgoing</value></data>
   <data name="HistoryAllDaysLabel" xml:space="preserve"><value>All days</value></data>
+  <data name="IncomingProfilePrefix" xml:space="preserve"><value>To</value></data>
 </root>

@@ -1322,4 +1322,5 @@
   <data name="HistoryDirectionIncoming" xml:space="preserve"><value>Входящий</value></data>
   <data name="HistoryDirectionOutgoing" xml:space="preserve"><value>Исходящий</value></data>
   <data name="HistoryAllDaysLabel" xml:space="preserve"><value>Все дни</value></data>
+  <data name="IncomingProfilePrefix" xml:space="preserve"><value>На номер</value></data>
 </root>

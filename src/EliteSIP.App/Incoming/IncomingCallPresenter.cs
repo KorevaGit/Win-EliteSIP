@@ -55,6 +55,8 @@ public sealed class IncomingCallPresenter : IDisposable
 
     public bool IsVisible => _window is not null;
 
+    public Func<string?>? ProfileCaption { get; init; }
+
     public Func<ScreenPoint?>? RestorePlacement { get; init; }
 
     public Action<ScreenPoint>? SavePlacement { get; init; }
@@ -105,7 +107,7 @@ public sealed class IncomingCallPresenter : IDisposable
             _session.Challenge,
             policy.IsEnabled,
             Attempt,
-            Decline);
+            Decline, ProfileCaption?.Invoke());
 
         var window = new IncomingCallWindow(_model);
         _window = window;

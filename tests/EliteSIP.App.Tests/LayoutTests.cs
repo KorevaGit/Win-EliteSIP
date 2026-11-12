@@ -20,6 +20,39 @@ namespace EliteSIP.App.Tests;
 /// </remarks>
 public sealed class LayoutTests
 {
+    [Theory]
+    [InlineData(Appearance.Light, false)]
+    [InlineData(Appearance.Dark, false)]
+    [InlineData(Appearance.Light, true)]
+    [InlineData(Appearance.Dark, true)]
+    public void Входящий_вызов_вмещает_длинное_имя_и_сохраняет_порядок_действий(Appearance theme, bool guarded) => WpfHost.Run(() =>
+    {
+        WpfHost.UseTheme(theme);
+        var subject = EliteSIP.App.Incoming.IncomingCallSubject.Classify("172", "Отдел сопровождения корпоративных клиентов", false, "176", true);
+        var challenge = guarded ? new EliteSIP.CallGuard.CallGuardChallenge { Targets = ['1', '2', '3', '4', '5', '6', '7', '8', '9'], Answer = '7' } : EliteSIP.CallGuard.CallGuardChallenge.Unguarded;
+        var model = new EliteSIP.App.Incoming.IncomingCallViewModel(subject, challenge, guarded, _ => { }, () => { }, "176 · Апатия");
+        var window = new EliteSIP.App.Incoming.IncomingCallWindow(model);
+        var root = (FrameworkElement)window.Content;
+        root.Measure(new Size(window.Width - 2, double.PositiveInfinity));
+        root.Arrange(new Rect(new Point(), root.DesiredSize));
+        root.UpdateLayout();
+        var name = (TextBlock)window.FindName("CallerHeadline");
+        Assert.InRange(name.ActualHeight, 55, 60);
+        var answer = (Button)window.FindName("AnswerButton");
+        var decline = (Button)window.FindName("DeclineButton");
+        if (!guarded)
+        {
+            Assert.InRange(answer.ActualHeight, 49, 51);
+            Assert.True(answer.TranslatePoint(new Point(), root).X < decline.TranslatePoint(new Point(), root).X);
+        }
+        else
+        {
+            var targets = Descendants(root).OfType<Button>().Where(button => button.Command == model.AttemptCommand && button.Content is string { Length: 1 }).ToArray();
+            Assert.Equal(9, targets.Length);
+            Assert.All(targets, button => Assert.True(button.ActualWidth >= 24));
+        }
+    });
+
     [Fact]
     public void Длинное_имя_переносит_таймер_вниз_и_возвращает_при_расширении() => WpfHost.Run(() =>
     {
