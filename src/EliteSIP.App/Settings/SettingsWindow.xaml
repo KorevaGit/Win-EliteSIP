@@ -345,11 +345,11 @@
                     <theme:Icon Glyph="settings.users-round" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
                   </Grid>
                 </CheckBox>
-                <theme:SettingsRow>
+                <theme:SettingsRow Tag="WideLabel">
                   <theme:SettingsRow.Header>
                     <StackPanel Orientation="Horizontal">
                       <theme:Icon Glyph="windows" Size="18" VerticalAlignment="Center" />
-                      <TextBlock Text="Windows" Margin="7,0,0,0" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsWindowsProcessor}" Margin="7,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                   </theme:SettingsRow.Header>
                   <Border Background="{DynamicResource SettingsLineBrush}" CornerRadius="9" Padding="3" Width="168" HorizontalAlignment="Right">

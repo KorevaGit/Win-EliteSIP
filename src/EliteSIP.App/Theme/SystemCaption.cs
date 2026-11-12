@@ -158,7 +158,9 @@ internal static class SystemCaption
         RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
         using (var canvas = visual.RenderOpen())
         {
-            canvas.DrawImage(TaskbarSource.Value, new System.Windows.Rect(0, 0, size, size));
+            // У исходного ICO широкое прозрачное поле. Уменьшаем его,
+            // увеличивая рисунок на 10 %, без обрезания самого знака.
+            canvas.DrawImage(TaskbarSource.Value, new System.Windows.Rect(-size * 0.05, -size * 0.05, size * 1.1, size * 1.1));
         }
         var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(visual);

@@ -1382,4 +1382,5 @@
   <data name="SettingsRegistrationEffect" xml:space="preserve"><value>Регистрация на АТС восстановится после запуска.</value></data>
   <data name="SettingsUpdateReady" xml:space="preserve"><value>Новая версия скачана и готова к установке.</value></data>
   <data name="SettingsUpdateRestart" xml:space="preserve"><value>EliteSIP закроется на время установки и запустится снова.</value></data>
+  <data name="SettingsWindowsProcessor" xml:space="preserve"><value>Windows обработчик</value></data>
 </root>

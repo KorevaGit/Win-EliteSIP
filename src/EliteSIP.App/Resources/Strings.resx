@@ -1404,4 +1404,5 @@
   <data name="SettingsRegistrationEffect" xml:space="preserve"><value>PBX registration reconnects after startup.</value></data>
   <data name="SettingsUpdateReady" xml:space="preserve"><value>The new version is downloaded and ready to install.</value></data>
   <data name="SettingsUpdateRestart" xml:space="preserve"><value>EliteSIP closes during installation and starts again.</value></data>
+  <data name="SettingsWindowsProcessor" xml:space="preserve"><value>Windows processor</value></data>
 </root>
