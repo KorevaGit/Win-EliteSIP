@@ -51,12 +51,11 @@ public sealed class SettingsViewModel : Observable
         [
             new(SettingsSectionKind.Work, Strings.Get("SectionWork"), "person.crop.circle"),
             new(SettingsSectionKind.Audio, Strings.Get("SectionAudio"), "mic.fill"),
-            new(SettingsSectionKind.Ringtone, Strings.Get("SectionRingtone"), "bell"),
             // Своего значка у оформления в комплекте нет. `gearshape` — не
             // «тема», а «настройка вообще», и это признанная неточность: раздел
             // опознаётся подписью, а значок держит строку в колонке с прочими.
             new(SettingsSectionKind.Appearance, Strings.Get("SectionAppearance"), "gearshape"),
-            new(SettingsSectionKind.Support, Strings.Get("SectionSupport"), "stethoscope"),
+            new(SettingsSectionKind.Support, Strings.Get("SettingsSystem"), "stethoscope"),
         ];
 
         ReloadDevices();
@@ -521,7 +520,8 @@ public sealed class SettingsViewModel : Observable
         get => _section;
         set
         {
-            Set(ref _section, value);
+            Set(ref _section, value is SettingsSectionKind.Ringtone ? SettingsSectionKind.Audio : value);
+            NotifyChanged(nameof(SectionTitle));
             UpdateMeterPolling(_meterWindowOpen);
             foreach (var name in new[]
             {
@@ -533,6 +533,8 @@ public sealed class SettingsViewModel : Observable
             }
         }
     }
+
+    public string SectionTitle => Sections.First(section => section.Kind == _section).Title;
 
     public bool ShowsWork => _section is SettingsSectionKind.Work;
 

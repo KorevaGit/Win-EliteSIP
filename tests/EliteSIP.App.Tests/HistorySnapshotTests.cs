@@ -11,6 +11,33 @@ public sealed class HistorySnapshotTests
     [Theory]
     [InlineData(Appearance.Light)]
     [InlineData(Appearance.Dark)]
+    public void Сброс_даты_имеет_видимый_значок_даже_при_пустой_истории(Appearance theme) => WpfHost.Run(() =>
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"elitesip-day-reset-{Guid.NewGuid():N}.db");
+        try
+        {
+            using var store = new CallHistoryStore(new CallHistoryStore.Settings(path));
+            using var appearance = new AppearanceService(System.Windows.Application.Current) { Appearance = theme };
+            var model = new CallHistoryViewModel(store, Guid.NewGuid(), "176", true, () => 30);
+            model.Calendar.SelectedDay = DateTime.Today;
+            var window = new CallHistoryWindow(model, appearance);
+            WpfHost.Layout(window, 720, 480);
+            var button = (System.Windows.Controls.Button)window.FindName("ClearDayButton");
+            var icon = Assert.IsType<Icon>(button.Content);
+            Assert.Equal(System.Windows.Visibility.Visible, button.Visibility);
+            Assert.NotNull(icon.Shape);
+            Assert.InRange(icon.ActualWidth, 17, 19);
+            window.Close();
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    });
+
+    [Theory]
+    [InlineData(Appearance.Light)]
+    [InlineData(Appearance.Dark)]
     public void Снимок_содержит_шапку_и_сохраняет_нижние_скругления(Appearance theme) => WpfHost.Run(() =>
     {
         WpfHost.UseTheme(theme);

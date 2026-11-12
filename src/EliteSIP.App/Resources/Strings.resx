@@ -1344,4 +1344,16 @@
   <data name="HistoryDirectionIncoming" xml:space="preserve"><value>Incoming</value></data>
   <data name="HistoryDirectionOutgoing" xml:space="preserve"><value>Outgoing</value></data>
   <data name="HistoryAllDaysLabel" xml:space="preserve"><value>All days</value></data>
+  <data name="SettingsSystem" xml:space="preserve"><value>System</value></data>
+  <data name="SettingsMelody" xml:space="preserve"><value>Call melody</value></data>
+  <data name="SettingsConversation" xml:space="preserve"><value>Conversation</value></data>
+  <data name="SettingsMicrophone" xml:space="preserve"><value>Microphone</value></data>
+  <data name="SettingsSpeakers" xml:space="preserve"><value>Speakers</value></data>
+  <data name="SettingsLanguageRestart" xml:space="preserve"><value>Restart · the current call will end</value></data>
+  <data name="SettingsMeterHint" xml:space="preserve"><value>Meters: during a call or self-test</value></data>
+  <data name="SettingsThisPc" xml:space="preserve"><value>This PC</value></data>
+  <data name="SettingsPbx" xml:space="preserve"><value>PBX</value></data>
+  <data name="SettingsConnection" xml:space="preserve"><value>Startup and connection</value></data>
+  <data name="SettingsApplication" xml:space="preserve"><value>Application</value></data>
+  <data name="SettingsProcessing" xml:space="preserve"><value>Processing · before → after</value></data>
 </root>

@@ -25,6 +25,12 @@ public partial class SettingsWindow : Window
     public SettingsWindow(SettingsViewModel model, AppearanceService appearance, SignalSoundPlayer sounds)
     {
         InitializeComponent();
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            System.Windows.Shell.WindowChrome.SetWindowChrome(this, null);
+            ClearValue(TemplateProperty);
+            WindowStyle = WindowStyle.SingleBorderWindow;
+        }
         _sounds = sounds;
         Model = model;
         _appearance = appearance;
@@ -46,6 +52,22 @@ public partial class SettingsWindow : Window
     }
 
     public SettingsViewModel Model { get; }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState is WindowState.Maximized)
+        {
+            SystemCommands.RestoreWindow(this);
+        }
+        else
+        {
+            SystemCommands.MaximizeWindow(this);
+        }
+    }
+
+    private void OnCaptionCloseClick(object sender, RoutedEventArgs e) => Close();
 
     protected override void OnSourceInitialized(EventArgs e)
     {

@@ -66,6 +66,13 @@ internal static class SystemCaption
             return;
         }
 
+        // Малый значок остаётся короной в заголовке. Большой Windows использует
+        // в панели задач и Alt+Tab: там должен быть исходный значок приложения.
+        if (TaskbarIcon.Value != 0)
+        {
+            _ = SendMessage(handle, 0x0080, 1, TaskbarIcon.Value);
+        }
+
         var value = dark ? 1 : 0;
 
         // Сначала нынешний номер, потом прежний — и только если нынешний не
@@ -103,6 +110,33 @@ internal static class SystemCaption
 
     private static readonly System.Windows.Media.Imaging.BitmapSource LightIcon = DrawCrown(Brushes.Black);
     private static readonly System.Windows.Media.Imaging.BitmapSource DarkIcon = DrawCrown(Brushes.White);
+    private static readonly Lazy<nint> TaskbarIcon = new(LoadTaskbarIcon);
+
+    private static nint LoadTaskbarIcon()
+    {
+        var resource = Application.GetResourceStream(new Uri("pack://application:,,,/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico"));
+        if (resource is null)
+        {
+            return 0;
+        }
+        using var stream = resource.Stream;
+        using var copy = new System.IO.MemoryStream();
+        stream.CopyTo(copy);
+        var bytes = copy.ToArray();
+        var buffer = Marshal.AllocHGlobal(bytes.Length);
+        try
+        {
+            Marshal.Copy(bytes, 0, buffer, bytes.Length);
+            var offset = LookupIconIdFromDirectoryEx(buffer, true, 32, 32, 0);
+            return offset > 0 && offset < bytes.Length
+                ? CreateIconFromResourceEx(buffer + offset, (uint)(bytes.Length - offset), true, 0x30000, 32, 32, 0)
+                : 0;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
 
     private static System.Windows.Media.Imaging.BitmapSource CrownIcon(bool dark) => dark ? DarkIcon : LightIcon;
 
@@ -235,6 +269,15 @@ internal static class SystemCaption
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int size);
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessage(nint window, uint message, nint wParam, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern int LookupIconIdFromDirectoryEx(nint directory, bool fIcon, int width, int height, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern nint CreateIconFromResourceEx(nint bits, uint size, bool fIcon, uint version, int width, int height, uint flags);
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(nint window, out Rect frame);

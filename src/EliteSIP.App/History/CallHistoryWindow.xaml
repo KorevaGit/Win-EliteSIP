@@ -141,12 +141,12 @@
         </Button>
 
         <!-- Крестик снимает отбор, не открывая того, что его поставило. -->
-        <Button Style="{StaticResource HistoryToolbarButtonStyle}" Width="32" Padding="0"
+        <Button x:Name="ClearDayButton" Style="{StaticResource HistoryToolbarButtonStyle}" Width="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" AutomationProperties.Name="{res:Loc HistoryAllDays}"
                 Margin="4,0,0,0"
                 ToolTip="{res:Loc HistoryAllDays}"
                 Click="OnClearDayClick"
                 Visibility="{Binding Calendar.HasSelectedDay, Converter={StaticResource BoolToVisibility}}">
-          <theme:Icon Glyph="xmark.circle.fill" Size="16" />
+          <theme:Icon Glyph="arrow.counterclockwise" Size="18" Width="18" Height="18" Foreground="{DynamicResource TextPrimaryBrush}" />
         </Button>
       </StackPanel>
 

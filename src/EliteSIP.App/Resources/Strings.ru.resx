@@ -315,7 +315,7 @@
     <value>Версия</value>
   </data>
   <data name="SupportCheckUpdates" xml:space="preserve">
-    <value>Проверить обновления</value>
+    <value>Проверить обновление</value>
   </data>
   <data name="SupportNewKeySection" xml:space="preserve">
     <value>Новый ключ</value>
@@ -1322,4 +1322,16 @@
   <data name="HistoryDirectionIncoming" xml:space="preserve"><value>Входящий</value></data>
   <data name="HistoryDirectionOutgoing" xml:space="preserve"><value>Исходящий</value></data>
   <data name="HistoryAllDaysLabel" xml:space="preserve"><value>Все дни</value></data>
+  <data name="SettingsSystem" xml:space="preserve"><value>Система</value></data>
+  <data name="SettingsMelody" xml:space="preserve"><value>Мелодия вызова</value></data>
+  <data name="SettingsConversation" xml:space="preserve"><value>Разговор</value></data>
+  <data name="SettingsMicrophone" xml:space="preserve"><value>Микрофон</value></data>
+  <data name="SettingsSpeakers" xml:space="preserve"><value>Динамики</value></data>
+  <data name="SettingsLanguageRestart" xml:space="preserve"><value>Перезапуск · текущий звонок завершится</value></data>
+  <data name="SettingsMeterHint" xml:space="preserve"><value>Шкалы: при разговоре или самопроверке</value></data>
+  <data name="SettingsThisPc" xml:space="preserve"><value>Этот ПК</value></data>
+  <data name="SettingsPbx" xml:space="preserve"><value>АТС</value></data>
+  <data name="SettingsConnection" xml:space="preserve"><value>Запуск и подключение</value></data>
+  <data name="SettingsApplication" xml:space="preserve"><value>Приложение</value></data>
+  <data name="SettingsProcessing" xml:space="preserve"><value>Обработка · до → после</value></data>
 </root>

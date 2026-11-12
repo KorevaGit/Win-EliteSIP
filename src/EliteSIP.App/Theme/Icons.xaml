@@ -261,4 +261,9 @@
     <Path Data="F0 M10 1.4a8.6 8.6 0 1 1 0 17.2 8.6 8.6 0 0 1 0-17.2zM12.298 6.5 13.5 7.702 11.202 10l2.298 2.298-1.202 1.202L10 11.202 7.702 13.5 6.5 12.298 8.798 10 6.5 7.702 7.702 6.5 10 8.798z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" />
   </Canvas>
 
+  <Canvas x:Key="windows" x:Shared="False" Width="20" Height="20">
+    <Path Data="M2 3.7L9 2.7V9.3H2Z M10.3 2.5L18 1.4V9.3H10.3Z M2 10.6H9V17.2L2 16.2Z M10.3 10.6H18V18.5L10.3 17.4Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" />
+  </Canvas>
+  <Canvas x:Key="folder" x:Shared="False" Width="20" Height="20"><Path Data="M2 5H8L10 7H18V16H2Z" Fill="Transparent" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.5" StrokeLineJoin="Round" /></Canvas>
+  <Canvas x:Key="arrow.counterclockwise" x:Shared="False" Width="20" Height="20"><Path Data="M4 8A6.5 6.5 0 1 1 4 13M4 3V8H9" Fill="Transparent" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" /></Canvas>
 </ResourceDictionary>
