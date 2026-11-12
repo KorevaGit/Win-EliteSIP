@@ -11,6 +11,123 @@ namespace EliteSIP.App.Tests;
 
 public sealed class SettingsRedesignTests
 {
+    [Fact]
+    public void Значок_находит_ресурс_после_присоединения_к_окну() => WpfHost.Run(() =>
+    {
+        var icon = new Icon { Glyph = "local.settings.test" };
+        Assert.Null(icon.Shape);
+        var shape = new Canvas { Width = 24, Height = 24 };
+        shape.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M2 12L12 2L22 12"), Stroke = Brushes.White });
+        var window = new Window { Content = icon, Width = 80, Height = 80, ShowActivated = false, ShowInTaskbar = false };
+        window.Resources.Add("local.settings.test", shape);
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            Assert.True(icon.IsLoaded);
+            Assert.Same(shape, icon.Shape);
+            Assert.True(shape.ActualWidth > 0);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void Проверка_меняет_обе_кнопки_на_остановку_и_сбрасывает_уровни() => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Dark };
+        using var sounds = new SignalSoundPlayer();
+        var stopped = 0;
+        var model = new SettingsViewModel(new AppSettings()) { Section = SettingsSectionKind.Audio, OnStopSelfTest = () => stopped++ };
+        var window = new SettingsWindow(model, appearance, sounds);
+        try
+        {
+            var root = WpfHost.Layout(window, 848, 460);
+            var mic = (Button)window.FindName("MicrophoneTestButton");
+            var record = (Button)window.FindName("SelfTestRecordButton");
+            model.ReportSelfTestRunning(true);
+            root.UpdateLayout();
+            Assert.Contains(Descendants(mic).OfType<TextBlock>(), text => text.Text == Resources.Strings.Get("AudioSelfTestStop"));
+            Assert.Contains(Descendants(record).OfType<TextBlock>(), text => text.Text == Resources.Strings.Get("AudioSelfTestStop"));
+            model.RunSelfTest.Execute(null);
+            Assert.Equal(1, stopped);
+            model.ReportSelfTest("готово");
+            model.ReportSelfTestRunning(false);
+            root.UpdateLayout();
+            Assert.False(model.IsSelfTestRunning);
+            Assert.Equal(0, model.VoiceLevel);
+            Assert.Equal(0, model.SoundLevel);
+            Assert.Equal("0:00", model.SelfTestElapsed);
+            Assert.Equal("готово", model.SelfTestResult);
+            Assert.DoesNotContain(Descendants(mic).OfType<TextBlock>(), text => text.Text == Resources.Strings.Get("AudioSelfTestStop"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Theory]
+    [InlineData(Appearance.Light)]
+    [InlineData(Appearance.Dark)]
+    public void При_смене_вкладок_иконки_видны_а_навигация_не_сдвигается(Appearance theme) => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = theme };
+        using var sounds = new SignalSoundPlayer();
+        var model = new SettingsViewModel(new AppSettings());
+        var window = new SettingsWindow(model, appearance, sounds) { ShowActivated = false, ShowInTaskbar = false };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            var root = (FrameworkElement)window.Content;
+            var nav = Descendants(root).OfType<ListBox>().Single();
+            var first = (ListBoxItem)nav.ItemContainerGenerator.ContainerFromIndex(0);
+            var label = Descendants(first).OfType<TextBlock>().Single();
+            var before = label.TranslatePoint(new Point(), root);
+            foreach (var section in new[] { SettingsSectionKind.Audio, SettingsSectionKind.Support, SettingsSectionKind.Appearance, SettingsSectionKind.Work })
+            {
+                model.Section = section;
+                window.UpdateLayout();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+                var icons = Descendants(root).OfType<Icon>().Where(icon => icon.IsVisible).ToArray();
+                Assert.NotEmpty(icons);
+                Assert.Equal(icons.Length, icons.Select(icon => icon.Shape).Distinct(ReferenceEqualityComparer.Instance).Count());
+                Assert.All(icons, icon =>
+                {
+                    var shape = Assert.IsAssignableFrom<FrameworkElement>(icon.Shape);
+                    Assert.True(shape.ActualWidth > 0, icon.Glyph);
+                    Assert.True(shape.ActualHeight > 0, icon.Glyph);
+                    Assert.NotNull(VisualTreeHelper.GetParent(shape));
+                    Assert.All(Descendants(shape).OfType<System.Windows.Shapes.Path>(), path => Assert.True(path.Stroke is not null || path.Fill is not null, icon.Glyph));
+                });
+                var after = label.TranslatePoint(new Point(), root);
+                Assert.Equal(before, after);
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void После_остановки_шкала_не_оставляет_горящий_пик() => WpfHost.Run(() =>
+    {
+        var meter = new LevelMeter { ActiveBrush = Brushes.White, TrackBrush = Brushes.Black, Level = 1 };
+        meter.Measure(new Size(240, 10));
+        meter.Arrange(new Rect(0, 0, 240, 10));
+        meter.Level = 0;
+        meter.UpdateLayout();
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(240, 10, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(meter);
+        var pixels = new byte[240 * 10 * 4];
+        bitmap.CopyPixels(pixels, 240 * 4, 0);
+        Assert.DoesNotContain(Enumerable.Range(0, 240 * 10), pixel => pixels[pixel * 4] > 0);
+    });
+
     [Theory]
     [InlineData(Appearance.Light, "#FF242424", "#FF686868", "#FFFFFFFF", "#FFE9E9E9", "#FFF9F9F9", "#FF168016")]
     [InlineData(Appearance.Dark, "#FFF2F2F2", "#FFBCBCBC", "#FF363636", "#FF2B2B2B", "#FF202020", "#FF468D35")]

@@ -987,22 +987,33 @@ public partial class App : Application, IDisposable
         }
 
         var test = phone.SelfTest;
-        void OnProgress(string value) => Dispatcher.BeginInvoke(() => model.ReportSelfTest(value));
+        var acceptsProgress = true;
+        void OnProgress(string value) => Dispatcher.BeginInvoke(() =>
+        {
+            if (acceptsProgress)
+            {
+                model.ReportSelfTest(value);
+            }
+        });
 
         test.Progress += OnProgress;
         try
         {
+            model.ReportSelfTestRunning(true);
             model.ReportSelfTest("готовлю тракт");
 
             var outcome = await test.RunAsync(phone.AudioConfiguration()).ConfigureAwait(true);
 
+            acceptsProgress = false;
             model.ReportSelfTest(outcome.Summary);
             model.ReportRecording(test.HasRecording);
             Log($"самопроверка звука: {outcome.Summary}");
         }
         finally
         {
+            acceptsProgress = false;
             test.Progress -= OnProgress;
+            model.ReportSelfTestRunning(false);
         }
     }
 

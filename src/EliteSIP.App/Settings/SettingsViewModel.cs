@@ -394,6 +394,40 @@ public sealed class SettingsViewModel : Observable
 
     public string SelfTestButtonText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "SettingsRecordFiveSeconds");
 
+    public string MicrophoneTestText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "SettingsTest");
+
+    public string SelfTestGlyph => _isSelfTestRunning ? "settings.square" : "settings.circle";
+
+    public string MicrophoneTestGlyph => _isSelfTestRunning ? "settings.square" : "settings.audio-lines";
+
+    private DateTimeOffset _selfTestStartedAt;
+
+    public string SelfTestElapsed => TimeSpan.FromSeconds(_isSelfTestRunning
+        ? Math.Max(0, (DateTimeOffset.UtcNow - _selfTestStartedAt).TotalSeconds) : 0)
+        .ToString(@"m\:ss", System.Globalization.CultureInfo.InvariantCulture);
+
+    internal void ReportSelfTestRunning(bool running)
+    {
+        if (running && !_isSelfTestRunning)
+        {
+            _selfTestStartedAt = DateTimeOffset.UtcNow;
+        }
+        _isSelfTestRunning = running;
+        foreach (var name in new[] { nameof(IsSelfTestRunning), nameof(CanRunSelfTest), nameof(CanTestOutput),
+            nameof(CanPlayRecording), nameof(IsSelfTestBlockedByCall), nameof(SelfTestButtonText),
+            nameof(MicrophoneTestText), nameof(SelfTestGlyph), nameof(MicrophoneTestGlyph),
+            nameof(ShowsMeters), nameof(CanSaveRecording), nameof(SelfTestElapsed) })
+        {
+            NotifyChanged(name);
+        }
+        if (!running && !_isInCall)
+        {
+            _voiceLevel = _soundLevel = 0;
+            NotifyChanged(nameof(VoiceLevel));
+            NotifyChanged(nameof(SoundLevel));
+        }
+    }
+
     /// <summary>Шкалы видны во время проверки и разговора, в остальное время — подсказка.</summary>
     public bool ShowsMeters => _isSelfTestRunning || _isInCall;
 
@@ -481,22 +515,15 @@ public sealed class SettingsViewModel : Observable
 
         if (running != _isSelfTestRunning || inCall != _isInCall)
         {
-            _isSelfTestRunning = running;
             _isInCall = inCall;
-            NotifyChanged(nameof(IsSelfTestRunning));
-            NotifyChanged(nameof(CanRunSelfTest));
-            NotifyChanged(nameof(CanTestOutput));
-            NotifyChanged(nameof(CanPlayRecording));
-            NotifyChanged(nameof(IsSelfTestBlockedByCall));
-            NotifyChanged(nameof(SelfTestButtonText));
-            NotifyChanged(nameof(ShowsMeters));
-            NotifyChanged(nameof(CanSaveRecording));
+            ReportSelfTestRunning(running);
         }
 
-        _voiceLevel = levels?.Voice ?? 0;
-        _soundLevel = levels?.Sound ?? 0;
+        _voiceLevel = ShowsMeters ? levels?.Voice ?? 0 : 0;
+        _soundLevel = ShowsMeters ? levels?.Sound ?? 0 : 0;
         NotifyChanged(nameof(VoiceLevel));
         NotifyChanged(nameof(SoundLevel));
+        NotifyChanged(nameof(SelfTestElapsed));
     }
 
     // --- Связь со Spark -------------------------------------------------------

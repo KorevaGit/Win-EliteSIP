@@ -70,6 +70,12 @@ public sealed class LevelMeter : FrameworkElement
         var meter = (LevelMeter)owner;
         meter._shown = Math.Sqrt(Math.Clamp((double)change.NewValue, 0, 1));
 
+        if (meter._shown == 0)
+        {
+            meter._peak = 0;
+            return;
+        }
+
         var now = DateTime.UtcNow;
         if (meter._shown >= meter._peak || now - meter._peakAt > PeakHold)
         {

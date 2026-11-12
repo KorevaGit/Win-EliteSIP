@@ -49,6 +49,13 @@ public sealed class Icon : Control
         DefaultStyleKeyProperty.OverrideMetadata(typeof(Icon), new FrameworkPropertyMetadata(typeof(Icon)));
     }
 
+    public Icon()
+    {
+        // Значок в Header/Content может получить Glyph до присоединения к
+        // дереву окна. Повторный поиск после Loaded учитывает его ресурсы.
+        Loaded += (_, _) => ResolveShape();
+    }
+
     public string? Glyph
     {
         get => (string?)GetValue(GlyphProperty);
@@ -66,7 +73,13 @@ public sealed class Icon : Control
     private static void OnGlyphChanged(DependencyObject sender, DependencyPropertyChangedEventArgs change)
     {
         var icon = (Icon)sender;
-        var name = (string?)change.NewValue;
+        icon.ResolveShape();
+    }
+
+    private void ResolveShape()
+    {
+        var icon = this;
+        var name = Glyph;
 
         // Ресурс ищется от самого значка, а не от приложения: тема — словарь,
         // и подменённый по месту значок должен находиться там же, где его
@@ -77,7 +90,7 @@ public sealed class Icon : Control
         // значок читается как «кнопка без иконки по замыслу», и такое живёт в
         // сборке месяцами. В отладке это остановка, в бою — пустое место:
         // ронять софтфон на кнопке, где не нашлась картинка, нельзя.
-        System.Diagnostics.Debug.Assert(name is null || shape is not null, $"нет значка {name}");
+        System.Diagnostics.Debug.Assert(!IsLoaded || name is null || shape is not null, $"нет значка {name}");
 
         icon.SetValue(ShapeKey, shape);
     }

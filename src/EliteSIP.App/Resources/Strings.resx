@@ -1388,4 +1388,7 @@
   <data name="SettingsRussian" xml:space="preserve"><value>Русский</value></data>
   <data name="SettingsLanguageEffect" xml:space="preserve"><value>Changing language restarts the app and ends the current call</value></data>
   <data name="SettingsPlayRecording" xml:space="preserve"><value>Play recording</value></data>
+  <data name="SettingsRestartRequired" xml:space="preserve"><value>Restart required</value></data>
+  <data name="SettingsApplicationUpdates" xml:space="preserve"><value>Application and updates</value></data>
+  <data name="SettingsSparkProfile" xml:space="preserve"><value>Spark · profile and presets</value></data>
 </root>

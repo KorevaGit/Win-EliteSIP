@@ -69,9 +69,6 @@ public partial class SettingsWindow : Window
 
     private void OnCaptionCloseClick(object sender, RoutedEventArgs e) => Close();
 
-    private void OnToggleThemeClick(object sender, RoutedEventArgs e)
-        => Model.Settings.Appearance.Theme = _appearance.IsDark ? Appearance.Light : Appearance.Dark;
-
     private void OnCopyMachineClick(object sender, RoutedEventArgs e)
     {
         try
