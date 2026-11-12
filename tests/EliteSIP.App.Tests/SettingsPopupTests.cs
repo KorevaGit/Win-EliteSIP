@@ -18,6 +18,29 @@ public sealed class SettingsPopupIsolation;
 [Collection("Settings popup windows")]
 public sealed class SettingsPopupTests
 {
+    [Fact]
+    public void Скролл_появляется_при_переполнении_и_не_перекрывает_карточки() => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Dark };
+        using var sounds = new SignalSoundPlayer();
+        using var updates = new PanelLine.UpdateService(() => false, _ => { }, () => { }, _ => { });
+        var model = new SettingsViewModel(new AppSettings()) { Section = SettingsSectionKind.Support, Updates = new UpdatesViewModel(updates) };
+        var window = new SettingsWindow(model, appearance, sounds);
+        var root = WpfHost.Layout(window, 848, 466);
+        var scroll = (ScrollViewer)window.FindName("SettingsScroller");
+        Assert.Equal(0, scroll.ScrollableHeight);
+        Assert.NotEqual(Visibility.Visible, scroll.ComputedVerticalScrollBarVisibility);
+        model.Section = SettingsSectionKind.Audio;
+        root.UpdateLayout();
+        Assert.True(scroll.ScrollableHeight > 0);
+        Assert.Equal(Visibility.Visible, scroll.ComputedVerticalScrollBarVisibility);
+        var bar = (ScrollBar)scroll.Template.FindName("PART_VerticalScrollBar", scroll);
+        var barLeft = bar.TranslatePoint(new Point(), root).X;
+        var section = Walk(root).OfType<SettingsSection>().Single(card => card.Tag is "settings.sliders-horizontal");
+        Assert.True(section.TranslatePoint(new Point(section.ActualWidth, 0), root).X <= barLeft);
+        window.Close();
+    });
+
     [Theory]
     [InlineData(Appearance.Light)]
     [InlineData(Appearance.Dark)]

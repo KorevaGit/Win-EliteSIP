@@ -20,7 +20,7 @@ internal static class CrownArtwork
             for (var index = 0; index < paths.Length; index++)
             {
                 var isBase = index == paths.Length - 1;
-                var pen = new Pen(isBase ? status : glyph, isBase && emphasizeStatus ? 3.6 : 2.2)
+                var pen = new Pen(isBase ? status : glyph, 2.2)
                 {
                     StartLineCap = PenLineCap.Round,
                     EndLineCap = PenLineCap.Round,
@@ -28,7 +28,9 @@ internal static class CrownArtwork
                 };
                 if (isBase && emphasizeStatus)
                 {
-                    canvas.DrawLine(pen, new Point(3, 21), new Point(21, 21));
+                    // Края совпадают с основанием контура (x=5.81..18.19
+                    // плюс половина толщины), а верх примыкает к его низу.
+                    canvas.DrawRoundedRectangle(status, null, new Rect(4.7, 18.1, 14.6, 5), 2, 2);
                 }
                 else
                 {

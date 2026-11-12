@@ -281,11 +281,9 @@ public sealed class TrayIcon : IDisposable
     }
 
     /// <summary>Зелёная полоса — регистрация готова, красная — телефон не на линии.</summary>
-    private Brush StatusBarBrush()
-        => Resource(!_model.IsOfflineByChoice && _model.Registration is RegistrationState.Registered
-            ? "StatusRegisteredBrush" : "StatusFailureBrush");
-    private static Brush Resource(string key)
-        => Application.Current.TryFindResource(key) as Brush ?? Brushes.Gray;
+    private SolidColorBrush StatusBarBrush()
+        => !_model.IsOfflineByChoice && _model.Registration is RegistrationState.Registered
+            ? Brushes.Lime : Brushes.Red;
 
     /// <summary>
     /// Цвет короны: чёрная на светлой панели задач, белая на тёмной.
