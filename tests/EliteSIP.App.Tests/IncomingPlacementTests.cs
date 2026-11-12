@@ -27,14 +27,7 @@ public sealed class IncomingPlacementTests
                 {
                     presenter.Show(Subject, policy, () => Assert.Fail("Перенос не принимает вызов"), () => Assert.Fail("Перенос не отклоняет вызов"));
                     var window = WindowOf(presenter);
-                    if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
-                    {
-                        Assert.Null(WindowChrome.GetWindowChrome(window));
-                    }
-                    else
-                    {
-                        Assert.Equal(32, WindowChrome.GetWindowChrome(window).CaptionHeight);
-                    }
+                    Assert.Equal(28, WindowChrome.GetWindowChrome(window).CaptionHeight);
                     var placement = PlacementOf(presenter);
                     var target = new ScreenPoint(placement.Bounds.MinX + 20, placement.Bounds.MinY + 20);
                     Move(window, target);

@@ -232,9 +232,6 @@ public partial class App : Application, IDisposable
             Log,
             () => _panelWindow is null ? 0 : new WindowInteropHelper(_panelWindow).Handle)
         {
-            ProfileCaption = () => string.IsNullOrWhiteSpace(PhoneService.ProfileLabel(_settings))
-                ? _settings.Account.Username
-                : _settings.Account.Username + " · " + PhoneService.ProfileLabel(_settings),
             RestorePlacement = () => _settings.IncomingPlacement.Origin,
             SavePlacement = origin => _settings.IncomingPlacement.Origin = origin,
         };

@@ -41,8 +41,6 @@ public partial class IncomingCallWindow : Window
     private const int WsExNoActivate = 0x08000000;
     private const int WsExToolWindow = 0x00000080;
 
-    private const int WmSysCommand = 0x0112;
-    private const int ScClose = 0xF060;
     private const int WmMouseActivate = 0x0021;
     private const int MaNoActivate = 3;
     private const int WmEnterSizeMove = 0x0231;
@@ -60,12 +58,6 @@ public partial class IncomingCallWindow : Window
     public IncomingCallWindow(IncomingCallViewModel model)
     {
         InitializeComponent();
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
-        {
-            System.Windows.Shell.WindowChrome.SetWindowChrome(this, null);
-            ClearValue(TemplateProperty);
-            WindowStyle = WindowStyle.SingleBorderWindow;
-        }
         DataContext = model;
 
         NumberBlock.MouseLeftButtonUp += OnNumberReleased;
@@ -85,9 +77,6 @@ public partial class IncomingCallWindow : Window
         Left = -32000;
         Top = -32000;
     }
-
-    private void OnCaptionCloseClick(object sender, RoutedEventArgs e)
-        => ((IncomingCallViewModel)DataContext).DeclineCommand.Execute(null);
 
     public bool IsUserMoving { get; private set; }
 
@@ -229,14 +218,6 @@ public partial class IncomingCallWindow : Window
 
     private nint OnWindowMessage(nint handle, int message, nint wParam, nint lParam, ref bool handled)
     {
-        // Системная кнопка закрытия означает отказ от вызова, как кнопка в карточке.
-        if (message == WmSysCommand && ((long)wParam & 0xFFF0) == ScClose)
-        {
-            handled = true;
-            Dispatcher.BeginInvoke(() => ((IncomingCallViewModel)DataContext).DeclineCommand.Execute(null));
-            return 0;
-        }
-
         if (message == WmEnterSizeMove)
         {
             IsUserMoving = true;

@@ -30,7 +30,7 @@ public sealed class LayoutTests
         WpfHost.UseTheme(theme);
         var subject = EliteSIP.App.Incoming.IncomingCallSubject.Classify("172", "Отдел сопровождения корпоративных клиентов", false, "176", true);
         var challenge = guarded ? new EliteSIP.CallGuard.CallGuardChallenge { Targets = ['1', '2', '3', '4', '5', '6', '7', '8', '9'], Answer = '7' } : EliteSIP.CallGuard.CallGuardChallenge.Unguarded;
-        var model = new EliteSIP.App.Incoming.IncomingCallViewModel(subject, challenge, guarded, _ => { }, () => { }, "176 · Апатия");
+        var model = new EliteSIP.App.Incoming.IncomingCallViewModel(subject, challenge, guarded, _ => { }, () => { });
         var window = new EliteSIP.App.Incoming.IncomingCallWindow(model);
         var root = (FrameworkElement)window.Content;
         root.Measure(new Size(window.Width - 2, double.PositiveInfinity));

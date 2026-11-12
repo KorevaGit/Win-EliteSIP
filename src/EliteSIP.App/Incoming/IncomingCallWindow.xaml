@@ -24,26 +24,11 @@
         Foreground="{DynamicResource TextPrimaryBrush}"
         TextOptions.TextFormattingMode="Display">
 
-  <!-- Рамка согласована с панелью: собственный заголовок Windows 10, штатный Windows 11. -->
+  <!-- Карточка без системного заголовка; верхняя строка остаётся областью перетаскивания. -->
   <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="../Panel/Graphite.xaml" /></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
-  <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="32" CornerRadius="0" GlassFrameThickness="0" ResizeBorderThickness="0" UseAeroCaptionButtons="False" /></shell:WindowChrome.WindowChrome>
-  <Window.Template><ControlTemplate TargetType="Window">
-    <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
-      <DockPanel LastChildFill="True">
-        <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
-            <theme:Icon Glyph="crown.fill" Size="10" Margin="0,1,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
-            <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
-          </StackPanel>
-          <Button Grid.Column="1" Style="{StaticResource PanelCaptionButtonStyle}" Tag="Close" Click="OnCaptionCloseClick" shell:WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="{res:Loc IncomingDecline}" AutomationProperties.Name="{res:Loc IncomingDecline}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BB;" FontSize="10" /></Button>
-        </Grid>
-        <AdornerDecorator><ContentPresenter /></AdornerDecorator>
-      </DockPanel>
-    </Border>
-  </ControlTemplate></Window.Template>
+  <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="28" CornerRadius="0" GlassFrameThickness="0" ResizeBorderThickness="0" UseAeroCaptionButtons="False" /></shell:WindowChrome.WindowChrome>
   <StackPanel Margin="8">
-    <DockPanel LastChildFill="False">
+    <DockPanel LastChildFill="False" Cursor="SizeAll">
       <history:OutcomeBadge DockPanel.Dock="Left"
                             IsIncoming="True"
                             IsCompleted="True"
@@ -109,7 +94,6 @@
                  Visibility="{Binding SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
     </StackPanel>
     </Border>
-    <TextBlock theme:Emoji.Text="{Binding ProfileCaption}" TextAlignment="Center" FontSize="12" Margin="0,10,0,0" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" Visibility="{Binding ProfileCaption, Converter={StaticResource PresenceToVisibility}}" />
     <StackPanel Margin="0,10,0,0">
       <TextBlock Text="{res:Loc IncomingDealPrompt}"
                  Margin="0,0,0,6"
@@ -174,13 +158,23 @@
         </Grid.ColumnDefinitions>
         <!-- Ответ слева, отказ справа; параметры команды и ограничения автоматизации прежние. -->
         <Button x:Name="AnswerButton" Grid.Column="0"
-                Style="{StaticResource PanelCallButtonStyle}"
                 Height="50"
                 Background="{DynamicResource PanelAnswerBrush}"
                 Command="{Binding AttemptCommand}"
                 CommandParameter="{Binding Answer}"
                 Focusable="False"
                 AutomationProperties.IsOffscreenBehavior="Offscreen">
+          <Button.Style>
+            <Style TargetType="Button" BasedOn="{StaticResource PanelCallButtonStyle}">
+              <Style.Triggers>
+                <MultiTrigger>
+                  <MultiTrigger.Conditions><Condition Property="IsVisible" Value="True" /><Condition Property="IsEnabled" Value="True" /><Condition Property="IsMouseOver" Value="False" /></MultiTrigger.Conditions>
+                  <MultiTrigger.EnterActions><BeginStoryboard Name="AnswerPulse"><Storyboard><DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.87" Duration="0:0:1.2" AutoReverse="True" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></MultiTrigger.EnterActions>
+                  <MultiTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="AnswerPulse" /></MultiTrigger.ExitActions>
+                </MultiTrigger>
+              </Style.Triggers>
+            </Style>
+          </Button.Style>
           <StackPanel Orientation="Horizontal">
             <theme:Icon Glyph="phone.fill" Size="14" Foreground="White" VerticalAlignment="Center" />
             <TextBlock Text="{res:Loc IncomingAnswer}" Margin="6,0,0,0" FontSize="16" Foreground="White" />

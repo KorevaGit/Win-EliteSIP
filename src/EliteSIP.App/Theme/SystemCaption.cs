@@ -113,7 +113,7 @@ internal static class SystemCaption
         {
             var crown = Geometry.Parse("M1.6 16.2V3.4c0-.5.6-.75.95-.4l3.7 3.6L9.3 1.5c.32-.5 1.06-.5 1.38 0l3.07 5.1 3.7-3.6c.36-.35.95-.1.95.4v12.8z");
             var bounds = crown.Bounds;
-            var scale = Math.Min(22 / bounds.Width, 18 / bounds.Height);
+            var scale = Math.Min(26 / bounds.Width, 22 / bounds.Height);
             // Поля растра удерживают корону внутри высоты букв системного заголовка.
             canvas.PushTransform(new TranslateTransform(16 - bounds.Width * scale / 2 - bounds.X * scale,
                 16 - bounds.Height * scale / 2 - bounds.Y * scale));
