@@ -103,7 +103,7 @@
       <RowDefinition Height="10" />
       <!-- Неподвижный низ: звонок и история. С 0.1.60 от окна не растёт —
            лишняя высота вся уходит клавишам. -->
-      <RowDefinition Height="Auto" MinHeight="52" />
+      <RowDefinition Height="72" />
     </Grid.RowDefinitions>
 
     <!--
@@ -406,7 +406,7 @@
           поля при двух линиях. Высота у всех трёх одна и та же — иначе при
           ответе на вызов шапка вырастала бы и сдвигала вниз всё, что под ней.
       -->
-      <Grid Grid.Row="0" Height="72">
+      <Grid x:Name="NumberInputArea" Grid.Row="0" Height="72">
 
         <!-- Одна линия или покой: одна поверхность на весь слот. -->
         <Border CornerRadius="{StaticResource PanelCornerRadius}"
@@ -890,7 +890,7 @@
       </Grid.ColumnDefinitions>
 
       <Button Grid.Column="0"
-              Command="{Binding CallOrHangUp}"
+              x:Name="PrimaryCallButton" Command="{Binding CallOrHangUp}"
               IsEnabled="{Binding IsCallButtonEnabled}">
         <Button.Style>
           <Style TargetType="Button" BasedOn="{StaticResource PanelCallButtonStyle}">
@@ -933,7 +933,7 @@
 
       <Button Grid.Column="2"
               Style="{StaticResource PanelSurfaceButtonStyle}"
-              Command="{Binding ShowHistory}">
+              x:Name="HistoryActionButton" Command="{Binding ShowHistory}">
         <StackPanel>
           <theme:Icon Glyph="clock" Size="14" HorizontalAlignment="Center"
                       Foreground="{DynamicResource TextPrimaryBrush}" />

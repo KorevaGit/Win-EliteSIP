@@ -1383,4 +1383,37 @@
   <data name="SettingsUpdateReady" xml:space="preserve"><value>Новая версия скачана и готова к установке.</value></data>
   <data name="SettingsUpdateRestart" xml:space="preserve"><value>EliteSIP закроется на время установки и запустится снова.</value></data>
   <data name="SettingsWindowsProcessor" xml:space="preserve"><value>Windows обработчик</value></data>
+  <data name="AdminConnection" xml:space="preserve"><value>Подключение</value></data>
+  <data name="AdminProfiles" xml:space="preserve"><value>Учётные записи</value></data>
+  <data name="AdminProfileLabel" xml:space="preserve"><value>Подпись</value></data>
+  <data name="AdminProfileAdd" xml:space="preserve"><value>Добавить учётную запись</value></data>
+  <data name="AdminProfileRemove" xml:space="preserve"><value>Удалить учётную запись</value></data>
+  <data name="AdminProfileSwitchHint" xml:space="preserve"><value>Переключение — в капсуле номера</value></data>
+  <data name="AdminActiveProfile" xml:space="preserve"><value>Активная учётная запись</value></data>
+  <data name="AdminProfileNumberRequired" xml:space="preserve"><value>Заполните номер новой учётной записи.</value></data>
+  <data name="AdminProfileDuplicate" xml:space="preserve"><value>Номера учётных записей должны различаться.</value></data>
+  <data name="AdminConnectionAdvanced" xml:space="preserve"><value>Порт, транспорт и безопасность</value></data>
+  <data name="AdminMacroTransferShort" xml:space="preserve"><value>Перевод</value></data>
+  <data name="AdminTransferEffect" xml:space="preserve"><value>Перевод → отметка в истории</value></data>
+  <data name="AdminConversation" xml:space="preserve"><value>Разговор</value></data>
+  <data name="AdminCall" xml:space="preserve"><value>Вызов</value></data>
+  <data name="AdminRetentionEffect" xml:space="preserve"><value>Очистка старых</value></data>
+  <data name="AdminLogShort" xml:space="preserve"><value>Журнал</value></data>
+  <data name="AdminAccessShort" xml:space="preserve"><value>Доступ</value></data>
+  <data name="AdminResetData" xml:space="preserve"><value>Настройки · история · журнал</value></data>
+  <data name="AdminResetGone" xml:space="preserve"><value>Удаление</value></data>
+  <data name="AdminResetIrreversible" xml:space="preserve"><value>Без восстановления. Пароль администратора тоже будет удалён.</value></data>
+  <data name="AdminGuardOffShort" xml:space="preserve"><value>Приём без защиты отмечается в журнале</value></data>
+  <data name="AdminReceivePreview" xml:space="preserve"><value>Подтверждение приёма</value></data>
+  <data name="AdminReceive" xml:space="preserve"><value>Приём</value></data>
+  <data name="AdminData" xml:space="preserve"><value>Данные</value></data>
+  <data name="AdminUpdateShort" xml:space="preserve"><value>Обновление</value></data>
+  <data name="AdminAccessOpenSession" xml:space="preserve"><value>Доступ открыт</value></data>
+  <data name="AdminAnswerOperatorShort" xml:space="preserve"><value>Оператор</value></data>
+  <data name="AdminAnswerAlwaysShort" xml:space="preserve"><value>Всегда</value></data>
+  <data name="AdminAnswerHeaderShort" xml:space="preserve"><value>По запросу АТС</value></data>
+  <data name="AdminAnswerListShort" xml:space="preserve"><value>Номера из списка</value></data>
+  <data name="AdminProfileChanged" xml:space="preserve"><value>Активная учётная запись изменилась. Нажмите «Отменить», чтобы обновить черновик.</value></data>
+  <data name="AdminPasswordPresentShort" xml:space="preserve"><value>Пароль задан</value></data>
+  <data name="AdminPasswordMissingShort" xml:space="preserve"><value>Пароль не задан</value></data>
 </root>

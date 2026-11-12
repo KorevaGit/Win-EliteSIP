@@ -17,12 +17,44 @@ public partial class AdministrationWindow : Window
     public AdministrationWindow(AdministrationViewModel model, AppearanceService appearance)
     {
         InitializeComponent();
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            ClearValue(TemplateProperty);
+        }
+        else
+        {
+            WindowStyle = WindowStyle.None;
+            System.Windows.Shell.WindowChrome.SetWindowChrome(this, new System.Windows.Shell.WindowChrome
+            {
+                CaptionHeight = 32, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false,
+            });
+        }
         Model = model;
         _appearance = appearance;
         DataContext = model;
+        model.WatchAccountSelection(true);
     }
 
     public AdministrationViewModel Model { get; }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        Model.WatchAccountSelection(false);
+        base.OnClosed(e);
+    }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized) { SystemCommands.RestoreWindow(this); }
+        else { SystemCommands.MaximizeWindow(this); }
+    }
+    private void OnCaptionCloseClick(object sender, RoutedEventArgs e) => Close();
+    private void OnAccountAddClick(object sender, RoutedEventArgs e) => Model.AddAccount();
+    private void OnAccountRemoveClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: AdminAccountDraft account }) { Model.RemoveAccount(account); }
+    }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -55,7 +87,8 @@ public partial class AdministrationWindow : Window
         switch (answer)
         {
             case DialogAnswer.Confirm:
-                Model.Save();
+                if (Model.CanSave) { Model.Save(); }
+                else { e.Cancel = true; }
                 break;
 
             case DialogAnswer.Discard:
@@ -81,6 +114,7 @@ public partial class AdministrationWindow : Window
     /// </remarks>
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
+        if (!Model.CanSave) { return; }
         var answer = Theme.Dialog.Ask(
             this,
             Strings.Get("AdminSaveConfirmTitle"),
@@ -126,9 +160,6 @@ public partial class AdministrationWindow : Window
 
     private static MacroSetting? Macro(object sender)
         => (sender as FrameworkElement)?.DataContext as MacroSetting;
-
-    private void OnSipPasswordChanged(object sender, RoutedEventArgs e)
-        => Model.SipPassword = SipPasswordField.Password;
 
     private void OnQueueAddClick(object sender, RoutedEventArgs e) => Model.AddQueue();
 

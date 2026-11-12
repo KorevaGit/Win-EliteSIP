@@ -831,7 +831,9 @@ public partial class App : Application, IDisposable
             _panelLine.StateChanged += support.Refresh;
         }
 
-        var administration = new AdministrationViewModel(_settings!, _access, PreviewIncomingCall)
+        AdministrationViewModel? administration = null;
+        administration = new AdministrationViewModel(_settings!, _access,
+            asDeal => PreviewIncomingCall(asDeal, administration?.Guard, administration?.Username))
         {
             Support = support,
             Updates = _updates is null ? null : new UpdatesViewModel(_updates),
@@ -915,21 +917,22 @@ public partial class App : Application, IDisposable
     /// просьба автоответа. Кнопки при этом не делают ничего: проверка кончается
     /// закрытием окна, а не звонком.
     /// </remarks>
-    private void PreviewIncomingCall(bool asDealCall)
+    private void PreviewIncomingCall(bool asDealCall, IncomingCallSettings? draft = null, string? draftNumber = null)
     {
         if (_incoming is null || _settings is null)
         {
             return;
         }
 
-        var own = _settings.Account.Username;
+        var policy = draft ?? _settings.IncomingCall;
+        var own = draftNumber ?? _settings.Account.Username;
         var subject = asDealCall
-            ? IncomingCallSubject.Classify(own, callerName: null, requestsAutoAnswer: false, ownNumber: own, masksMobileNumbers: _settings.IncomingCall.MasksMobileNumbers)
-            : IncomingCallSubject.Classify("712", "Call_Center", requestsAutoAnswer: true, ownNumber: own, masksMobileNumbers: _settings.IncomingCall.MasksMobileNumbers);
+            ? IncomingCallSubject.Classify(own, callerName: null, requestsAutoAnswer: false, ownNumber: own, masksMobileNumbers: policy.MasksMobileNumbers)
+            : IncomingCallSubject.Classify("712", "Call_Center", requestsAutoAnswer: true, ownNumber: own, masksMobileNumbers: policy.MasksMobileNumbers);
 
         _incoming.Show(
             subject,
-            _settings.IncomingCall.ToPolicy(),
+            policy.ToPolicy(),
             onAnswer: () => { },
             onDecline: () => { });
     }
