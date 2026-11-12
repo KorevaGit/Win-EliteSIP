@@ -169,7 +169,7 @@
               <Style.Triggers>
                 <MultiTrigger>
                   <MultiTrigger.Conditions><Condition Property="IsVisible" Value="True" /><Condition Property="IsEnabled" Value="True" /><Condition Property="IsMouseOver" Value="False" /></MultiTrigger.Conditions>
-                  <MultiTrigger.EnterActions><BeginStoryboard Name="AnswerPulse"><Storyboard><DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.87" Duration="0:0:1.2" AutoReverse="True" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></MultiTrigger.EnterActions>
+                  <MultiTrigger.EnterActions><BeginStoryboard Name="AnswerPulse"><Storyboard><DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.65" Duration="0:0:0.9" AutoReverse="True" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></MultiTrigger.EnterActions>
                   <MultiTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="AnswerPulse" /></MultiTrigger.ExitActions>
                 </MultiTrigger>
               </Style.Triggers>
