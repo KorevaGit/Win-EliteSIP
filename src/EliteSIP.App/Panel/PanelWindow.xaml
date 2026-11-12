@@ -933,15 +933,18 @@
 
       <Button Grid.Column="2"
               Style="{StaticResource PanelSurfaceButtonStyle}"
+              HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+              Padding="0,0,0,1"
               x:Name="HistoryActionButton" Command="{Binding ShowHistory}">
-        <StackPanel>
-          <theme:Icon Glyph="clock" Size="14" HorizontalAlignment="Center"
+        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <theme:Icon Glyph="clock" Size="14" HorizontalAlignment="Center" VerticalAlignment="Center"
                       Foreground="{DynamicResource TextPrimaryBrush}" />
-          <TextBlock Text="{res:Loc PanelHistory}"
+          <TextBlock Grid.Row="1" Text="{res:Loc PanelHistory}"
                      Margin="0,2,0,0"
                      FontSize="11"
                      HorizontalAlignment="Center" />
-        </StackPanel>
+        </Grid>
       </Button>
     </Grid>
   </Grid>

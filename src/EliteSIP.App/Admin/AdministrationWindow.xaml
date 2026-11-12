@@ -537,18 +537,21 @@
             </StackPanel>
             <theme:SettingsSection Header="{res:Loc AdminGuardCheckTitle}" Tag="settings.activity">
               <Border Background="{DynamicResource SettingsFieldBrush}" CornerRadius="9" Padding="12" Margin="0,3,0,10">
-                <Grid>
+                <Grid MinHeight="82">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="210" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
                   </Grid.ColumnDefinitions>
-                  <StackPanel VerticalAlignment="Center">
-                    <theme:Icon Glyph="settings.headset" Size="28" HorizontalAlignment="Left" />
-                    <TextBlock Text="{Binding IncomingPreviewTitle}" FontSize="16" FontWeight="SemiBold" Margin="0,7,0,4" />
-                    <TextBlock Text="{Binding MobilePreview}" Foreground="{DynamicResource TextSecondaryBrush}" />
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{res:Loc AdminReceivePreview}" FontSize="11" Margin="0,0,0,5" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <theme:Icon Grid.RowSpan="2" Glyph="settings.headset" Size="28" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding IncomingPreviewTitle}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding MobilePreview}" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </Grid>
+                  <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="{res:Loc AdminReceivePreview}" FontSize="11" Margin="0,0,0,7" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
                     <StackPanel>
                       <ItemsControl ItemsSource="{Binding PreviewDigits}" Visibility="{Binding ShowsDigitExample, Converter={StaticResource BoolToVisibility}}">
                         <ItemsControl.ItemsPanel>
@@ -574,17 +577,17 @@
                       </UniformGrid>
                       <StackPanel Visibility="{Binding ShowsAutomaticExample, Converter={StaticResource BoolToVisibility}}">
                         <theme:Icon Glyph="settings.headset" Size="25" HorizontalAlignment="Center" />
-                        <TextBlock Text="{Binding AutoAnswerPreview}" HorizontalAlignment="Center" Margin="0,5,0,0" />
+                        <TextBlock Text="{Binding AutoAnswerPreview}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,5,0,0" />
                       </StackPanel>
                     </StackPanel>
                   </StackPanel>
                 </Grid>
               </Border>
               <theme:SettingsIndented>
-                <StackPanel Orientation="Horizontal">
+                <WrapPanel>
                   <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminGuardCheckShow}" Command="{Binding PreviewDistribution}" />
                   <Button Style="{StaticResource SettingsButtonStyle}" Margin="6,0,0,0" Content="{res:Loc AdminGuardCheckDeal}" Command="{Binding PreviewDeal}" />
-                </StackPanel>
+                </WrapPanel>
               </theme:SettingsIndented>
               <theme:SettingsRow Header="{res:Loc AdminGuardLastCall}" Visibility="{Binding LastGuardReport, Converter={StaticResource PresenceToVisibility}}">
                 <TextBlock Text="{Binding LastGuardReport}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
