@@ -1,10 +1,38 @@
 using System.Windows.Media;
+using System.Windows;
+using System.Globalization;
+using EliteSIP.App.Theme;
 using EliteSIP.App.Shell;
 
 namespace EliteSIP.App.Tests;
 
+[Collection("Settings popup windows")]
 public sealed class TrayAppearanceTests
 {
+    [Theory]
+    [InlineData(12)]
+    [InlineData(14)]
+    public void Корона_совпадает_по_высоте_с_заглавной_буквой(int fontSize) => WpfHost.Run(() =>
+    {
+        var family = new FontFamily("Segoe UI");
+        var crown = new CaptionCrown { FontFamily = family, FontSize = fontSize, Foreground = Brushes.White };
+        crown.Measure(new Size(100, 100));
+        crown.Arrange(new Rect(new Point(), crown.DesiredSize));
+        crown.UpdateLayout();
+        var width = (int)Math.Ceiling(crown.ActualWidth);
+        var height = (int)Math.Ceiling(crown.ActualHeight);
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(crown);
+        var pixels = new byte[width * height * 4];
+        bitmap.CopyPixels(pixels, width * 4, 0);
+        var rows = Enumerable.Range(0, height).Where(y => Enumerable.Range(0, width).Any(x => pixels[(y * width + x) * 4 + 3] > 32)).ToArray();
+        Assert.NotEmpty(rows);
+        var text = new FormattedText("H", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.White, 1);
+        var capital = text.BuildGeometry(new Point()).Bounds;
+        Assert.InRange(Math.Abs(rows[0] - capital.Top), 0, 1);
+        Assert.InRange(Math.Abs(rows[^1] + 1 - capital.Bottom), 0, 1);
+    });
+
     [Theory]
     [InlineData(16)]
     [InlineData(32)]

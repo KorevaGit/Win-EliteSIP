@@ -45,7 +45,7 @@
           <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
-              <theme:Icon Glyph="settings.crown" Size="16" Margin="0,1,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+              <theme:CaptionCrown FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
               <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">

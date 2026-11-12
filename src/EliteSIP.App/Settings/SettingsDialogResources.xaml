@@ -9,7 +9,7 @@
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Window">
       <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
         <DockPanel><Grid DockPanel.Dock="Top" Height="32"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="38" /></Grid.ColumnDefinitions>
-          <StackPanel Orientation="Horizontal" Margin="9,0" VerticalAlignment="Center"><theme:Icon Glyph="settings.crown" Size="16" /><TextBlock Text="{TemplateBinding Title}" Margin="7,0,0,0" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" /></StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="9,0" VerticalAlignment="Center"><theme:CaptionCrown FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" /><TextBlock Text="{TemplateBinding Title}" Margin="7,0,0,0" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" /></StackPanel>
           <Button Grid.Column="1" Style="{StaticResource PanelCaptionButtonStyle}" Tag="Close" Command="{x:Static SystemCommands.CloseWindowCommand}" shell:WindowChrome.IsHitTestVisibleInChrome="True" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BB;" FontSize="10" /></Button>
         </Grid><AdornerDecorator><ContentPresenter /></AdornerDecorator></DockPanel>
       </Border>

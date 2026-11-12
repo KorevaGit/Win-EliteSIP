@@ -185,7 +185,7 @@ internal static class SystemCaption
 
     private static System.Windows.Media.Imaging.RenderTargetBitmap DrawCrown(Brush brush)
     {
-        var bitmap = CrownArtwork.Render(brush, brush, 32, emphasizeStatus: false);
+        var bitmap = CaptionCrown.NativeIcon(brush);
         bitmap.Freeze();
         return bitmap;
     }

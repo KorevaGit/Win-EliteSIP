@@ -140,7 +140,8 @@ public sealed class SettingsRedesignTests
         settings.Account.DisplayName = "Не показывать профиль";
         var window = new SettingsWindow(new SettingsViewModel(settings), appearance, sounds);
         var root = WpfHost.Layout(window, 848, 460);
-        Assert.Equal(500, window.Height);
+        Assert.Equal(460, window.Height);
+        Assert.Equal(780, window.Width);
         Assert.DoesNotContain(Descendants(root).OfType<TextBlock>(), block => block.Text == "87654321" || block.Text == "Не показывать профиль");
         Assert.Equal(ink, ((SolidColorBrush)window.FindResource("TextPrimaryBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
         Assert.Equal(secondary, ((SolidColorBrush)window.FindResource("TextSecondaryBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
