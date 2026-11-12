@@ -78,6 +78,13 @@ public sealed class SettingsViewModel : Observable
             }
         });
         SaveRecording = new RelayCommand(_ => OnSaveRecording?.Invoke());
+        PlayRecording = new RelayCommand(_ =>
+        {
+            if (CanPlayRecording)
+            {
+                OnPlayRecording?.Invoke();
+            }
+        });
 
         UnlockWorkplace = new RelayCommand(_ =>
         {
@@ -100,7 +107,6 @@ public sealed class SettingsViewModel : Observable
 
     public AppSettings Settings { get; }
 
-    public string? ProfileLabel => Shell.PhoneService.ProfileLabel(Settings);
 
     // --- Кнопки, которые прежде были нарисованы и никуда не вели --------------
     //
@@ -295,10 +301,6 @@ public sealed class SettingsViewModel : Observable
 
     private void OnWorkplaceSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(AccountSettings.DisplayName) or nameof(AccountSettings.Username))
-        {
-            NotifyChanged(nameof(ProfileLabel));
-        }
         if (e.PropertyName is nameof(AccountSettings.Site)
             or nameof(PanelSettings.Mode)
             or nameof(PanelSettings.LockedWorkFormat))
@@ -344,6 +346,12 @@ public sealed class SettingsViewModel : Observable
     /// </summary>
     public RelayCommand SaveRecording { get; }
 
+    public RelayCommand PlayRecording { get; }
+
+    internal Action? OnPlayRecording { get; init; }
+
+    public bool CanPlayRecording => _hasRecording && CanTestOutput;
+
     internal Action? OnSaveRecording { get; init; }
 
     /// <summary>Есть ли запись, которую можно сохранить.</summary>
@@ -354,6 +362,7 @@ public sealed class SettingsViewModel : Observable
     {
         _hasRecording = available;
         NotifyChanged(nameof(CanSaveRecording));
+        NotifyChanged(nameof(CanPlayRecording));
     }
 
     // --- Шкалы «Голос» и «Звук» ---------------------------------------------
@@ -477,6 +486,7 @@ public sealed class SettingsViewModel : Observable
             NotifyChanged(nameof(IsSelfTestRunning));
             NotifyChanged(nameof(CanRunSelfTest));
             NotifyChanged(nameof(CanTestOutput));
+            NotifyChanged(nameof(CanPlayRecording));
             NotifyChanged(nameof(IsSelfTestBlockedByCall));
             NotifyChanged(nameof(SelfTestButtonText));
             NotifyChanged(nameof(ShowsMeters));

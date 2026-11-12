@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
@@ -685,6 +685,15 @@ public partial class App : Application, IDisposable
             OnRunSelfTest = () => _ = RunAudioSelfTestAsync(model!),
             OnStopSelfTest = () => _phone?.SelfTest.Abort(),
             OnSaveRecording = () => SaveSelfTestRecording(model!),
+            OnPlayRecording = () =>
+            {
+                if (_phone is { IsCallActive: false } phone && !phone.SelfTest.IsRunning
+                    && phone.SelfTest.ReadLastRecording() is { } recording)
+                {
+                    var audio = model!.Settings.Audio;
+                    phone.Sounds.PreviewRecording(recording.Samples, recording.SampleRate, audio.PlaybackVolume, audio.OutputDeviceId);
+                }
+            },
             ReadMeters = () => _phone is null
                 ? default
                 : new AudioMeterReading(

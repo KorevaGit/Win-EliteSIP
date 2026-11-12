@@ -12,6 +12,58 @@ namespace EliteSIP.App.Tests;
 public sealed class SettingsRedesignTests
 {
     [Theory]
+    [InlineData(Appearance.Light, "#FF242424", "#FF686868", "#FFFFFFFF", "#FFE9E9E9", "#FFF9F9F9", "#FF168016")]
+    [InlineData(Appearance.Dark, "#FFF2F2F2", "#FFBCBCBC", "#FF363636", "#FF2B2B2B", "#FF202020", "#FF468D35")]
+    public void Цвета_настроек_совпадают_с_макетом(Appearance theme, string ink, string secondary, string top, string bottom, string field, string toggle) => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = theme };
+        using var sounds = new SignalSoundPlayer();
+        var settings = new AppSettings();
+        settings.Account.Username = "87654321";
+        settings.Account.DisplayName = "Не показывать профиль";
+        var window = new SettingsWindow(new SettingsViewModel(settings), appearance, sounds);
+        var root = WpfHost.Layout(window, 848, 460);
+        Assert.Equal(500, window.Height);
+        Assert.DoesNotContain(Descendants(root).OfType<TextBlock>(), block => block.Text == "87654321" || block.Text == "Не показывать профиль");
+        Assert.Equal(ink, ((SolidColorBrush)window.FindResource("TextPrimaryBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(secondary, ((SolidColorBrush)window.FindResource("TextSecondaryBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var surface = (LinearGradientBrush)window.FindResource("SettingsSurfaceBrush");
+        Assert.Equal(top, surface.GradientStops[0].Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(bottom, surface.GradientStops[1].Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(field, ((SolidColorBrush)window.FindResource("SettingsFieldBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(toggle, ((SolidColorBrush)window.FindResource("SettingsSwitchBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        window.Close();
+    });
+
+    [Fact]
+    public void Компактное_окно_прокручивается_а_вывод_мелодии_сохраняет_выбор() => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Light };
+        using var sounds = new SignalSoundPlayer();
+        var settings = new AppSettings();
+        var model = new SettingsViewModel(settings) { Section = SettingsSectionKind.Audio };
+        var played = 0;
+        var playbackModel = new SettingsViewModel(new AppSettings()) { OnPlayRecording = () => played++ };
+        playbackModel.PlayRecording.Execute(null);
+        Assert.Equal(0, played);
+        playbackModel.ReportRecording(true);
+        playbackModel.PlayRecording.Execute(null);
+        Assert.Equal(1, played);
+        var window = new SettingsWindow(model, appearance, sounds);
+        var root = WpfHost.Layout(window, 718, 400);
+        root.UpdateLayout();
+        var scroll = (ScrollViewer)window.FindName("SettingsScroller");
+        Assert.True(scroll.ScrollableHeight > 0);
+        scroll.ScrollToEnd();
+        root.UpdateLayout();
+        Assert.True(scroll.VerticalOffset > 0);
+        var output = (ComboBox)window.FindName("RingtoneOutputChoice");
+        output.SelectedValue = RingtoneOutput.CallDevice;
+        Assert.Equal(RingtoneOutput.CallDevice, settings.Ringtone.Output);
+        window.Close();
+    });
+
+    [Theory]
     [InlineData(Appearance.Light)]
     [InlineData(Appearance.Dark)]
     public void Вкладки_заполняют_ширину_при_минимальном_размере_окна(Appearance theme) => WpfHost.Run(() =>

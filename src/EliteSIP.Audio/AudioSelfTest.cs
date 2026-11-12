@@ -95,6 +95,18 @@ public sealed class AudioSelfTest : IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
+        if (ReadLastRecording() is not { } recording)
+        {
+            return false;
+        }
+        WaveFile.WriteMono16(path, recording.SampleRate, recording.Samples);
+        return true;
+    }
+
+    /// <summary>Копия последней записи для повторного прослушивания без записи на диск.</summary>
+    public (short[] Samples, int SampleRate)? ReadLastRecording()
+    {
+
         (IReadOnlyList<byte[]> Frames, AudioCodec Codec)? recording;
         lock (_gate)
         {
@@ -103,7 +115,7 @@ public sealed class AudioSelfTest : IDisposable
 
         if (recording is not { } taken)
         {
-            return false;
+            return null;
         }
 
         AudioFrameDecoder decoder = new(taken.Codec);
@@ -113,8 +125,7 @@ public sealed class AudioSelfTest : IDisposable
             samples.AddRange(decoder.Decode(frame));
         }
 
-        WaveFile.WriteMono16(path, (int)taken.Codec.SampleRate(), samples);
-        return true;
+        return (samples.ToArray(), (int)taken.Codec.SampleRate());
     }
 
     /// <param name="open">Как поднять тракт. Тот же способ, что и у разговора.</param>

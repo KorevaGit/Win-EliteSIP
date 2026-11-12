@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
     Английские подписи. Нейтральный, то есть запасной, каталог — он же тот,
     который видит система с любым языком, кроме русского.
@@ -1379,4 +1379,13 @@
   <data name="SettingsReleaseDevices" xml:space="preserve"><value>Release devices when idle</value></data>
   <data name="SettingsSelfTest" xml:space="preserve"><value>Self-test</value></data>
   <data name="SettingsOutputTestNote" xml:space="preserve"><value>Play a test signal through the selected speakers</value></data>
+  <data name="SettingsToggleTheme" xml:space="preserve"><value>Switch theme</value></data>
+  <data name="SettingsRestoreConnection" xml:space="preserve"><value>Restore connection</value></data>
+  <data name="SettingsRestore" xml:space="preserve"><value>Restore</value></data>
+  <data name="SettingsSignalLevel" xml:space="preserve"><value>Signal level</value></data>
+  <data name="SettingsSystemSpeakers" xml:space="preserve"><value>System speakers</value></data>
+  <data name="SettingsCallDevice" xml:space="preserve"><value>Call device</value></data>
+  <data name="SettingsRussian" xml:space="preserve"><value>Русский</value></data>
+  <data name="SettingsLanguageEffect" xml:space="preserve"><value>Changing language restarts the app and ends the current call</value></data>
+  <data name="SettingsPlayRecording" xml:space="preserve"><value>Play recording</value></data>
 </root>

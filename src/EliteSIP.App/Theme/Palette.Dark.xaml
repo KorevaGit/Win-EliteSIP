@@ -86,4 +86,16 @@
   <Color x:Key="HistoryScrollThumbColor">#40FFFFFF</Color>
   <Color x:Key="HistoryScrollHoverColor">#70FFFFFF</Color>
   <SolidColorBrush x:Key="HistoryFilterHoverBrush" Color="#18FFFFFF" />
-<SolidColorBrush x:Key="HistoryOutgoingBrush" Color="#F2B544" /><SolidColorBrush x:Key="HistoryMissedBrush" Color="#FF4E62" /></ResourceDictionary>
+<SolidColorBrush x:Key="HistoryOutgoingBrush" Color="#F2B544" /><SolidColorBrush x:Key="HistoryMissedBrush" Color="#FF4E62" />  <Color x:Key="SettingsInkColor">#F2F2F2</Color>
+  <Color x:Key="SettingsSubColor">#BCBCBC</Color>
+  <Color x:Key="SettingsSurfaceTopColor">#363636</Color>
+  <Color x:Key="SettingsSurfaceBottomColor">#2B2B2B</Color>
+  <Color x:Key="SettingsLineColor">#13FFFFFF</Color>
+  <Color x:Key="SettingsEdgeColor">#20FFFFFF</Color>
+  <Color x:Key="SettingsFieldColor">#202020</Color>
+  <Color x:Key="SettingsGreenColor">#78CD61</Color>
+  <Color x:Key="SettingsTrackColor">#484848</Color>
+  <Color x:Key="SettingsSwitchColor">#468D35</Color>
+  <Color x:Key="SettingsKnobColor">#EEEEEE</Color>
+  <Color x:Key="SettingsWarningColor">#E6B563</Color>
+</ResourceDictionary>

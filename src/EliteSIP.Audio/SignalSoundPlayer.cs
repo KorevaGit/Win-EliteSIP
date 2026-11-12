@@ -121,6 +121,23 @@ public sealed class SignalSoundPlayer : IDisposable
     /// <summary>Снимает прослушивание, если играет оно.</summary>
     public void StopPreview() => Stop(Signal.Preview);
 
+    /// <summary>Повторно воспроизводит запись самопроверки из памяти.</summary>
+    public void PreviewRecording(short[] samples, int sampleRate, double volume, string? deviceId)
+    {
+        ArgumentNullException.ThrowIfNull(samples);
+        StopPreview();
+        if (samples.Length == 0)
+        {
+            return;
+        }
+        var format = new WaveFormat(sampleRate, 16, 1);
+        var bytes = new byte[samples.Length * sizeof(short)];
+        Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+        var buffer = new BufferedWaveProvider(format, TimeSpan.FromSeconds((double)bytes.Length / format.AverageBytesPerSecond + 0.1)) { ReadFully = false };
+        buffer.AddSamples(bytes, 0, bytes.Length);
+        Start(new VolumeSampleProvider(buffer.ToSampleProvider()) { Volume = (float)Math.Clamp(volume, 0, 1) }, deviceId, Signal.Preview);
+    }
+
     /// <summary>
     /// Стандартный рингтон — файл рядом с программой. Отсутствует — рисованный звонок.
     /// </summary>

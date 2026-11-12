@@ -1,4 +1,3 @@
-<!-- Lucide 0.468.0. License and source: Assets/Lucide/LICENSE and SOURCE.md. -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:theme="clr-namespace:EliteSIP.App.Theme">
   <Canvas x:Key="settings.activity" x:Shared="False" Width="24" Height="24">
     <Path Data="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
@@ -219,6 +218,17 @@
     <Path Data="M12 6h.01" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
     <Ellipse Width="8" Height="8" Canvas.Left="8" Canvas.Top="10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
     <Path Data="M12 14h.01" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+  </Canvas>
+  <Canvas x:Key="settings.sun-moon" x:Shared="False" Width="24" Height="24">
+    <Path Data="M12 8a2.83 2.83 0 0 0 4 4 4 4 0 1 1-4-4" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="M12 2v2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="M12 20v2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="m4.9 4.9 1.4 1.4" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="m17.7 17.7 1.4 1.4" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="M2 12h2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="M20 12h2" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="m6.3 17.7-1.4 1.4" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+    <Path Data="m19.1 4.9-1.4 1.4" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
   </Canvas>
   <Canvas x:Key="settings.undo-2" x:Shared="False" Width="24" Height="24">
     <Path Data="M9 14 4 9l5-5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=theme:Icon}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
