@@ -16,6 +16,124 @@ namespace EliteSIP.Diagnostics.Tests;
 /// </summary>
 public sealed class LogFileTests : IDisposable
 {
+    private static void Queue(LogFile log, Action action)
+    {
+        const System.Reflection.BindingFlags Flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var job = typeof(LogFile).GetNestedType("Job", System.Reflection.BindingFlags.NonPublic)!;
+        typeof(LogFile).GetMethod("Enqueue", Flags)!.Invoke(log,
+            [Activator.CreateInstance(job, [null, action, null])]);
+    }
+
+    [Fact]
+    public async Task Dispose_drains_pending_writes_and_releases_file()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        log.Write("last-before-exit", "info");
+        var stopping = Task.Run(log.Dispose);
+        try
+        {
+            Assert.NotSame(stopping, await Task.WhenAny(stopping, Task.Delay(150)));
+        }
+        finally { release.Set(); }
+        await stopping.WaitAsync(TimeSpan.FromSeconds(3));
+        using var exclusive = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using var reader = new StreamReader(exclusive);
+        Assert.Contains("last-before-exit", await reader.ReadToEndAsync(), StringComparison.Ordinal);
+        log.Write("after-exit", "info");
+        Assert.False(log.Flush(TimeSpan.FromMilliseconds(100)));
+    }
+
+    [Fact]
+    public async Task Dispose_timeout_leaves_file_owned_by_worker_until_it_finishes()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Flush();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var drained = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        log.Write("after-slow-disk", "info");
+        Queue(log, drained.Set);
+        try
+        {
+            await Task.Run(log.Dispose).WaitAsync(TimeSpan.FromSeconds(8));
+            Assert.Throws<IOException>(() =>
+            {
+                using var exclusive = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            });
+        }
+        finally { release.Set(); }
+        Assert.True(drained.Wait(TimeSpan.FromSeconds(3)));
+        // A second Dispose waits for the same worker's finally, without closing its file.
+        log.Dispose();
+        using var file = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using var reader = new StreamReader(file);
+        Assert.Contains("after-slow-disk", await reader.ReadToEndAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Flush_is_bounded_when_disk_queue_is_stalled()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try { Assert.False(log.Flush(TimeSpan.FromMilliseconds(50))); }
+        finally { release.Set(); }
+        Assert.True(log.Flush(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
+    public void Disk_operation_error_does_not_kill_log_queue()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        Queue(log, () => throw new IOException("injected disk error"));
+        log.Write("after-disk-error", "info");
+        Assert.True(log.Flush(TimeSpan.FromSeconds(3)));
+        Assert.Contains("after-disk-error", Read(log.CurrentFilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Failed_worker_does_not_leave_flush_waiting_or_file_open()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Flush();
+        Queue(log, () => throw new NotSupportedException("injected unexpected worker fault"));
+        Assert.False(await Task.Run(() => log.Flush(TimeSpan.FromSeconds(10))).WaitAsync(TimeSpan.FromSeconds(3)));
+        log.Dispose();
+        using var file = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    }
+
+    [Fact]
+    public async Task Support_archive_reports_unconfirmed_flush_instead_of_waiting_forever()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Write("already-written", "info");
+        log.Flush();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        var destination = Path.Combine(_directory, "stalled.zip");
+        try
+        {
+            await Task.Run(() => SupportArchive.MakeFromDirectory(_directory, "probe", destination, log))
+                .WaitAsync(TimeSpan.FromSeconds(8));
+            using var archive = ZipFile.OpenRead(destination);
+            using var reader = new StreamReader(archive.GetEntry("collection.txt")!.Open());
+            Assert.Contains("последние строки могут отсутствовать", await reader.ReadToEndAsync(), StringComparison.Ordinal);
+            Assert.NotNull(archive.GetEntry(LogFile.CurrentFileName));
+        }
+        finally { release.Set(); }
+        log.Flush();
+    }
+
     private readonly string _directory;
 
     public LogFileTests()

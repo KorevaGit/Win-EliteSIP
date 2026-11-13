@@ -85,6 +85,9 @@ public abstract record HistoryOpenOutcome
     public sealed record Unavailable(string Reason) : HistoryOpenOutcome;
 }
 
+/// <summary>Последняя неподтверждённая запись. Не содержит номеров и параметров SQL.</summary>
+public sealed record HistoryWriteFailure(DateTimeOffset At, string Operation, int? SqliteCode, int? ExtendedCode);
+
 /// <summary>
 /// Локальная история звонков: запись по событию, выборка и уборка по сроку.
 ///
@@ -135,6 +138,9 @@ public sealed class CallHistoryStore : IDisposable
         "outcome_code, was_transferred, was_conference, was_distribution";
 
     private readonly Settings _settings;
+    private readonly Action<string>? _diagnostic;
+    private HistoryWriteFailure? _lastWriteFailure;
+    private long _writeFailureCount;
 
     /// <summary>
     /// Очередь работы с диском. Одна на хранилище, и она же — весь порядок: в
@@ -155,10 +161,11 @@ public sealed class CallHistoryStore : IDisposable
 
     private bool _disposed;
 
-    public CallHistoryStore(Settings settings)
+    public CallHistoryStore(Settings settings, Action<string>? diagnostic = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
+        _diagnostic = diagnostic;
 
         // Синхронно и до запуска потока: приложение сразу после создания
         // спрашивает исход, чтобы написать о нём в журнал, а незакрытые записи
@@ -178,6 +185,34 @@ public sealed class CallHistoryStore : IDisposable
     public HistoryOpenOutcome OpenOutcome => _outcome;
 
     public string FilePath => _settings.FilePath;
+
+    public HistoryWriteFailure? LastWriteFailure => Volatile.Read(ref _lastWriteFailure);
+    public long WriteFailureCount => Interlocked.Read(ref _writeFailureCount);
+
+    /// <summary>Безопасная сводка для поддержки; OpenOutcome описывает только запуск.</summary>
+    public string DiagnosticSummary()
+    {
+        var last = LastWriteFailure;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"history: open={OpenOutcome.GetType().Name}; writeFailures={WriteFailureCount}; lastFailure={last?.At:O}; operation={last?.Operation}; sqlite={last?.SqliteCode}; extended={last?.ExtendedCode}");
+    }
+
+    private void ReportWriteFailure(string operation, SqliteException? error = null)
+    {
+        var failure = new HistoryWriteFailure(DateTimeOffset.UtcNow, operation,
+            error?.SqliteErrorCode, error?.SqliteExtendedErrorCode);
+        Volatile.Write(ref _lastWriteFailure, failure);
+        var count = Interlocked.Increment(ref _writeFailureCount);
+        try
+        {
+            _diagnostic?.Invoke(string.Create(CultureInfo.InvariantCulture,
+                $"history: write failed; operation={operation}; sqlite={failure.SqliteCode}; extended={failure.ExtendedCode}; databaseAvailable={_database is not null}; total={count}"));
+        }
+        catch (Exception)
+        {
+            // Отказ внешнего приёмника диагностики не должен ронять поток истории.
+        }
+    }
 
     // MARK: - Очередь
 
@@ -506,6 +541,7 @@ public sealed class CallHistoryStore : IDisposable
         {
             if (_database is not { } database)
             {
+                ReportWriteFailure("INSERT");
                 return;
             }
 
@@ -605,6 +641,10 @@ public sealed class CallHistoryStore : IDisposable
             if (_database is { } database)
             {
                 TryExecute(database, sql, parameters);
+            }
+            else
+            {
+                ReportWriteFailure("UPDATE");
             }
         });
 
@@ -945,7 +985,7 @@ public sealed class CallHistoryStore : IDisposable
     /// Возврат — сколько строк тронуто. Отказы глотаются осознанно и только на
     /// записи: полный диск не повод обрывать разговор, о котором делается запись.
     /// </summary>
-    private static int TryExecute(
+    private int TryExecute(
         SqliteConnection database,
         string sql,
         params (string Name, object? Value)[] parameters)
@@ -955,8 +995,10 @@ public sealed class CallHistoryStore : IDisposable
             using SqliteCommand command = Command(database, sql, parameters);
             return command.ExecuteNonQuery();
         }
-        catch (SqliteException)
+        catch (SqliteException error)
         {
+            // Только глагол операции и коды: SQL и параметры содержат номера.
+            ReportWriteFailure(sql.TrimStart().Split(' ', '\r', '\n')[0], error);
             return 0;
         }
     }

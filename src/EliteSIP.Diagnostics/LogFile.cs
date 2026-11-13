@@ -101,7 +101,7 @@ public sealed class LogFile : IDisposable
             RunQueue,
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
+            TaskScheduler.Default).Unwrap();
 
         Enqueue(new Job(Work: () =>
         {
@@ -161,8 +161,11 @@ public sealed class LogFile : IDisposable
     /// </summary>
     public void Flush()
     {
-        RunOnQueueAndWait(() => _file?.Flush());
+        _ = Flush(TimeSpan.FromSeconds(5));
     }
+
+    /// <summary>Ограниченное ожидание. False — запись не подтверждена в срок.</summary>
+    public bool Flush(TimeSpan timeout) => RunOnQueueAndWait(() => _file?.Flush(), timeout);
 
     /// <summary>Стирает журнал целиком, включая отложенные файлы.</summary>
     public void RemoveAll()
@@ -191,13 +194,15 @@ public sealed class LogFile : IDisposable
     public void Dispose()
     {
         _queue.Writer.TryComplete();
-        _worker.Wait(TimeSpan.FromSeconds(5));
-        CloseFile();
+        // При медленном диске очередь продолжит завершение сама. Закрывать её
+        // файл с вызывающего потока после тайм-аута нельзя.
+        _ = Task.WaitAny([_worker], TimeSpan.FromSeconds(5));
+        if (_worker.IsFaulted) { _ = _worker.Exception; }
     }
 
     // MARK: - Внутреннее, всё на очереди
 
-    private sealed record Job(string? Line = null, Action? Work = null, TaskCompletionSource? Done = null);
+    private sealed record Job(string? Line = null, Action? Work = null, TaskCompletionSource<bool>? Done = null);
 
     private void Enqueue(Job job)
     {
@@ -206,28 +211,42 @@ public sealed class LogFile : IDisposable
         _ = _queue.Writer.TryWrite(job);
     }
 
-    private void RunOnQueueAndWait(Action work)
+    private bool RunOnQueueAndWait(Action work, TimeSpan? timeout = null)
     {
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_queue.Writer.TryWrite(new Job(Work: work, Done: done)))
         {
-            return;
+            return false;
         }
 
-        done.Task.Wait();
+        _ = Task.WaitAny([done.Task, _worker], timeout ?? TimeSpan.FromSeconds(5));
+        return done.Task.IsCompletedSuccessfully && done.Task.Result;
     }
 
     private async Task RunQueue()
     {
-        await foreach (Job job in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
+        try
         {
-            if (job.Line is not null)
+            await foreach (Job job in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
-                Append(job.Line);
+                try
+                {
+                    if (job.Line is not null) { Append(job.Line); }
+                    job.Work?.Invoke();
+                    job.Done?.TrySetResult(true);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+                {
+                    // Недоступный диск не должен останавливать всю очередь.
+                    job.Done?.TrySetResult(false);
+                }
             }
-
-            job.Work?.Invoke();
-            job.Done?.TrySetResult();
+        }
+        finally
+        {
+            _queue.Writer.TryComplete();
+            while (_queue.Reader.TryRead(out var pending)) { pending.Done?.TrySetResult(false); }
+            CloseFile();
         }
     }
 

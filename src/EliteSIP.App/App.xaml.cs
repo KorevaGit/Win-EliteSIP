@@ -219,7 +219,8 @@ public partial class App : Application, IDisposable
         _history = new CallHistoryStore(new CallHistoryStore.Settings(
             Path.Combine(
                 Path.GetDirectoryName(AppSettings.DefaultPath)!,
-                e.Args.Contains("--demo") ? "history-demo.db" : "history.db")));
+                e.Args.Contains("--demo") ? "history-demo.db" : "history.db")), Log);
+        Log(_history.DiagnosticSummary());
         Mark("история");
 
         _panel = new PanelViewModel
@@ -1099,6 +1100,7 @@ public partial class App : Application, IDisposable
                 {
                     ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)),
                     ["windows-crashes.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportCrashEvidence.Capture()),
+                    ["history-status.txt"] = System.Text.Encoding.UTF8.GetBytes(_history?.DiagnosticSummary() ?? "history: not initialized"),
                 }));
 
             model.ReportSupport(Strings.Format("SupportLogsCollected", System.IO.Path.GetFileName(made)), SupportArea.Logs);

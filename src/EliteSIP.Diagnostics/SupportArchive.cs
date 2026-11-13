@@ -28,7 +28,7 @@ public static class SupportArchive
         IReadOnlyDictionary<string, byte[]>? extras = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-        current?.Flush();
+        var flushed = current?.Flush(TimeSpan.FromSeconds(5));
         var paths = new List<string>(current?.Files() ?? []);
         foreach (var folder in new[] { directory, Path.Combine(directory, "Logs") })
         {
@@ -41,7 +41,8 @@ public static class SupportArchive
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
-        return Make(paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), summary, destination, extras);
+        return Make(paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), summary, destination, extras,
+            collectionNote: flushed is false ? "Очередь журнала не подтвердила запись за 5 секунд; последние строки могут отсутствовать." : null);
     }
 
     /// <summary>
@@ -68,7 +69,8 @@ public static class SupportArchive
         IReadOnlyList<string> logs,
         string summary,
         string destination,
-        IReadOnlyDictionary<string, byte[]>? extras = null)
+        IReadOnlyDictionary<string, byte[]>? extras = null,
+        string? collectionNote = null)
     {
         ArgumentNullException.ThrowIfNull(logs);
 
@@ -92,6 +94,7 @@ public static class SupportArchive
             var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "summary.txt", "collection.txt" };
             if (extras is not null) { used.UnionWith(extras.Keys); }
             var report = new StringBuilder();
+            if (collectionNote is not null) { report.AppendLine(collectionNote); }
             var copied = 0;
             foreach (string path in logs)
             {

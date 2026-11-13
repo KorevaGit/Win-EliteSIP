@@ -13,6 +13,54 @@ namespace EliteSIP.CallHistory.Tests;
 /// </summary>
 public sealed class CallHistoryStoreTests : IDisposable
 {
+    [Fact]
+    public void Write_failures_report_codes_without_call_data_and_survive_bad_diagnostic_sink()
+    {
+        var diagnostics = new List<string>();
+        using var store = new CallHistoryStore(MakeSettings(), message =>
+        {
+            diagnostics.Add(message);
+            throw new InvalidOperationException("diagnostic sink failed");
+        });
+        void SetReadOnly(bool enabled)
+        {
+            const System.Reflection.BindingFlags Flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            typeof(CallHistoryStore).GetMethod("Post", Flags)!.Invoke(store, [(Action)(() =>
+            {
+                var database = (SqliteConnection)typeof(CallHistoryStore).GetField("_database", Flags)!.GetValue(store)!;
+                using var command = database.CreateCommand();
+                command.CommandText = enabled ? "PRAGMA query_only=ON;" : "PRAGMA query_only=OFF;";
+                command.ExecuteNonQuery();
+            })]);
+            store.Flush();
+        }
+        SetReadOnly(true);
+        var call = Record(number: "sensitive-number");
+        store.Begin(call);
+        store.MarkAnswered(call.Id);
+        store.Finish(call.Id, "sensitive-reason");
+        store.Flush();
+        Assert.Equal(3, store.WriteFailureCount);
+        Assert.Equal(8, store.LastWriteFailure!.SqliteCode);
+        Assert.Equal("UPDATE", store.LastWriteFailure.Operation);
+        Assert.Empty(store.Records(Scope));
+        Assert.Equal(3, diagnostics.Count);
+        Assert.All(diagnostics, text =>
+        {
+            Assert.Contains("sqlite=8", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("sensitive", text, StringComparison.Ordinal);
+        });
+        Assert.Contains("writeFailures=3", store.DiagnosticSummary(), StringComparison.Ordinal);
+
+        SetReadOnly(false);
+        store.Begin(call);
+        store.MarkAnswered(call.Id);
+        store.Finish(call.Id, "done");
+        store.Flush();
+        Assert.Single(store.Records(Scope));
+        Assert.Equal(3, store.WriteFailureCount);
+    }
+
     /// <summary>
     /// Профиль, которому принадлежат записи почти всех проверок.
     ///
