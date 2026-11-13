@@ -27,6 +27,7 @@ internal sealed class FakeVoiceAudioEngine : IVoiceAudioEngine
 
     /// <summary>Отказать в запуске — так выглядит устройство, занятое монопольно.</summary>
     public Exception? StartFailure { get; set; }
+    public Action? BeforeStart { get; set; }
 
     /// <summary>Порядок вызовов: захват обязан останавливать до перестройки.</summary>
     public List<string> Log { get; } = [];
@@ -48,6 +49,7 @@ internal sealed class FakeVoiceAudioEngine : IVoiceAudioEngine
 
     public void Start()
     {
+        BeforeStart?.Invoke();
         Log.Add("start");
         if (StartFailure is not null)
         {

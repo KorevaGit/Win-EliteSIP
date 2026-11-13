@@ -14,6 +14,66 @@ namespace EliteSIP.Audio.Tests;
 public sealed class VoiceAudioBusTests
 {
     [Fact]
+    public async Task Validated_owner_action_finishes_before_next_owner_can_change_engine()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var requested = new ManualResetEventSlim();
+        using var bus = new VoiceAudioBus(new FakeVoiceAudioEngine(), _ => new FakeVoiceAudioEngine());
+        var first = AudioOwnerToken.New();
+        var next = AudioOwnerToken.New();
+        bus.Claim(first, new VoiceAudioConfiguration(), VoiceAudioHandlers.None);
+        var applying = Task.Run(() => bus.WithEngine(first, _ => { entered.Set(); release.Wait(); }));
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        var claiming = Task.Run(() => { requested.Set(); bus.Claim(next, new VoiceAudioConfiguration(), VoiceAudioHandlers.None); });
+        Assert.True(requested.Wait(TimeSpan.FromSeconds(3)));
+        try { Assert.NotSame(claiming, await Task.WhenAny(claiming, Task.Delay(150))); }
+        finally { release.Set(); }
+        Assert.True(await applying);
+        await claiming.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(bus.IsOwner(next));
+    }
+
+    [Fact]
+    public async Task Zero_retirement_delay_safely_creates_replacement()
+    {
+        var retired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var bus = new VoiceAudioBus(new FakeVoiceAudioEngine(), _ => { retired.TrySetResult(); return new FakeVoiceAudioEngine(); }, retirementDelay: TimeSpan.Zero);
+        var owner = AudioOwnerToken.New();
+        bus.Claim(owner, new VoiceAudioConfiguration(), VoiceAudioHandlers.None);
+        bus.Release(owner);
+        await retired.Task.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public async Task Meter_and_ownership_reads_do_not_wait_for_driver_start()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var engine = new FakeVoiceAudioEngine();
+        using var bus = new VoiceAudioBus(engine, _ => new FakeVoiceAudioEngine());
+        var first = AudioOwnerToken.New();
+        var next = AudioOwnerToken.New();
+        bus.Claim(first, new VoiceAudioConfiguration(), VoiceAudioHandlers.None);
+        engine.BeforeStart = () => { entered.Set(); release.Wait(); };
+        var claiming = Task.Run(() => bus.Claim(next, new VoiceAudioConfiguration(), VoiceAudioHandlers.None));
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try
+        {
+            var snapshot = await Task.Run(() => (bus.IsBusy, bus.IsOwner(first), bus.IsOwner(next), bus.TakeLevels()))
+                .WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(snapshot.Item1);
+            Assert.False(snapshot.Item2);
+            Assert.False(snapshot.Item3);
+            Assert.Null(snapshot.Item4);
+        }
+        finally { release.Set(); }
+        await claiming.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(bus.IsOwner(next));
+        Assert.NotNull(bus.TakeLevels());
+    }
+
+    [Fact]
     public void Захват_запускает_тракт_и_ставит_владельца()
     {
         var (bus, engine, _) = Bus();

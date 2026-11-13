@@ -40,25 +40,28 @@ public sealed class CallHistoryStoreTests : IDisposable
         store.MarkAnswered(call.Id);
         store.Finish(call.Id, "sensitive-reason");
         store.Flush();
-        Assert.Equal(3, store.WriteFailureCount);
+        var failures = store.WriteFailureCount;
+        Assert.True(failures >= 3);
         Assert.Equal(8, store.LastWriteFailure!.SqliteCode);
-        Assert.Equal("UPDATE", store.LastWriteFailure.Operation);
+        Assert.True(store.LastWriteFailure.Operation is "UPDATE" or "REPLAY");
         Assert.Empty(store.Records(Scope));
-        Assert.Equal(3, diagnostics.Count);
+        Assert.Equal(failures, diagnostics.Count);
+        Assert.Contains(diagnostics, text => text.Contains("sqlite=8", StringComparison.Ordinal));
         Assert.All(diagnostics, text =>
         {
-            Assert.Contains("sqlite=8", text, StringComparison.Ordinal);
             Assert.DoesNotContain("sensitive", text, StringComparison.Ordinal);
         });
-        Assert.Contains("writeFailures=3", store.DiagnosticSummary(), StringComparison.Ordinal);
+        Assert.Contains($"writeFailures={failures}", store.DiagnosticSummary(), StringComparison.Ordinal);
+        Assert.True(File.Exists(store.FilePath + ".pending"));
 
         SetReadOnly(false);
+        Assert.Single(store.Records(Scope));
         store.Begin(call);
         store.MarkAnswered(call.Id);
         store.Finish(call.Id, "done");
         store.Flush();
         Assert.Single(store.Records(Scope));
-        Assert.Equal(3, store.WriteFailureCount);
+        Assert.Equal(failures, store.WriteFailureCount);
     }
 
     /// <summary>
@@ -371,7 +374,7 @@ public sealed class CallHistoryStoreTests : IDisposable
         // сразу и на которой обычный клиент падает при первом запросе.
         using (FileStream file = File.OpenWrite(settings.FilePath))
         {
-            file.Write(new byte[512]. Select(_ => (byte)0x41).ToArray());
+            file.Write(new byte[512].Select(_ => (byte)0x41).ToArray());
         }
 
         using CallHistoryStore reopened = new(settings);
