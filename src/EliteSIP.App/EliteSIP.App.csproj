@@ -36,7 +36,8 @@
         приложение начнёт отвечать. Время до готовой панели она не меняет —
         меняет то, что оператор видит, что программа запускается.
     -->
-    <SplashScreen Include="Assets\Splash.png" />
+    <Resource Include="Assets\Splash.png" />
+    <Resource Include="Assets\Splash.Light.png" />
     <Resource Include="Assets\AppIcon\EliteSIP.ico" />
 
     <!--

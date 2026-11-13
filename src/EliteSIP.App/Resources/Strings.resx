@@ -1447,4 +1447,9 @@
   <data name="WizardReady" xml:space="preserve"><value>Everything is set</value></data>
   <data name="WizardSpark" xml:space="preserve"><value>Through Spark</value></data>
   <data name="WizardThemeLive" xml:space="preserve"><value>Theme applies immediately</value></data>
+  <data name="UpdateLater" xml:space="preserve"><value>Later</value></data>
+  <data name="UpdateNoNotes" xml:space="preserve"><value>Release notes were not provided.</value></data>
+  <data name="UpdateOfferHeading" xml:space="preserve"><value>An update is available</value></data>
+  <data name="UpdateReminderShort" xml:space="preserve"><value>Remind in 30 min</value></data>
+  <data name="UpdateWhatsNew" xml:space="preserve"><value>What&apos;s new</value></data>
 </root>

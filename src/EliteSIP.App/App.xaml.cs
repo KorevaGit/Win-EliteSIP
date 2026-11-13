@@ -70,6 +70,8 @@ public partial class App : Application, IDisposable
         _lastMark = now;
     }
 
+    public App() => Shell.StartupSplash.Show();
+
     protected override void OnStartup(StartupEventArgs e)
     {
         _startup.Restart();
@@ -1247,19 +1249,10 @@ public partial class App : Application, IDisposable
         ShowPanel();
         var owner = _panelWindow;
 
-        var answer = Theme.Dialog.Ask(
-            owner,
-            Strings.Format("UpdateOfferTitle", version.ToString(3)),
-            Strings.Get("UpdateOfferBody"),
-            confirmTitle: Strings.Get("UpdateOfferInstall"),
-            visual: new DialogVisual("settings.cloud-download",
-            [
-                new("settings.package", Strings.Get("SettingsUpdateReady")),
-                new("settings.rotate-cw", Strings.Get("SettingsUpdateRestart")),
-                new("settings.server", Strings.Get("SettingsRegistrationEffect")),
-            ]));
-
-        return answer is DialogAnswer.Confirm;
+        var offer = new UpdateOffer(_updates!.Installed, version, _updates.ReadyNotes, _appearance!.IsDark);
+        if (owner is { IsLoaded: true }) { offer.Owner = owner; }
+        else { offer.WindowStartupLocation = WindowStartupLocation.CenterScreen; }
+        return offer.ShowDialog() is true;
     }
 
     /// <summary>

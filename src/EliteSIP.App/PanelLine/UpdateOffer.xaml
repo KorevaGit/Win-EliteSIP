@@ -1,0 +1,71 @@
+<Window x:Class="EliteSIP.App.PanelLine.UpdateOffer" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:theme="clr-namespace:EliteSIP.App.Theme" xmlns:res="clr-namespace:EliteSIP.App.Resources" Title="{res:Loc UpdateOfferHeading}" Width="510" SizeToContent="Height" ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display" Style="{DynamicResource SettingsDialogWindowStyle}">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="../Settings/SettingsDialogResources.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <StackPanel Margin="18,12,18,16">
+    <Grid Margin="0,0,0,15">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="40" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <theme:Icon Glyph="settings.cloud-download" Size="27" VerticalAlignment="Center" HorizontalAlignment="Left" />
+      <StackPanel Grid.Column="1">
+        <TextBlock Text="{res:Loc UpdateOfferHeading}" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding VersionTransition}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0" />
+      </StackPanel>
+    </Grid>
+    <Border Style="{StaticResource SettingsDialogCardStyle}">
+      <StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+          <theme:Icon Glyph="settings.list-checks" Size="17" />
+          <TextBlock Text="{res:Loc UpdateWhatsNew}" FontWeight="SemiBold" Margin="7,0,0,0" />
+        </StackPanel>
+        <ScrollViewer x:Name="NotesScroll" MaxHeight="224" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Style="{StaticResource SettingsContentScrollViewerStyle}">
+          <ItemsControl ItemsSource="{Binding Changes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid Margin="0,0,0,9">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="17" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="•" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Column="1" Text="{Binding}" TextWrapping="Wrap" LineHeight="19" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </StackPanel>
+    </Border>
+    <StackPanel Margin="0,13,0,14">
+      <StackPanel Orientation="Horizontal">
+        <theme:Icon Glyph="settings.check" Size="15" Foreground="{DynamicResource SettingsGreenBrush}" />
+        <TextBlock Text="{res:Loc SettingsUpdateReady}" FontSize="12" Margin="7,0,0,0" />
+      </StackPanel>
+      <Grid Margin="0,7,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="22" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <theme:Icon Glyph="settings.rotate-cw" Size="15" VerticalAlignment="Top" />
+        <TextBlock Grid.Column="1" Text="{res:Loc SettingsUpdateRestart}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+      </Grid>
+    </StackPanel>
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock Text="{res:Loc UpdateReminderShort}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+      <Button Grid.Column="1" Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc UpdateLater}" IsCancel="True" />
+      <Button Grid.Column="3" Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc UpdateOfferInstall}" IsDefault="True" Click="OnInstallClick" Foreground="{DynamicResource SettingsGreenBrush}" />
+    </Grid>
+  </StackPanel>
+</Window>

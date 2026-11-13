@@ -1425,4 +1425,9 @@
   <data name="WizardReady" xml:space="preserve"><value>Всё настроено</value></data>
   <data name="WizardSpark" xml:space="preserve"><value>Через Spark</value></data>
   <data name="WizardThemeLive" xml:space="preserve"><value>Тема применяется сразу</value></data>
+  <data name="UpdateLater" xml:space="preserve"><value>Отложить</value></data>
+  <data name="UpdateNoNotes" xml:space="preserve"><value>Описание изменений для этого выпуска не добавлено.</value></data>
+  <data name="UpdateOfferHeading" xml:space="preserve"><value>Доступно обновление</value></data>
+  <data name="UpdateReminderShort" xml:space="preserve"><value>Напомним через 30 мин</value></data>
+  <data name="UpdateWhatsNew" xml:space="preserve"><value>Что нового</value></data>
 </root>

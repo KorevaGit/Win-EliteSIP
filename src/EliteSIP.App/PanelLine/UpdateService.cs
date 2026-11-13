@@ -126,6 +126,9 @@ internal sealed class UpdateService : IDisposable
     /// <summary>Версия, которая скачана и ждёт решения. <c>null</c> — не ждёт ничего.</summary>
     internal Version? ReadyVersion { get; private set; }
 
+    /// <summary>Описание того же проверенного выпуска, что и ReadyVersion.</summary>
+    internal string ReadyNotes { get; private set; } = string.Empty;
+
     /// <summary>Идёт ли проверка прямо сейчас — для кнопки «Проверить сейчас».</summary>
     internal bool IsChecking => _isChecking;
 
@@ -434,6 +437,7 @@ internal sealed class UpdateService : IDisposable
             // может просто ждать ответа оператора.
             if (ReadyVersion == manifest.Version && _readyInstaller is not null)
             {
+                ReadyNotes = manifest.Notes;
                 LastResult = Resources.Strings.Format("UpdatesReady", manifest.Version.ToString(3));
                 Offer();
                 return;
@@ -467,6 +471,7 @@ internal sealed class UpdateService : IDisposable
 
             _readyInstaller = installer;
             ReadyVersion = manifest.Version;
+            ReadyNotes = manifest.Notes;
             LastResult = Resources.Strings.Format("UpdatesReady", manifest.Version.ToString(3));
 
             _log($"обновление {manifest.Version.ToString(3)} скачано и проверено");
