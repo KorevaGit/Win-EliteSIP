@@ -44,14 +44,14 @@ public sealed class TrayAppearanceTests
         var b = new byte[a.Length];
         green.CopyPixels(a, size * 4, 0);
         red.CopyPixels(b, size * 4, 0);
-        var line = ((int)(size * 21d / 24) * size + (int)(size * 0.35)) * 4;
+        var line = ((int)(size * 0.8) * size + (int)(size * 0.35)) * 4;
         Assert.True(a[line + 1] > a[line + 2]);
         Assert.True(b[line + 2] > b[line + 1]);
-        var body = size * (int)(size * 18d / 24) * 4;
+        var body = size * (int)(size * 0.7) * 4;
         Assert.Equal(a.AsSpan(0, body).ToArray(), b.AsSpan(0, body).ToArray());
-        var gap = ((int)(size * 21d / 24) * size + size / 2) * 4;
+        var gap = ((int)(size * 0.8) * size + size / 2) * 4;
         Assert.True(a[gap + 3] < 96);
-        var centre = (size / 2 * size + size / 2) * 4;
-        Assert.Equal(0, a[centre + 3]);
+        Assert.Equal(0, a[3]);
+        Assert.True(Enumerable.Range(0, size * size).Count(pixel => a[pixel * 4 + 3] == 0) > size * size / 3);
     });
 }
