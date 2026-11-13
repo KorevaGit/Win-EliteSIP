@@ -213,7 +213,7 @@ public sealed class TrayIcon : IDisposable
         // «Показать» и «Скрыть» — один пункт с двумя подписями: два отдельных,
         // из которых один всегда погашен, читаются как поломка.
         Add(Strings.Get(_actions.IsPanelVisible() ? "TrayHidePanel" : "TrayShowPanel"), _actions.TogglePanel, "settings.monitor");
-        Add(Strings.Get("TrayHistory"), _actions.ShowHistory, "settings.activity");
+        Add(Strings.Get("TrayHistory"), _actions.ShowHistory, "clock");
         Add(Strings.Get("TraySettings"), _actions.ShowSettings, "settings.sliders-horizontal");
 
         _menu.Items.Add(new Separator());
