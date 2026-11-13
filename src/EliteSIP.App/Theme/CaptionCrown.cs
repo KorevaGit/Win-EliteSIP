@@ -47,10 +47,11 @@ public sealed class CaptionCrown : Control
         var capital = text.BuildGeometry(new Point()).Bounds;
         var source = (Canvas)Application.Current.FindResource("settings.crown-split");
         var drawing = new DrawingGroup();
+        var pen = new Pen(brush, 2.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         var paths = source.Children.OfType<System.Windows.Shapes.Path>().ToArray();
         for (var index = 0; index < paths.Length; index++)
         {
-            drawing.Children.Add(new GeometryDrawing(null, new Pen(brush, paths[index].StrokeThickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round }, paths[index].Data));
+            drawing.Children.Add(new GeometryDrawing(null, pen, paths[index].Data));
         }
         var bounds = drawing.Bounds;
         // Верх уже выровнен оптически; добавляем высоту вниз до основания E.

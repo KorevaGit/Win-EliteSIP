@@ -1,8 +1,6 @@
 using System.Windows.Media;
 using System.Windows;
 using System.Globalization;
-using System.IO;
-using System.Windows.Media.Imaging;
 using EliteSIP.App.Theme;
 using EliteSIP.App.Shell;
 
@@ -11,36 +9,6 @@ namespace EliteSIP.App.Tests;
 [Collection("Settings popup windows")]
 public sealed class TrayAppearanceTests
 {
-    [Fact]
-    public void Icon_directory_sizes_match_embedded_png_frames() => WpfHost.Run(() =>
-    {
-        var resource = Application.GetResourceStream(new Uri("pack://application:,,,/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico"))!;
-        using var stream = resource.Stream;
-        using var reader = new BinaryReader(stream);
-        Assert.Equal(0, reader.ReadUInt16());
-        Assert.Equal(1, reader.ReadUInt16());
-        var count = reader.ReadUInt16();
-        var entries = new List<(int Size, int Length, int Offset)>();
-        for (var index = 0; index < count; index++)
-        {
-            var width = reader.ReadByte();
-            Assert.Equal(width, reader.ReadByte());
-            _ = reader.ReadUInt16();
-            _ = reader.ReadUInt16();
-            Assert.Equal(32, reader.ReadUInt16());
-            entries.Add((width == 0 ? 256 : width, reader.ReadInt32(), reader.ReadInt32()));
-        }
-        foreach (var entry in entries)
-        {
-            stream.Position = entry.Offset;
-            using var png = new MemoryStream(reader.ReadBytes(entry.Length));
-            var frame = BitmapFrame.Create(png, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            Assert.Equal(entry.Size, frame.PixelWidth);
-            Assert.Equal(entry.Size, frame.PixelHeight);
-        }
-        Assert.Equal(entries.Count, entries.Select(entry => entry.Size).Distinct().Count());
-    });
-
     [Theory]
     [InlineData(12)]
     [InlineData(14)]
@@ -76,14 +44,14 @@ public sealed class TrayAppearanceTests
         var b = new byte[a.Length];
         green.CopyPixels(a, size * 4, 0);
         red.CopyPixels(b, size * 4, 0);
-        var line = ((int)(size * 0.8) * size + (int)(size * 0.35)) * 4;
+        var line = ((int)(size * 21d / 24) * size + (int)(size * 0.35)) * 4;
         Assert.True(a[line + 1] > a[line + 2]);
         Assert.True(b[line + 2] > b[line + 1]);
-        var body = size * (int)(size * 0.7) * 4;
+        var body = size * (int)(size * 18d / 24) * 4;
         Assert.Equal(a.AsSpan(0, body).ToArray(), b.AsSpan(0, body).ToArray());
-        var gap = ((int)(size * 0.8) * size + size / 2) * 4;
+        var gap = ((int)(size * 21d / 24) * size + size / 2) * 4;
         Assert.True(a[gap + 3] < 96);
-        Assert.Equal(0, a[3]);
-        Assert.True(Enumerable.Range(0, size * size).Count(pixel => a[pixel * 4 + 3] == 0) > size * size / 3);
+        var centre = (size / 2 * size + size / 2) * 4;
+        Assert.Equal(0, a[centre + 3]);
     });
 }

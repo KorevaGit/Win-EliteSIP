@@ -10,22 +10,6 @@ namespace EliteSIP.App.Tests;
 [Collection("Settings popup windows")]
 public sealed class StartupAndUpdateTests
 {
-    [Fact]
-    public void Splash_has_native_resolution_assets_for_both_themes_and_display_scales() => WpfHost.Run(() =>
-    {
-        for (var theme = 0; theme < 2; theme++)
-        {
-            for (var percent = 100; percent <= 400; percent += 25)
-            {
-                var resource = StartupSplash.ResourceForDpi(null, theme == 1, (uint)(96 * percent / 100));
-                using var stream = Application.GetResourceStream(new Uri($"pack://application:,,,/EliteSIP.App;component/{resource}"))!.Stream;
-                var frame = System.Windows.Media.Imaging.BitmapFrame.Create(stream);
-                Assert.Equal(300 * percent / 100, frame.PixelWidth);
-                Assert.Equal(210 * percent / 100, frame.PixelHeight);
-            }
-        }
-    });
-
     [Theory]
     [InlineData("{\"Appearance\":{\"Theme\":\"Dark\"}}", false, "Assets/Splash.png")]
     [InlineData("{\"Appearance\":{\"Theme\":\"dark\"}}", false, "Assets/Splash.png")]

@@ -324,12 +324,12 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
-    /// <summary>Корона приложения с двумя полосами статуса.</summary>
+    /// <summary>Та же контурная корона Lucide, что рядом с EliteSIP в «Системе».</summary>
     private static nint Draw(Brush glyph, Brush status)
         => ToIcon(RenderIcon(glyph, status, 32));
 
     internal static RenderTargetBitmap RenderIcon(Brush glyph, Brush status, int size)
-        => Theme.CrownArtwork.Render(glyph, status, size);
+        => Theme.CrownArtwork.Render(glyph, status, size, emphasizeStatus: true);
 
     /// <summary>Собирает ручку значка из растра.</summary>
     ///
