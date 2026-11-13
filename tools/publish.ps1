@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Выкладка собранного выпуска на канал обновлений и проверка того, что
     канал отдаёт.
@@ -62,6 +62,8 @@ param(
     [string] $Version,
 
     [string] $Config = (Join-Path $env:APPDATA 'EliteSIP-release\publish.local.json'),
+
+    [string] $Provisioning = (Join-Path $env:APPDATA 'EliteSIP-release\provisioning.json'),
 
     [switch] $VerifyOnly,
 
@@ -237,7 +239,7 @@ try {
     # Подпись — кодом клиента и ключом из заводской настройки выпуска: тем, что
     # рабочие места получат вместе с установщиком.
     $kit = Join-Path $root 'tools\ReleaseKit\bin\Release\net10.0\releasekit.exe'
-    $factory = Join-Path $env:APPDATA 'EliteSIP-release\provisioning.json'
+    $factory = $Provisioning
     if ((Test-Path $kit) -and (Test-Path $factory)) {
         $keyFile = Join-Path $work 'releases.pub'
         [System.IO.File]::WriteAllText(
