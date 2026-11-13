@@ -1,740 +1,780 @@
-<Window x:Class="EliteSIP.App.Admin.AdministrationWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
-        xmlns:admin="clr-namespace:EliteSIP.App.Admin"
-        xmlns:settings="clr-namespace:EliteSIP.App.Settings"
-        xmlns:res="clr-namespace:EliteSIP.App.Resources"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=admin:AdministrationViewModel}"
-        Title="{res:Loc AdminWindowTitle}"
-        Width="780"
-        Height="457"
-        MinWidth="740"
-        MinHeight="457"
-        WindowStartupLocation="CenterScreen"
-        UseLayoutRounding="True"
-        FontSize="13"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource TextPrimaryBrush}"
-        TextOptions.TextFormattingMode="Display"
-        theme:SettingsLayout.LabelColumn="132"
-        theme:SettingsLayout.RowMaxWidth="560">
-
-  <!--
-      Колонка подписей 132, а не менеджерские 72: здесь «Отображаемое имя» и
-      «Время регистрации», а не «Громкость», и на 72 каждая вторая подпись
-      переносилась бы в две строки.
-
-      Высота 457 — и минимальная, и та, с которой окно открывается: её задаёт
-      сайдбар, все пункты которого обязаны быть видны сразу.
-
-      Ширина считается по содержимому, а не берётся из макета оригинала.
-      Самая широкая строка — подпись 132 плюс зазор 6 плюс управление, которое
-      шире 360 не растёт; шаги стука со своими полями укладываются в тот же
-      предел. Отсюда потолок строки 560, а ширина окна — он же плюс сайдбар 160
-      и отступы полей. Прежние 940 при потолке 760 давали у правого края каждой
-      строки две с лишним сотни точек пустоты: окно читалось не просторным, а
-      сломанным.
-  -->
-
-  <Grid>
+<Window x:Class="EliteSIP.App.Admin.AdministrationWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:theme="clr-namespace:EliteSIP.App.Theme" xmlns:admin="clr-namespace:EliteSIP.App.Admin" xmlns:settings="clr-namespace:EliteSIP.App.Settings" xmlns:res="clr-namespace:EliteSIP.App.Resources" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=admin:AdministrationViewModel}" Title="{res:Loc AdminWindowTitle}" Width="840" Height="540" MinWidth="740" MinHeight="440" WindowStartupLocation="CenterScreen" UseLayoutRounding="True" FontSize="13" Background="{DynamicResource PanelWindowBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" TextOptions.TextFormattingMode="Display" theme:SettingsLayout.LabelColumn="132" theme:SettingsLayout.RowMaxWidth="560">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="GraphiteAdministration.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <Window.Template>
+    <ControlTemplate TargetType="Window">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
+        <DockPanel LastChildFill="True">
+          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
+              <theme:CaptionCrown FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+              <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMinimizeClick" ToolTip="{res:Loc WindowMinimize}" AutomationProperties.Name="{res:Loc WindowMinimize}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="" FontSize="10" />
+              </Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMaximizeClick" ToolTip="{res:Loc WindowMaximize}" AutomationProperties.Name="{res:Loc WindowMaximize}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="10">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                          <Setter Property="Text" Value="" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                      <Setter Property="Text" Value="" />
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Tag="Close" Click="OnCaptionCloseClick" ToolTip="{res:Loc WindowClose}" AutomationProperties.Name="{res:Loc WindowClose}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="" FontSize="10" />
+              </Button>
+            </StackPanel>
+          </Grid>
+          <AdornerDecorator>
+            <ContentPresenter />
+          </AdornerDecorator>
+        </DockPanel>
+      </Border>
+    </ControlTemplate>
+  </Window.Template>
+  <Grid Margin="8">
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="160" />
+      <ColumnDefinition Width="150" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
-
-    <!-- Боковой список разделов. -->
-    <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
-      <ListBox ItemsSource="{Binding Sections}"
-               SelectedValue="{Binding Section}"
-               SelectedValuePath="Kind"
-               Background="Transparent"
-               BorderThickness="0"
-               Margin="6,8,6,8"
-               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-        <ListBox.ItemContainerStyle>
-          <Style TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="8,5" />
-            <Setter Property="Margin" Value="0,1" />
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <Setter Property="Template">
-              <Setter.Value>
-                <ControlTemplate TargetType="ListBoxItem">
-                  <StackPanel>
-                    <!--
-                        Заголовок группы рисует сама строка, которая группу
-                        открывает: у первой группы заголовка нет намеренно, и
-                        отдельного уровня в списке ради этого заводить незачем.
-                    -->
-                    <!--
-                        Привязка через `Content` шаблонной строки, а не прямая:
-                        так она не зависит от того, кому достался DataContext
-                        внутри шаблона строки.
-                    -->
-                    <TextBlock Text="{Binding Content.Group, RelativeSource={RelativeSource TemplatedParent}}"
-                               Margin="8,10,0,2"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextTertiaryBrush}"
-                               Visibility="{Binding Content.Group, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource PresenceToVisibility}}" />
-
-                    <Border x:Name="Row"
-                            Background="Transparent"
-                            CornerRadius="{StaticResource ControlCornerRadius}"
-                            Padding="{TemplateBinding Padding}">
-                      <ContentPresenter />
-                    </Border>
-                  </StackPanel>
-                  <ControlTemplate.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource NavHoverBrush}" />
-                    </Trigger>
-                    <Trigger Property="IsSelected" Value="True">
-                      <!-- Как в настройках: выбранный раздел — текст и значок акцентом. -->
-                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                    </Trigger>
-                  </ControlTemplate.Triggers>
-                </ControlTemplate>
-              </Setter.Value>
-            </Setter>
-          </Style>
-        </ListBox.ItemContainerStyle>
-
+    <DockPanel Margin="0,10,0,0">
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="10,10,0,7">
+        <theme:Icon Glyph="settings.shield-check" Size="15" />
+        <TextBlock Text="{res:Loc AdminAccessOpenSession}" FontSize="11" Margin="6,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+      </StackPanel>
+      <ListBox ItemsSource="{Binding Sections}" SelectedValue="{Binding Section}" SelectedValuePath="Kind" Background="Transparent" BorderThickness="0" Padding="0" ItemContainerStyle="{StaticResource SettingsNavItemStyle}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
         <ListBox.ItemTemplate>
-          <DataTemplate DataType="{x:Type admin:AdminSectionItem}">
+          <DataTemplate>
             <StackPanel Orientation="Horizontal">
-              <theme:Icon Glyph="{Binding Glyph}" Size="16" VerticalAlignment="Center"
-                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
-              <TextBlock Text="{Binding Title}" Margin="12,0,0,0" VerticalAlignment="Center" />
+              <theme:Icon Glyph="{Binding Glyph}" Size="18" />
+              <TextBlock Text="{Binding Title}" Margin="9,0,0,0" VerticalAlignment="Center" />
             </StackPanel>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-    </Border>
-
-    <!-- Открытый раздел и полоса низа. -->
+    </DockPanel>
     <Grid Grid.Column="1">
       <Grid.RowDefinitions>
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
-
-      <ScrollViewer Grid.Row="0"
-                    VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled"
-                    Padding="12,12,12,0">
-        <!--
-            Содержимое тянется на всю ширину, а `RowMaxWidth` держит его
-            предел. Прежде здесь стояла жёсткая ширина с прижимом влево, и
-            окно, у которого под содержимое 756 точек, а содержимого на 560,
-            получало двести точек пустоты у правого края — так, будто у него
-            съехала вёрстка.
-
-            Ряд внутри карточки этим не растягивается: ширину управления в нём
-            держит собственный предел (см. `SettingsRow`), и «Отображаемое имя»
-            не превращается в поле во весь экран.
-        -->
-        <Grid HorizontalAlignment="Stretch"
-              MaxWidth="{Binding (theme:SettingsLayout.RowMaxWidth), RelativeSource={RelativeSource Self}}">
-
-          <!-- Раздел «Аккаунт». -->
+      <ScrollViewer x:Name="AdminScroller" Style="{StaticResource SettingsContentScrollViewerStyle}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="26,0,0,0">
+        <StackPanel x:Name="AdminPages" Margin="0,0,0,4">
+          <Grid Height="43">
+            <TextBlock Text="{Binding SectionTitle}" FontSize="21" FontWeight="SemiBold" Margin="5,0,0,7" VerticalAlignment="Center" />
+          </Grid>
           <StackPanel Visibility="{Binding ShowsAccount, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminAccountTitle}">
-              <theme:SettingsRow Header="{res:Loc AdminAccountUsername}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminAccountDisplayName}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminAccountPassword}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
-                  <PasswordBox x:Name="SipPasswordField"
-                               VerticalContentAlignment="Center"
-                               Background="Transparent"
-                               BorderThickness="0"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               CaretBrush="{DynamicResource TextPrimaryBrush}"
-                               PasswordChanged="OnSipPasswordChanged" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminAccountPasswordSet}"
-                                  Visibility="{Binding HasSipPassword, Converter={StaticResource BoolToVisibility}}" />
-              <theme:SettingsNote Text="{res:Loc AdminAccountPasswordNone}"
-                                  IsAlarming="True"
-                                  Visibility="{Binding HasSipPassword, Converter={StaticResource NotBoolToVisibility}}" />
-              <theme:SettingsNote Text="{res:Loc AdminAccountPasswordNote}" />
+            <theme:SettingsSection Header="" Tag="settings.users-round">
+              <Grid Margin="0,8,0,5">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <theme:Icon Glyph="settings.users-round" Size="14" Margin="0,0,6,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Text="{res:Loc AdminProfiles}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource SettingsButtonStyle}" Height="28" FontSize="12" Click="OnAccountAddClick" ToolTip="{res:Loc AdminProfileSwitchHint}">
+                  <StackPanel Orientation="Horizontal"><theme:Icon Glyph="settings.users-round" Size="14" /><TextBlock Text="{res:Loc AdminProfileAdd}" Margin="6,0,0,0" /></StackPanel>
+                </Button>
+              </Grid>
+              <Grid Margin="0,0,0,5">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="88" />
+                  <ColumnDefinition Width="8" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="8" />
+                  <ColumnDefinition Width="146" />
+                  <ColumnDefinition Width="38" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{res:Loc AdminAccountUsername}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Grid.Column="2" Text="{res:Loc AdminProfileLabel}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Grid.Column="4" Text="{res:Loc AdminAccountPassword}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+              </Grid>
+              <ItemsControl x:Name="AccountItems" ItemsSource="{Binding Accounts}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type admin:AdminAccountDraft}">
+                    <Grid Margin="0,3">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="88" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="146" />
+                        <ColumnDefinition Width="38" />
+                      </Grid.ColumnDefinitions>
+                      <TextBox Tag="AccountNumber" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{res:Loc AdminAccountUsername}" />
+                      <TextBox Grid.Column="2" Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{res:Loc AdminProfileLabel}" />
+                      <TextBox Grid.Column="4" Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{res:Loc AdminAccountPassword}" />
+                      <theme:Icon Grid.Column="5" Glyph="settings.check" Size="15" Foreground="{DynamicResource SettingsGreenBrush}" VerticalAlignment="Center" Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibility}}" ToolTip="{res:Loc AdminActiveProfile}" />
+                      <Button Grid.Column="5" Style="{StaticResource AdminSmallButtonStyle}" Margin="6,0,0,0" Click="OnAccountRemoveClick" Visibility="{Binding IsActive, Converter={StaticResource NotBoolToVisibility}}" ToolTip="{res:Loc AdminProfileRemove}" AutomationProperties.Name="{res:Loc AdminProfileRemove}">
+                        <theme:Icon Glyph="trash" Size="14" />
+                      </Button>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «АТС». -->
-          <StackPanel Visibility="{Binding ShowsPbx, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminPbxTitle}">
+            <theme:SettingsSection Header="{res:Loc AdminPbxTitle}" Tag="settings.server">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                <StackPanel MinWidth="62" Margin="12,0">
+                  <theme:Icon Glyph="settings.monitor" Size="25" HorizontalAlignment="Center" />
+                  <TextBlock Text="{res:Loc SettingsThisPc}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+                <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                <StackPanel MinWidth="62" Margin="12,0">
+                  <theme:Icon Glyph="settings.router" Size="25" HorizontalAlignment="Center" />
+                  <TextBlock Text="{res:Loc WorkPlace}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+                <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                <StackPanel MinWidth="62" Margin="12,0">
+                  <theme:Icon Glyph="settings.server" Size="25" HorizontalAlignment="Center" />
+                  <TextBlock Text="АТС" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+              </StackPanel>
               <theme:SettingsRow Header="{res:Loc AdminPbxOffice}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding OfficeAddress, UpdateSourceTrigger=PropertyChanged}" />
+                <Border Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding OfficeAddress, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
-
               <theme:SettingsRow Header="{res:Loc AdminPbxRemote}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0" Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding RemoteAddress, UpdateSourceTrigger=PropertyChanged}" />
+                <Border Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding RemoteAddress, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminPbxPort}">
-                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminPbxTransport}">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Transport" Content="UDP"
-                               IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Udp}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Transport" Content="TCP"
-                               IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Tcp}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Transport" Content="TLS"
-                               IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Tls}" />
+              <Expander Header="{res:Loc AdminConnectionAdvanced}">
+                <StackPanel>
+                  <theme:SettingsRow Header="{res:Loc AdminPbxPort}">
+                    <Border Height="33" Width="90" HorizontalAlignment="Left" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                      <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
+                    </Border>
+                  </theme:SettingsRow>
+                  <theme:SettingsRow Header="{res:Loc AdminPbxTransport}">
+                    <StackPanel Orientation="Horizontal">
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Transport" Content="UDP" IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Udp}" />
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Transport" Content="TCP" IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Tcp}" />
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Transport" Content="TLS" IsChecked="{Binding Transport, Converter={StaticResource EnumToBool}, ConverterParameter=Tls}" />
+                    </StackPanel>
+                  </theme:SettingsRow>
+                  <theme:SettingsRow Header="{res:Loc AdminPbxExpiry}">
+                    <Border Height="33" Width="90" HorizontalAlignment="Left" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                      <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding RegistrationExpirySeconds, UpdateSourceTrigger=PropertyChanged}" />
+                    </Border>
+                  </theme:SettingsRow>
+                  <theme:SettingsSection Header="{res:Loc AdminPbxTlsTitle}" Visibility="{Binding IsTls, Converter={StaticResource BoolToVisibility}}" Tag="settings.circle">
+                    <theme:SettingsRow Header="{res:Loc AdminPbxTlsFingerprint}">
+                      <Border Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}" IsEnabled="{Binding AcceptsAnyTlsCertificate, Converter={StaticResource NotBool}}" Text="{Binding PinnedCertificateFingerprint, UpdateSourceTrigger=PropertyChanged}" />
+                      </Border>
+                    </theme:SettingsRow>
+                    <theme:SettingsDivider />
+                    <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding AcceptsAnyTlsCertificate}">
+                      <StackPanel Orientation="Horizontal">
+                        <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                        <TextBlock Text="{res:Loc AdminPbxTlsAcceptAny}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </CheckBox>
+                  </theme:SettingsSection>
                 </StackPanel>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminPbxExpiry}">
-                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding RegistrationExpirySeconds, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminPbxAddressNote}" />
+              </Expander>
+              <Expander Header="{res:Loc AdminKnockTitle}">
+                <StackPanel>
+                  <theme:SettingsSection Header="{res:Loc AdminKnockTitle}" Tag="settings.circle">
+                    <ItemsControl ItemsSource="{Binding KnockSteps}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type settings:PortKnockStepSetting}">
+                          <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*" />
+                              <ColumnDefinition Width="6" />
+                              <ColumnDefinition Width="70" />
+                              <ColumnDefinition Width="6" />
+                              <ColumnDefinition Width="50" />
+                              <ColumnDefinition Width="6" />
+                              <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                              <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" Tag="{res:Loc AdminKnockHost}" />
+                            </Border>
+                            <Border Grid.Column="2" Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                              <TextBox Style="{StaticResource PanelTextBoxStyle}" FontFamily="Consolas" Text="{Binding PayloadBytes, UpdateSourceTrigger=PropertyChanged}" Tag="{res:Loc AdminKnockBytes}" />
+                            </Border>
+                            <Border Grid.Column="4" Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                              <TextBox Style="{StaticResource PanelTextBoxStyle}" FontFamily="Consolas" Text="{Binding Count, UpdateSourceTrigger=PropertyChanged}" Tag="{res:Loc AdminKnockCount}" />
+                            </Border>
+                            <Button Grid.Column="6" Style="{StaticResource SettingsButtonStyle}" Padding="6,2" ToolTip="{res:Loc AdminMacroRemove}" Click="OnKnockRemoveClick">
+                              <theme:Icon Glyph="trash" Size="12" />
+                            </Button>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <theme:SettingsIndented>
+                      <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc AdminKnockAdd}" Click="OnKnockAddClick" />
+                    </theme:SettingsIndented>
+                    <theme:SettingsDivider />
+                    <theme:SettingsRow Header="{res:Loc AdminKnockSpacing}">
+                      <Border Height="33" Width="90" HorizontalAlignment="Left" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding KnockSpacingSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                      </Border>
+                    </theme:SettingsRow>
+                    <theme:SettingsRow Header="{res:Loc AdminKnockRepeat}">
+                      <Border Height="33" Width="90" HorizontalAlignment="Left" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                        <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding KnockRepeatIntervalSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                      </Border>
+                    </theme:SettingsRow>
+                    <theme:SettingsNote Text="{Binding KnockSummary}" />
+                  </theme:SettingsSection>
+                </StackPanel>
+              </Expander>
             </theme:SettingsSection>
-
-            <!--
-                Стук по портам. Механизм связности, а не защиты, — и подпись под
-                разделом говорит об этом прямо: назвать его «защищённым
-                подключением» значит однажды объяснять, почему разговор всё-таки
-                прочитали.
-            -->
-            <theme:SettingsSection Header="{res:Loc AdminKnockTitle}">
-              <theme:SettingsNote Text="{res:Loc AdminKnockNote}" />
-
-              <ItemsControl ItemsSource="{Binding KnockSteps}">
+          </StackPanel>
+          <StackPanel Visibility="{Binding ShowsMacros, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminMacrosTitle}" Tag="settings.panels-top-left">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="102" />
+                  <ColumnDefinition Width="128" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{res:Loc AdminMacroTitle}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Grid.Column="1" Text="{res:Loc AdminMacroSequence}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Grid.Column="2" Text="{res:Loc AdminMacroTransferShort}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Macros}">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="{x:Type settings:PortKnockStepSetting}">
-                    <Grid Margin="0,3">
+                  <DataTemplate DataType="{x:Type settings:MacroSetting}">
+                    <Grid Margin="0,4">
                       <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="6" />
-                        <ColumnDefinition Width="70" />
-                        <ColumnDefinition Width="6" />
-                        <ColumnDefinition Width="50" />
-                        <ColumnDefinition Width="6" />
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="86" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="42" />
+                        <ColumnDefinition Width="86" />
                       </Grid.ColumnDefinitions>
-
-                      <Border Grid.Column="0" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                              Background="{DynamicResource ControlHoverBrush}">
-                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                                 Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
-                                 Tag="{res:Loc AdminKnockHost}" />
-                      </Border>
-
-                      <Border Grid.Column="2" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                              Background="{DynamicResource ControlHoverBrush}">
-                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                                 FontFamily="Consolas"
-                                 Text="{Binding PayloadBytes, UpdateSourceTrigger=PropertyChanged}"
-                                 Tag="{res:Loc AdminKnockBytes}" />
-                      </Border>
-
-                      <Border Grid.Column="4" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                              Background="{DynamicResource ControlHoverBrush}">
-                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                                 FontFamily="Consolas"
-                                 Text="{Binding Count, UpdateSourceTrigger=PropertyChanged}"
-                                 Tag="{res:Loc AdminKnockCount}" />
-                      </Border>
-
-                      <Button Grid.Column="6"
-                              Style="{StaticResource SettingsButtonStyle}"
-                              Padding="6,2"
-                              ToolTip="{res:Loc AdminMacroRemove}"
-                              Click="OnKnockRemoveClick">
-                        <theme:Icon Glyph="trash" Size="12" />
-                      </Button>
+                      <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{res:Loc AdminMacroTitle}" />
+                      <TextBox Grid.Column="2" Text="{Binding Sequence, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{res:Loc AdminMacroSequence}" />
+                      <CheckBox Grid.Column="4" Style="{StaticResource AdminInlineSwitchStyle}" IsChecked="{Binding TransfersCall}" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="{res:Loc AdminMacroTransfers}" AutomationProperties.Name="{res:Loc AdminMacroTransfers}" />
+                      <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Style="{StaticResource AdminSmallButtonStyle}" Click="OnMacroUpClick" Content="↑" ToolTip="{res:Loc AdminMacroUp}" />
+                        <Button Style="{StaticResource AdminSmallButtonStyle}" Margin="3,0" Click="OnMacroDownClick" Content="↓" ToolTip="{res:Loc AdminMacroDown}" />
+                        <Button Style="{StaticResource AdminSmallButtonStyle}" Click="OnMacroRemoveClick" ToolTip="{res:Loc AdminMacroRemove}">
+                          <theme:Icon Glyph="trash" Size="13" />
+                        </Button>
+                      </StackPanel>
                     </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-
               <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AdminKnockAdd}"
-                        Click="OnKnockAddClick" />
+                <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc AdminMacroAdd}" Click="OnMacroAddClick" />
               </theme:SettingsIndented>
-
-              <theme:SettingsDivider />
-
-              <theme:SettingsRow Header="{res:Loc AdminKnockSpacing}">
-                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding KnockSpacingSeconds, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminKnockRepeat}">
-                <Border Height="24" Width="90" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           Text="{Binding KnockRepeatIntervalSeconds, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{Binding KnockSummary}" />
+              <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                <theme:Icon Glyph="settings.arrow-right" Size="14" VerticalAlignment="Center" />
+                <TextBlock Text="{res:Loc AdminTransferEffect}" FontSize="11" Margin="6,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+              </StackPanel>
             </theme:SettingsSection>
-
-            <!--
-                Проверка сертификата. Видна только при выбранном TLS: на UDP и
-                TCP она не значит ничего, а показанная всегда — приглашает
-                включить «принимать любой» там, где шифрования нет вовсе.
-            -->
-            <theme:SettingsSection Header="{res:Loc AdminPbxTlsTitle}"
-                                   Visibility="{Binding IsTls, Converter={StaticResource BoolToVisibility}}">
-              <theme:SettingsRow Header="{res:Loc AdminPbxTlsFingerprint}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           IsEnabled="{Binding AcceptsAnyTlsCertificate, Converter={StaticResource NotBool}}"
-                           Text="{Binding PinnedCertificateFingerprint, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
+            <theme:SettingsSection Header="{res:Loc AdminMacroLayout}" Tag="settings.panels-top-left">
+              <theme:SettingsRow Header="{res:Loc AdminMacroColumns}">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Columns" Content="2" IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=2}" />
+                  <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Columns" Content="3" IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=3}" />
+                  <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Columns" Content="4" IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=4}" />
+                </StackPanel>
               </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminPbxTlsFingerprintNote}" />
-
-              <theme:SettingsDivider />
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminPbxTlsAcceptAny}"
-                        IsChecked="{Binding AcceptsAnyTlsCertificate}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminPbxTlsAcceptAnyNote}"
-                                  IsAlarming="True"
-                                  Visibility="{Binding AcceptsAnyTlsCertificate, Converter={StaticResource BoolToVisibility}}" />
+              <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding MacroHeightIsManual, Converter={StaticResource NotBool}}">
+                <StackPanel Orientation="Horizontal">
+                  <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                  <TextBlock Text="{res:Loc AdminMacroHeightAuto}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+              </CheckBox>
+              <theme:SettingsRow Header="{res:Loc AdminMacroHeight}" IsEnabled="{Binding MacroHeightIsManual}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <Slider Grid.Column="0" Minimum="44" Maximum="96" IsSnapToTickEnabled="True" TickFrequency="2" VerticalAlignment="Center" Value="{Binding MacroHeight}" />
+                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding MacroHeight}" />
+                </Grid>
+              </theme:SettingsRow>
+              <ItemsControl ItemsSource="{Binding Macros}" Margin="-3,4,-3,6">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <UniformGrid Columns="{Binding MacroColumns}" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="3" Padding="8" CornerRadius="8" Background="{DynamicResource SettingsLineBrush}">
+                      <Border.Style>
+                        <Style TargetType="Border">
+                          <Setter Property="MinHeight" Value="56" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.MacroHeightIsManual, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
+                              <Setter Property="MinHeight" Value="{Binding DataContext.MacroHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Border.Style>
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextAlignment="Center" />
+                        <TextBlock Text="{Binding Sequence}" FontSize="11" TextAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AdminPbxFeatureTitle}">
+            <theme:SettingsSection Header="{res:Loc AdminPbxFeatureTitle}" Tag="settings.headset">
               <theme:SettingsRow Header="{res:Loc AdminPbxTransfer}">
-                <Border Height="24" Width="120" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           FontFamily="Consolas"
-                           Text="{Binding TransferFeatureCode, UpdateSourceTrigger=PropertyChanged}" />
+                <Border Height="33" Width="120" HorizontalAlignment="Left" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}" FontFamily="Consolas" Text="{Binding TransferFeatureCode, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
-
               <theme:SettingsRow Header="{res:Loc AdminPbxConference}">
-                <Border Height="24" Width="120" HorizontalAlignment="Left" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           FontFamily="Consolas"
-                           Text="{Binding ConferenceFeatureCode, UpdateSourceTrigger=PropertyChanged}" />
+                <Border Height="33" Width="120" HorizontalAlignment="Left" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                  <TextBox Style="{StaticResource PanelTextBoxStyle}" FontFamily="Consolas" Text="{Binding ConferenceFeatureCode, UpdateSourceTrigger=PropertyChanged}" />
                 </Border>
               </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminPbxFeatureNote}" />
             </theme:SettingsSection>
           </StackPanel>
-
-          <!-- Раздел «Очереди». -->
-          <StackPanel Visibility="{Binding ShowsQueues, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminQueuesTitle}">
-              <theme:SettingsNote Text="{res:Loc AdminQueuesNote}" />
-
-              <ItemsControl ItemsSource="{Binding Queues}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="{x:Type settings:QueueSetting}">
-                    <Grid Margin="0,3">
-                      <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="110" />
-                        <ColumnDefinition Width="6" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="6" />
-                        <ColumnDefinition Width="Auto" />
-                      </Grid.ColumnDefinitions>
-
-                      <Border Grid.Column="0" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                              Background="{DynamicResource ControlHoverBrush}">
-                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                                 FontFamily="Consolas"
-                                 Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
-                                 Tag="{res:Loc AdminQueueNumber}" />
-                      </Border>
-
-                      <Border Grid.Column="2" Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                              Background="{DynamicResource ControlHoverBrush}">
-                        <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                                 Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
-                                 Tag="{res:Loc AdminQueueTitle}" />
-                      </Border>
-
-                      <Button Grid.Column="4"
-                              Style="{StaticResource SettingsButtonStyle}"
-                              Padding="6,2"
-                              ToolTip="{res:Loc AdminMacroRemove}"
-                              Click="OnQueueRemoveClick">
-                        <theme:Icon Glyph="trash" Size="12" />
-                      </Button>
-                    </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AdminQueueAdd}"
-                        Click="OnQueueAddClick" />
-              </theme:SettingsIndented>
-            </theme:SettingsSection>
-          </StackPanel>
-
-
-          <!-- Раздел «Входящие»: защита приёма вызова (W9). -->
           <StackPanel Visibility="{Binding ShowsIncoming, Converter={StaticResource BoolToVisibility}}">
-
-            <theme:SettingsSection Header="{res:Loc AdminGuardTitle}">
-              <!--
-                  Выключатель не запирается, даже когда значение приезжает из
-                  панели, — решение оригинала. Замок защищал ничего: правка
-                  любого управляемого поля живёт до следующей выкладки
-                  предустановки, а «Управление» затем и существует, чтобы
-                  перенастроить место руками. Сказать правду про судьбу правки
-                  при этом надо — её говорит подпись под переключателем.
-              -->
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminGuardEnabled}"
-                        IsChecked="{Binding Guard.IsEnabled}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardManagedNote}"
-                                  Visibility="{Binding Guard.IsServerManaged, Converter={StaticResource BoolToVisibility}}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardOffNote}"
-                                  IsAlarming="True"
-                                  Visibility="{Binding Guard.IsGuardOff, Converter={StaticResource BoolToVisibility}}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardWhyNote}" />
-            </theme:SettingsSection>
-
-            <!--
-                Маска мобильных (с 0.1.73). Не под выключателем защиты: номер
-                прячется от того, кто смотрит на экран, а защита — от того, кто
-                жмёт за человека; одно с другим не связано.
-            -->
-            <theme:SettingsSection Header="{res:Loc AdminNumbersTitle}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminMasksMobileNumbers}"
-                        IsChecked="{Binding Guard.MasksMobileNumbers}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardManagedNote}"
-                                  Visibility="{Binding Guard.IsServerManaged, Converter={StaticResource BoolToVisibility}}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminMasksMobileNumbersNote}" />
-            </theme:SettingsSection>
-
-            <!-- Автоподъём (с 0.1.61, как на macOS). -->
-            <theme:SettingsSection Header="{res:Loc AdminAutoAnswerTitle}">
-              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
-                           Content="{res:Loc AdminAutoAnswerOff}"
-                           IsChecked="{Binding Guard.AutoAnswerOff}" />
-              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
-                           Content="{res:Loc AdminAutoAnswerAlways}"
-                           IsChecked="{Binding Guard.AutoAnswerAlways}" />
-              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
-                           Content="{res:Loc AdminAutoAnswerHeader}"
-                           IsChecked="{Binding Guard.AutoAnswerHeader}" />
-              <RadioButton Style="{StaticResource SegmentStyle}" GroupName="AutoAnswer"
-                           Content="{res:Loc AdminAutoAnswerList}"
-                           IsChecked="{Binding Guard.AutoAnswerList}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminAutoAnswerNumbers}"
-                                 Margin="0,8,0,0"
-                                 Visibility="{Binding Guard.AutoAnswerList, Converter={StaticResource BoolToVisibility}}">
-                <Border CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,4"
-                        Background="{DynamicResource ControlBackgroundBrush}">
-                  <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                           MinHeight="60"
-                           AcceptsReturn="True"
-                           TextWrapping="Wrap"
-                           VerticalContentAlignment="Top"
-                           Text="{Binding Guard.AutoAnswerNumbersText, UpdateSourceTrigger=LostFocus}" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminAutoAnswerNote}" />
-              <theme:SettingsNote Text="{res:Loc AdminAutoAnswerAlwaysNote}"
-                                  IsAlarming="True"
-                                  Visibility="{Binding Guard.AutoAnswerAlways, Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AdminGuardRandomTitle}"
-                                   IsEnabled="{Binding Guard.IsEnabled}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminGuardRandomPosition}"
-                        IsChecked="{Binding Guard.IsRandomPositionEnabled}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminGuardTuning}">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="RandomTuning"
-                               Content="{res:Loc AdminGuardTuningAuto}"
-                               IsChecked="{Binding Guard.TunesRandomnessAutomatically}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="RandomTuning"
-                               Content="{res:Loc AdminGuardTuningManual}"
-                               IsChecked="{Binding Guard.TunesRandomnessByHand}" />
+            <Border Style="{StaticResource AdminTabsStyle}">
+              <StackPanel Orientation="Horizontal">
+                <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="IncomingPage" Content="{res:Loc AdminQueuesTitle}" IsChecked="{Binding IncomingPage, Converter={StaticResource EnumToBool}, ConverterParameter=Queues}" />
+                <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="IncomingPage" Content="{res:Loc AdminReceive}" IsChecked="{Binding IncomingPage, Converter={StaticResource EnumToBool}, ConverterParameter=Answer}" />
+                <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="IncomingPage" Content="{res:Loc AdminGuardTitle}" IsChecked="{Binding IncomingPage, Converter={StaticResource EnumToBool}, ConverterParameter=Guard}" />
+              </StackPanel>
+            </Border>
+            <StackPanel Visibility="{Binding ShowsQueues, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AdminQueuesTitle}" Tag="settings.users-round">
+                <ItemsControl ItemsSource="{Binding Queues}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type settings:QueueSetting}">
+                      <Grid Margin="0,3">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="110" />
+                          <ColumnDefinition Width="6" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="6" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                          <TextBox Style="{StaticResource PanelTextBoxStyle}" FontFamily="Consolas" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" Tag="{res:Loc AdminQueueNumber}" />
+                        </Border>
+                        <Border Grid.Column="2" Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                          <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Tag="{res:Loc AdminQueueTitle}" />
+                        </Border>
+                        <Button Grid.Column="4" Style="{StaticResource SettingsButtonStyle}" Padding="6,2" ToolTip="{res:Loc AdminMacroRemove}" Click="OnQueueRemoveClick">
+                          <theme:Icon Glyph="trash" Size="12" />
+                        </Button>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <theme:SettingsIndented>
+                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc AdminQueueAdd}" Click="OnQueueAddClick" />
+                </theme:SettingsIndented>
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsIncomingAnswer, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AdminAutoAnswerTitle}" Tag="settings.headset">
+                <theme:SettingsRow Header="{res:Loc AdminAutoAnswerTitle}">
+                  <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding Guard.AutoAnswer, Mode=TwoWay}">
+                    <ComboBoxItem Tag="off" Content="{res:Loc AdminAnswerOperatorShort}" />
+                    <ComboBoxItem Tag="header" Content="{res:Loc AdminAnswerHeaderShort}" />
+                    <ComboBoxItem Tag="list" Content="{res:Loc AdminAnswerListShort}" />
+                    <ComboBoxItem Tag="always" Content="{res:Loc AdminAnswerAlwaysShort}" />
+                  </ComboBox>
+                </theme:SettingsRow>
+                <theme:SettingsRow Header="{res:Loc AdminAutoAnswerNumbers}" Margin="0,8,0,0" Visibility="{Binding Guard.AutoAnswerList, Converter={StaticResource BoolToVisibility}}">
+                  <Border CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,4" Background="{DynamicResource ControlBackgroundBrush}">
+                    <TextBox Style="{StaticResource PanelTextBoxStyle}" MinHeight="60" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" Text="{Binding Guard.AutoAnswerNumbersText, UpdateSourceTrigger=LostFocus}" />
+                  </Border>
+                </theme:SettingsRow>
+                <theme:SettingsNote Text="{res:Loc AdminAutoAnswerAlwaysNote}" IsAlarming="True" Visibility="{Binding Guard.AutoAnswerAlways, Converter={StaticResource BoolToVisibility}}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.headset" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminSectionIncoming}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.users-round" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding AutoAnswerPreview}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.headset" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminConversation}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
                 </StackPanel>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminGuardMinimumTravel}"
-                                 IsEnabled="{Binding Guard.RandomnessSlidersAreEditable}">
-                <Grid>
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="{res:Loc AdminNumbersTitle}" Tag="settings.headset">
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Guard.MasksMobileNumbers}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminMasksMobileNumbers}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <TextBlock Text="{Binding MobilePreview}" Margin="25,4,0,6" FontSize="15" FontWeight="SemiBold" />
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsIncomingGuard, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AdminGuardTitle}" Tag="settings.shield-check">
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Guard.IsEnabled}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminGuardEnabled}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <theme:SettingsNote Text="{res:Loc AdminGuardOffShort}" IsAlarming="True" Visibility="{Binding Guard.IsGuardOff, Converter={StaticResource BoolToVisibility}}" />
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Guard.IsRandomPositionEnabled}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminGuardRandomPosition}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <Expander Header="{res:Loc AdminGuardRandomTitle}">
+                  <StackPanel>
+                    <theme:SettingsRow Header="{res:Loc AdminGuardTuning}">
+                      <StackPanel Orientation="Horizontal">
+                        <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="RandomTuning" Content="{res:Loc AdminGuardTuningAuto}" IsChecked="{Binding Guard.TunesRandomnessAutomatically}" />
+                        <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="RandomTuning" Content="{res:Loc AdminGuardTuningManual}" IsChecked="{Binding Guard.TunesRandomnessByHand}" />
+                      </StackPanel>
+                    </theme:SettingsRow>
+                    <theme:SettingsRow Header="{res:Loc AdminGuardMinimumTravel}" IsEnabled="{Binding Guard.RandomnessSlidersAreEditable}">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="0" Maximum="600" IsSnapToTickEnabled="True" TickFrequency="25" VerticalAlignment="Center" Value="{Binding Guard.MinimumTravel}" />
+                        <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Guard.MinimumTravel, StringFormat={}{0:F0}}" />
+                      </Grid>
+                    </theme:SettingsRow>
+                    <theme:SettingsRow Header="{res:Loc AdminGuardScreenMargin}" IsEnabled="{Binding Guard.RandomnessSlidersAreEditable}">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="0" Maximum="200" IsSnapToTickEnabled="True" TickFrequency="8" VerticalAlignment="Center" Value="{Binding Guard.ScreenMargin}" />
+                        <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Guard.ScreenMargin, StringFormat={}{0:F0}}" />
+                      </Grid>
+                    </theme:SettingsRow>
+                  </StackPanel>
+                </Expander>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Guard.AsksForDigit}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminGuardDigitEnabled}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <Expander Header="{res:Loc AdminGuardDigitTitle}">
+                  <StackPanel>
+                    <theme:SettingsRow Header="{res:Loc AdminGuardTargets}" IsEnabled="{Binding Guard.AsksForDigit}">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="2" Maximum="5" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Value="{Binding Guard.TargetCount}" />
+                        <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Guard.TargetCount}" />
+                      </Grid>
+                    </theme:SettingsRow>
+                  </StackPanel>
+                </Expander>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Guard.RequiresCursorMovement}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminGuardCursor}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <Expander Header="{res:Loc AdminGuardLivenessTitle}">
+                  <StackPanel>
+                    <theme:SettingsRow Header="{res:Loc AdminGuardTuning}">
+                      <StackPanel Orientation="Horizontal">
+                        <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="LivenessTuning" Content="{res:Loc AdminGuardTuningAuto}" IsChecked="{Binding Guard.TunesLivenessAutomatically}" />
+                        <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="LivenessTuning" Content="{res:Loc AdminGuardTuningManual}" IsChecked="{Binding Guard.TunesLivenessByHand}" />
+                      </StackPanel>
+                    </theme:SettingsRow>
+                    <theme:SettingsRow Header="{res:Loc AdminGuardCursorTravel}" IsEnabled="{Binding Guard.LivenessSlidersAreEditable}">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="0" Maximum="200" IsSnapToTickEnabled="True" TickFrequency="10" VerticalAlignment="Center" Value="{Binding Guard.RequiredCursorTravel}" />
+                        <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Guard.RequiredCursorTravel, StringFormat={}{0:F0}}" />
+                      </Grid>
+                    </theme:SettingsRow>
+                    <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Guard.RejectsSyntheticEvents}">
+                      <StackPanel Orientation="Horizontal">
+                        <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                        <TextBlock Text="{res:Loc AdminGuardSynthetic}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </CheckBox>
+                  </StackPanel>
+                </Expander>
+              </theme:SettingsSection>
+            </StackPanel>
+            <theme:SettingsSection Header="{res:Loc AdminGuardCheckTitle}" Tag="settings.activity">
+              <Border Background="{DynamicResource SettingsFieldBrush}" CornerRadius="9" Padding="12" Margin="0,3,0,10">
+                <Grid MinHeight="82">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0" Minimum="0" Maximum="600"
-                          IsSnapToTickEnabled="True" TickFrequency="25"
-                          VerticalAlignment="Center"
-                          Value="{Binding Guard.MinimumTravel}" />
-                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
-                             TextAlignment="Right" VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding Guard.MinimumTravel, StringFormat={}{0:F0}}" />
-                </Grid>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminGuardScreenMargin}"
-                                 IsEnabled="{Binding Guard.RandomnessSlidersAreEditable}">
-                <Grid>
-                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0" Minimum="0" Maximum="200"
-                          IsSnapToTickEnabled="True" TickFrequency="8"
-                          VerticalAlignment="Center"
-                          Value="{Binding Guard.ScreenMargin}" />
-                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
-                             TextAlignment="Right" VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding Guard.ScreenMargin, StringFormat={}{0:F0}}" />
+                  <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <theme:Icon Grid.RowSpan="2" Glyph="settings.headset" Size="28" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding IncomingPreviewTitle}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding MobilePreview}" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </Grid>
+                  <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="{res:Loc AdminReceivePreview}" FontSize="11" Margin="0,0,0,7" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <StackPanel>
+                      <ItemsControl ItemsSource="{Binding PreviewDigits}" Visibility="{Binding ShowsDigitExample, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <UniformGrid Columns="3" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border CornerRadius="7" Background="{DynamicResource SettingsLineBrush}" Padding="8" Margin="0,0,4,4">
+                              <TextBlock Text="{Binding}" HorizontalAlignment="Center" />
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <UniformGrid Columns="2" Visibility="{Binding ShowsAnswerExample, Converter={StaticResource BoolToVisibility}}">
+                        <Border CornerRadius="7" Background="{DynamicResource AnswerFillBrush}" Padding="7" Margin="0,0,4,0">
+                          <TextBlock Text="{res:Loc IncomingAnswer}" Foreground="White" HorizontalAlignment="Center" />
+                        </Border>
+                        <Border CornerRadius="7" Background="{DynamicResource DeclineFillBrush}" Padding="7">
+                          <TextBlock Text="{res:Loc IncomingDecline}" Foreground="White" HorizontalAlignment="Center" />
+                        </Border>
+                      </UniformGrid>
+                      <StackPanel Visibility="{Binding ShowsAutomaticExample, Converter={StaticResource BoolToVisibility}}">
+                        <theme:Icon Glyph="settings.headset" Size="25" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding AutoAnswerPreview}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,5,0,0" />
+                      </StackPanel>
+                    </StackPanel>
+                  </StackPanel>
                 </Grid>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardRandomNote}" />
-              <theme:SettingsNote Text="{res:Loc AdminGuardTuningNote}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AdminGuardDigitTitle}"
-                                   IsEnabled="{Binding Guard.IsEnabled}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminGuardDigitEnabled}"
-                        IsChecked="{Binding Guard.AsksForDigit}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminGuardTargets}"
-                                 IsEnabled="{Binding Guard.AsksForDigit}">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0" Minimum="2" Maximum="5"
-                          IsSnapToTickEnabled="True" TickFrequency="1"
-                          VerticalAlignment="Center"
-                          Value="{Binding Guard.TargetCount}" />
-                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
-                             TextAlignment="Right" VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding Guard.TargetCount}" />
-                </Grid>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardDigitNote}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AdminGuardLivenessTitle}"
-                                   IsEnabled="{Binding Guard.IsEnabled}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminGuardCursor}"
-                        IsChecked="{Binding Guard.RequiresCursorMovement}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminGuardTuning}">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="LivenessTuning"
-                               Content="{res:Loc AdminGuardTuningAuto}"
-                               IsChecked="{Binding Guard.TunesLivenessAutomatically}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="LivenessTuning"
-                               Content="{res:Loc AdminGuardTuningManual}"
-                               IsChecked="{Binding Guard.TunesLivenessByHand}" />
-                </StackPanel>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminGuardCursorTravel}"
-                                 IsEnabled="{Binding Guard.LivenessSlidersAreEditable}">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0" Minimum="0" Maximum="200"
-                          IsSnapToTickEnabled="True" TickFrequency="10"
-                          VerticalAlignment="Center"
-                          Value="{Binding Guard.RequiredCursorTravel}" />
-                  <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34"
-                             TextAlignment="Right" VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding Guard.RequiredCursorTravel, StringFormat={}{0:F0}}" />
-                </Grid>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardCursorNote}" />
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminGuardSynthetic}"
-                        IsChecked="{Binding Guard.RejectsSyntheticEvents}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardSyntheticNote}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AdminGuardCheckTitle}">
+              </Border>
               <theme:SettingsIndented>
-                <StackPanel Orientation="Horizontal">
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Content="{res:Loc AdminGuardCheckShow}"
-                          Command="{Binding PreviewDistribution}" />
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Margin="6,0,0,0"
-                          Content="{res:Loc AdminGuardCheckDeal}"
-                          Command="{Binding PreviewDeal}" />
-                </StackPanel>
+                <WrapPanel>
+                  <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminGuardCheckShow}" Command="{Binding PreviewDistribution}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}" Margin="6,0,0,0" Content="{res:Loc AdminGuardCheckDeal}" Command="{Binding PreviewDeal}" />
+                </WrapPanel>
               </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc AdminGuardCheckNote}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminGuardLastCall}"
-                                 Visibility="{Binding LastGuardReport, Converter={StaticResource PresenceToVisibility}}">
-                <TextBlock Text="{Binding LastGuardReport}"
-                           TextWrapping="Wrap"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
+              <theme:SettingsRow Header="{res:Loc AdminGuardLastCall}" Visibility="{Binding LastGuardReport, Converter={StaticResource PresenceToVisibility}}">
+                <TextBlock Text="{Binding LastGuardReport}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
             </theme:SettingsSection>
           </StackPanel>
-          <!-- Раздел «Обслуживание». -->
-          <StackPanel Visibility="{Binding ShowsMaintenance, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminMaintenanceTitle}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminMaintenanceLog}"
-                        IsChecked="{Binding LogToFile}" />
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminMaintenanceTrace}"
-                        IsEnabled="{Binding LogToFile}"
-                        IsChecked="{Binding LogsSipTrace}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminMaintenanceNote}" />
-
-              <theme:SettingsDivider />
-
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AdminDiagnosticsOpenFolder}"
-                        Click="OnOpenFolderClick" />
-              </theme:SettingsIndented>
-            </theme:SettingsSection>
-
-            <!--
-                Сброс — своей плашкой, а не строкой в «Обслуживании» выше.
-                Довод из оригинала: иначе в одном ряду оказываются «Открыть
-                папку» и «Стереть машину», и человек ищет первое, глядя на
-                второе.
-            -->
-            <theme:SettingsSection Header="{res:Loc AdminResetTitle}">
-              <theme:SettingsIndented>
-                <StackPanel Orientation="Horizontal">
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Content="{res:Loc AdminResetButton}"
-                          IsEnabled="{Binding CanResetMachine}"
-                          Click="OnResetMachineClick" />
-
-                  <!--
-                      Подсказка видна ровно тогда, когда кнопка погашена.
-                      Триггером, а не конвертером: встроенный
-                      `BooleanToVisibilityConverter` инверсии не умеет, а
-                      заводить свой ради одной строки незачем.
-                  -->
-                  <TextBlock Text="{res:Loc AdminResetInCall}"
-                             Margin="8,0,0,0"
-                             FontSize="12"
-                             VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}">
-                    <TextBlock.Style>
-                      <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                          <DataTrigger Binding="{Binding CanResetMachine}" Value="False">
-                            <Setter Property="Visibility" Value="Visible" />
-                          </DataTrigger>
-                        </Style.Triggers>
-                      </Style>
-                    </TextBlock.Style>
-                  </TextBlock>
+          <StackPanel Visibility="{Binding ShowsSystem, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource AdminTabsStyle}">
+              <StackPanel Orientation="Horizontal">
+                <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="SystemPage" Content="{res:Loc AdminData}" IsChecked="{Binding SystemPage, Converter={StaticResource EnumToBool}, ConverterParameter=Data}" />
+                <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="SystemPage" Content="{res:Loc AdminAccessShort}" IsChecked="{Binding SystemPage, Converter={StaticResource EnumToBool}, ConverterParameter=Access}" />
+                <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="SystemPage" Content="{res:Loc AdminUpdateShort}" IsChecked="{Binding SystemPage, Converter={StaticResource EnumToBool}, ConverterParameter=Updates}" />
+                <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="SystemPage" Content="{res:Loc AdminResetTitle}" IsChecked="{Binding SystemPage, Converter={StaticResource EnumToBool}, ConverterParameter=Reset}" />
+              </StackPanel>
+            </Border>
+            <StackPanel Visibility="{Binding ShowsHistory, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AdminHistoryTitle}" Tag="settings.activity">
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding HistoryIsEnabled}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminHistoryEnabled}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <theme:SettingsRow Header="{res:Loc AdminHistoryAge}" IsEnabled="{Binding HistoryIsEnabled}">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0" Minimum="1" Maximum="365" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Value="{Binding HistoryAgeInDays}" />
+                    <TextBlock Grid.Column="1" Margin="6,0,0,0" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding HistoryAgeInDays}" />
+                  </Grid>
+                </theme:SettingsRow>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.headset" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminCall}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.activity" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding HistoryAgeInDays, StringFormat={}{0} дн.}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.archive" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminRetentionEffect}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
                 </StackPanel>
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc AdminResetNote}" />
-            </theme:SettingsSection>
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="{res:Loc AdminMaintenanceTitle}" Tag="settings.file-text">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.file-text" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminLogShort}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.archive" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsSupportArchive}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                </StackPanel>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding LogToFile}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminMaintenanceLog}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsEnabled="{Binding LogToFile}" IsChecked="{Binding LogsSipTrace}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.sliders-horizontal" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminMaintenanceTrace}" Margin="7,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </StackPanel>
+                </CheckBox>
+                <theme:SettingsDivider />
+                <theme:SettingsIndented>
+                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc AdminDiagnosticsOpenFolder}" Click="OnOpenFolderClick" />
+                </theme:SettingsIndented>
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsAccess, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AdminAccessTitle}" Tag="settings.lock-keyhole">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.monitor" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsManagement}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.lock-keyhole" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding AccessStatus}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                </StackPanel>
+                <theme:SettingsRow Header="{res:Loc AdminAccessNewPassword}">
+                  <Border Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                    <PasswordBox x:Name="NewPasswordField" VerticalContentAlignment="Center" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" PasswordChanged="OnNewPasswordChanged" />
+                  </Border>
+                </theme:SettingsRow>
+                <theme:SettingsRow Header="{res:Loc AdminAccessRepeatPassword}">
+                  <Border Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
+                    <PasswordBox x:Name="RepeatedPasswordField" VerticalContentAlignment="Center" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="{DynamicResource TextPrimaryBrush}" PasswordChanged="OnRepeatedPasswordChanged" />
+                  </Border>
+                </theme:SettingsRow>
+                <theme:SettingsNote Text="{res:Loc AdminAccessMismatch}" IsAlarming="True" Visibility="{Binding PasswordsDiffer, Converter={StaticResource BoolToVisibility}}" />
+                <theme:SettingsIndented>
+                  <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminAccessSet}" IsEnabled="{Binding CanSetPassword}" Click="OnSetPasswordClick" />
+                    <Button Style="{StaticResource SettingsButtonStyle}" Margin="6,0,0,0" Content="{res:Loc AdminAccessRemove}" IsEnabled="{Binding IsProtected}" Click="OnRemovePasswordClick" />
+                  </StackPanel>
+                </theme:SettingsIndented>
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsDiagnostics, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AdminDiagnosticsTitle}" Tag="settings.package">
+                <theme:SettingsRow Header="{res:Loc SupportVersion}">
+                  <TextBlock Text="{Binding Version}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </theme:SettingsRow>
+                <theme:SettingsRow Header="{res:Loc AdminDiagnosticsSettingsPath}">
+                  <TextBlock Text="{Binding SettingsPath}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </theme:SettingsRow>
+                <theme:SettingsIndented>
+                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc AdminDiagnosticsOpenFolder}" Click="OnOpenFolderClick" />
+                </theme:SettingsIndented>
+                <StackPanel DataContext="{Binding Updates}" Visibility="{Binding Converter={StaticResource PresenceToVisibility}}">
+                  <theme:SettingsDivider />
+                  <theme:SettingsIndented>
+                    <StackPanel Orientation="Horizontal">
+                      <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminDiagnosticsCheckUpdates}" Command="{Binding CheckNow}" />
+                      <Button Style="{StaticResource SettingsButtonStyle}" Margin="6,0,0,0" Content="{res:Loc AdminDiagnosticsInstallUpdate}" Command="{Binding Install}" Visibility="{Binding IsReady, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                  </theme:SettingsIndented>
+                  <theme:SettingsNote Text="{Binding Status}" Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsReset, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AdminResetTitle}" Tag="settings.refresh-cw">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.file-text" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminResetData}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                  <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                  <StackPanel MinWidth="62" Margin="12,0">
+                    <theme:Icon Glyph="settings.unplug" Size="25" HorizontalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AdminResetGone}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                </StackPanel>
+                <theme:SettingsIndented>
+                  <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminResetButton}" IsEnabled="{Binding CanResetMachine}" Click="OnResetMachineClick" />
+                    <TextBlock Text="{res:Loc AdminResetInCall}" Margin="8,0,0,0" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Setter Property="Visibility" Value="Collapsed" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding CanResetMachine}" Value="False">
+                              <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                  </StackPanel>
+                </theme:SettingsIndented>
+                <theme:SettingsNote Text="{res:Loc AdminResetIrreversible}" IsAlarming="True" />
+              </theme:SettingsSection>
+            </StackPanel>
           </StackPanel>
-
-          <!--
-              Раздел «Поддержка»: связь с панелью.
-
-              Единственный раздел, где кнопки действуют сразу, — см.
-              `SupportViewModel`. Поэтому у него и своя модель: «Сохранить» и
-              «Отменить» внизу окна к нему не относятся.
-          -->
-          <StackPanel DataContext="{Binding Support}"
-                      Visibility="{Binding DataContext.ShowsSupport,
-                                           RelativeSource={RelativeSource AncestorType=Window},
-                                           Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminSupportTitle}">
-
+          <StackPanel DataContext="{Binding Support}" Visibility="{Binding DataContext.ShowsSupport, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+            <theme:SettingsSection Header="{res:Loc AdminSupportTitle}" Tag="settings.cloud">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                <StackPanel MinWidth="62" Margin="12,0">
+                  <theme:Icon Glyph="settings.monitor" Size="25" HorizontalAlignment="Center" />
+                  <TextBlock Text="{res:Loc SettingsThisPc}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+                <theme:Icon Glyph="settings.arrow-right" Size="16" VerticalAlignment="Center" />
+                <StackPanel MinWidth="62" Margin="12,0">
+                  <theme:Icon Glyph="settings.cloud" Size="25" HorizontalAlignment="Center" />
+                  <TextBlock Text="Spark" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+              </StackPanel>
               <theme:SettingsRow Header="{res:Loc AdminSupportMachine}">
-                <TextBlock Text="{Binding InstallationID}"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="{Binding InstallationID}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
-
               <theme:SettingsRow Header="{res:Loc AdminSupportPreset}">
-                <TextBlock VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}">
+                <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}">
                   <Run Text="{Binding PresetName, Mode=OneWay}" />
                   <Run Text=" · " />
                   <Run Text="{res:Loc AdminSupportRevision}" />
@@ -742,376 +782,39 @@
                   <Run Text="{Binding AppliedRevision, Mode=OneWay}" />
                 </TextBlock>
               </theme:SettingsRow>
-
               <theme:SettingsRow Header="{res:Loc AdminSupportLastContact}">
-                <TextBlock Text="{Binding LastContact}"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="{Binding LastContact}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
-
               <theme:SettingsRow Header="{res:Loc AdminSupportLink}">
-                <TextBlock Text="{Binding LinkState}"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="{Binding LinkState}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
               </theme:SettingsRow>
-
               <theme:SettingsDivider />
-
-              <!-- У машины на связи — «Проверить настройки сейчас»; в оффлайне
-                   на её месте «Вернуться в онлайн». Две кнопки рядом читались
-                   бы как два разных способа сделать одно. -->
               <theme:SettingsIndented>
                 <Grid>
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          HorizontalAlignment="Left"
-                          Content="{res:Loc AdminSupportCheckNow}"
-                          Command="{Binding CheckNow}"
-                          Visibility="{Binding IsOnline, Converter={StaticResource BoolToVisibility}}" />
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          HorizontalAlignment="Left"
-                          Content="{res:Loc SupportReturnOnline}"
-                          Command="{Binding ReturnOnline}"
-                          Visibility="{Binding IsOffline, Converter={StaticResource BoolToVisibility}}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc AdminSupportCheckNow}" Command="{Binding CheckNow}" Visibility="{Binding IsOnline, Converter={StaticResource BoolToVisibility}}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc SupportReturnOnline}" Command="{Binding ReturnOnline}" Visibility="{Binding IsOffline, Converter={StaticResource BoolToVisibility}}" />
                 </Grid>
               </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc SupportReturnOnlineNote}"
-                                  Visibility="{Binding IsOffline, Converter={StaticResource BoolToVisibility}}" />
-
-              <theme:SettingsNote Text="{Binding Report}"
-                                  Visibility="{Binding HasReport, Converter={StaticResource BoolToVisibility}}" />
+              <theme:SettingsNote Text="{res:Loc SupportReturnOnlineNote}" Visibility="{Binding IsOffline, Converter={StaticResource BoolToVisibility}}" />
+              <theme:SettingsNote Text="{Binding Report}" Visibility="{Binding HasReport, Converter={StaticResource BoolToVisibility}}" />
             </theme:SettingsSection>
           </StackPanel>
-
-          <!-- Раздел «Клавиши». -->
-          <StackPanel Visibility="{Binding ShowsMacros, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminMacrosTitle}">
-              <theme:SettingsNote Text="{res:Loc AdminMacrosNote}" />
-
-              <ItemsControl ItemsSource="{Binding Macros}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="{x:Type settings:MacroSetting}">
-                    <Border Margin="0,3"
-                            Padding="8"
-                            CornerRadius="{StaticResource ControlCornerRadius}"
-                            Background="{DynamicResource ControlHoverBrush}">
-                      <StackPanel>
-                        <Grid>
-                          <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="6" />
-                            <ColumnDefinition Width="110" />
-                            <ColumnDefinition Width="6" />
-                            <ColumnDefinition Width="Auto" />
-                          </Grid.ColumnDefinitions>
-
-                          <Border Grid.Column="0"
-                                  Height="24"
-                                  CornerRadius="{StaticResource ControlCornerRadius}"
-                                  Padding="6,0"
-                                  Background="{DynamicResource SurfaceBrush}">
-                            <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                                     Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
-                                     Tag="{res:Loc AdminMacroTitle}" />
-                          </Border>
-
-                          <Border Grid.Column="2"
-                                  Height="24"
-                                  CornerRadius="{StaticResource ControlCornerRadius}"
-                                  Padding="6,0"
-                                  Background="{DynamicResource SurfaceBrush}">
-                            <TextBox Style="{StaticResource PanelTextBoxStyle}"
-                                     FontFamily="Consolas"
-                                     Text="{Binding Sequence, UpdateSourceTrigger=PropertyChanged}"
-                                     Tag="{res:Loc AdminMacroSequence}" />
-                          </Border>
-
-                          <StackPanel Grid.Column="4" Orientation="Horizontal">
-                            <Button Style="{StaticResource SettingsButtonStyle}"
-                                    Padding="6,2"
-                                    Content="↑"
-                                    ToolTip="{res:Loc AdminMacroUp}"
-                                    Click="OnMacroUpClick" />
-                            <Button Style="{StaticResource SettingsButtonStyle}"
-                                    Margin="4,0,0,0"
-                                    Padding="6,2"
-                                    Content="↓"
-                                    ToolTip="{res:Loc AdminMacroDown}"
-                                    Click="OnMacroDownClick" />
-                            <Button Style="{StaticResource SettingsButtonStyle}"
-                                    Margin="4,0,0,0"
-                                    Padding="6,2"
-                                    ToolTip="{res:Loc AdminMacroRemove}"
-                                    Click="OnMacroRemoveClick">
-                              <theme:Icon Glyph="trash" Size="12" />
-                            </Button>
-                          </StackPanel>
-                        </Grid>
-
-                        <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                                  Margin="0,6,0,0"
-                                  Content="{res:Loc AdminMacroTransfers}"
-                                  IsChecked="{Binding TransfersCall}" />
-                      </StackPanel>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AdminMacroAdd}"
-                        Click="OnMacroAddClick" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc AdminMacroTransfersNote}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AdminMacroLayout}">
-              <theme:SettingsRow Header="{res:Loc AdminMacroColumns}">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Columns" Content="2"
-                               IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=2}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Columns" Content="3"
-                               IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=3}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}" GroupName="Columns" Content="4"
-                               IsChecked="{Binding MacroColumns, Converter={StaticResource EnumToBool}, ConverterParameter=4}" />
-                </StackPanel>
-              </theme:SettingsRow>
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminMacroHeightAuto}"
-                        IsChecked="{Binding MacroHeightIsManual, Converter={StaticResource NotBool}}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminMacroHeight}"
-                                 IsEnabled="{Binding MacroHeightIsManual}">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0"
-                          Minimum="44" Maximum="96"
-                          IsSnapToTickEnabled="True" TickFrequency="2"
-                          VerticalAlignment="Center"
-                          Value="{Binding MacroHeight}" />
-                  <TextBlock Grid.Column="1"
-                             Margin="6,0,0,0"
-                             MinWidth="34"
-                             TextAlignment="Right"
-                             VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding MacroHeight}" />
-                </Grid>
-              </theme:SettingsRow>
-            </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «История». -->
-          <StackPanel Visibility="{Binding ShowsHistory, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminHistoryTitle}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminHistoryEnabled}"
-                        IsChecked="{Binding HistoryIsEnabled}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminHistoryAge}"
-                                 IsEnabled="{Binding HistoryIsEnabled}">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0"
-                          Minimum="1" Maximum="365"
-                          IsSnapToTickEnabled="True" TickFrequency="1"
-                          VerticalAlignment="Center"
-                          Value="{Binding HistoryAgeInDays}" />
-                  <TextBlock Grid.Column="1"
-                             Margin="6,0,0,0"
-                             MinWidth="34"
-                             TextAlignment="Right"
-                             VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding HistoryAgeInDays}" />
-                </Grid>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminHistoryNote}" />
-            </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «Доступ». -->
-          <StackPanel Visibility="{Binding ShowsAccess, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminAccessTitle}">
-              <theme:SettingsNote Text="{res:Loc AdminAccessProtected}"
-                                  Visibility="{Binding IsProtected, Converter={StaticResource BoolToVisibility}}" />
-              <theme:SettingsNote Text="{res:Loc AdminAccessOpen}"
-                                  IsAlarming="True"
-                                  Visibility="{Binding IsProtected, Converter={StaticResource NotBoolToVisibility}}" />
-
-              <theme:SettingsRow Header="{res:Loc AdminAccessNewPassword}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <PasswordBox x:Name="NewPasswordField"
-                               VerticalContentAlignment="Center"
-                               Background="Transparent"
-                               BorderThickness="0"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               CaretBrush="{DynamicResource TextPrimaryBrush}"
-                               PasswordChanged="OnNewPasswordChanged" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminAccessRepeatPassword}">
-                <Border Height="24" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,0"
-                        Background="{DynamicResource ControlHoverBrush}">
-                  <PasswordBox x:Name="RepeatedPasswordField"
-                               VerticalContentAlignment="Center"
-                               Background="Transparent"
-                               BorderThickness="0"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               CaretBrush="{DynamicResource TextPrimaryBrush}"
-                               PasswordChanged="OnRepeatedPasswordChanged" />
-                </Border>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AdminAccessMismatch}"
-                                  IsAlarming="True"
-                                  Visibility="{Binding PasswordsDiffer, Converter={StaticResource BoolToVisibility}}" />
-
-              <theme:SettingsIndented>
-                <StackPanel Orientation="Horizontal">
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Content="{res:Loc AdminAccessSet}"
-                          IsEnabled="{Binding CanSetPassword}"
-                          Click="OnSetPasswordClick" />
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Margin="6,0,0,0"
-                          Content="{res:Loc AdminAccessRemove}"
-                          IsEnabled="{Binding IsProtected}"
-                          Click="OnRemovePasswordClick" />
-                </StackPanel>
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc AdminAccessApplied}" />
-            </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «Диагностика». -->
-          <StackPanel Visibility="{Binding ShowsDiagnostics, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc AdminDiagnosticsTitle}">
-              <theme:SettingsRow Header="{res:Loc SupportVersion}">
-                <TextBlock Text="{Binding Version}" Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminDiagnosticsSettingsPath}">
-                <TextBlock Text="{Binding SettingsPath}"
-                           TextWrapping="Wrap"
-                           FontFamily="Consolas"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsRow>
-
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AdminDiagnosticsOpenFolder}"
-                        Click="OnOpenFolderClick" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc AdminDiagnosticsNote}" />
-
-              <!--
-                  Обновления: такт двухчасовой, а разбирают неисправность здесь
-                  и сейчас. Кнопка есть ровно поэтому.
-              -->
-              <StackPanel DataContext="{Binding Updates}"
-                          Visibility="{Binding Converter={StaticResource PresenceToVisibility}}">
-                <theme:SettingsDivider />
-
-                <theme:SettingsIndented>
-                  <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource SettingsButtonStyle}"
-                            Content="{res:Loc AdminDiagnosticsCheckUpdates}"
-                            Command="{Binding CheckNow}" />
-
-                    <Button Style="{StaticResource SettingsButtonStyle}"
-                            Margin="6,0,0,0"
-                            Content="{res:Loc AdminDiagnosticsInstallUpdate}"
-                            Command="{Binding Install}"
-                            Visibility="{Binding IsReady, Converter={StaticResource BoolToVisibility}}" />
-                  </StackPanel>
-                </theme:SettingsIndented>
-
-                <theme:SettingsNote Text="{Binding Status}"
-                                    Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibility}}" />
-              </StackPanel>
-            </theme:SettingsSection>
-          </StackPanel>
-        </Grid>
+        </StackPanel>
       </ScrollViewer>
-
-      <!--
-          Полоса низа: «Сохранить» и «Отменить». Здесь они есть, а в
-          менеджерских настройках их нет и быть не может — там правка
-          применяется сразу. Разница по существу: менеджер меняет громкость
-          себе, администратор — рабочее место целиком.
-      -->
-      <Border Grid.Row="1" Padding="12,8">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-
-          <!--
-              Значок и две строки, а не одна точка. Точка говорит «что-то не
-              так», но не говорит что: после «Сохранить» она молча гасла, окно
-              оставалось открытым, и нажатие читалось как не сделавшее ничего.
-          -->
-          <theme:Icon Grid.Column="0"
-                      Size="16"
-                      VerticalAlignment="Center"
-                      Margin="0,0,8,0">
-            <theme:Icon.Style>
-              <Style TargetType="{x:Type theme:Icon}">
-                <Setter Property="Glyph" Value="lock.shield.fill" />
-                <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding IsDirty}" Value="True">
-                    <Setter Property="Glyph" Value="exclamationmark.triangle" />
-                    <Setter Property="Foreground" Value="{DynamicResource UnsavedBrush}" />
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </theme:Icon.Style>
-          </theme:Icon>
-
-          <StackPanel Grid.Column="1" VerticalAlignment="Center">
-            <TextBlock Text="{Binding SaveStateTitle}"
-                       Foreground="{DynamicResource TextPrimaryBrush}" />
-            <TextBlock Text="{Binding SaveStateBody}"
-                       Margin="0,1,0,0"
-                       FontSize="12"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource TextSecondaryBrush}" />
-          </StackPanel>
-
-          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-            <Button Style="{StaticResource SettingsButtonStyle}"
-                    Content="{res:Loc AdminRevert}"
-                    IsEnabled="{Binding IsDirty}"
-                    Click="OnRevertClick" />
-            <Button Style="{StaticResource SettingsButtonStyle}"
-                    Margin="6,0,0,0"
-                    Content="{res:Loc AdminSave}"
-                    IsEnabled="{Binding IsDirty}"
-                    Click="OnSaveClick" />
-          </StackPanel>
-        </Grid>
-      </Border>
+      <Grid Grid.Row="1" Margin="26,8,18,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="{Binding SaveStateTitle}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" ToolTip="{Binding SaveStateBody}" />
+          <TextBlock Text="{Binding AccountError}" FontSize="11" Foreground="{DynamicResource StatusFailureBrush}" Visibility="{Binding HasAccountError, Converter={StaticResource BoolToVisibility}}" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminRevert}" Click="OnRevertClick" IsEnabled="{Binding IsDirty}" />
+          <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminSave}" Click="OnSaveClick" IsEnabled="{Binding CanSave}" Margin="8,0,0,0" Foreground="{DynamicResource SettingsGreenBrush}" />
+        </StackPanel>
+      </Grid>
     </Grid>
   </Grid>
 </Window>

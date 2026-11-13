@@ -21,6 +21,8 @@ namespace EliteSIP.Audio;
 /// умеет их лить — откладывал бы пересборку бесконечно, и тракт не собрался бы
 /// никогда. Так пересборка гарантированно случается не позже чем через окно
 /// после первого повода.
+/// Повод, пришедший во время пересборки, проверяется отдельным окном после
+/// её завершения: параллельное открытие устройств не допускается.
 ///
 /// <b>Одна пересборка за раз.</b> Пересборка занимает до восьми десятых секунды
 /// на открытии устройства, а поводы за это время придут снова — уже от неё
@@ -37,7 +39,8 @@ public sealed class RestartSupervisor : IDisposable
     private readonly Action<string> _rebuild;
 
     private IDisposable? _pending;
-    private string? _reason;
+    private readonly Dictionary<object, Change> _changes = [];
+    private long _pendingVersion;
     private bool _running;
     private bool _disposed;
 
@@ -69,7 +72,11 @@ public sealed class RestartSupervisor : IDisposable
 
     /// <summary>Сообщает повод пересобрать тракт.</summary>
     /// <param name="reason">Что случилось. Первый повод в пачке и попадёт в журнал.</param>
-    public void Notify(string reason)
+    /// <param name="isStillRelevant">Проверка после ожидания, перед пересборкой.
+    /// Позволяет пропустить изменения, уже учтённые предыдущей сборкой.</param>
+    /// <param name="coalescingKey">Для одного ключа сохраняется последнее изменение.
+    /// Например, последний default выхода вместо всех промежуточных.</param>
+    public void Notify(string reason, Func<bool>? isStillRelevant = null, string? coalescingKey = null)
     {
         lock (_gate)
         {
@@ -78,16 +85,21 @@ public sealed class RestartSupervisor : IDisposable
                 return;
             }
 
-            if (_pending is not null)
+            if (_pending is not null || _running)
             {
                 // Срок уже назначен. Второй повод его не двигает — см. описание
                 // типа.
                 CoalescedCount++;
-                return;
             }
 
-            _reason = reason;
-            _pending = _schedule(_window, Fire);
+            object key = coalescingKey ?? (isStillRelevant is null ? string.Empty : new object());
+            // Изменения одного default заменяют друг друга: важен последний
+            // выбранный маршрут. Без ключа сохраняем первый безусловный повод.
+            if (coalescingKey is not null || !_changes.ContainsKey(key))
+            {
+                _changes[key] = new Change(reason, isStillRelevant);
+            }
+            if (_pending is null && !_running) { ScheduleLocked(); }
         }
     }
 
@@ -104,41 +116,62 @@ public sealed class RestartSupervisor : IDisposable
             _disposed = true;
             pending = _pending;
             _pending = null;
+            _pendingVersion++;
+            _changes.Clear();
         }
 
         pending?.Dispose();
     }
 
-    private void Fire()
+    private sealed record Change(string Reason, Func<bool>? IsStillRelevant);
+
+    private void ScheduleLocked()
     {
-        string reason;
+        var version = ++_pendingVersion;
+        _pending = _schedule(_window, () => Fire(version));
+    }
+
+    private void Fire(long version)
+    {
+        Change[] changes;
         lock (_gate)
         {
-            _pending = null;
-
             // Отмена не останавливает работу, которая уже началась. Проверка
             // здесь — единственное, что отделяет пересборку от тракта, который
             // секунду назад остановили.
-            if (_disposed || _running)
+            if (_disposed || _running || version != _pendingVersion)
             {
                 return;
             }
 
-            reason = _reason ?? "смена устройств";
-            _reason = null;
+            _pending = null;
+            _pendingVersion++;
+            changes = [.. _changes.Values];
+            _changes.Clear();
             _running = true;
-            RebuildCount++;
         }
 
         try
         {
-            _rebuild(reason);
+            var change = changes.FirstOrDefault(item => item.IsStillRelevant?.Invoke() is not false);
+            if (change is not null)
+            {
+                lock (_gate)
+                {
+                    if (_disposed) { return; }
+                    RebuildCount++;
+                }
+                _rebuild(change.Reason);
+            }
         }
         finally
         {
             lock (_gate)
             {
                 _running = false;
+                // Уведомления во время открытия устройства не теряются и не
+                // запускают вложенную пересборку. Проверяем их после неё.
+                if (!_disposed && _changes.Count > 0) { ScheduleLocked(); }
             }
         }
     }
@@ -153,9 +186,12 @@ public sealed class RestartSupervisor : IDisposable
                 work();
             },
             state: null,
-            dueTime: delay,
+            dueTime: Timeout.InfiniteTimeSpan,
             period: Timeout.InfiniteTimeSpan);
 
+        // Сначала присваиваем timer, затем запускаем: даже нулевое окно не
+        // должно вызвать callback до присваивания захваченной ссылки.
+        timer.Change(delay, Timeout.InfiniteTimeSpan);
         return timer;
     }
 }

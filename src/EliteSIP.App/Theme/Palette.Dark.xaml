@@ -66,4 +66,36 @@
   <SolidColorBrush x:Key="CautionBrush" Color="#FFFCA02E" />
   <SolidColorBrush x:Key="UnsavedBrush" Color="#FFFCA02E" />
 
+
+  <!-- Нейтральная палитра основной панели, без системного оттенка. -->
+  <SolidColorBrush x:Key="PanelWindowBackgroundBrush" Color="#191919" />
+  <LinearGradientBrush x:Key="PanelCallBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3c3c3c" Offset="0" /><GradientStop Color="#303030" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelControlBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#363636" Offset="0" /><GradientStop Color="#2e2e2e" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelMacroBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#292929" Offset="0" /><GradientStop Color="#242424" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3b3b3b" Offset="0" /><GradientStop Color="#323232" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelPressedBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#222222" Offset="0" /><GradientStop Color="#282828" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelSelectedBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#505050" Offset="0" /><GradientStop Color="#424242" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelMutedBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#653c3c" Offset="0" /><GradientStop Color="#513131" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelAnswerBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#259B25" Offset="0" /><GradientStop Color="#168616" Offset="0.45" /><GradientStop Color="#0C700C" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelDeclineBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#bd4545" Offset="0" /><GradientStop Color="#a43131" Offset="1" /></LinearGradientBrush>
+  <SolidColorBrush x:Key="PanelEdgeBrush" Color="#20FFFFFF" />
+  <LinearGradientBrush x:Key="PanelProfileBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3b3b3b" Offset="0" /><GradientStop Color="#303030" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelProfileHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#404040" Offset="0" /><GradientStop Color="#353535" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="PanelMacroHoverBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#2f2f2f" Offset="0" /><GradientStop Color="#292929" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="HistoryFilterBackgroundBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#252525" Offset="0" /><GradientStop Color="#222222" Offset="1" /></LinearGradientBrush>
+  <Color x:Key="HistoryScrollThumbColor">#40FFFFFF</Color>
+  <Color x:Key="HistoryScrollHoverColor">#70FFFFFF</Color>
+  <SolidColorBrush x:Key="HistoryFilterHoverBrush" Color="#18FFFFFF" />
+<SolidColorBrush x:Key="HistoryOutgoingBrush" Color="#F2B544" /><SolidColorBrush x:Key="HistoryMissedBrush" Color="#FF4E62" />  <Color x:Key="SettingsInkColor">#F2F2F2</Color>
+  <Color x:Key="SettingsSubColor">#BCBCBC</Color>
+  <Color x:Key="SettingsSurfaceTopColor">#363636</Color>
+  <Color x:Key="SettingsSurfaceBottomColor">#2B2B2B</Color>
+  <Color x:Key="SettingsLineColor">#13FFFFFF</Color>
+  <Color x:Key="SettingsEdgeColor">#20FFFFFF</Color>
+  <Color x:Key="SettingsFieldColor">#202020</Color>
+  <Color x:Key="SettingsGreenColor">#78CD61</Color>
+  <Color x:Key="SettingsTrackColor">#484848</Color>
+  <Color x:Key="SettingsSwitchColor">#468D35</Color>
+  <Color x:Key="SettingsKnobColor">#EEEEEE</Color>
+  <Color x:Key="SettingsWarningColor">#E6B563</Color>
 </ResourceDictionary>

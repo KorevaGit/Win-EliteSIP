@@ -12,6 +12,63 @@ namespace EliteSIP.Audio.Tests;
 /// </summary>
 public sealed class DeviceChangeRelevanceTests
 {
+    [Theory]
+    [InlineData(AudioDeviceDirection.Capture)]
+    [InlineData(AudioDeviceDirection.Render)]
+    public void Missing_pinned_device_follows_new_default_only_for_fallback_side(AudioDeviceDirection direction)
+    {
+        var binding = direction == AudioDeviceDirection.Capture
+            ? new AudioRouteBinding("missing-mic", "pinned-output", "fallback-mic", "pinned-output")
+            : new AudioRouteBinding("pinned-mic", "missing-output", "pinned-mic", "fallback-output");
+        var change = new AudioDeviceChange(AudioDeviceChangeKind.DefaultChanged, "new-usb-device", direction, null);
+        Assert.True(DeviceChangeRelevance.AffectsRoute(change, binding));
+        var other = direction == AudioDeviceDirection.Capture ? AudioDeviceDirection.Render : AudioDeviceDirection.Capture;
+        Assert.False(DeviceChangeRelevance.AffectsRoute(change with { Direction = other }, binding));
+    }
+
+    [Theory]
+    [InlineData(AudioDeviceDirection.Capture)]
+    [InlineData(AudioDeviceDirection.Render)]
+    public void Default_notification_for_already_opened_device_is_ignored(AudioDeviceDirection direction)
+    {
+        var binding = new AudioRouteBinding(null, null, "mic", "output");
+        var id = direction == AudioDeviceDirection.Capture ? "mic" : "output";
+        var change = new AudioDeviceChange(AudioDeviceChangeKind.DefaultChanged, id, direction, null);
+        Assert.False(DeviceChangeRelevance.AffectsRoute(change, binding));
+        Assert.True(DeviceChangeRelevance.AffectsRoute(change with { DeviceId = string.Empty }, binding));
+    }
+
+    [Fact]
+    public void Independent_default_after_route_selection_still_needs_rebuild()
+    {
+        var observed = new AudioRouteBinding(null, null, "mic", "old-output");
+        var built = new AudioRouteBinding(null, null, "mic", "old-output");
+        var change = new AudioDeviceChange(AudioDeviceChangeKind.DefaultChanged, "new-output", AudioDeviceDirection.Render, null);
+        Assert.True(DeviceChangeRelevance.StillRequiresRebuild(change, observed, built));
+        Assert.False(DeviceChangeRelevance.StillRequiresRebuild(change, observed, built with { ActiveOutputId = "new-output" }));
+    }
+
+    [Fact]
+    public void Reopened_route_ignores_old_removal_but_not_new_removal()
+    {
+        var observed = new AudioRouteBinding("mic", "output", "mic", "output");
+        var reopened = observed with { };
+        var change = new AudioDeviceChange(AudioDeviceChangeKind.DeviceRemoved, "output", null, null);
+        Assert.False(DeviceChangeRelevance.StillRequiresRebuild(change, observed, reopened));
+        Assert.True(DeviceChangeRelevance.StillRequiresRebuild(change, reopened, reopened));
+    }
+
+    [Fact]
+    public void Active_notification_does_not_reopen_healthy_route_but_restores_missing_headset()
+    {
+        var pinned = new AudioRouteBinding("mic", "headset", "mic", "headset");
+        var change = new AudioDeviceChange(AudioDeviceChangeKind.DeviceStateChanged, "headset", null, AudioDeviceAvailability.Active);
+        Assert.False(DeviceChangeRelevance.StillRequiresRebuild(change, pinned, pinned));
+        var fallback = pinned with { ActiveOutputId = "speakers" };
+        Assert.True(DeviceChangeRelevance.StillRequiresRebuild(change, pinned, fallback));
+        Assert.False(DeviceChangeRelevance.StillRequiresRebuild(change, fallback, pinned));
+    }
+
     private const string Headset = "{0.0.1.00000000}.{гарнитура}";
     private const string HeadsetOut = "{0.0.0.00000000}.{гарнитура-выход}";
     private const string Builtin = "{0.0.1.00000000}.{встроенный}";

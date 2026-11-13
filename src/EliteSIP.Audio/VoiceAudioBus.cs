@@ -32,8 +32,8 @@ namespace EliteSIP.Audio;
 /// последовательная очередь, а ключ владельца жил под отдельным
 /// <c>os_unfair_lock</c>, потому что захват занимает до восьми десятых секунды
 /// на открытии устройства, а спин-замок столько держать нельзя. Здесь замок
-/// обычный, и держать его долго — законно; двухуровневая схема воспроизвела бы
-/// только сложность, а не её причину.
+/// обычный и сериализует управление устройством. Для интерфейса публикуется
+/// отдельный неизменяемый снимок владельца: чтение шкал не ждёт драйвер.
 /// </summary>
 public sealed class VoiceAudioBus : IDisposable
 {
@@ -58,6 +58,8 @@ public sealed class VoiceAudioBus : IDisposable
     private IDisposable? _retirement;
     private VoiceAudioConfiguration? _lastConfiguration;
     private bool _disposed;
+    private sealed record PublishedOwner(AudioOwnerToken Token, IVoiceAudioEngine Engine);
+    private PublishedOwner? _published;
 
     /// <param name="engine">Тракт, с которого начинаем.</param>
     /// <param name="factory">Чем собирать сменный после освобождения устройства.</param>
@@ -83,10 +85,7 @@ public sealed class VoiceAudioBus : IDisposable
     {
         get
         {
-            lock (_gate)
-            {
-                return _ownership.IsBusy;
-            }
+            return Volatile.Read(ref _published) is not null;
         }
     }
 
@@ -98,10 +97,7 @@ public sealed class VoiceAudioBus : IDisposable
     /// </summary>
     public bool IsOwner(AudioOwnerToken token)
     {
-        lock (_gate)
-        {
-            return _ownership.IsOwner(token);
-        }
+        return !token.IsNone && Volatile.Read(ref _published)?.Token == token;
     }
 
     /// <summary>
@@ -119,6 +115,7 @@ public sealed class VoiceAudioBus : IDisposable
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(handlers);
+        if (token.IsNone) { throw new ArgumentException("пустой ключ не может владеть трактом", nameof(token)); }
 
         lock (_gate)
         {
@@ -131,30 +128,33 @@ public sealed class VoiceAudioBus : IDisposable
             _lastConfiguration = configuration;
 
             IVoiceAudioEngine engine = _current;
-            engine.Stop();
 
             // Владение снимается до перестройки, а не после успешного запуска:
             // пока тракт перестраивается, звук не идёт ни у кого, и считать его
             // своим не должна ни прежняя линия, ни новая.
             _ownership.ReleaseAny();
-
-            engine.Reconfigure(configuration);
-            engine.Handlers = handlers;
+            // Устройство уже занято запуском, но ещё не принадлежит линии.
+            Volatile.Write(ref _published, new PublishedOwner(default, engine));
 
             try
             {
+                engine.Stop();
+                engine.Reconfigure(configuration);
+                engine.Handlers = handlers;
                 engine.Start();
+                _ownership.Take(token);
+                Volatile.Write(ref _published, new PublishedOwner(token, engine));
             }
             catch
             {
                 // Тракт не поднялся — владельцем никто не становится, иначе
                 // линия считала бы своим звук, которого нет, и не отдала бы его
                 // следующей.
+                Volatile.Write(ref _published, null);
+                _ownership.ReleaseAny();
                 engine.Handlers = VoiceAudioHandlers.None;
                 throw;
             }
-
-            _ownership.Take(token);
         }
     }
 
@@ -175,6 +175,7 @@ public sealed class VoiceAudioBus : IDisposable
                 return false;
             }
 
+            Volatile.Write(ref _published, null);
             _current.Stop();
             _current.Handlers = VoiceAudioHandlers.None;
             ScheduleRetirement();
@@ -202,7 +203,6 @@ public sealed class VoiceAudioBus : IDisposable
     {
         ArgumentNullException.ThrowIfNull(body);
 
-        IVoiceAudioEngine engine;
         lock (_gate)
         {
             if (_disposed || !_ownership.IsOwner(token))
@@ -211,14 +211,11 @@ public sealed class VoiceAudioBus : IDisposable
                 return false;
             }
 
-            engine = _current;
+            // Действие управления и проверка токена — одна операция. Иначе
+            // запоздавший Apply прежнего владельца мог изменить новый звонок.
+            result = body(_current);
+            return true;
         }
-
-        // Замок отпущен до вызова: держать его, пока чужой код читает уровни,
-        // незачем. Подменить тракт в этот момент некому — смена бывает только
-        // на свободном.
-        result = body(engine);
-        return true;
     }
 
     /// <summary>
@@ -258,18 +255,10 @@ public sealed class VoiceAudioBus : IDisposable
     /// </remarks>
     public AudioLevels? TakeLevels()
     {
-        IVoiceAudioEngine engine;
-        lock (_gate)
-        {
-            if (_disposed || !_ownership.IsBusy)
-            {
-                return null;
-            }
-
-            engine = _current;
-        }
-
-        return engine.TakeLevels();
+        var owner = Volatile.Read(ref _published);
+        if (owner is null || owner.Token.IsNone) { return null; }
+        var levels = owner.Engine.TakeLevels();
+        return ReferenceEquals(owner, Volatile.Read(ref _published)) ? levels : null;
     }
 
     /// <summary>Пересобирает тракт по требованию владельца.</summary>
@@ -287,6 +276,8 @@ public sealed class VoiceAudioBus : IDisposable
             }
 
             _disposed = true;
+            _ownership.ReleaseAny();
+            Volatile.Write(ref _published, null);
             CancelRetirement();
             engine = _current;
         }
@@ -387,9 +378,10 @@ public sealed class VoiceAudioBus : IDisposable
                 work();
             },
             state: null,
-            dueTime: delay,
+            dueTime: Timeout.InfiniteTimeSpan,
             period: Timeout.InfiniteTimeSpan);
 
+        timer.Change(delay, Timeout.InfiniteTimeSpan);
         return timer;
     }
 }

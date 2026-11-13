@@ -4,6 +4,7 @@
         xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:panel="clr-namespace:EliteSIP.App.Panel"
         xmlns:res="clr-namespace:EliteSIP.App.Resources"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         d:DataContext="{d:DesignInstance Type=panel:PanelViewModel}"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -13,10 +14,11 @@
         MinWidth="270"
         SizeToContent="Height"
         ResizeMode="CanResize"
+        WindowStyle="None"
         WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
-        Background="{DynamicResource WindowBackgroundBrush}"
+        Background="{DynamicResource PanelWindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
         TextOptions.TextFormattingMode="Display">
 
@@ -29,25 +31,7 @@
       на месте верхний край, а неподвижным в панели обязан быть нижний.
   -->
 
-  <!--
-      Полоса заголовка — системная, своей у панели больше нет.
-
-      Своя была попыткой повторить macOS, где заголовок панели и есть часть
-      панели. На Windows это читается наоборот: окно, которое рисует себе
-      заголовок само, выглядит окном, которое окном притворяется. Системная
-      полоса приносит с собой и то, чего своя не давала даром — значок и
-      подпись в привычном месте, меню окна по правому щелчку, «Свернуть» в том
-      же пикселе, что у всех прочих окон, и подсветку под курсором ровно такую,
-      как в остальной системе.
-
-      `CanMinimize`, а не `NoResize`: панель по-прежнему не тянется за угол — её
-      высоту задаёт содержимое, — но `NoResize` убирает из полосы заодно и
-      кнопку свёртывания, а сворачивают панель каждый день.
-
-      Тёмная полоса в тёмной теме и скруглённые по-одиннадцатому углы задаются
-      не здесь: у WPF нет ни того, ни другого свойства, оба ставятся диспетчеру
-      окон из <see cref="Theme.SystemCaption"/>.
-  -->
+  <!-- Windows 11 использует штатный заголовок с цветом DWM; Windows 10 — общий фон и свой заголовок. -->
 
   <!--
       Поля 12 со всех сторон и шаг сетки, кратный четырём: это тот же ритм, по
@@ -64,6 +48,44 @@
       управления, чтобы не оставалось пустоты. Выше экрана окно не бывает:
       не влезает — клавиши ниже (см. `FitMacroHeight`).
   -->
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Graphite.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="6" GlassFrameThickness="0"
+                        CornerRadius="0" UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+  <Window.Template>
+    <ControlTemplate TargetType="Window">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
+        <DockPanel LastChildFill="True">
+          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
+              <theme:CaptionCrown FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+              <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMinimizeClick" ToolTip="{res:Loc WindowMinimize}" AutomationProperties.Name="{res:Loc WindowMinimize}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE921;" FontSize="10" /></Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMaximizeClick" ToolTip="{res:Loc WindowMaximize}" AutomationProperties.Name="{res:Loc WindowMaximize}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="10">
+                  <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="&#xE922;" /><Style.Triggers><DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized"><Setter Property="Text" Value="&#xE923;" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+              </Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Tag="Close" Click="OnCaptionCloseClick" ToolTip="{res:Loc WindowClose}" AutomationProperties.Name="{res:Loc WindowClose}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BB;" FontSize="10" /></Button>
+            </StackPanel>
+          </Grid>
+          <AdornerDecorator><ContentPresenter /></AdornerDecorator>
+        </DockPanel>
+      </Border>
+    </ControlTemplate>
+  </Window.Template>
+
+
   <Border x:Name="Frame">
   <Grid x:Name="Root" Margin="8">
     <Grid.LayoutTransform>
@@ -72,7 +94,7 @@
     <Grid.RowDefinitions>
       <!-- Строка состояния. -->
       <RowDefinition Height="22" />
-      <RowDefinition Height="4" />
+      <RowDefinition Height="8" />
       <!--
           Изменчивая середина. Всё, что может поменять высоту — вторая линия,
           поле перевода, число макросов, — живёт здесь.
@@ -81,7 +103,7 @@
       <RowDefinition Height="10" />
       <!-- Неподвижный низ: звонок и история. С 0.1.60 от окна не растёт —
            лишняя высота вся уходит клавишам. -->
-      <RowDefinition Height="Auto" MinHeight="46" />
+      <RowDefinition Height="62" />
     </Grid.RowDefinitions>
 
     <!--
@@ -113,12 +135,16 @@
       <Button x:Name="ProfilePill"
               Grid.Column="0"
               HorizontalContentAlignment="Stretch"
-              Style="{StaticResource ProfilePillStyle}"
+              Style="{StaticResource PanelProfilePillStyle}"
+              Padding="6,0"
               IsEnabled="{Binding CanOpenProfileMenu}"
               Click="OnProfileClick"
               AutomationProperties.Name="{Binding StatusTitle, StringFormat=Профиль {0}}">
         <Button.ContextMenu>
-          <ContextMenu>
+          <ContextMenu Style="{StaticResource PanelProfileMenuStyle}">
+            <ContextMenu.Resources>
+              <Style TargetType="MenuItem" BasedOn="{StaticResource PanelProfileMenuItemStyle}" />
+            </ContextMenu.Resources>
             <!--
                 Профиль пока один — их список приедет с «Управлением», и
                 тогда здесь встанет `ItemsSource`. Одна строка в меню не
@@ -126,10 +152,12 @@
                 галочка рядом с ней — на вопрос «на линии ли».
             -->
             <MenuItem Tag="single-profile"
-                      Header="{Binding ProfileMenuTitle}"
                       IsChecked="{Binding IsOnline, Mode=OneWay}"
-                      Command="{Binding GoOnline}" />
-            <Separator />
+                      Command="{Binding GoOnline}">
+              <MenuItem.Header>
+                <TextBlock theme:Emoji.Text="{Binding ProfileMenuTitle}" MaxWidth="260" TextWrapping="Wrap" />
+              </MenuItem.Header>
+            </MenuItem>
             <MenuItem Header="{res:Loc PanelOffline}"
                       IsChecked="{Binding IsOfflineByChoice, Mode=OneWay}"
                       Command="{Binding GoOffline}" />
@@ -139,7 +167,8 @@
         <!-- Сетка, а не StackPanel: в горизонтальной стопке обрезка не срабатывает,
              и длинное имя профиля выталкивало шестерёнку за край панели.
              Сжимается первой подпись, номер — только когда места нет совсем. -->
-        <Grid VerticalAlignment="Center">
+        <Grid><TextBlock x:Name="OfflineProfileLabel" Text="{res:Loc PanelOffline}" FontSize="12" VerticalAlignment="Center" Visibility="{Binding IsOfflineByChoice, Converter={StaticResource BoolToVisibility}}" />
+        <Grid x:Name="OnlineProfileIdentity" VerticalAlignment="Center" Visibility="{Binding IsOfflineByChoice, Converter={StaticResource NotBoolToVisibility}}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
@@ -179,7 +208,7 @@
           <TextBlock Grid.Column="1"
                      Text="{Binding StatusTitle}"
                      TextTrimming="CharacterEllipsis"
-                     Margin="4,0,0,0"
+                     Margin="3,0,0,0"
                      FontSize="12"
                      FontWeight="SemiBold"
                      VerticalAlignment="Center"
@@ -192,11 +221,11 @@
           -->
           <TextBlock Grid.Column="2"
                      theme:Emoji.Text="{Binding StatusLabel}"
-                     Margin="4,0,0,0"
+                     Margin="3,0,0,0"
                      FontSize="12"
                      VerticalAlignment="Center"
                      TextTrimming="CharacterEllipsis"
-                     Foreground="{DynamicResource TextTertiaryBrush}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
                      Visibility="{Binding StatusLabel, Converter={StaticResource PresenceToVisibility}}" />
 
           <!--
@@ -206,11 +235,11 @@
           <theme:Icon Grid.Column="3"
                       Glyph="chevron.down"
                       Size="10"
-                      Margin="5,1,0,0"
+                      Margin="3,1,0,0"
                       VerticalAlignment="Center"
                       Foreground="{DynamicResource TextTertiaryBrush}"
                       Visibility="{Binding CanOpenProfileMenu, Converter={StaticResource BoolToVisibility}}" />
-        </Grid>
+        </Grid></Grid>
       </Button>
 
       <!--
@@ -291,7 +320,7 @@
               Margin="6,0,6,0"
               VerticalAlignment="Center"
               HorizontalAlignment="Left"
-              Style="{StaticResource ChromeButtonStyle}"
+              Style="{StaticResource PanelIconButtonStyle}"
               Command="{Binding DismissNotice}"
               Visibility="{Binding ShowsNotice, Converter={StaticResource BoolToVisibility}}">
         <TextBlock theme:Emoji.Text="{Binding Notice}"
@@ -301,10 +330,10 @@
       </Button>
 
       <Button Grid.Column="2"
-              Style="{StaticResource ChromeButtonStyle}"
+              Style="{StaticResource PanelIconButtonStyle}"
               Command="{Binding ShowSettings}"
               ToolTip="{res:Loc PanelSettings}">
-        <theme:Icon Glyph="gearshape" Size="12" />
+        <theme:Icon Glyph="slider.horizontal.2" Size="16" />
       </Button>
     </Grid>
 
@@ -325,13 +354,13 @@
 
             Клавиш нет — всю получают кнопки управления.
 
-            Клавиши есть — кнопки управления растут на половину своей высоты
-            (68 → 102), остальное уходит клавишам. Звёздочки с пределами, а не
+            Клавиши есть — кнопки управления получают небольшой запас высоты
+            (96 → 112), остальное уходит клавишам. Звёздочки с пределами, а не
             расчёт в коде: у кнопок вес в сто раз больше, и они первыми
             добирают до своего потолка; у сетки клавиш нижний предел — её
             собственная высота, так что срезаться ей некуда.
         -->
-        <RowDefinition MinHeight="68">
+        <RowDefinition MinHeight="96">
           <RowDefinition.Style>
             <Style TargetType="RowDefinition">
               <Setter Property="Height" Value="*" />
@@ -342,7 +371,7 @@
                     <Condition Binding="{Binding ShowsMacros}" Value="True" />
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Height" Value="100*" />
-                  <Setter Property="MaxHeight" Value="102" />
+                  <Setter Property="MaxHeight" Value="112" />
                 </MultiDataTrigger>
               </Style.Triggers>
             </Style>
@@ -377,12 +406,14 @@
           поля при двух линиях. Высота у всех трёх одна и та же — иначе при
           ответе на вызов шапка вырастала бы и сдвигала вниз всё, что под ней.
       -->
-      <Grid Grid.Row="0" Height="52">
+      <Grid x:Name="NumberInputArea" Grid.Row="0" Height="72">
 
         <!-- Одна линия или покой: одна поверхность на весь слот. -->
-        <Border CornerRadius="{StaticResource ControlCornerRadius}"
-                Padding="12,0"
-                Background="{DynamicResource ControlBackgroundBrush}"
+        <Border CornerRadius="{StaticResource PanelCornerRadius}"
+                Padding="14,0"
+                BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0"
+                Effect="{StaticResource PanelShadow}"
+                Background="{DynamicResource PanelCallBrush}"
                 Visibility="{Binding HasSecondLine, Converter={StaticResource NotBoolToVisibility}}">
           <Grid>
 
@@ -413,7 +444,7 @@
                        PreviewTextInput="OnDialedNumberTextInput" />
 
               <Button Grid.Column="1"
-                      Style="{StaticResource ChromeButtonStyle}"
+                      Style="{StaticResource PanelIconButtonStyle}"
                       ToolTip="{res:Loc PanelClearNumber}"
                       Click="OnClearNumberClick"
                       Visibility="{Binding HasDialedNumber, Converter={StaticResource BoolToVisibility}}">
@@ -424,17 +455,17 @@
             <!--
                 Карточка собеседника. Слева имя и номер, справа таймер и состояние.
             -->
-            <Grid VerticalAlignment="Center"
+            <Grid x:Name="CallHeader" LayoutUpdated="OnCallHeaderLayoutUpdated" VerticalAlignment="Center"
                   Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" MaxWidth="110" />
+                <ColumnDefinition Width="Auto" MaxWidth="145" />
               </Grid.ColumnDefinitions>
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
-              <TextBlock Grid.Row="0" Grid.Column="0"
+              <TextBlock x:Name="CallTitleLabel" Grid.Row="0" Grid.Column="0"
                          theme:Emoji.Text="{Binding CallTitle}"
                          Margin="0,0,12,0"
                          FontSize="18" FontWeight="Medium"
@@ -443,6 +474,7 @@
                 <TextBlock.Style>
                   <Style TargetType="TextBlock">
                     <Style.Triggers>
+                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Grid.ColumnSpan" Value="2" /></DataTrigger>
                       <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
                         <Setter Property="Grid.RowSpan" Value="2" />
                         <Setter Property="VerticalAlignment" Value="Center" />
@@ -465,6 +497,7 @@
                 <TextBlock.Style>
                   <Style TargetType="TextBlock">
                     <Style.Triggers>
+                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                       <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
                         <Setter Property="Grid.RowSpan" Value="2" />
                         <Setter Property="VerticalAlignment" Value="Center" />
@@ -484,6 +517,7 @@
                     <Setter Property="FontSize" Value="12" />
                     <Setter Property="Margin" Value="0,2,0,0" />
                     <Style.Triggers>
+                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                       <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
                         <Setter Property="Grid.Row" Value="0" />
                         <Setter Property="Grid.RowSpan" Value="2" />
@@ -495,6 +529,10 @@
                   </Style>
                 </TextBlock.Style>
               </TextBlock>
+              <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0" Visibility="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="{Binding ActiveLine.Duration}" FontSize="12" FontWeight="Medium" Margin="0,0,6,0" />
+                <TextBlock Text="{Binding CallStatus}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+              </StackPanel>
             </Grid>
           </Grid>
         </Border>
@@ -511,9 +549,9 @@
             <DataTemplate DataType="{x:Type panel:CallLineViewModel}">
               <Border Height="22"
                       Margin="0,0,0,4"
-                      CornerRadius="{StaticResource ControlCornerRadius}"
+                      CornerRadius="{StaticResource PanelCornerRadius}"
                       Padding="8,0"
-                      Background="{DynamicResource ControlBackgroundBrush}">
+                      Background="{DynamicResource PanelCallBrush}">
                 <Grid>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="8" />
@@ -565,7 +603,7 @@
       </Grid>
 
       <!-- Шапка → ряд управления. -->
-      <Border Grid.Row="1" Height="4" />
+      <Border Grid.Row="1" Height="10" />
 
       <!--
           Ряд управления. Четыре кнопки в два ряда, а не четыре в один: панель
@@ -577,18 +615,18 @@
       -->
       <Grid Grid.Row="2">
         <Grid.RowDefinitions>
-          <RowDefinition Height="*" MinHeight="32" />
-          <RowDefinition Height="4" />
-          <RowDefinition Height="*" MinHeight="32" />
+          <RowDefinition Height="*" MinHeight="44" />
+          <RowDefinition Height="8" />
+          <RowDefinition Height="*" MinHeight="44" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="4" />
+          <ColumnDefinition Width="8" />
           <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <ToggleButton Grid.Row="0" Grid.Column="0"
-                      Style="{StaticResource ControlKeyStyle}"
+                      Style="{StaticResource PanelControlKeyStyle}"
                       IsChecked="{Binding IsOnHold, Mode=OneWay}"
                       IsEnabled="{Binding CanHold}"
                       Command="{Binding ToggleHold}">
@@ -622,7 +660,7 @@
         </ToggleButton>
 
         <ToggleButton Grid.Row="0" Grid.Column="2"
-                      Style="{StaticResource ControlKeyStyle}"
+                      Style="{StaticResource PanelControlKeyStyle}"
                       Tag="Warning"
                       IsChecked="{Binding IsMicrophoneMuted, Mode=OneWay}"
                       IsEnabled="{Binding CanMuteMicrophone}"
@@ -667,7 +705,7 @@
             элементы в окне, не целясь в него мышью.
         -->
         <ToggleButton Grid.Row="2" Grid.Column="0"
-                      Style="{StaticResource ControlKeyStyle}"
+                      Style="{StaticResource PanelControlKeyStyle}"
                       AutomationProperties.AutomationId="TransferKey"
                       AutomationProperties.Name="Перевести"
                       IsChecked="{Binding IsTransferEntryVisible, Mode=OneWay}"
@@ -687,7 +725,7 @@
             ничего.
         -->
         <ToggleButton Grid.Row="2" Grid.Column="2"
-                      Style="{StaticResource ControlKeyStyle}"
+                      Style="{StaticResource PanelControlKeyStyle}"
                       IsChecked="{Binding IsConferenceStarted, Mode=OneWay}"
                       IsEnabled="{Binding CanStartConference}"
                       Command="{Binding StartConference}">
@@ -753,17 +791,17 @@
             <!--
                 Промежуток между клавишами задан полем справа и снизу у каждой,
                 а лишнее поле по краю снято отрицательным полем самой сетки. Так
-                ряды и колонки получают одинаковые 4 точки, а сетка не отступает
+                ряды и колонки получают одинаковые 8 точек, а сетка не отступает
                 от краёв панели.
             -->
-            <UniformGrid Columns="{Binding MacroColumns}" Margin="0,0,-4,-4" />
+            <UniformGrid Columns="{Binding MacroColumns}" Margin="0,0,-8,-8" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
 
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="{x:Type panel:MacroViewModel}">
-            <Button Style="{StaticResource MacroKeyStyle}"
-                    Margin="0,0,4,4"
+            <Button Style="{StaticResource PanelMacroKeyStyle}"
+                    Margin="0,0,8,8"
                     MinHeight="{Binding DataContext.EffectiveMacroHeight,RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     IsEnabled="{Binding DataContext.CanSendDtmf, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                     Command="{Binding DataContext.SendMacro, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -781,10 +819,10 @@
                   хвост здесь нельзя: «Бухгалтер» вместо «Бухгалтерии» читается
                   как другое слово, а не как обрезанное.
               -->
-              <theme:ShrinkBox BaseFontSize="16" Margin="4,0" GrowsWithHeight="True"
+              <theme:ShrinkBox BaseFontSize="18" Margin="0" GrowsWithHeight="False"
                                FallbackHeight="{Binding DataContext.MacroLabelMaxHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                 <TextBlock theme:Emoji.Text="{Binding Title}"
-                           FontWeight="Medium"
+                           FontWeight="Normal"
                            TextAlignment="Center"
                            TextWrapping="WrapWithOverflow" />
               </theme:ShrinkBox>
@@ -800,9 +838,9 @@
       -->
       <StackPanel Grid.Row="5" Visibility="{Binding IsTransferEntryVisible, Converter={StaticResource BoolToVisibility}}">
         <Border Height="34"
-                CornerRadius="{StaticResource ControlCornerRadius}"
+                CornerRadius="{StaticResource PanelCornerRadius}"
                 Padding="12,0"
-                Background="{DynamicResource ControlBackgroundBrush}">
+                Background="{DynamicResource PanelCallBrush}">
           <TextBox x:Name="TransferField"
                    Style="{StaticResource PanelTextBoxStyle}"
                    Text="{Binding TransferNumber, UpdateSourceTrigger=PropertyChanged}"
@@ -814,19 +852,19 @@
         <Grid Margin="0,4,0,0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="4" />
+            <ColumnDefinition Width="8" />
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
 
           <Button Grid.Column="0"
-                  Style="{StaticResource SurfaceButtonStyle}"
+                  Style="{StaticResource PanelSurfaceButtonStyle}"
                   Height="30"
                   Content="{res:Loc PanelCancel}"
                   FontSize="14"
                   Click="OnCancelTransferClick" />
 
           <Button Grid.Column="2"
-                  Style="{StaticResource CallButtonStyle}"
+                  Style="{StaticResource PanelCallButtonStyle}"
                   Height="30"
                   Content="{res:Loc PanelTransfer}"
                   FontSize="14"
@@ -847,18 +885,18 @@
     <Grid Grid.Row="4">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="4" />
-        <ColumnDefinition Width="64" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="76" />
       </Grid.ColumnDefinitions>
 
       <Button Grid.Column="0"
-              Command="{Binding CallOrHangUp}"
+              x:Name="PrimaryCallButton" Command="{Binding CallOrHangUp}"
               IsEnabled="{Binding IsCallButtonEnabled}">
         <Button.Style>
-          <Style TargetType="Button" BasedOn="{StaticResource CallButtonStyle}">
+          <Style TargetType="Button" BasedOn="{StaticResource PanelCallButtonStyle}">
             <Style.Triggers>
               <DataTrigger Binding="{Binding IsInCall}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource DeclineFillBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PanelDeclineBrush}" />
               </DataTrigger>
             </Style.Triggers>
           </Style>
@@ -894,16 +932,19 @@
       </Button>
 
       <Button Grid.Column="2"
-              Style="{StaticResource SurfaceButtonStyle}"
-              Command="{Binding ShowHistory}">
-        <StackPanel>
-          <theme:Icon Glyph="clock" Size="14" HorizontalAlignment="Center"
+              Style="{StaticResource PanelSurfaceButtonStyle}"
+              HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+              Padding="0,0,0,1"
+              x:Name="HistoryActionButton" Command="{Binding ShowHistory}">
+        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <theme:Icon Glyph="clock" Size="14" HorizontalAlignment="Center" VerticalAlignment="Center"
                       Foreground="{DynamicResource TextPrimaryBrush}" />
-          <TextBlock Text="{res:Loc PanelHistory}"
+          <TextBlock Grid.Row="1" Text="{res:Loc PanelHistory}"
                      Margin="0,2,0,0"
                      FontSize="11"
                      HorizontalAlignment="Center" />
-        </StackPanel>
+        </Grid>
       </Button>
     </Grid>
   </Grid>

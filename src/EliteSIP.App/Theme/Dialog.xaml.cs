@@ -5,6 +5,10 @@ using EliteSIP.App.Resources;
 
 namespace EliteSIP.App.Theme;
 
+public sealed record DialogStep(string Glyph, string Text);
+
+public sealed record DialogVisual(string Glyph, IReadOnlyList<DialogStep> Steps);
+
 /// <summary>Чем ответил человек на вопрос приложения.</summary>
 ///
 /// <remarks>
@@ -47,9 +51,20 @@ public partial class Dialog : Window
 {
     private DialogAnswer _answer = DialogAnswer.Cancel;
 
-    private Dialog()
+    internal Dialog(string title, string body, DialogVisual? visual = null)
     {
         InitializeComponent();
+        Settings.SettingsDialogChrome.Apply(this);
+        Title = title;
+        TitleText.Text = title;
+        BodyText.Text = body;
+        if (visual is not null)
+        {
+            DialogIcon.Glyph = visual.Glyph;
+            StepsHost.ItemsSource = visual.Steps;
+            StepsHost.Visibility = Visibility.Visible;
+            BodyText.Visibility = Visibility.Collapsed;
+        }
     }
 
     /// <summary>Задаёт вопрос и ждёт ответа.</summary>
@@ -73,6 +88,7 @@ public partial class Dialog : Window
     /// становится: залитая красная кнопка читается как то, чего от человека
     /// ждут, а от него не ждут стирания машины.
     /// </param>
+    /// <param name="visual">Наглядные последствия вместо длинного абзаца.</param>
     public static DialogAnswer Ask(
         Window? owner,
         string title,
@@ -81,17 +97,10 @@ public partial class Dialog : Window
         string? confirmTitle = null,
         string? footnote = null,
         int countdownSeconds = 0,
-        bool destructive = false)
+        bool destructive = false,
+        DialogVisual? visual = null)
     {
-        var dialog = new Dialog
-        {
-            // Заголовок окна — тот же вопрос: полоса заголовка теперь
-            // системная, и в панели задач окно подписано именно им.
-            Title = title,
-        };
-
-        dialog.TitleText.Text = title;
-        dialog.BodyText.Text = body;
+        var dialog = new Dialog(title, body, visual);
 
         // Владелец бывает и закрытым — например, вопрос задаёт окно, которое
         // само закрывается. Ставить закрытое окно владельцем WPF не даёт.
@@ -179,10 +188,8 @@ public partial class Dialog : Window
             MinWidth = 96,
             Margin = new Thickness(8, 0, 0, 0),
 
-            // Подтверждающая кнопка залита цветом действия, прочие — обычная
-            // поверхность. Цветом залита ровно одна: две залитые означали бы,
-            // что выбор из них равнозначен, а он не равнозначен никогда.
-            Style = (Style)FindResource(primary && !destructive ? "AccentButtonStyle" : "SurfaceButtonStyle"),
+            // Общая объёмная поверхность, без системного синего акцента.
+            Style = (Style)FindResource("SettingsButtonStyle"),
             Padding = new Thickness(12, 0, 12, 0),
 
             // Enter отвечает подтверждением, Escape — отменой: так отвечают на
@@ -194,6 +201,11 @@ public partial class Dialog : Window
         if (destructive)
         {
             button.Foreground = (System.Windows.Media.Brush)FindResource("StatusFailureBrush");
+        }
+        else if (primary)
+        {
+            button.SetResourceReference(Control.ForegroundProperty, "SettingsGreenBrush");
+            button.FontWeight = FontWeights.SemiBold;
         }
 
         button.Click += (_, _) =>

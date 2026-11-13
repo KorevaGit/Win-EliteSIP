@@ -28,8 +28,11 @@ public partial class AdminUnlockWindow : Window
         AdminUnlockPurpose purpose = AdminUnlockPurpose.Administration)
     {
         InitializeComponent();
+        SettingsDialogChrome.Apply(this);
         _access = access;
         _appearance = appearance;
+
+        Consequences.ItemsSource = new[] { new DialogStep("settings.sliders-horizontal", Strings.Get("SettingsManageEffect")) };
 
         // Окно одно на обе дороги: пароль и отказ — общие, а разъехавшись, две
         // копии однажды разошлись бы и в том, кого пускать.
@@ -37,13 +40,17 @@ public partial class AdminUnlockWindow : Window
         {
             Title = Strings.Get("AdminUnlockWorkplaceTitle");
             TitleText.Text = Title;
-            SubtitleText.Text = Strings.Get("AdminUnlockWorkplaceSubtitle");
+            SubtitleText.Text = Strings.Get("SettingsOnlyOnSwitch");
             EnterButton.Content = Strings.Get("AdminUnlockWorkplaceEnter");
+            PurposeIcon.Glyph = "settings.lock-keyhole";
+            Consequences.ItemsSource = new[]
+            {
+                new DialogStep("settings.building-2", Strings.Get("SettingsUnlockEffect")),
+                new DialogStep("settings.unplug", Strings.Get("SettingsOfflineEffect")),
+                new DialogStep("settings.refresh-cw", Strings.Get("SettingsOnlineEffect")),
+            };
 
-            // Предупреждение — всегда, а не только на незащищённой машине: цена
-            // снятия закрепления — оффлайн, и знать о ней надо до, а не после.
-            WarningText.Text = Strings.Get("AdminUnlockWorkplaceWarning");
-            WarningText.Visibility = Visibility.Visible;
+            // Последствия видны до ввода пароля; офлайн начинается при смене места.
         }
 
         if (settings.Admin.IsProtected)

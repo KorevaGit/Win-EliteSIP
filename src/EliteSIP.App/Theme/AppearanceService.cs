@@ -131,7 +131,7 @@ public sealed class AppearanceService : IDisposable
         // выбранного раздела.
     }
 
-    private static bool SystemPrefersDark()
+    internal static bool SystemPrefersDark()
     {
         // Реестр, а не `SystemParameters`: у WPF нет свойства «тёмная ли тема»
         // — его добавляли в WinUI, а не в WPF. Ключ читается заново на каждый

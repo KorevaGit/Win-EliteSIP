@@ -1,727 +1,644 @@
-<Window x:Class="EliteSIP.App.Settings.SettingsWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
-        xmlns:settings="clr-namespace:EliteSIP.App.Settings"
-        xmlns:res="clr-namespace:EliteSIP.App.Resources"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=settings:SettingsViewModel}"
-        Title="{res:Loc SettingsWindowTitle}"
-        Width="660"
-        Height="480"
-        MinWidth="660"
-        MinHeight="420"
-        WindowStartupLocation="CenterScreen"
-        UseLayoutRounding="True"
-        Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="{DynamicResource TextPrimaryBrush}"
-        TextOptions.TextFormattingMode="Display"
-        theme:SettingsLayout.LabelColumn="72"
-        theme:SettingsLayout.RowMaxWidth="420">
-
-  <!--
-      Ширина 620 — сайдбар 160 плюс строка во всю свою ширину плюс поля.
-      Высота 420 задаётся содержимым: разделов пять, и они видны на любой
-      высоте, а самый высокий — «Звук» с двумя устройствами и самопроверкой.
-
-      Колонка подписей — менеджерские 72, а не административные 132: подписи
-      здесь короткие («Громкость», «Микрофон»), и широкая колонка отодвинула бы
-      управление от левого края на пустое место.
-  -->
-
-  <Grid>
+<Window x:Class="EliteSIP.App.Settings.SettingsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:theme="clr-namespace:EliteSIP.App.Theme" xmlns:settings="clr-namespace:EliteSIP.App.Settings" xmlns:res="clr-namespace:EliteSIP.App.Resources" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=settings:SettingsViewModel}" Title="{res:Loc SettingsWindowTitle}" Width="780" Height="460" MinWidth="720" MinHeight="400" WindowStartupLocation="CenterScreen" UseLayoutRounding="True" Background="{DynamicResource PanelWindowBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" TextOptions.TextFormattingMode="Display" theme:SettingsLayout.LabelColumn="72" theme:SettingsLayout.RowMaxWidth="420" WindowStyle="None" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="GraphiteSettings.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+  <Window.Template>
+    <ControlTemplate TargetType="Window">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
+        <DockPanel LastChildFill="True">
+          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
+              <theme:CaptionCrown FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+              <TextBlock Text="{TemplateBinding Title}" FontSize="12" Margin="7,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMinimizeClick" ToolTip="{res:Loc WindowMinimize}" AutomationProperties.Name="{res:Loc WindowMinimize}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="" FontSize="10" />
+              </Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Click="OnMaximizeClick" ToolTip="{res:Loc WindowMaximize}" AutomationProperties.Name="{res:Loc WindowMaximize}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="10">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                          <Setter Property="Text" Value="" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                      <Setter Property="Text" Value="" />
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </Button>
+              <Button Style="{StaticResource PanelCaptionButtonStyle}" Tag="Close" Click="OnCaptionCloseClick" ToolTip="{res:Loc WindowClose}" AutomationProperties.Name="{res:Loc WindowClose}">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="" FontSize="10" />
+              </Button>
+            </StackPanel>
+          </Grid>
+          <AdornerDecorator>
+            <ContentPresenter />
+          </AdornerDecorator>
+        </DockPanel>
+      </Border>
+    </ControlTemplate>
+  </Window.Template>
+  <Grid Margin="8">
     <Grid.ColumnDefinitions>
-      <!-- Сайдбар фиксирован: список не тянется вместе с окном, иначе на
-           широком мониторе пять коротких названий разъезжаются по полосе в
-           треть экрана. -->
-      <ColumnDefinition Width="160" />
+      <ColumnDefinition Width="142" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
-
-    <!-- Боковой список разделов. -->
-
-    <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
-      <ListBox ItemsSource="{Binding Sections}"
-               SelectedValue="{Binding Section}"
-               SelectedValuePath="Kind"
-               Background="Transparent"
-               BorderThickness="0"
-               Margin="0,8,0,8"
-               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-        <ListBox.ItemContainerStyle>
-          <Style TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="14,8" />
-            <Setter Property="Margin" Value="0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <Setter Property="Template">
-              <Setter.Value>
-                <ControlTemplate TargetType="ListBoxItem">
-                  <!--
-                      Выбранный раздел — текст и значок акцентным цветом, без
-                      заливки: так отмечает выбранное список Параметров
-                      Windows 10. Под курсором строка чуть светлеет.
-                  -->
-                  <Grid x:Name="Row" Background="Transparent">
-                    <ContentPresenter Margin="{TemplateBinding Padding}" />
-                  </Grid>
-                  <ControlTemplate.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                      <Setter TargetName="Row" Property="Background" Value="{DynamicResource NavHoverBrush}" />
-                    </Trigger>
-                    <Trigger Property="IsSelected" Value="True">
-                      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-                    </Trigger>
-                  </ControlTemplate.Triggers>
-                </ControlTemplate>
-              </Setter.Value>
-            </Setter>
-          </Style>
-        </ListBox.ItemContainerStyle>
-
-        <ListBox.ItemTemplate>
-          <DataTemplate DataType="{x:Type settings:SettingsSectionItem}">
-            <StackPanel Orientation="Horizontal">
-              <!-- Значок 15, а не системные 16: наши нарисованы на сетке 20×20
-                   обводкой 1.5 и на шестнадцати читаются грубее соседей. -->
-              <!-- Цвет значка — цвет строки: у выбранной он акцентный. -->
-              <theme:Icon Glyph="{Binding Glyph}" Size="16" VerticalAlignment="Center"
-                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
-              <TextBlock Text="{Binding Title}" Margin="12,0,0,0" VerticalAlignment="Center" />
-            </StackPanel>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
+    <Border Grid.Column="0" Background="Transparent" Padding="0,10,0,0">
+      <DockPanel LastChildFill="True">
+        <Button x:Name="AdministrationButton" DockPanel.Dock="Bottom" Click="OnAdministrationClick" Style="{StaticResource SettingsAdministrationButtonStyle}" Margin="0,8,0,0" ToolTip="{res:Loc AdminModeNeedsPassword}">
+          <StackPanel Orientation="Horizontal">
+            <theme:Icon Glyph="settings.shield-check" Size="18" VerticalAlignment="Center" />
+            <TextBlock Text="{res:Loc SettingsManagement}" Margin="8,0,0,0" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <ListBox ItemsSource="{Binding Sections}" SelectedValue="{Binding Section}" SelectedValuePath="Kind" Background="Transparent" BorderThickness="0" Margin="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemContainerStyle="{StaticResource SettingsNavItemStyle}">
+          <ListBox.ItemTemplate>
+            <DataTemplate DataType="{x:Type settings:SettingsSectionItem}">
+              <StackPanel Orientation="Horizontal">
+                <theme:Icon Glyph="{Binding Glyph}" Size="18" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                <TextBlock Text="{Binding Title}" Margin="9,0,0,0" VerticalAlignment="Center" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
     </Border>
-
-    <!-- Открытый раздел и полоса низа. -->
-
     <Grid Grid.Column="1">
       <Grid.RowDefinitions>
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
-
-      <ScrollViewer Grid.Row="0"
-                    VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled"
-                    Padding="24,16,24,0">
-        <!--
-            Потолок ширины строк задан здесь, столбцу разделов, а не каждой
-            строке порознь. Порознь не выходит: строке с ползунком нужно
-            тянуться до потолка, а элемент, который и тянется, и ограничен
-            сверху, WPF ставит по середине оставшегося места — на широком окне
-            раздел уезжал бы от левого края.
-        -->
-        <Grid HorizontalAlignment="Left"
-              Width="{Binding (theme:SettingsLayout.RowMaxWidth), RelativeSource={RelativeSource Self}}">
-
-          <!-- Раздел «Работа». -->
-          <StackPanel Visibility="{Binding ShowsWork, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc WorkPlace}">
-              <theme:SettingsRow Header="{res:Loc SectionWork}">
-                <!-- Закреплённый в Spark формат гасит сегменты, а не молча
-                     отказывает: отказ после нажатия читается как поломка. -->
-                <StackPanel Orientation="Horizontal"
-                            IsEnabled="{Binding CanSwitchWorkplace}">
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="Site"
-                               Content="{res:Loc WorkOffice}"
-                               IsChecked="{Binding WorkplaceSite, Converter={StaticResource EnumToBool}, ConverterParameter=Office}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="Site"
-                               Content="{res:Loc WorkRemote}"
-                               IsChecked="{Binding WorkplaceSite, Converter={StaticResource EnumToBool}, ConverterParameter=Remote}" />
-                </StackPanel>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc WorkPbxAddress}">
-                <TextBlock Text="{Binding Settings.Account.Domain}"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc WorkSiteNote}" />
-
-              <!-- Закрепление из Spark: снять его на месте можно паролем
-                   настроек, ценой оффлайна. -->
-              <StackPanel Visibility="{Binding IsWorkplaceSwitchLocked, Converter={StaticResource BoolToVisibility}}">
-                <theme:SettingsNote Text="{res:Loc WorkSiteLockedNote}" />
-                <theme:SettingsIndented>
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          HorizontalAlignment="Left"
-                          Content="{res:Loc WorkSiteUnlock}"
-                          Command="{Binding UnlockWorkplace}" />
-                </theme:SettingsIndented>
-              </StackPanel>
-
-              <theme:SettingsNote Text="{res:Loc WorkSiteLockLiftedNote}"
-                                  IsAlarming="True"
-                                  Visibility="{Binding IsWorkplaceLockLifted, Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc WorkTroubleSection}">
-              <theme:SettingsIndented>
-                <TextBlock Text="{res:Loc WorkRepairNote}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc WorkRepairNetwork}"
-                        Command="{Binding RepairNetwork}"
-                        IsEnabled="{Binding CanRepairNetwork}" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc WorkRepairLockedNote}"
-                                  Visibility="{Binding IsNetworkRepairLocked, Converter={StaticResource BoolToVisibility}}" />
-
-              <!-- Итог — здесь, под своей кнопкой: прежде он уходил на страницу
-                   «Техподдержка», и нажатие на этой странице выглядело ничем. -->
-              <theme:SettingsNote Text="{Binding SupportResult}"
-                                  Visibility="{Binding HasNetworkResult,
-                                                       Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «Звук». -->
-          <StackPanel Visibility="{Binding ShowsAudio, Converter={StaticResource BoolToVisibility}}">
-            <!--
-                Четыре группы вместо одной сплошной: микрофон, наушники,
-                обработка и проверка — разные вопросы, и одной стопкой они
-                читались как список без начала и конца.
-            -->
-            <theme:SettingsSection Header="{res:Loc AudioInputSection}">
-              <theme:SettingsRow Header="{res:Loc AudioDevice}">
-                <!--
-                    Шаблон строки, а не `DisplayMemberPath`: закрытый вид
-                    своего списка рисуется тем же `SelectionBoxItemTemplate`,
-                    а `DisplayMemberPath` его не заполняет — в закрытом списке
-                    оказывалось имя типа со всеми полями, что живая проверка и
-                    показала.
-                -->
-                <ComboBox ItemsSource="{Binding Inputs}"
-                          SelectedValuePath="Id"
-                          SelectedValue="{Binding Settings.Audio.InputDeviceId}">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                    </DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-              </theme:SettingsRow>
-
-              <!--
-                  Ползунок стоит под своим устройством, а не отдельным блоком
-                  «Громкость» внизу страницы: отдельным блоком обе подписи
-                  пришлось бы называть «Микрофон» и «Наушники» второй раз.
-              -->
-              <theme:SettingsRow Header="{res:Loc AudioGain}">
-                <Grid>
+      <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="26,0,0,0" Style="{StaticResource SettingsContentScrollViewerStyle}" x:Name="SettingsScroller">
+        <StackPanel Margin="0,0,0,4">
+          <Grid Height="43">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding SectionTitle}" FontSize="21" FontWeight="SemiBold" Margin="5,0,0,7" VerticalAlignment="Center" />
+          </Grid>
+          <Grid HorizontalAlignment="Stretch">
+            <StackPanel Visibility="{Binding ShowsWork, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc WorkPlace}" Tag="settings.map-pin">
+                <theme:SettingsRow Header="" Tag="Device">
+                  <Border Background="{DynamicResource SettingsLineBrush}" CornerRadius="9" Padding="3">
+                    <UniformGrid Columns="2" IsEnabled="{Binding CanSwitchWorkplace}">
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Site" IsChecked="{Binding WorkplaceSite, Converter={StaticResource EnumToBool}, ConverterParameter=Office}" Margin="0">
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.building-2" Size="16" VerticalAlignment="Center" />
+                          <TextBlock Text="{res:Loc WorkOffice}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </RadioButton>
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="Site" IsChecked="{Binding WorkplaceSite, Converter={StaticResource EnumToBool}, ConverterParameter=Remote}" Margin="0">
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.house" Size="16" VerticalAlignment="Center" />
+                          <TextBlock Text="{res:Loc WorkRemote}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </RadioButton>
+                    </UniformGrid>
+                  </Border>
+                </theme:SettingsRow>
+                <Grid Height="75" HorizontalAlignment="Center" Margin="0">
                   <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="52" />
+                    <ColumnDefinition Width="46" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="46" />
+                    <ColumnDefinition Width="52" />
                   </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0"
-                          Minimum="0" Maximum="2"
-                          SmallChange="0.05" LargeChange="0.1"
-                          IsSnapToTickEnabled="True" TickFrequency="0.05"
-                          VerticalAlignment="Center"
-                          Value="{Binding Settings.Audio.MicrophoneGain}"
-                          IsEnabled="{Binding Settings.Audio.GainIsAdjustable}" />
-                  <TextBlock Grid.Column="1"
-                             Margin="6,0,0,0"
-                             MinWidth="40"
-                             TextAlignment="Right"
-                             VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding Settings.Audio.MicrophoneGain, Converter={StaticResource Percent}}" />
-                </Grid>
-              </theme:SettingsRow>
-
-              <!--
-                  Почему ручка серая — здесь, а не подсказкой при наведении:
-                  «управление серое и молчит» — худший вид отказа.
-              -->
-              <theme:SettingsNote Text="{res:Loc AudioGainAutoNote}"
-                                  Visibility="{Binding Settings.Audio.AutomaticGainControl, Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AudioOutputSection}">
-              <theme:SettingsRow Header="{res:Loc AudioDevice}">
-                <ComboBox ItemsSource="{Binding Outputs}"
-                          SelectedValuePath="Id"
-                          SelectedValue="{Binding Settings.Audio.OutputDeviceId}">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                    </DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-              </theme:SettingsRow>
-
-              <!-- До 200 %: умножение в тракте, после него мягкий ограничитель. -->
-              <theme:SettingsRow Header="{res:Loc AudioVolume}">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0"
-                          Minimum="0" Maximum="2"
-                          SmallChange="0.05" LargeChange="0.1"
-                          IsSnapToTickEnabled="True" TickFrequency="0.05"
-                          VerticalAlignment="Center"
-                          Value="{Binding Settings.Audio.PlaybackVolume}" />
-                  <TextBlock Grid.Column="1"
-                             Margin="6,0,0,0"
-                             MinWidth="40"
-                             TextAlignment="Right"
-                             VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding Settings.Audio.PlaybackVolume, Converter={StaticResource Percent}}" />
-                </Grid>
-              </theme:SettingsRow>
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AudioReceiveGain}"
-                        IsChecked="{Binding Settings.Audio.ReceiveGainControl}" />
-
-              <theme:SettingsNote Text="{res:Loc AudioReceiveGainNote}" />
-
-              <theme:SettingsNote Text="{res:Loc AudioLevelsNote}" />
-
-              <theme:SettingsNote Text="{res:Loc AudioAggregateNote}"
-                                  Visibility="{Binding NeedsAggregate, Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc AudioProcessingSection}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AudioAgc}"
-                        IsChecked="{Binding Settings.Audio.AutomaticGainControl}" />
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AudioNoiseSuppression}"
-                        IsChecked="{Binding Settings.Audio.NoiseSuppression}" />
-
-              <theme:SettingsNote Text="{res:Loc AudioNoiseSuppressionNote}" />
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AudioBackgroundVoices}"
-                        IsChecked="{Binding Settings.Audio.BackgroundVoiceSuppression}" />
-
-              <theme:SettingsNote Text="{res:Loc AudioBackgroundVoicesNote}" />
-
-              <theme:SettingsRow Header="{res:Loc AudioWindowsProcessing}">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="WindowsProcessing"
-                               Content="{res:Loc AudioWindowsProcessingAuto}"
-                               IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=Auto}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="WindowsProcessing"
-                               Content="{res:Loc AudioWindowsProcessingOn}"
-                               IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=On}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="WindowsProcessing"
-                               Content="{res:Loc AudioWindowsProcessingOff}"
-                               IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=Off}" />
-                </StackPanel>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AudioWindowsProcessingNote}" />
-
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AudioRelease}"
-                        IsChecked="{Binding Settings.Audio.ReleasesDeviceWhenIdle}" />
-            </theme:SettingsSection>
-
-            <!--
-                Самопроверка звука — см. `AudioSelfTest`. Пояснение над кнопкой
-                (что будет), итог — под ней (что вышло).
-            -->
-            <theme:SettingsSection Header="{res:Loc AudioSelfTestSection}">
-              <theme:SettingsIndented>
-                <TextBlock Text="{res:Loc AudioSelfTestNote}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsIndented>
-
-              <!-- Одна кнопка на запуск и остановку: вторая рядом читалась бы
-                   как ещё одна проверка. -->
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{Binding SelfTestButtonText}"
-                        IsEnabled="{Binding CanRunSelfTest}"
-                        Command="{Binding RunSelfTest}" />
-              </theme:SettingsIndented>
-
-              <!-- Серая кнопка без объяснения — худший вид отказа. -->
-              <theme:SettingsNote Text="{res:Loc AudioSelfTestBusy}"
-                                  Visibility="{Binding IsSelfTestBlockedByCall,
-                                                       Converter={StaticResource BoolToVisibility}}" />
-
-              <!--
-                  Шкалы — только во время проверки и разговора. В остальное
-                  время подсказка: полоса на нуле читается как сломанный
-                  микрофон, а открывать микрофон ради шкалы нельзя.
-              -->
-              <theme:SettingsRow Header="{res:Loc AudioMeterVoice}"
-                                 Visibility="{Binding ShowsMeters, Converter={StaticResource BoolToVisibility}}">
-                <theme:LevelMeter Level="{Binding VoiceLevel}" VerticalAlignment="Center" />
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AudioMeterSound}"
-                                 Visibility="{Binding ShowsMeters, Converter={StaticResource BoolToVisibility}}">
-                <theme:LevelMeter Level="{Binding SoundLevel}" VerticalAlignment="Center" />
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AudioMeterHint}"
-                                  Visibility="{Binding ShowsMeters, Converter={StaticResource NotBoolToVisibility}}" />
-
-              <theme:SettingsNote Text="{Binding SelfTestResult}"
-                                  Visibility="{Binding HasSelfTestResult,
-                                                       Converter={StaticResource BoolToVisibility}}" />
-
-              <!--
-                  Запись проверки — в файл, только по кнопке: то, что ушло бы в
-                  линию, для сравнения настроек и для жалобы.
-              -->
-              <theme:SettingsIndented Visibility="{Binding CanSaveRecording,
-                                                           Converter={StaticResource BoolToVisibility}}">
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc AudioSelfTestSave}"
-                        Command="{Binding SaveRecording}" />
-              </theme:SettingsIndented>
-            </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «Звонок». -->
-          <StackPanel Visibility="{Binding ShowsRingtone, Converter={StaticResource BoolToVisibility}}">
-            <theme:SettingsSection Header="{res:Loc SectionRingtone}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc RingtoneEnabled}"
-                        IsChecked="{Binding Settings.Ringtone.IsEnabled}" />
-
-              <!--
-                  Гаснет весь раздел, кроме собственного выключателя: он и есть
-                  то, чем раздел возвращают.
-              -->
-              <theme:SettingsRow Header="{res:Loc AudioVolume}"
-                                 IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Slider Grid.Column="0"
-                          Minimum="0" Maximum="1"
-                          SmallChange="0.05" LargeChange="0.1"
-                          IsSnapToTickEnabled="True" TickFrequency="0.05"
-                          VerticalAlignment="Center"
-                          Value="{Binding Settings.Ringtone.Volume}" />
-                  <TextBlock Grid.Column="1"
-                             Margin="6,0,0,0"
-                             MinWidth="40"
-                             TextAlignment="Right"
-                             VerticalAlignment="Center"
-                             Foreground="{DynamicResource TextSecondaryBrush}"
-                             Text="{Binding Settings.Ringtone.Volume, Converter={StaticResource Percent}}" />
-                </Grid>
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc RingtonePlayIn}"
-                                 IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="RingtoneOutput"
-                               Content="{res:Loc RingtoneSystemOutput}"
-                               IsChecked="{Binding Settings.Ringtone.Output, Converter={StaticResource EnumToBool}, ConverterParameter=SystemDefault}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="RingtoneOutput"
-                               Content="{res:Loc RingtoneCallOutput}"
-                               IsChecked="{Binding Settings.Ringtone.Output, Converter={StaticResource EnumToBool}, ConverterParameter=CallDevice}" />
-                </StackPanel>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc RingtoneOutputNote}" />
-
-              <theme:SettingsRow Header="{res:Loc RingtoneSound}"
-                                 IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
-                <TextBlock Text="{Binding RingtoneName}"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsRow>
-
-              <theme:SettingsIndented IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
-                <StackPanel Orientation="Horizontal">
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Content="{res:Loc RingtoneChooseFile}"
-                          Click="OnChooseRingtoneClick" />
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Margin="12,0,0,0"
-                          Content="{res:Loc RingtoneDefault}"
-                          Click="OnDefaultRingtoneClick"
-                          IsEnabled="{Binding Settings.Ringtone.HasCustomSound}" />
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          Margin="12,0,0,0"
-                          Content="{res:Loc RingtonePreview}"
-                          Click="OnPreviewRingtoneClick" />
-                </StackPanel>
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote x:Name="RingtoneProblem"
-                                  IsAlarming="True"
-                                  Visibility="Collapsed" />
-            </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «Оформление». -->
-          <StackPanel Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
-            <!--
-                Раздел был из одной строки, и это не считалось недосмотром:
-                панель висит поверх CRM весь день, и если CRM светлая, а система
-                тёмная, выбор делает тот, кто на это смотрит.
-            -->
-            <theme:SettingsSection Header="{res:Loc SectionAppearance}">
-              <theme:SettingsRow Header="{res:Loc AppearanceTheme}">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="System"
-                               GroupName="Theme"
-                               Content="{res:Loc AppearanceSystem}"
-                               IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
-                  <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="Light"
-                               GroupName="Theme"
-                               Content="{res:Loc AppearanceLight}"
-                               IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
-                  <RadioButton Style="{StaticResource ThemeTileStyle}" Tag="Dark"
-                               GroupName="Theme"
-                               Content="{res:Loc AppearanceDark}"
-                               IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
-                </StackPanel>
-              </theme:SettingsRow>
-
-              <!--
-                  Тема применяется сразу, и это отличие от оригинала не
-                  косметическое: там переключение корпуса требовало перезапуска,
-                  потому что стекло выбиралось при сборке окон. Здесь палитра —
-                  словарь ресурсов, и подменяется он на живых окнах.
-              -->
-              <theme:SettingsNote Text="{res:Loc AppearanceThemeNote}" />
-            </theme:SettingsSection>
-
-            <!--
-                Свой раздел, а не строка рядом с темой. Язык не оформление: тема
-                решает, как приложение выглядит, а язык — на чём оно
-                разговаривает, и меняют его один раз при заведении рабочего
-                места, а не по настроению.
-            -->
-            <theme:SettingsSection Header="{res:Loc AppearanceLanguage}">
-              <theme:SettingsRow Header="">
-                <StackPanel Orientation="Horizontal">
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="Language"
-                               Content="{res:Loc AppearanceLanguageSystem}"
-                               Checked="OnLanguageChosen"
-                               Tag="System"
-                               IsChecked="{Binding Settings.Appearance.Language, Converter={StaticResource EnumToBool}, ConverterParameter=System, Mode=OneWay}" />
-                  <!-- Названия языков написаны на них самих, как в «Языке и
-                       регионе» самой системы: человек, у которого приложение
-                       говорит на незнакомом ему языке, ищет в списке слово,
-                       которое узнаёт, а не перевод этого слова. -->
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="Language"
-                               Content="Русский"
-                               Checked="OnLanguageChosen"
-                               Tag="Russian"
-                               IsChecked="{Binding Settings.Appearance.Language, Converter={StaticResource EnumToBool}, ConverterParameter=Russian, Mode=OneWay}" />
-                  <RadioButton Style="{StaticResource SegmentStyle}"
-                               GroupName="Language"
-                               Content="English"
-                               Checked="OnLanguageChosen"
-                               Tag="English"
-                               IsChecked="{Binding Settings.Appearance.Language, Converter={StaticResource EnumToBool}, ConverterParameter=English, Mode=OneWay}" />
-                </StackPanel>
-              </theme:SettingsRow>
-
-              <theme:SettingsNote Text="{res:Loc AppearanceLanguageNote}" />
-              <theme:SettingsNote Text="{res:Loc AppearanceLanguageRestartNote}" />
-            </theme:SettingsSection>
-          </StackPanel>
-
-          <!-- Раздел «Техподдержка». -->
-          <StackPanel Visibility="{Binding ShowsSupport, Converter={StaticResource BoolToVisibility}}">
-            <!--
-                Три группы вместо одной с чертой посередине: журнал, версия с
-                обновлениями и предустановки — три разных разговора с
-                поддержкой, и у каждой кнопки свой итог прямо под ней.
-            -->
-            <theme:SettingsSection Header="{res:Loc WorkStartupSection}">
-              <CheckBox Style="{StaticResource SettingsSwitchStyle}"
-                        Content="{res:Loc AdminMaintenanceAutoStart}"
-                        IsChecked="{Binding StartsWithWindows}" />
-
-              <theme:SettingsNote Text="{res:Loc AdminMaintenanceAutoStartNote}" />
-            </theme:SettingsSection>
-
-            <theme:SettingsSection Header="{res:Loc SupportLogsSection}">
-              <theme:SettingsIndented>
-                <TextBlock Text="{res:Loc SupportArchiveNote}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsIndented>
-                <Button Style="{StaticResource SettingsButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Content="{res:Loc SupportCollectLogs}"
-                        Command="{Binding CollectLogs}" />
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{Binding SupportResult}"
-                                  Visibility="{Binding HasLogsResult,
-                                                       Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-
-            <!--
-                Версия — прямо над проверкой обновлений: первое, что просит
-                поддержка по телефону, — «какая у вас версия».
-            -->
-            <theme:SettingsSection Header="{res:Loc SupportUpdatesSection}">
-              <theme:SettingsRow Header="{res:Loc SupportVersion}">
-                <TextBlock Text="{Binding Version}"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsRow>
-
-              <!--
-                  Весь блок висит на самом `Updates`, а не на его свойствах:
-                  без заводской настройки линии нет, и привязки к её свойствам
-                  не разрешались бы — «Установить обновление» висело бы всегда.
-              -->
-              <StackPanel DataContext="{Binding Updates}"
-                          Visibility="{Binding Converter={StaticResource PresenceToVisibility}}">
-                <theme:SettingsIndented>
-                  <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource SettingsButtonStyle}"
-                            Content="{res:Loc SupportCheckUpdates}"
-                            Command="{Binding CheckNow}" />
-
-                    <!-- Только когда выпуск скачан и проверен. -->
-                    <Button Style="{StaticResource SettingsButtonStyle}"
-                            Margin="12,0,0,0"
-                            Content="{res:Loc AdminDiagnosticsInstallUpdate}"
-                            Command="{Binding Install}"
-                            Visibility="{Binding IsReady,
-                                                 Converter={StaticResource BoolToVisibility}}" />
+                  <StackPanel VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.monitor" Size="28" />
+                    <TextBlock Text="{res:Loc SettingsThisPc}" TextAlignment="Center" FontSize="11" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
                   </StackPanel>
-                </theme:SettingsIndented>
-
-                <theme:SettingsNote Text="{Binding Status}"
-                                    Visibility="{Binding HasStatus,
-                                                         Converter={StaticResource BoolToVisibility}}" />
-              </StackPanel>
-            </theme:SettingsSection>
-
-            <!--
-                Предустановки — своя группа: «почему у меня старые клавиши» и
-                «почему у меня старая версия» — два разных вопроса.
-            -->
-            <!--
-                Связь со Spark. Ключей активации больше нет: номер и
-                предустановку меняют в карточке сотрудника в Spark, машина
-                применяет их сама. Здесь остаётся, по чему её найти в Spark, и
-                одна кнопка: проверить сейчас — или, в оффлайне, вернуться в
-                онлайн. Раньше машина вне панели этой группы не видела вовсе.
-            -->
-            <theme:SettingsSection Header="{res:Loc SupportSparkSection}">
-              <theme:SettingsRow Header="{res:Loc AdminSupportMachine}">
-                <TextBlock Text="{Binding MachineID}"
-                           FontFamily="Consolas"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsRow>
-
-              <theme:SettingsRow Header="{res:Loc AdminSupportLink}">
-                <TextBlock Text="{Binding LinkState}"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-              </theme:SettingsRow>
-
-              <theme:SettingsIndented>
-                <Grid>
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          HorizontalAlignment="Left"
-                          Content="{res:Loc SupportCheckPresets}"
-                          Command="{Binding CheckPresets}"
-                          Visibility="{Binding IsPanelOffline, Converter={StaticResource NotBoolToVisibility}}" />
-                  <Button Style="{StaticResource SettingsButtonStyle}"
-                          HorizontalAlignment="Left"
-                          Content="{res:Loc SupportReturnOnline}"
-                          Command="{Binding ReturnOnline}"
-                          Visibility="{Binding IsPanelOffline, Converter={StaticResource BoolToVisibility}}" />
+                  <theme:Icon Grid.Column="1" Glyph="settings.arrow-right" Size="18" VerticalAlignment="Top" Margin="0,11,0,0" />
+                  <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.router" Size="28" />
+                    <TextBlock TextAlignment="Center" FontSize="11" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" MinWidth="52">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Setter Property="Text" Value="{res:Loc SettingsOfficeNetwork}" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding WorkplaceSite}" Value="Remote">
+                              <Setter Property="Text" Value="{res:Loc SettingsInternet}" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                  </StackPanel>
+                  <theme:Icon Grid.Column="3" Glyph="settings.arrow-right" Size="18" VerticalAlignment="Top" Margin="0,11,0,0" />
+                  <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.server" Size="28" />
+                    <TextBlock Text="{res:Loc SettingsPbx}" TextAlignment="Center" FontSize="11" Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
                 </Grid>
-              </theme:SettingsIndented>
-
-              <theme:SettingsNote Text="{res:Loc SupportReturnOnlineNote}"
-                                  Visibility="{Binding IsPanelOffline, Converter={StaticResource BoolToVisibility}}" />
-
-              <theme:SettingsNote Text="{Binding SupportResult}"
-                                  Visibility="{Binding HasPresetsResult,
-                                                       Converter={StaticResource BoolToVisibility}}" />
-            </theme:SettingsSection>
-          </StackPanel>
-        </Grid>
+                <theme:SettingsRow>
+                  <theme:SettingsRow.Header>
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="settings.network" Size="18" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc WorkPbxAddress}" VerticalAlignment="Center" Margin="7,0,0,0" />
+                    </StackPanel>
+                  </theme:SettingsRow.Header>
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="36" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Settings.Account.Domain}" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <Button x:Name="UnlockWorkplaceButton" Grid.Column="1" Style="{StaticResource SettingsButtonStyle}" Width="32" Padding="0" Command="{Binding UnlockWorkplace}" ToolTip="{res:Loc WorkSiteUnlock}" AutomationProperties.Name="{res:Loc WorkSiteUnlock}" Visibility="{Binding IsWorkplaceSwitchLocked, Converter={StaticResource BoolToVisibility}}">
+                      <theme:Icon Glyph="settings.lock-keyhole" Size="16" />
+                    </Button>
+                  </Grid>
+                </theme:SettingsRow>
+                <theme:SettingsNote Text="{res:Loc WorkSiteLockLiftedNote}" IsAlarming="True" Visibility="{Binding IsWorkplaceLockLifted, Converter={StaticResource BoolToVisibility}}" />
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="" Tag="settings.power">
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding StartsWithWindows}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.power" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsStartup}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                </CheckBox>
+                <theme:SettingsRow Tag="Restore">
+                  <theme:SettingsRow.Header>
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="settings.wrench" Size="18" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsRestoreConnection}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </theme:SettingsRow.Header>
+                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Right" Command="{Binding RepairNetwork}" IsEnabled="{Binding CanRepairNetwork}">
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="settings.refresh-cw" Size="16" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsRestore}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </theme:SettingsRow>
+                <theme:SettingsNote Text="{res:Loc WorkRepairLockedNote}" Visibility="{Binding IsNetworkRepairLocked, Converter={StaticResource BoolToVisibility}}" />
+                <theme:SettingsNote Text="{Binding SupportResult}" Visibility="{Binding HasNetworkResult,                                                        Converter={StaticResource BoolToVisibility}}" />
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsAudio, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc SettingsConversation}" Tag="settings.headset">
+                <Border Padding="0,9,0,11">
+                  <StackPanel>
+                    <theme:SettingsRow Tag="Device">
+                      <theme:SettingsRow.Header>
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.mic" Size="18" VerticalAlignment="Center" />
+                          <TextBlock Text="{res:Loc SettingsMicrophone}" VerticalAlignment="Center" Margin="7,0,0,0" />
+                        </StackPanel>
+                      </theme:SettingsRow.Header>
+                      <ComboBox ItemsSource="{Binding Inputs}" SelectedValuePath="Id" SelectedValue="{Binding Settings.Audio.InputDeviceId}">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate>
+                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                    </theme:SettingsRow>
+                    <theme:SettingsRow Tag="Compact" Margin="0,9,0,0">
+                      <theme:SettingsRow.Header>
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.mic" Size="18" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </theme:SettingsRow.Header>
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="0" Maximum="2" SmallChange="0.05" LargeChange="0.1" IsSnapToTickEnabled="True" TickFrequency="0.05" VerticalAlignment="Center" Value="{Binding Settings.Audio.MicrophoneGain}" IsEnabled="{Binding Settings.Audio.GainIsAdjustable}" />
+                        <TextBlock Grid.Column="1" Margin="9,0,0,0" MinWidth="35" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12">
+                          <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding Settings.Audio.AutomaticGainControl}" Value="True">
+                                  <Setter Property="Text" Value="{res:Loc AudioWindowsProcessingAuto}" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                              <Setter Property="Text" Value="{Binding Settings.Audio.MicrophoneGain, Converter={StaticResource Percent}}" />
+                            </Style>
+                          </TextBlock.Style>
+                        </TextBlock>
+                        <Button Grid.Column="2" Style="{StaticResource SettingsButtonStyle}" Margin="9,0,0,0" Padding="0" Click="OnTestMicrophoneClick" IsEnabled="{Binding CanRunSelfTest}" ToolTip="{res:Loc AudioSelfTestNote}" Width="108" Name="MicrophoneTestButton">
+                          <StackPanel Orientation="Horizontal">
+                            <theme:Icon Glyph="{Binding MicrophoneTestGlyph}" Size="14" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding MicrophoneTestText}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                          </StackPanel>
+                        </Button>
+                      </Grid>
+                    </theme:SettingsRow>
+                    <Grid Margin="29,7,0,0" Height="13">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <theme:LevelMeter Level="{Binding VoiceLevel}" Height="8" ActiveBrush="{DynamicResource SettingsGreenBrush}" TrackBrush="{DynamicResource SettingsTrackBrush}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{res:Loc SettingsSignalLevel}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+                <Border Padding="0,9,0,11" BorderBrush="{DynamicResource SettingsLineBrush}" BorderThickness="0,1,0,0">
+                  <StackPanel>
+                    <theme:SettingsRow Tag="Device">
+                      <theme:SettingsRow.Header>
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.headphones" Size="18" VerticalAlignment="Center" />
+                          <TextBlock Text="{res:Loc SettingsSpeakers}" VerticalAlignment="Center" Margin="7,0,0,0" />
+                        </StackPanel>
+                      </theme:SettingsRow.Header>
+                      <ComboBox ItemsSource="{Binding Outputs}" SelectedValuePath="Id" SelectedValue="{Binding Settings.Audio.OutputDeviceId}">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate>
+                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                    </theme:SettingsRow>
+                    <theme:SettingsRow Tag="Compact" Margin="0,9,0,0">
+                      <theme:SettingsRow.Header>
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.volume-1" Size="18" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </theme:SettingsRow.Header>
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Minimum="0" Maximum="2" SmallChange="0.05" LargeChange="0.1" IsSnapToTickEnabled="True" TickFrequency="0.05" VerticalAlignment="Center" Value="{Binding Settings.Audio.PlaybackVolume}" />
+                        <TextBlock Grid.Column="1" Margin="9,0,0,0" MinWidth="35" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Settings.Audio.PlaybackVolume, Converter={StaticResource Percent}}" FontSize="12" />
+                        <Button Grid.Column="2" Style="{StaticResource SettingsButtonStyle}" Margin="9,0,0,0" Padding="0" Click="OnTestOutputClick" IsEnabled="{Binding CanTestOutput}" ToolTip="{res:Loc SettingsOutputTestNote}" Width="108">
+                          <StackPanel Orientation="Horizontal">
+                            <theme:Icon Glyph="settings.play" Size="14" VerticalAlignment="Center" />
+                            <TextBlock Text="{res:Loc SettingsTest}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                          </StackPanel>
+                        </Button>
+                      </Grid>
+                    </theme:SettingsRow>
+                  </StackPanel>
+                </Border>
+                <theme:SettingsNote Text="{res:Loc AudioAggregateNote}" Visibility="{Binding NeedsAggregate, Converter={StaticResource BoolToVisibility}}" />
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="{res:Loc SettingsProcessing}" Tag="settings.sliders-horizontal">
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.AutomaticGainControl}" Tag="ProcessorFirst">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="25" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{res:Loc SettingsAgc}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
+                    <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Level" IsActive="{Binding Settings.Audio.AutomaticGainControl}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
+                    <theme:Icon Glyph="settings.mic" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                  </Grid>
+                </CheckBox>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.ReceiveGainControl}" Tag="Processor">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="25" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{res:Loc SettingsReceive}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
+                    <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Level" IsActive="{Binding Settings.Audio.ReceiveGainControl}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
+                    <theme:Icon Glyph="settings.volume-2" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                  </Grid>
+                </CheckBox>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.NoiseSuppression}" Tag="Processor">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="25" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{res:Loc AudioNoiseSuppression}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
+                    <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Noise" IsActive="{Binding Settings.Audio.NoiseSuppression}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
+                    <theme:Icon Glyph="settings.audio-lines" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                  </Grid>
+                </CheckBox>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.BackgroundVoiceSuppression}" Tag="Processor">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="25" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{res:Loc SettingsVoices}" VerticalAlignment="Center" TextWrapping="Wrap" Grid.Column="1" />
+                    <theme:ProcessingPreview Grid.Column="2" Margin="8,0,0,0" Kind="Voices" IsActive="{Binding Settings.Audio.BackgroundVoiceSuppression}" ProcessedBrush="{DynamicResource SettingsGreenBrush}" Width="118" />
+                    <theme:Icon Glyph="settings.users-round" Size="18" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                  </Grid>
+                </CheckBox>
+                <theme:SettingsRow Tag="WideLabel">
+                  <theme:SettingsRow.Header>
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="windows" Size="18" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsWindowsProcessor}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </theme:SettingsRow.Header>
+                  <Border Background="{DynamicResource SettingsLineBrush}" CornerRadius="9" Padding="3" Width="168" HorizontalAlignment="Right">
+                    <UniformGrid Columns="3">
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="WindowsProcessing" Content="{res:Loc AudioWindowsProcessingAuto}" IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=Auto}" Margin="0" />
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="WindowsProcessing" Content="{res:Loc AudioWindowsProcessingOn}" IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=On}" Margin="0" />
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" GroupName="WindowsProcessing" Content="{res:Loc AudioWindowsProcessingOff}" IsChecked="{Binding Settings.Audio.WindowsProcessing, Converter={StaticResource EnumToBool}, ConverterParameter=Off}" Margin="0" />
+                    </UniformGrid>
+                  </Border>
+                </theme:SettingsRow>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.ReleasesDeviceWhenIdle}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.unplug" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsReleaseDevices}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                </CheckBox>
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="{res:Loc SettingsSelfTest}" Tag="settings.mic-vocal">
+                <Grid Margin="0,3,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="156" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="40" />
+                    <ColumnDefinition Width="40" />
+                  </Grid.ColumnDefinitions>
+                  <Button x:Name="SelfTestRecordButton" Style="{StaticResource SettingsButtonStyle}" Command="{Binding RunSelfTest}" IsEnabled="{Binding CanRunSelfTest}">
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="{Binding SelfTestGlyph}" Size="16" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding SelfTestButtonText}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Border Grid.Column="1" Background="{DynamicResource SettingsFieldBrush}" CornerRadius="7" Margin="8,0,0,0" Padding="8,0">
+                    <theme:RecordingWaveform Level="{Binding VoiceLevel}" Foreground="{DynamicResource SettingsGreenBrush}" TrackBrush="{DynamicResource SettingsTrackBrush}" VerticalAlignment="Center" />
+                  </Border>
+                  <Button Grid.Column="2" Style="{StaticResource SettingsButtonStyle}" Width="32" Padding="0" HorizontalAlignment="Right" Command="{Binding PlayRecording}" IsEnabled="{Binding CanPlayRecording}" ToolTip="{res:Loc SettingsPlayRecording}" AutomationProperties.Name="{res:Loc SettingsPlayRecording}">
+                    <theme:Icon Glyph="settings.play" Size="16" />
+                  </Button>
+                  <Button Grid.Column="3" Style="{StaticResource SettingsButtonStyle}" Width="32" Padding="0" HorizontalAlignment="Right" Command="{Binding SaveRecording}" IsEnabled="{Binding CanSaveRecording}" ToolTip="{res:Loc AudioSelfTestSave}" AutomationProperties.Name="{res:Loc AudioSelfTestSave}">
+                    <theme:Icon Glyph="settings.download" Size="16" />
+                  </Button>
+                </Grid>
+                <Grid Margin="0,0,0,10" Height="20">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="45" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="{res:Loc AudioMeterVoice}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                  <theme:LevelMeter Grid.Column="1" Level="{Binding VoiceLevel}" ActiveBrush="{DynamicResource SettingsGreenBrush}" TrackBrush="{DynamicResource SettingsTrackBrush}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{res:Loc AudioMeterSound}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="14,0,8,0" />
+                  <theme:LevelMeter Grid.Column="3" Level="{Binding SoundLevel}" ActiveBrush="{DynamicResource SettingsGreenBrush}" TrackBrush="{DynamicResource SettingsTrackBrush}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="4" Text="{Binding SelfTestElapsed}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+                <theme:SettingsNote Text="{res:Loc AudioSelfTestBusy}" Visibility="{Binding IsSelfTestBlockedByCall, Converter={StaticResource BoolToVisibility}}" />
+                <theme:SettingsNote Text="{Binding SelfTestResult}" Visibility="{Binding HasSelfTestResult, Converter={StaticResource BoolToVisibility}}" />
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="{res:Loc SettingsMelody}" Tag="settings.bell">
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Ringtone.IsEnabled}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.bell" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsPlayMelody}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                </CheckBox>
+                <theme:SettingsRow IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
+                  <theme:SettingsRow.Header>
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="settings.speaker" Size="18" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsOutput}" VerticalAlignment="Center" Margin="7,0,0,0" />
+                    </StackPanel>
+                  </theme:SettingsRow.Header>
+                  <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding Settings.Ringtone.Output}" x:Name="RingtoneOutputChoice">
+                    <ComboBoxItem Tag="{x:Static settings:RingtoneOutput.SystemDefault}" Content="{res:Loc SettingsSystemSpeakers}" />
+                    <ComboBoxItem Tag="{x:Static settings:RingtoneOutput.CallDevice}" Content="{res:Loc SettingsCallDevice}" />
+                  </ComboBox>
+                </theme:SettingsRow>
+                <theme:SettingsRow IsEnabled="{Binding Settings.Ringtone.IsEnabled}">
+                  <theme:SettingsRow.Header>
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="settings.music-2" Size="18" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsMelodyShort}" VerticalAlignment="Center" Margin="7,0,0,0" />
+                    </StackPanel>
+                  </theme:SettingsRow.Header>
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding RingtoneName}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <StackPanel Orientation="Horizontal" Grid.Column="1">
+                      <Button Style="{StaticResource SettingsButtonStyle}" Click="OnChooseRingtoneClick" ToolTip="{res:Loc RingtoneChooseFile}" AutomationProperties.Name="{res:Loc RingtoneChooseFile}" Width="34" Padding="0" Margin="4,0,0,0">
+                        <theme:Icon Glyph="settings.folder-open" Size="16" />
+                      </Button>
+                      <Button Style="{StaticResource SettingsButtonStyle}" Margin="4,0,0,0" Click="OnDefaultRingtoneClick" IsEnabled="{Binding Settings.Ringtone.HasCustomSound}" ToolTip="{res:Loc RingtoneDefault}" AutomationProperties.Name="{res:Loc RingtoneDefault}" Width="34" Padding="0">
+                        <theme:Icon Glyph="settings.undo-2" Size="16" />
+                      </Button>
+                    </StackPanel>
+                  </Grid>
+                </theme:SettingsRow>
+                <theme:SettingsRow IsEnabled="{Binding Settings.Ringtone.IsEnabled}" Tag="Compact">
+                  <theme:SettingsRow.Header>
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="settings.volume-2" Size="18" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </theme:SettingsRow.Header>
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" IsSnapToTickEnabled="True" TickFrequency="0.05" VerticalAlignment="Center" Value="{Binding Settings.Ringtone.Volume}" />
+                    <TextBlock Grid.Column="1" Margin="9,0,0,0" MinWidth="35" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Settings.Ringtone.Volume, Converter={StaticResource Percent}}" FontSize="12" />
+                    <Button Grid.Column="2" Style="{StaticResource SettingsButtonStyle}" Margin="9,0,0,0" Padding="0" Click="OnPreviewRingtoneClick" IsEnabled="{Binding Settings.Ringtone.IsEnabled}" ToolTip="{res:Loc RingtonePreview}" Width="108">
+                      <StackPanel Orientation="Horizontal">
+                        <theme:Icon Glyph="settings.play" Size="14" VerticalAlignment="Center" />
+                        <TextBlock Text="{res:Loc SettingsListen}" Margin="5,0,0,0" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </Grid>
+                </theme:SettingsRow>
+                <theme:SettingsNote x:Name="RingtoneProblem" IsAlarming="True" Visibility="Collapsed" />
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc AppearanceTheme}" Tag="settings.panels-top-left">
+                <theme:SettingsRow Header="">
+                  <UniformGrid Columns="3" Margin="0,12,-8,12">
+                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="System" GroupName="Theme" Content="{res:Loc AppearanceSystem}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
+                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Light" GroupName="Theme" Content="{res:Loc AppearanceLight}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
+                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Dark" GroupName="Theme" Content="{res:Loc AppearanceDark}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
+                  </UniformGrid>
+                </theme:SettingsRow>
+                <Grid MinHeight="55">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="145" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.languages" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc AppearanceLanguage}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <ComboBox x:Name="LanguageChoice" HorizontalAlignment="Stretch" Width="145" Grid.Column="1" SelectedValuePath="Tag" SelectedValue="{Binding Settings.Appearance.Language, Mode=OneWay}" SelectionChanged="OnLanguageSelectionChanged" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+                    <ComboBoxItem Tag="{x:Static settings:LanguageSetting.System}" Content="{res:Loc AppearanceLanguageSystem}" />
+                    <ComboBoxItem Tag="{x:Static settings:LanguageSetting.Russian}" Content="{res:Loc SettingsRussian}" />
+                    <ComboBoxItem Tag="{x:Static settings:LanguageSetting.English}" Content="English" />
+                  </ComboBox>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.rotate-cw" Size="14" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsRestartRequired}" Margin="6,0,0,0" FontSize="11" Foreground="{DynamicResource SettingsWarningBrush}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Grid>
+              </theme:SettingsSection>
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowsSupport, Converter={StaticResource BoolToVisibility}}">
+              <theme:SettingsSection Header="{res:Loc SettingsApplicationUpdates}" Tag="settings.package">
+                <Grid MinHeight="47">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.crown-split" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="EliteSIP" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{DynamicResource SettingsLineBrush}" CornerRadius="6" Padding="8,4">
+                      <TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Border>
+                  </StackPanel>
+                </Grid>
+                <StackPanel DataContext="{Binding Updates}" Visibility="{Binding Converter={StaticResource PresenceToVisibility}}">
+                  <Grid MinHeight="47">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                      <theme:Icon Glyph="settings.cloud-download" Size="18" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SupportCheckUpdates}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                      <Button Style="{StaticResource SettingsButtonStyle}" Command="{Binding CheckNow}">
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.refresh-cw" Size="16" VerticalAlignment="Center" />
+                          <TextBlock Text="{res:Loc SettingsTest}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </Button>
+                      <Button Style="{StaticResource SettingsButtonStyle}" Command="{Binding Install}" Margin="8,0,0,0" Visibility="{Binding IsReady, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                          <theme:Icon Glyph="settings.download" Size="16" VerticalAlignment="Center" />
+                          <TextBlock Text="{res:Loc AdminDiagnosticsInstallUpdate}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </Button>
+                    </StackPanel>
+                  </Grid>
+                  <theme:SettingsNote Text="{Binding Status}" Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+                <Grid MinHeight="47">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.files" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsSupportArchive}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource SettingsButtonStyle}" Command="{Binding CollectLogs}">
+                      <StackPanel Orientation="Horizontal">
+                        <theme:Icon Glyph="settings.archive" Size="16" VerticalAlignment="Center" />
+                        <TextBlock Text="{res:Loc SettingsCollect}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
+                </Grid>
+                <theme:SettingsNote Text="{Binding SupportResult}" Visibility="{Binding HasLogsResult, Converter={StaticResource BoolToVisibility}}" />
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="{res:Loc SettingsSparkProfile}" Tag="settings.cloud">
+                <Grid MinHeight="76" Margin="0,0,0,4">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Width="58">
+                      <theme:Icon Glyph="settings.monitor" Size="27" HorizontalAlignment="Center" />
+                      <TextBlock Text="{res:Loc SettingsThisPc}" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <theme:Icon Glyph="settings.arrow-left-right" Size="22" Foreground="{DynamicResource SettingsGreenBrush}" Margin="16,0" VerticalAlignment="Center" />
+                    <StackPanel Width="58">
+                      <theme:Icon Glyph="settings.cloud" Size="27" HorizontalAlignment="Center" />
+                      <TextBlock Text="Spark" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Border Background="{DynamicResource SettingsLineBrush}" CornerRadius="6" Padding="8,4" Margin="16,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding LinkState}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Border>
+                  </StackPanel>
+                </Grid>
+                <Grid MinHeight="47">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.fingerprint" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsMachineId}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding MachineID}" FontFamily="Consolas" FontSize="12" MaxWidth="340" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="8,0" />
+                    <Button Style="{StaticResource SettingsButtonStyle}" Width="32" Padding="0" Click="OnCopyMachineClick" ToolTip="{res:Loc SettingsCopyId}" AutomationProperties.Name="{res:Loc SettingsCopyId}">
+                      <theme:Icon Glyph="settings.copy" Size="16" />
+                    </Button>
+                  </StackPanel>
+                </Grid>
+                <Grid MinHeight="47">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <theme:Icon Glyph="settings.list-checks" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsPresets}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource SettingsButtonStyle}" Command="{Binding CheckPresets}" Visibility="{Binding IsPanelOffline, Converter={StaticResource NotBoolToVisibility}}">
+                      <StackPanel Orientation="Horizontal">
+                        <theme:Icon Glyph="settings.refresh-cw" Size="16" VerticalAlignment="Center" />
+                        <TextBlock Text="{res:Loc SettingsCheckNow}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource SettingsButtonStyle}" Command="{Binding ReturnOnline}" Visibility="{Binding IsPanelOffline, Converter={StaticResource BoolToVisibility}}">
+                      <StackPanel Orientation="Horizontal">
+                        <theme:Icon Glyph="settings.refresh-cw" Size="16" VerticalAlignment="Center" />
+                        <TextBlock Text="{res:Loc SupportReturnOnline}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
+                </Grid>
+                <theme:SettingsNote Text="{res:Loc SupportReturnOnlineNote}" Visibility="{Binding IsPanelOffline, Converter={StaticResource BoolToVisibility}}" />
+                <theme:SettingsNote Text="{Binding SupportResult}" Visibility="{Binding HasPresetsResult, Converter={StaticResource BoolToVisibility}}" />
+              </theme:SettingsSection>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
       </ScrollViewer>
-
-      <!--
-          Полоса низа — не про сохранение: менеджерские настройки применяются
-          сразу, и кнопок «Сохранить» с «Отменить» тут нет и быть не может.
-          Полосу занимает дверь в «Управление» — единственное в этом окне
-          действие, которое относится к окну целиком, а не к открытому разделу.
-      -->
-      <Border Grid.Row="1" Padding="12,8">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-
-          <theme:Icon Grid.Column="0"
-                      Glyph="lock.shield.fill"
-                      Size="14"
-                      VerticalAlignment="Center"
-                      Foreground="{DynamicResource TextSecondaryBrush}" />
-
-          <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
-            <TextBlock Text="{res:Loc AdminModeTitle}" />
-            <!--
-                Предупреждение, а не объяснение: перечислять, что лежит за
-                дверью, менеджеру незачем — он туда не идёт; а вот знать, что
-                дверь заперта, надо до нажатия, иначе запрос пароля выглядит
-                отказом.
-            -->
-            <TextBlock Text="{res:Loc AdminModeNeedsPassword}"
-                       FontSize="12"
-                       Foreground="{DynamicResource TextSecondaryBrush}" />
-          </StackPanel>
-
-          <!-- Шеврон — потому что кнопка ведёт в другое окно. Оно и заменяет
-               собой это: «Управление» закрывает настройки, а не встаёт рядом. -->
-          <Button Grid.Column="2"
-                  Style="{StaticResource SettingsButtonStyle}"
-                  Content="{res:Loc AdminModeOpen}"
-                  Click="OnAdministrationClick" />
-        </Grid>
-      </Border>
     </Grid>
   </Grid>
 </Window>

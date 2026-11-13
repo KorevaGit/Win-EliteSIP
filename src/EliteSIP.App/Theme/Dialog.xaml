@@ -1,16 +1,17 @@
 <Window x:Class="EliteSIP.App.Theme.Dialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:EliteSIP.App.Theme"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Width="420"
+        Width="460"
         SizeToContent="Height"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         UseLayoutRounding="True"
-        Background="{DynamicResource WindowBackgroundBrush}"
+        Background="{DynamicResource PanelWindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
         TextOptions.TextFormattingMode="Display">
 
@@ -30,19 +31,23 @@
       поле.
   -->
 
-  <StackPanel Margin="16">
+  <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="../Settings/SettingsDialogResources.xaml" /></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
+  <StackPanel Margin="8">
+    <Grid Margin="6,4,6,12"><Grid.ColumnDefinitions><ColumnDefinition Width="34" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><theme:Icon x:Name="DialogIcon" Glyph="settings.shield-check" Size="24" VerticalAlignment="Center" />
     <TextBlock x:Name="TitleText"
-               FontSize="17"
+               Grid.Column="1" FontSize="20"
                FontWeight="SemiBold"
                TextWrapping="Wrap"
-               Foreground="{DynamicResource TextPrimaryBrush}" />
+               Foreground="{DynamicResource TextPrimaryBrush}" /></Grid>
 
+    <Border Style="{StaticResource SettingsDialogCardStyle}"><StackPanel>
     <TextBlock x:Name="BodyText"
-               Margin="0,8,0,0"
+               Margin="0"
                FontSize="13"
                TextWrapping="Wrap"
                LineHeight="19"
                Foreground="{DynamicResource TextSecondaryBrush}" />
+    <ItemsControl x:Name="StepsHost" Visibility="Collapsed" ItemTemplate="{StaticResource SettingsDialogStepTemplate}" />
 
     <!--
         Сноска: то, что человек обязан прочесть, но что не является самим
@@ -55,7 +60,8 @@
                TextWrapping="Wrap"
                LineHeight="17"
                Visibility="Collapsed"
-               Foreground="{DynamicResource TextTertiaryBrush}" />
+               Foreground="{DynamicResource SettingsWarningBrush}" />
+    </StackPanel></Border>
 
     <!--
         Кнопки справа и в том порядке, в каком их читают на Windows: сначала
@@ -66,6 +72,6 @@
     <StackPanel x:Name="Buttons"
                 Orientation="Horizontal"
                 HorizontalAlignment="Right"
-                Margin="0,20,0,0" />
+                Margin="0,12,0,0" />
   </StackPanel>
 </Window>

@@ -119,14 +119,10 @@ public sealed record PortKnockSequence
     /// </summary>
     ///
     /// <remarks>
-    /// Точный срок, на который шлюз открывает доступ, неизвестен — известно
-    /// только, что при смене публичного адреса он почти наверняка перестаёт
-    /// действовать, а адрес у большинства сотрудников динамический. Десять минут
-    /// — заведомо меньше любого правдоподобного таймаута списка на MikroTik и
-    /// при этом восемь пакетов за десять минут, то есть цена вопроса не
-    /// обсуждается.
+    /// Плановый повтор — раз в час. Потеря связности и повтор после отказа
+    /// открывают путь немедленно, независимо от этого интервала.
     /// </remarks>
-    public double RepeatIntervalSeconds { get; init; } = 600;
+    public double RepeatIntervalSeconds { get; init; } = 3600;
 
     /// <summary>Сколько всего пакетов уйдёт.</summary>
     [JsonIgnore]
@@ -138,12 +134,12 @@ public sealed record PortKnockSequence
     ///
     /// <remarks>
     /// Нужно тому, кто его ждёт: это задержка перед первым REGISTER, и она
-    /// должна быть предсказуемой, а не сюрпризом. Считаются промежутки, а не
-    /// пакеты: после последнего ждать нечего.
+    /// должна быть предсказуемой. Оценка включает интервалы перед отправками и
+    /// последнее ожидание эха (без DNS и задержек планировщика).
     /// </remarks>
     [JsonIgnore]
     public TimeSpan EstimatedDuration
-        => TimeSpan.FromSeconds(Math.Max(0, PacketCount - 1) * SpacingSeconds);
+        => TimeSpan.FromSeconds(Math.Max(0, PacketCount) * Math.Max(0.001, SpacingSeconds));
 
     [JsonIgnore]
     public bool IsEmpty => PacketCount == 0;
@@ -308,7 +304,7 @@ public sealed class PortKnockThrottle
 
     /// <summary>Повтор после отказа не пропускается никогда.</summary>
     public bool ShouldKnock(SipPathOpenReason reason, DateTimeOffset now)
-        => reason is SipPathOpenReason.Retry
+        => reason is SipPathOpenReason.Retry or SipPathOpenReason.Recovery
             || _lastKnockAt is not { } last
             || now - last >= MinimumInterval;
 

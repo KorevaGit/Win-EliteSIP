@@ -85,6 +85,9 @@ public abstract record HistoryOpenOutcome
     public sealed record Unavailable(string Reason) : HistoryOpenOutcome;
 }
 
+/// <summary>Последняя неподтверждённая запись. Не содержит номеров и параметров SQL.</summary>
+public sealed record HistoryWriteFailure(DateTimeOffset At, string Operation, int? SqliteCode, int? ExtendedCode);
+
 /// <summary>
 /// Локальная история звонков: запись по событию, выборка и уборка по сроку.
 ///
@@ -135,6 +138,15 @@ public sealed class CallHistoryStore : IDisposable
         "outcome_code, was_transferred, was_conference, was_distribution";
 
     private readonly Settings _settings;
+    private readonly Action<string>? _diagnostic;
+    private readonly HistoryWriteJournal _journal;
+    private readonly HistoryRecoverySnapshots _recovery;
+    private readonly CancellationTokenSource _stopping = new();
+    private readonly CancellationToken _stopToken;
+    private long _unconfirmedWrites;
+    private readonly Timer? _retryTimer;
+    private HistoryWriteFailure? _lastWriteFailure;
+    private long _writeFailureCount;
 
     /// <summary>
     /// Очередь работы с диском. Одна на хранилище, и она же — весь порядок: в
@@ -153,12 +165,16 @@ public sealed class CallHistoryStore : IDisposable
 
     private HistoryOpenOutcome _outcome = new HistoryOpenOutcome.Unavailable("база ещё не открывалась");
 
-    private bool _disposed;
+    private int _disposed;
 
-    public CallHistoryStore(Settings settings)
+    public CallHistoryStore(Settings settings, Action<string>? diagnostic = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
+        _diagnostic = diagnostic;
+        _journal = new HistoryWriteJournal(settings.FilePath + ".pending", settings.MaximumAgeInDays);
+        _recovery = new HistoryRecoverySnapshots(settings.FilePath, settings.MaximumAgeInDays);
+        _stopToken = _stopping.Token;
 
         // Синхронно и до запуска потока: приложение сразу после создания
         // спрашивает исход, чтобы написать о нём в журнал, а незакрытые записи
@@ -172,6 +188,11 @@ public sealed class CallHistoryStore : IDisposable
             Name = "EliteSIP.History",
         };
         _worker.Start();
+        _retryTimer = new Timer(_ => Post(() =>
+        {
+            if (_database is null) { Open(closeInterrupted: false); }
+            else { ReplayPending(_database); ImportRecovery(); }
+        }), null, _journal.Count > 0 ? TimeSpan.FromSeconds(1) : Timeout.InfiniteTimeSpan, TimeSpan.FromSeconds(5));
     }
 
     /// <summary>Чем закончилось открытие.</summary>
@@ -179,33 +200,66 @@ public sealed class CallHistoryStore : IDisposable
 
     public string FilePath => _settings.FilePath;
 
+    public HistoryWriteFailure? LastWriteFailure => Volatile.Read(ref _lastWriteFailure);
+    public long WriteFailureCount => Interlocked.Read(ref _writeFailureCount);
+
+    /// <summary>Безопасная сводка для поддержки; OpenOutcome описывает только запуск.</summary>
+    public string DiagnosticSummary()
+    {
+        var last = LastWriteFailure;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"history: open={OpenOutcome.GetType().Name}; writeFailures={WriteFailureCount}; lastFailure={last?.At:O}; operation={last?.Operation}; sqlite={last?.SqliteCode}; extended={last?.ExtendedCode}; pending={_journal.Count}; queueDurable={_journal.IsDurable}; lost={_journal.LostCount}; unconfirmed={Interlocked.Read(ref _unconfirmedWrites)}");
+    }
+
+    private void ReportWriteFailure(string operation, SqliteException? error = null)
+    {
+        var failure = new HistoryWriteFailure(DateTimeOffset.UtcNow, operation,
+            error?.SqliteErrorCode, error?.SqliteExtendedErrorCode);
+        Volatile.Write(ref _lastWriteFailure, failure);
+        var count = Interlocked.Increment(ref _writeFailureCount);
+        try
+        {
+            _diagnostic?.Invoke(string.Create(CultureInfo.InvariantCulture,
+                $"history: write failed; operation={operation}; sqlite={failure.SqliteCode}; extended={failure.ExtendedCode}; databaseAvailable={_database is not null}; total={count}"));
+        }
+        catch (Exception)
+        {
+            // Отказ внешнего приёмника диагностики не должен ронять поток истории.
+        }
+    }
+
     // MARK: - Очередь
 
     private void RunWorkerLoop()
     {
-        foreach (Action item in _work.GetConsumingEnumerable())
+        try
         {
-            item();
+            foreach (Action item in _work.GetConsumingEnumerable())
+            {
+                try { item(); }
+                catch (Exception error) when (error is not OutOfMemoryException and not AccessViolationException and not System.Runtime.InteropServices.SEHException)
+                {
+                    ReportWriteFailure("WORKER");
+                }
+            }
         }
+        finally { _database?.Dispose(); _database = null; _work.Dispose(); _stopping.Dispose(); }
     }
 
     /// <summary>Отправить работу и не ждать. Порядок сохраняется.</summary>
-    private void Post(Action action)
+    private bool Post(Action action)
     {
-        if (_work.IsAddingCompleted)
-        {
-            return;
-        }
-
         try
         {
-            _work.Add(action);
+            if (_work.IsAddingCompleted) { return false; }
+            _work.Add(action); return true;
         }
         catch (InvalidOperationException)
         {
             // Хранилище закрывают ровно один раз и в конце работы приложения;
             // гонка с закрытием означает «писать уже некуда», а не поломку.
         }
+        return false;
     }
 
     /// <summary>
@@ -217,33 +271,14 @@ public sealed class CallHistoryStore : IDisposable
     /// </summary>
     private T Await<T>(Func<T> action)
     {
-        if (_work.IsAddingCompleted)
+        var done = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var posted = Post(() =>
         {
-            return action();
-        }
-
-        using ManualResetEventSlim done = new(false);
-        T result = default!;
-        Exception? failure = null;
-
-        Post(() =>
-        {
-            try
-            {
-                result = action();
-            }
-            catch (Exception error)
-            {
-                failure = error;
-            }
-            finally
-            {
-                done.Set();
-            }
+            try { done.TrySetResult(action()); }
+            catch (Exception error) { done.TrySetException(error); }
         });
-
-        done.Wait();
-        return failure is null ? result : throw failure;
+        ObjectDisposedException.ThrowIf(!posted, this);
+        return done.Task.GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -251,12 +286,33 @@ public sealed class CallHistoryStore : IDisposable
     ///
     /// Нужен проверкам и списку, который открывают сразу после звонка.
     /// </summary>
-    public void Flush() => Await(() => true);
+    public void Flush() => Await(() => { ReplayPending(_database); return _journal.Persist(); });
+
+    /// <summary>Подтверждение записи в SQLite либо в долговечную очередь, без блокировки UI.</summary>
+    public async Task<bool> FlushAsync(TimeSpan? timeout = null)
+    {
+        var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!Post(() => { ReplayPending(_database); done.TrySetResult(_journal.Persist()); })) { return false; }
+        try { return await done.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(2)).ConfigureAwait(false); }
+        catch (TimeoutException) { return false; }
+    }
+
+    public async Task<bool> EnsureDurableAsync(CallRecord record)
+    {
+        if (_stopToken.IsCancellationRequested) { return false; }
+        var snapshot = CopyRecord(record);
+        if (await FlushAsync().ConfigureAwait(false)) { return true; }
+        var saved = await _recovery.SaveAsync(snapshot, _stopToken).ConfigureAwait(false);
+        if (!saved) { Interlocked.Increment(ref _unconfirmedWrites); ReportWriteFailure("RECOVERY"); }
+        ScheduleRetry();
+        return saved;
+    }
 
     // MARK: - Открытие
 
-    private void Open()
+    private void Open(bool closeInterrupted = true)
     {
+        SqliteConnection? opening = null;
         try
         {
             string? directory = Path.GetDirectoryName(Path.GetFullPath(_settings.FilePath));
@@ -272,7 +328,7 @@ public sealed class CallHistoryStore : IDisposable
             // SQLite примет как новую базу.
             HistoryFilePrivacy.Restrict(_settings.FilePath);
 
-            SqliteConnection database = OpenConnection();
+            SqliteConnection database = opening = OpenConnection();
 
             // Порча файла не гипотетическая: рабочее место выключают из розетки,
             // а базу кладут в профиль пользователя, который на части машин
@@ -283,10 +339,14 @@ public sealed class CallHistoryStore : IDisposable
             {
                 database.Dispose();
                 string damaged = Quarantine();
-                database = OpenConnection();
+                database = opening = OpenConnection();
                 Prepare(database);
                 _database = database;
+                opening = null;
                 _outcome = new HistoryOpenOutcome.ReplacedDamaged(damaged);
+                ReplayPending(database);
+                ImportRecovery();
+                if (closeInterrupted && _journal.Count == 0) { CloseInterrupted(database); }
                 return;
             }
 
@@ -296,10 +356,16 @@ public sealed class CallHistoryStore : IDisposable
             // `Prepare`, а не раньше. В них лежит то же, что и в базе.
             HistoryFilePrivacy.Restrict(_settings.FilePath);
             _database = database;
+            opening = null;
             _outcome = new HistoryOpenOutcome.Ready();
+            ReplayPending(database);
+            ImportRecovery();
+            _journal.Persist();
+            if (closeInterrupted && _journal.Count == 0) { CloseInterrupted(database); }
         }
         catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException)
         {
+            opening?.Dispose();
             _database?.Dispose();
             _database = null;
             _outcome = new HistoryOpenOutcome.Unavailable(error.Message);
@@ -316,10 +382,12 @@ public sealed class CallHistoryStore : IDisposable
             // испорченной базы не удалось бы отставить в сторону: Windows не даёт
             // переименовать файл, который кто-то держит открытым.
             Pooling = false,
+            DefaultTimeout = 1,
         };
 
         SqliteConnection connection = new(builder.ConnectionString);
-        connection.Open();
+        try { connection.Open(); }
+        catch { connection.Dispose(); throw; }
         return connection;
     }
 
@@ -438,7 +506,6 @@ public sealed class CallHistoryStore : IDisposable
             database,
             "CREATE INDEX IF NOT EXISTS calls_profile_started_at ON calls(profile_id, started_at DESC);");
 
-        CloseInterrupted(database);
         DeleteExpired(database, DateTimeOffset.Now);
     }
 
@@ -501,42 +568,42 @@ public sealed class CallHistoryStore : IDisposable
     public void Begin(CallRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
+        record = CopyRecord(record);
 
-        Post(() =>
-        {
-            if (_database is not { } database)
-            {
-                return;
-            }
+        Post(() => BeginCore(record));
+    }
 
-            TryExecute(
-                database,
-                $"""
+    private void BeginCore(CallRecord record)
+    {
+        var database = _database;
+
+        TryExecute(
+            database,
+            $"""
                 INSERT OR REPLACE INTO calls ({RecordColumns})
                 VALUES ($id, $callId, $serverCallId, $direction, $role, $number, $sipLogin,
                         $displayName, $profileId, $profileLabel, $startedAt, $answeredAt,
                         $endedAt, $endReason, $outcomeCode, $wasTransferred, $wasConference,
                         $wasDistribution);
                 """,
-                ("$id", record.Id.ToString()),
-                ("$callId", record.CallId),
-                ("$serverCallId", record.ServerCallId),
-                ("$direction", (long)record.Direction),
-                ("$role", (long)record.Role),
-                ("$number", record.Number),
-                ("$sipLogin", record.SipLogin),
-                ("$displayName", record.DisplayName),
-                ("$profileId", record.ProfileId?.ToString()),
-                ("$profileLabel", record.ProfileLabel),
-                ("$startedAt", Seconds(record.StartedAt)),
-                ("$answeredAt", Seconds(record.AnsweredAt)),
-                ("$endedAt", Seconds(record.EndedAt)),
-                ("$endReason", record.EndReason),
-                ("$outcomeCode", Code(record.OutcomeCode)),
-                ("$wasTransferred", record.WasTransferred ? 1L : 0L),
-                ("$wasConference", record.WasConference ? 1L : 0L),
-                ("$wasDistribution", record.WasDistribution ? 1L : 0L));
-        });
+            ("$id", record.Id.ToString()),
+            ("$callId", record.CallId),
+            ("$serverCallId", record.ServerCallId),
+            ("$direction", (long)record.Direction),
+            ("$role", (long)record.Role),
+            ("$number", record.Number),
+            ("$sipLogin", record.SipLogin),
+            ("$displayName", record.DisplayName),
+            ("$profileId", record.ProfileId?.ToString()),
+            ("$profileLabel", record.ProfileLabel),
+            ("$startedAt", Seconds(record.StartedAt)),
+            ("$answeredAt", Seconds(record.AnsweredAt)),
+            ("$endedAt", Seconds(record.EndedAt)),
+            ("$endReason", record.EndReason),
+            ("$outcomeCode", Code(record.OutcomeCode)),
+            ("$wasTransferred", record.WasTransferred ? 1L : 0L),
+            ("$wasConference", record.WasConference ? 1L : 0L),
+            ("$wasDistribution", record.WasDistribution ? 1L : 0L));
     }
 
     /// <summary>
@@ -602,10 +669,7 @@ public sealed class CallHistoryStore : IDisposable
     private void Update(string sql, params (string Name, object? Value)[] parameters)
         => Post(() =>
         {
-            if (_database is { } database)
-            {
-                TryExecute(database, sql, parameters);
-            }
+            TryExecute(_database, sql, parameters);
         });
 
     // MARK: - Чтение
@@ -851,13 +915,9 @@ public sealed class CallHistoryStore : IDisposable
     public int DeleteHistory(Guid profileId)
         => Await(() =>
         {
-            if (_database is not { } database)
-            {
-                return 0;
-            }
-
+            _recovery.Delete(profileId);
             return TryExecute(
-                database,
+                _database,
                 "DELETE FROM calls WHERE profile_id = $profile;",
                 ("$profile", profileId.ToString()));
         });
@@ -873,8 +933,10 @@ public sealed class CallHistoryStore : IDisposable
     public int DeleteAll()
         => Await(() =>
         {
+            _recovery.Delete(null);
             if (_database is not { } database)
             {
+                TryExecute(null, "DELETE FROM calls;");
                 return 0;
             }
 
@@ -945,21 +1007,103 @@ public sealed class CallHistoryStore : IDisposable
     /// Возврат — сколько строк тронуто. Отказы глотаются осознанно и только на
     /// записи: полный диск не повод обрывать разговор, о котором делается запись.
     /// </summary>
-    private static int TryExecute(
-        SqliteConnection database,
+    private int TryExecute(
+        SqliteConnection? database,
         string sql,
         params (string Name, object? Value)[] parameters)
     {
+        if (database is null || !ReplayPending(database))
+        {
+            ReportWriteFailure(sql.TrimStart().Split(' ', '\r', '\n')[0]);
+            _journal.Add(sql, parameters);
+            ScheduleRetry();
+            return 0;
+        }
         try
         {
             using SqliteCommand command = Command(database, sql, parameters);
             return command.ExecuteNonQuery();
         }
-        catch (SqliteException)
+        catch (SqliteException error)
         {
+            // Только глагол операции и коды: SQL и параметры содержат номера.
+            ReportWriteFailure(sql.TrimStart().Split(' ', '\r', '\n')[0], error);
+            _journal.Add(sql, parameters);
+            ScheduleRetry();
             return 0;
         }
     }
+
+    private void ScheduleRetry()
+    {
+        try { _retryTimer?.Change(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5)); }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void ImportRecovery()
+    {
+        if (_database is not { } database) { return; }
+        foreach (var record in _recovery.Load())
+        {
+            if (ScalarInteger(database, "SELECT count(*) FROM calls WHERE id=$id;", [("$id", record.Id.ToString())]) == 0)
+            {
+                BeginCore(record);
+            }
+            if (record.AnsweredAt is { } answered)
+            {
+                TryExecute(database, "UPDATE calls SET answered_at=$at WHERE id=$id AND answered_at IS NULL;",
+                    ("$at", Seconds(answered)), ("$id", record.Id.ToString()));
+            }
+            if (_journal.Count == 0 && ScalarInteger(database, "SELECT count(*) FROM calls WHERE id=$id;", [("$id", record.Id.ToString())]) > 0)
+            {
+                try { _recovery.Complete(record.Id); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { ReportWriteFailure("RECOVERY_CLEANUP"); }
+            }
+        }
+    }
+
+    private bool ReplayPending(SqliteConnection? database)
+    {
+        if (_journal.Count == 0) { return true; }
+        if (database is null) { return false; }
+        try
+        {
+            using var transaction = database.BeginTransaction();
+            foreach (var entry in _journal.Entries)
+            {
+                using var command = Command(database, entry.Sql,
+                    entry.Parameters.Select(value => (value.Name, HistoryWriteJournal.Value(value.Value))).ToArray());
+                command.Transaction = transaction;
+                command.ExecuteNonQuery();
+            }
+            transaction.Commit();
+            _journal.Committed();
+            return _journal.Count == 0;
+        }
+        catch (SqliteException error) { ReportWriteFailure("REPLAY", error); return false; }
+    }
+
+    private static CallRecord CopyRecord(CallRecord value) => new()
+    {
+        Id = value.Id,
+        CallId = value.CallId,
+        ServerCallId = value.ServerCallId,
+        Direction = value.Direction,
+        Role = value.Role,
+        Number = value.Number,
+        SipLogin = value.SipLogin,
+        DisplayName = value.DisplayName,
+        ProfileId = value.ProfileId,
+        ProfileLabel = value.ProfileLabel,
+        StartedAt = value.StartedAt,
+        AnsweredAt = value.AnsweredAt,
+        EndedAt = value.EndedAt,
+        EndReason = value.EndReason,
+        OutcomeCode = value.OutcomeCode,
+        WasTransferred = value.WasTransferred,
+        WasConference = value.WasConference,
+        WasDistribution = value.WasDistribution,
+    };
 
     private static long ScalarInteger(
         SqliteConnection database,
@@ -1030,16 +1174,11 @@ public sealed class CallHistoryStore : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
+        _stopping.Cancel();
+        _recovery.Dispose();
+        _retryTimer?.Dispose();
         _work.CompleteAdding();
         _worker.Join(TimeSpan.FromSeconds(5));
-        _database?.Dispose();
-        _database = null;
-        _work.Dispose();
     }
 }

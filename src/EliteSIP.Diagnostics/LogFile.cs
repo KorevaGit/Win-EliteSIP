@@ -83,8 +83,17 @@ public sealed class LogFile : IDisposable
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly Settings _settings;
-    private readonly Channel<Job> _queue = Channel.CreateUnbounded<Job>(
-        new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<Job> _queue = Channel.CreateBounded<Job>(
+        new BoundedChannelOptions(4096) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
+    private const long MaximumPendingBytes = 8 * 1024 * 1024;
+    private long _pendingBytes;
+    private long _droppedLines;
+    private long _writeFailures;
+
+    public long DroppedLines => Interlocked.Read(ref _droppedLines);
+    public long WriteFailures => Interlocked.Read(ref _writeFailures);
+    public string DiagnosticSummary() => string.Create(CultureInfo.InvariantCulture,
+        $"log: droppedLines={DroppedLines}; writeFailures={WriteFailures}; pendingBytes={Interlocked.Read(ref _pendingBytes)}");
 
     private readonly Task _worker;
 
@@ -101,7 +110,7 @@ public sealed class LogFile : IDisposable
             RunQueue,
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
+            TaskScheduler.Default).Unwrap();
 
         Enqueue(new Job(Work: () =>
         {
@@ -161,8 +170,14 @@ public sealed class LogFile : IDisposable
     /// </summary>
     public void Flush()
     {
-        RunOnQueueAndWait(() => _file?.Flush());
+        _ = Flush(TimeSpan.FromSeconds(5));
     }
+
+    /// <summary>Ограниченное ожидание. False — запись не подтверждена в срок.</summary>
+    public bool Flush(TimeSpan timeout) => RunOnQueueAndWait(() =>
+    {
+        if (_file is null || !_file.Flush()) { throw new IOException("журнал не подтвердил запись на диск"); }
+    }, timeout);
 
     /// <summary>Стирает журнал целиком, включая отложенные файлы.</summary>
     public void RemoveAll()
@@ -191,43 +206,77 @@ public sealed class LogFile : IDisposable
     public void Dispose()
     {
         _queue.Writer.TryComplete();
-        _worker.Wait(TimeSpan.FromSeconds(5));
-        CloseFile();
+        // При медленном диске очередь продолжит завершение сама. Закрывать её
+        // файл с вызывающего потока после тайм-аута нельзя.
+        _ = Task.WaitAny([_worker], TimeSpan.FromSeconds(5));
+        if (_worker.IsFaulted) { _ = _worker.Exception; }
     }
 
     // MARK: - Внутреннее, всё на очереди
 
-    private sealed record Job(string? Line = null, Action? Work = null, TaskCompletionSource? Done = null);
+    private sealed record Job(string? Line = null, Action? Work = null, TaskCompletionSource<bool>? Done = null);
 
     private void Enqueue(Job job)
     {
         // Очередь закрыта — значит журнал уже остановлен. Терять строку на этом
         // этапе допустимо; бросать исключение из журнала — нет.
-        _ = _queue.Writer.TryWrite(job);
-    }
-
-    private void RunOnQueueAndWait(Action work)
-    {
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_queue.Writer.TryWrite(new Job(Work: work, Done: done)))
+        var bytes = (job.Line?.Length ?? 0) * 2L;
+        if (Interlocked.Add(ref _pendingBytes, bytes) > MaximumPendingBytes)
         {
+            Interlocked.Add(ref _pendingBytes, -bytes);
+            Interlocked.Increment(ref _droppedLines);
             return;
         }
+        if (!_queue.Writer.TryWrite(job))
+        {
+            Interlocked.Add(ref _pendingBytes, -bytes);
+            if (job.Line is not null) { Interlocked.Increment(ref _droppedLines); }
+        }
+    }
 
-        done.Task.Wait();
+    private bool RunOnQueueAndWait(Action work, TimeSpan? timeout = null)
+    {
+        var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_queue.Writer.TryWrite(new Job(Work: work, Done: done)))
+        {
+            return false;
+        }
+
+        _ = Task.WaitAny([done.Task, _worker], timeout ?? TimeSpan.FromSeconds(5));
+        return done.Task.IsCompletedSuccessfully && done.Task.Result;
     }
 
     private async Task RunQueue()
     {
-        await foreach (Job job in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
+        try
         {
-            if (job.Line is not null)
+            await foreach (Job job in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
-                Append(job.Line);
+                try
+                {
+                    if (job.Line is not null) { Append(job.Line); }
+                    job.Work?.Invoke();
+                    job.Done?.TrySetResult(true);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+                {
+                    Interlocked.Increment(ref _writeFailures);
+                    // Недоступный диск не должен останавливать всю очередь.
+                    job.Done?.TrySetResult(false);
+                }
+                finally { Interlocked.Add(ref _pendingBytes, -(job.Line?.Length ?? 0) * 2L); }
             }
-
-            job.Work?.Invoke();
-            job.Done?.TrySetResult();
+        }
+        finally
+        {
+            _queue.Writer.TryComplete();
+            while (_queue.Reader.TryRead(out var pending))
+            {
+                pending.Done?.TrySetResult(false);
+                Interlocked.Add(ref _pendingBytes, -(pending.Line?.Length ?? 0) * 2L);
+                if (pending.Line is not null) { Interlocked.Increment(ref _droppedLines); }
+            }
+            CloseFile();
         }
     }
 
@@ -263,10 +312,13 @@ public sealed class LogFile : IDisposable
         _file ??= AppendOnlyFile.Open(CurrentFilePath);
         if (_file is null)
         {
+            Interlocked.Increment(ref _writeFailures);
             return;
         }
 
-        _writtenBytes += _file.Append(data);
+        var written = _file.Append(data);
+        if (written != data.Length) { Interlocked.Increment(ref _writeFailures); }
+        _writtenBytes += written;
 
         if (_writtenBytes >= _settings.MaximumFileBytes)
         {

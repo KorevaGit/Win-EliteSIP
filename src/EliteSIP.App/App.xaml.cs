@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
@@ -70,6 +70,8 @@ public partial class App : Application, IDisposable
         _lastMark = now;
     }
 
+    public App() => Shell.StartupSplash.Show();
+
     protected override void OnStartup(StartupEventArgs e)
     {
         _startup.Restart();
@@ -114,7 +116,7 @@ public partial class App : Application, IDisposable
 
         TaskScheduler.UnobservedTaskException += (_, failure) =>
         {
-            Record(failure.Exception);
+            Record(failure.Exception, survived: true);
 
             // Иначе исключение доедет до финализатора и уронит процесс целиком:
             // софтфон не должен закрываться из-за того, что не ответил канал.
@@ -217,7 +219,8 @@ public partial class App : Application, IDisposable
         _history = new CallHistoryStore(new CallHistoryStore.Settings(
             Path.Combine(
                 Path.GetDirectoryName(AppSettings.DefaultPath)!,
-                e.Args.Contains("--demo") ? "history-demo.db" : "history.db")));
+                e.Args.Contains("--demo") ? "history-demo.db" : "history.db")), Log);
+        Log(_history.DiagnosticSummary());
         Mark("история");
 
         _panel = new PanelViewModel
@@ -418,6 +421,7 @@ public partial class App : Application, IDisposable
         // Журнал машины для Spark: регистрация, звонки, ошибки — раз в пять
         // минут пачкой на канал. Как на macOS с 0.1.60.
         ClientEventLog.Shared.Start(() => _settings!, Log);
+        ClientEventLog.Shared.BeginSession();
 
         // Линия обновлений (W12). Будильник у неё общий с предустановками: канал
         // один, и два независимых срока на нём разошлись бы через полгода.
@@ -681,10 +685,19 @@ public partial class App : Application, IDisposable
                 model!.ReportSupport(Strings.Get("SupportPresetsAsked"), SupportArea.Presets);
             },
 
-            OnCollectLogs = () => CollectSupportArchive(model!),
+            OnCollectLogs = () => _ = CollectSupportArchiveAsync(model!),
             OnRunSelfTest = () => _ = RunAudioSelfTestAsync(model!),
             OnStopSelfTest = () => _phone?.SelfTest.Abort(),
             OnSaveRecording = () => SaveSelfTestRecording(model!),
+            OnPlayRecording = () =>
+            {
+                if (_phone is { IsCallActive: false } phone && !phone.SelfTest.IsRunning
+                    && phone.SelfTest.ReadLastRecording() is { } recording)
+                {
+                    var audio = model!.Settings.Audio;
+                    phone.Sounds.PreviewRecording(recording.Samples, recording.SampleRate, audio.PlaybackVolume, audio.OutputDeviceId);
+                }
+            },
             ReadMeters = () => _phone is null
                 ? default
                 : new AudioMeterReading(
@@ -822,7 +835,9 @@ public partial class App : Application, IDisposable
             _panelLine.StateChanged += support.Refresh;
         }
 
-        var administration = new AdministrationViewModel(_settings!, _access, PreviewIncomingCall)
+        AdministrationViewModel? administration = null;
+        administration = new AdministrationViewModel(_settings!, _access,
+            asDeal => PreviewIncomingCall(asDeal, administration?.Guard, administration?.Username))
         {
             Support = support,
             Updates = _updates is null ? null : new UpdatesViewModel(_updates),
@@ -906,21 +921,22 @@ public partial class App : Application, IDisposable
     /// просьба автоответа. Кнопки при этом не делают ничего: проверка кончается
     /// закрытием окна, а не звонком.
     /// </remarks>
-    private void PreviewIncomingCall(bool asDealCall)
+    private void PreviewIncomingCall(bool asDealCall, IncomingCallSettings? draft = null, string? draftNumber = null)
     {
         if (_incoming is null || _settings is null)
         {
             return;
         }
 
-        var own = _settings.Account.Username;
+        var policy = draft ?? _settings.IncomingCall;
+        var own = draftNumber ?? _settings.Account.Username;
         var subject = asDealCall
-            ? IncomingCallSubject.Classify(own, callerName: null, requestsAutoAnswer: false, ownNumber: own, masksMobileNumbers: _settings.IncomingCall.MasksMobileNumbers)
-            : IncomingCallSubject.Classify("712", "Call_Center", requestsAutoAnswer: true, ownNumber: own, masksMobileNumbers: _settings.IncomingCall.MasksMobileNumbers);
+            ? IncomingCallSubject.Classify(own, callerName: null, requestsAutoAnswer: false, ownNumber: own, masksMobileNumbers: policy.MasksMobileNumbers)
+            : IncomingCallSubject.Classify("712", "Call_Center", requestsAutoAnswer: true, ownNumber: own, masksMobileNumbers: policy.MasksMobileNumbers);
 
         _incoming.Show(
             subject,
-            _settings.IncomingCall.ToPolicy(),
+            policy.ToPolicy(),
             onAnswer: () => { },
             onDecline: () => { });
     }
@@ -978,22 +994,33 @@ public partial class App : Application, IDisposable
         }
 
         var test = phone.SelfTest;
-        void OnProgress(string value) => Dispatcher.BeginInvoke(() => model.ReportSelfTest(value));
+        var acceptsProgress = true;
+        void OnProgress(string value) => Dispatcher.BeginInvoke(() =>
+        {
+            if (acceptsProgress)
+            {
+                model.ReportSelfTest(value);
+            }
+        });
 
         test.Progress += OnProgress;
         try
         {
+            model.ReportSelfTestRunning(true);
             model.ReportSelfTest("готовлю тракт");
 
             var outcome = await test.RunAsync(phone.AudioConfiguration()).ConfigureAwait(true);
 
+            acceptsProgress = false;
             model.ReportSelfTest(outcome.Summary);
             model.ReportRecording(test.HasRecording);
             Log($"самопроверка звука: {outcome.Summary}");
         }
         finally
         {
+            acceptsProgress = false;
             test.Progress -= OnProgress;
+            model.ReportSelfTestRunning(false);
         }
     }
 
@@ -1039,24 +1066,20 @@ public partial class App : Application, IDisposable
         }
     }
 
-    private void CollectSupportArchive(Settings.SettingsViewModel model)
+    private bool _isCollectingSupportArchive;
+
+    private async Task CollectSupportArchiveAsync(Settings.SettingsViewModel model)
     {
+        if (_isCollectingSupportArchive) { return; }
+        _isCollectingSupportArchive = true;
+        model.IsCollectingLogs = true;
         try
         {
+            model.ReportSupport(Strings.Get("SupportLogsCollecting"), SupportArea.Logs);
             // Все файлы журнала — ротированные и текущий, от старых к новым; и с
             // общим доступом на запись: текущий держит открытым `LogFile`, и
             // обычное чтение на нём падало бы.
-            _logFile?.Flush();
-            var lines = new List<string>();
-            foreach (var path in (_logFile?.Files() ?? []).Reverse())
-            {
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var reader = new StreamReader(stream);
-                while (reader.ReadLine() is { } line)
-                {
-                    lines.Add(line);
-                }
-            }
+            Log("поддержка: сбор архива журнала");
 
             var destination = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
@@ -1064,15 +1087,33 @@ public partial class App : Application, IDisposable
 
             var summary = $"EliteSIP {Settings.SettingsViewModel.Version}"
                 + $"{Environment.NewLine}машина: {_settings?.Panel.InstallationID}"
-                + $"{Environment.NewLine}добавочный: {_settings?.Account.Username}";
+                + $"{Environment.NewLine}добавочный: {_settings?.Account.Username}"
+                + $"{Environment.NewLine}собрано: {DateTimeOffset.Now:O}"
+                + $"{Environment.NewLine}ОС: {System.Runtime.InteropServices.RuntimeInformation.OSDescription}"
+                + $"{Environment.NewLine}процесс: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}, {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}"
+                + $"{Environment.NewLine}журнал в файл: {_settings?.Maintenance.LogToFile}; SIP-трасса: {_settings?.Maintenance.LogsSipTrace}"
+                + $"{Environment.NewLine}площадка: {_settings?.Account.Site}; АТС: {_settings?.Account.Domain}; транспорт: {_settings?.Pbx.Transport}";
+            summary += $"{Environment.NewLine}регистрация: {_panel?.Registration}; отключён: {_panel?.IsOfflineByChoice}";
 
-            var made = SupportArchive.Make(lines, summary, destination);
+            var made = await Task.Run(() => SupportArchive.MakeFromDirectory(
+                Path.GetDirectoryName(AppSettings.DefaultPath)!, summary, destination, _logFile,
+                new Dictionary<string, byte[]>
+                {
+                    ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)),
+                    ["windows-crashes.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportCrashEvidence.Capture()),
+                    ["history-status.txt"] = System.Text.Encoding.UTF8.GetBytes(_history?.DiagnosticSummary() ?? "history: not initialized"),
+                }));
 
             model.ReportSupport(Strings.Format("SupportLogsCollected", System.IO.Path.GetFileName(made)), SupportArea.Logs);
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
         {
             model.ReportSupport(Strings.Format("SupportLogsFailed", error.Message), SupportArea.Logs);
+        }
+        finally
+        {
+            _isCollectingSupportArchive = false;
+            model.IsCollectingLogs = false;
         }
     }
 
@@ -1108,6 +1149,8 @@ public partial class App : Application, IDisposable
         {
             return;
         }
+
+        ClientEventLog.Shared.NoteConnection($"Переподключение: {reason}{(_panel.IsInCall ? "; отложено до окончания разговора" : string.Empty)}");
 
         if (_panel.IsInCall)
         {
@@ -1224,13 +1267,10 @@ public partial class App : Application, IDisposable
         ShowPanel();
         var owner = _panelWindow;
 
-        var answer = Theme.Dialog.Ask(
-            owner,
-            Strings.Format("UpdateOfferTitle", version.ToString(3)),
-            Strings.Get("UpdateOfferBody"),
-            confirmTitle: Strings.Get("UpdateOfferInstall"));
-
-        return answer is DialogAnswer.Confirm;
+        var offer = new UpdateOffer(_updates!.Installed, version, _updates.ReadyNotes, _appearance!.IsDark);
+        if (owner is { IsLoaded: true }) { offer.Owner = owner; }
+        else { offer.WindowStartupLocation = WindowStartupLocation.CenterScreen; }
+        return offer.ShowDialog() is true;
     }
 
     /// <summary>
@@ -1321,6 +1361,7 @@ public partial class App : Application, IDisposable
         // названная раньше (обновление), главнее.
         ClientEventLog.Shared.NoteShutdown("выход из приложения");
         LeaveTheAir(TimeSpan.FromSeconds(2));
+        ClientEventLog.Shared.FinishSession();
         ClientEventLog.Shared.Dispose();
 
         if (_panelWindow is not null)
@@ -1420,7 +1461,7 @@ public partial class App : Application, IDisposable
 
             // Срок хранения спрашивается у настроек каждый раз, а не берётся
             // копией: администратор мог сменить его, пока окно было закрыто.
-            () => _settings.History.MaximumAgeInDays);
+            () => _settings.History.MaximumAgeInDays, PhoneService.ProfileLabel(_settings) ?? "");
 
         _historyWindow = new CallHistoryWindow(model, _appearance!);
 
@@ -1433,6 +1474,7 @@ public partial class App : Application, IDisposable
 
     protected override void OnExit(ExitEventArgs e)
     {
+        ClientEventLog.Shared.FinishSession();
         Dispose();
         _logFile?.Dispose();
         base.OnExit(e);
@@ -1505,6 +1547,8 @@ public partial class App : Application, IDisposable
     /// </param>
     private static void Record(Exception failure, bool? survived = null)
     {
+        try { ClientEventLog.Shared.NoteCrash(failure, survived is true); }
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException) { }
         try
         {
             var outcome = survived switch
@@ -1521,7 +1565,7 @@ public partial class App : Application, IDisposable
                 DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture) + outcome
                     + Environment.NewLine + failure + Environment.NewLine + Environment.NewLine);
         }
-        catch (System.IO.IOException)
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
         {
             // Записать не удалось — падать второй раз из-за этого незачем.
         }

@@ -49,14 +49,10 @@ public sealed class SettingsViewModel : Observable
 
         Sections =
         [
-            new(SettingsSectionKind.Work, Strings.Get("SectionWork"), "person.crop.circle"),
-            new(SettingsSectionKind.Audio, Strings.Get("SectionAudio"), "mic.fill"),
-            new(SettingsSectionKind.Ringtone, Strings.Get("SectionRingtone"), "bell"),
-            // Своего значка у оформления в комплекте нет. `gearshape` — не
-            // «тема», а «настройка вообще», и это признанная неточность: раздел
-            // опознаётся подписью, а значок держит строку в колонке с прочими.
-            new(SettingsSectionKind.Appearance, Strings.Get("SectionAppearance"), "gearshape"),
-            new(SettingsSectionKind.Support, Strings.Get("SectionSupport"), "stethoscope"),
+            new(SettingsSectionKind.Work, Strings.Get("SectionWork"), "settings.briefcase-business"),
+            new(SettingsSectionKind.Audio, Strings.Get("SectionAudio"), "settings.headphones"),
+            new(SettingsSectionKind.Appearance, Strings.Get("SectionAppearance"), "settings.panels-top-left"),
+            new(SettingsSectionKind.Support, Strings.Get("SettingsSystem"), "settings.activity"),
         ];
 
         ReloadDevices();
@@ -69,7 +65,7 @@ public sealed class SettingsViewModel : Observable
         // его было некому. Проверка вернулась внутрь самого действия.
         RepairNetwork = new RelayCommand(_ => OnRepairNetwork?.Invoke());
         CheckPresets = new RelayCommand(_ => OnCheckPresets?.Invoke());
-        CollectLogs = new RelayCommand(_ => OnCollectLogs?.Invoke());
+        CollectLogs = new RelayCommand(_ => OnCollectLogs?.Invoke(), _ => !IsCollectingLogs);
         RunSelfTest = new RelayCommand(_ =>
         {
             if (_isSelfTestRunning)
@@ -82,6 +78,13 @@ public sealed class SettingsViewModel : Observable
             }
         });
         SaveRecording = new RelayCommand(_ => OnSaveRecording?.Invoke());
+        PlayRecording = new RelayCommand(_ =>
+        {
+            if (CanPlayRecording)
+            {
+                OnPlayRecording?.Invoke();
+            }
+        });
 
         UnlockWorkplace = new RelayCommand(_ =>
         {
@@ -104,6 +107,7 @@ public sealed class SettingsViewModel : Observable
 
     public AppSettings Settings { get; }
 
+
     // --- Кнопки, которые прежде были нарисованы и никуда не вели --------------
     //
     // Раздел настроек собирали макетом: у «Исправить сеть», «Собрать логи»,
@@ -119,6 +123,13 @@ public sealed class SettingsViewModel : Observable
 
     /// <summary>Собрать архив с журналом для поддержки.</summary>
     public RelayCommand CollectLogs { get; }
+
+    private bool _isCollectingLogs;
+    internal bool IsCollectingLogs
+    {
+        get => _isCollectingLogs;
+        set { _isCollectingLogs = value; CollectLogs.RaiseCanExecuteChanged(); }
+    }
 
     internal Action? OnRepairNetwork { get; init; }
 
@@ -342,6 +353,12 @@ public sealed class SettingsViewModel : Observable
     /// </summary>
     public RelayCommand SaveRecording { get; }
 
+    public RelayCommand PlayRecording { get; }
+
+    internal Action? OnPlayRecording { get; init; }
+
+    public bool CanPlayRecording => _hasRecording && CanTestOutput;
+
     internal Action? OnSaveRecording { get; init; }
 
     /// <summary>Есть ли запись, которую можно сохранить.</summary>
@@ -352,6 +369,7 @@ public sealed class SettingsViewModel : Observable
     {
         _hasRecording = available;
         NotifyChanged(nameof(CanSaveRecording));
+        NotifyChanged(nameof(CanPlayRecording));
     }
 
     // --- Шкалы «Голос» и «Звук» ---------------------------------------------
@@ -377,9 +395,45 @@ public sealed class SettingsViewModel : Observable
     /// <summary>Во время звонка проверка не запускается: это отнятый у собеседника микрофон.</summary>
     public bool CanRunSelfTest => _isSelfTestRunning || !_isInCall;
 
+    public bool CanTestOutput => !_isSelfTestRunning && !_isInCall;
+
     public bool IsSelfTestBlockedByCall => _isInCall && !_isSelfTestRunning;
 
-    public string SelfTestButtonText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "AudioSelfTestStart");
+    public string SelfTestButtonText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "SettingsRecordFiveSeconds");
+
+    public string MicrophoneTestText => Strings.Get(_isSelfTestRunning ? "AudioSelfTestStop" : "SettingsTest");
+
+    public string SelfTestGlyph => _isSelfTestRunning ? "settings.square" : "settings.circle";
+
+    public string MicrophoneTestGlyph => _isSelfTestRunning ? "settings.square" : "settings.audio-lines";
+
+    private DateTimeOffset _selfTestStartedAt;
+
+    public string SelfTestElapsed => TimeSpan.FromSeconds(_isSelfTestRunning
+        ? Math.Max(0, (DateTimeOffset.UtcNow - _selfTestStartedAt).TotalSeconds) : 0)
+        .ToString(@"m\:ss", System.Globalization.CultureInfo.InvariantCulture);
+
+    internal void ReportSelfTestRunning(bool running)
+    {
+        if (running && !_isSelfTestRunning)
+        {
+            _selfTestStartedAt = DateTimeOffset.UtcNow;
+        }
+        _isSelfTestRunning = running;
+        foreach (var name in new[] { nameof(IsSelfTestRunning), nameof(CanRunSelfTest), nameof(CanTestOutput),
+            nameof(CanPlayRecording), nameof(IsSelfTestBlockedByCall), nameof(SelfTestButtonText),
+            nameof(MicrophoneTestText), nameof(SelfTestGlyph), nameof(MicrophoneTestGlyph),
+            nameof(ShowsMeters), nameof(CanSaveRecording), nameof(SelfTestElapsed) })
+        {
+            NotifyChanged(name);
+        }
+        if (!running && !_isInCall)
+        {
+            _voiceLevel = _soundLevel = 0;
+            NotifyChanged(nameof(VoiceLevel));
+            NotifyChanged(nameof(SoundLevel));
+        }
+    }
 
     /// <summary>Шкалы видны во время проверки и разговора, в остальное время — подсказка.</summary>
     public bool ShowsMeters => _isSelfTestRunning || _isInCall;
@@ -468,20 +522,15 @@ public sealed class SettingsViewModel : Observable
 
         if (running != _isSelfTestRunning || inCall != _isInCall)
         {
-            _isSelfTestRunning = running;
             _isInCall = inCall;
-            NotifyChanged(nameof(IsSelfTestRunning));
-            NotifyChanged(nameof(CanRunSelfTest));
-            NotifyChanged(nameof(IsSelfTestBlockedByCall));
-            NotifyChanged(nameof(SelfTestButtonText));
-            NotifyChanged(nameof(ShowsMeters));
-            NotifyChanged(nameof(CanSaveRecording));
+            ReportSelfTestRunning(running);
         }
 
-        _voiceLevel = levels?.Voice ?? 0;
-        _soundLevel = levels?.Sound ?? 0;
+        _voiceLevel = ShowsMeters ? levels?.Voice ?? 0 : 0;
+        _soundLevel = ShowsMeters ? levels?.Sound ?? 0 : 0;
         NotifyChanged(nameof(VoiceLevel));
         NotifyChanged(nameof(SoundLevel));
+        NotifyChanged(nameof(SelfTestElapsed));
     }
 
     // --- Связь со Spark -------------------------------------------------------
@@ -521,7 +570,8 @@ public sealed class SettingsViewModel : Observable
         get => _section;
         set
         {
-            Set(ref _section, value);
+            Set(ref _section, value is SettingsSectionKind.Ringtone ? SettingsSectionKind.Audio : value);
+            NotifyChanged(nameof(SectionTitle));
             UpdateMeterPolling(_meterWindowOpen);
             foreach (var name in new[]
             {
@@ -534,6 +584,8 @@ public sealed class SettingsViewModel : Observable
         }
     }
 
+    public string SectionTitle => Sections.First(section => section.Kind == _section).Title;
+
     public bool ShowsWork => _section is SettingsSectionKind.Work;
 
     /// <summary>
@@ -541,7 +593,7 @@ public sealed class SettingsViewModel : Observable
     /// </summary>
     ///
     /// <remarks>
-    /// Здесь, в «Техподдержке», а не в «Управлении»: автозапуск пишется в ветку
+    /// Здесь, в «Работе», а не в «Управлении»: автозапуск пишется в ветку
     /// пользователя, прав администратора не требует, и решать его должен тот,
     /// кто за машиной работает. Действует сразу — правда о нём живёт в реестре,
     /// его же показывает диспетчер задач, и читается тоже у системы: снятый там

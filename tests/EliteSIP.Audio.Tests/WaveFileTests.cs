@@ -38,6 +38,7 @@ public sealed class WaveFileTests
         using AudioSelfTest test = new(_ => throw new InvalidOperationException());
 
         Assert.False(test.HasRecording);
+        Assert.Null(test.ReadLastRecording());
         Assert.False(test.SaveLastRecording(Path.Combine(Path.GetTempPath(), "never.wav")));
     }
 }

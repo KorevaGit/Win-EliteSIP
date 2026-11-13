@@ -15,6 +15,7 @@ using EliteSIP.SipCore.Udp;
 
 namespace EliteSIP.App.Tests;
 
+[Collection("Settings popup windows")]
 public sealed class IncomingLifecycleTests
 {
     [Theory]

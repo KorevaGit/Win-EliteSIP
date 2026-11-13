@@ -214,7 +214,7 @@ public sealed class RingtoneSettings : Observable
 {
     private bool _isEnabled = true;
     private double _volume = 0.7;
-    private RingtoneOutput _output = RingtoneOutput.SystemDefault;
+    private RingtoneOutput _output = RingtoneOutput.CallDevice;
     private string? _customSoundPath;
 
     public bool IsEnabled
@@ -475,7 +475,7 @@ public sealed class AppSettings : Observable
     public int? Revision { get; set; }
 
     /// <summary>Текущая ревизия. См. <see cref="Upgrade"/>.</summary>
-    public const int CurrentRevision = 2;
+    public const int CurrentRevision = 3;
 
     /// <summary>Однократные правки старых файлов. Зовётся при чтении.</summary>
     ///
@@ -511,6 +511,10 @@ public sealed class AppSettings : Observable
             Audio.WindowsProcessing = EliteSIP.Audio.WindowsCaptureProcessing.Auto;
         }
 
+        if ((Revision is null or < 3) && PortKnock.RepeatIntervalSeconds == 600)
+        {
+            PortKnock.RepeatIntervalSeconds = 3600;
+        }
         Revision = CurrentRevision;
     }
 

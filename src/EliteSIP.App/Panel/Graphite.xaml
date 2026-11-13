@@ -1,0 +1,192 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theme="clr-namespace:EliteSIP.App.Theme">
+  <!-- Локальные стили панели: нейтральные поверхности, независимые от акцента Windows. -->
+  <CornerRadius x:Key="PanelCornerRadius">10</CornerRadius>
+  <DropShadowEffect x:Key="PanelShadow" Color="Black" BlurRadius="9" ShadowDepth="3" Opacity="0.16" />
+  <Style x:Key="PanelProfileMenuStyle" TargetType="ContextMenu">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="ContextMenu">
+        <Border Margin="8" Padding="6" CornerRadius="12" Background="{DynamicResource PanelControlBrush}"
+                BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0">
+          <Border.Effect><DropShadowEffect Color="Black" BlurRadius="16" ShadowDepth="5" Opacity="0.22" /></Border.Effect>
+          <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+        </Border>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PanelProfileMenuItemStyle" TargetType="MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="MenuItem">
+        <Border x:Name="Row" MinHeight="36" MinWidth="190" Padding="9,8" CornerRadius="8" Background="Transparent">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <theme:Icon x:Name="Tick" Glyph="checkmark" Size="12" Visibility="Hidden" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+            <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" RecognizesAccessKey="True" />
+          </Grid>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsChecked" Value="True"><Setter TargetName="Tick" Property="Visibility" Value="Visible" /></Trigger>
+          <MultiTrigger>
+            <MultiTrigger.Conditions><Condition Property="IsHighlighted" Value="True" /><Condition Property="IsChecked" Value="False" /></MultiTrigger.Conditions>
+            <Setter TargetName="Row" Property="Background" Value="{DynamicResource PanelHoverBrush}" />
+          </MultiTrigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55" /><Setter TargetName="Row" Property="Background" Value="Transparent" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PanelProfilePillStyle" TargetType="Button" BasedOn="{StaticResource ProfilePillStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelProfileBrush}" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="Button">
+        <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="11"
+                BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0"
+                Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+          <Border.Effect><DropShadowEffect Color="Black" BlurRadius="4" ShadowDepth="1" Opacity="0.14" /></Border.Effect>
+          <ContentPresenter VerticalAlignment="Center" />
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelProfileHoverBrush}" /></Trigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelPressedBrush}" /><Setter TargetName="Surface" Property="Effect" Value="{x:Null}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PanelIconButtonStyle" TargetType="Button" BasedOn="{StaticResource ChromeButtonStyle}">
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="Button">
+        <Border x:Name="Surface" Background="Transparent" CornerRadius="6"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelProfileHoverBrush}" /></Trigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelPressedBrush}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PanelCaptionButtonStyle" TargetType="Button">
+    <Setter Property="Width" Value="38" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template"><Setter.Value>
+      <ControlTemplate TargetType="Button">
+        <Border x:Name="Surface" Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" /></Trigger>
+          <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsMouseOver" Value="True" /><Condition Property="Tag" Value="Close" /></MultiTrigger.Conditions><Setter TargetName="Surface" Property="Background" Value="{DynamicResource DeclineFillBrush}" /><Setter Property="Foreground" Value="White" /></MultiTrigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.7" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+  <Style x:Key="PanelSurfaceButtonStyle" TargetType="Button" BasedOn="{StaticResource SurfaceButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelControlBrush}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource PanelCornerRadius}"
+                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0"
+                  Effect="{StaticResource PanelShadow}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter x:Name="Label" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" />
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions><Condition Property="IsMouseOver" Value="True" /><Condition Property="Tag" Value="Macro" /></MultiTrigger.Conditions>
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelMacroHoverBrush}" />
+            </MultiTrigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelPressedBrush}" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+              <Setter TargetName="Label" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.55" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="PanelMacroKeyStyle" TargetType="Button" BasedOn="{StaticResource PanelSurfaceButtonStyle}">
+    <Setter Property="Tag" Value="Macro" />
+    <Setter Property="Background" Value="{DynamicResource PanelMacroBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="Padding" Value="12,4" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+  <Style x:Key="PanelControlKeyStyle" TargetType="ToggleButton" BasedOn="{StaticResource ControlKeyStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelControlBrush}" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource PanelCornerRadius}"
+                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0"
+                  Effect="{StaticResource PanelShadow}">
+            <ContentPresenter x:Name="Label" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource PanelSelectedBrush}" />
+              <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource TextTertiaryBrush}" />
+              <Setter TargetName="Surface" Property="BorderThickness" Value="0" />
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions><Condition Property="IsChecked" Value="True" /><Condition Property="Tag" Value="Warning" /></MultiTrigger.Conditions>
+              <Setter TargetName="Surface" Property="Background" Value="{DynamicResource DeclineFillBrush}" />
+              <Setter Property="Foreground" Value="White" />
+            </MultiTrigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.8" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+              <Setter TargetName="Label" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="PanelCallButtonStyle" TargetType="Button" BasedOn="{StaticResource CallButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource PanelAnswerBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource PanelCornerRadius}"
+                  BorderBrush="#30FFFFFF" BorderThickness="0,1,0,0" Effect="{StaticResource PanelShadow}">
+            <ContentPresenter x:Name="Label" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.95" /></Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Surface" Property="Opacity" Value="0.75" />
+              <Setter TargetName="Surface" Property="Effect" Value="{x:Null}" />
+              <Setter TargetName="Label" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+</ResourceDictionary>

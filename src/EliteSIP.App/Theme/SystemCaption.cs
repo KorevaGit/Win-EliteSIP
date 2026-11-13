@@ -40,6 +40,7 @@ internal static class SystemCaption
     /// <summary>«Скругляй как принято» — то же, что у системных окон.</summary>
     private const int CornerRound = 2;
 
+    private const int BorderColor = 34;
     private const int CaptionColor = 35;
     private const int CaptionTextColor = 36;
 
@@ -57,12 +58,17 @@ internal static class SystemCaption
     /// </param>
     public static void Apply(Window window, bool dark, bool repaint = false)
     {
+        window.Icon = CrownIcon(dark);
         var handle = new WindowInteropHelper(window).Handle;
 
         if (handle == 0)
         {
             return;
         }
+
+        // Малый значок остаётся короной в заголовке. Большой Windows использует
+        // в панели задач и Alt+Tab: там должен быть исходный значок приложения.
+        RestoreTaskbarIcon(window);
 
         var value = dark ? 1 : 0;
 
@@ -85,6 +91,7 @@ internal static class SystemCaption
         {
             var color = ColorRef(background.Color);
             _ = DwmSetWindowAttribute(handle, CaptionColor, ref color, sizeof(int));
+            _ = DwmSetWindowAttribute(handle, BorderColor, ref color, sizeof(int));
         }
         if (window.TryFindResource("TextPrimaryBrush") is SolidColorBrush foreground)
         {
@@ -96,6 +103,69 @@ internal static class SystemCaption
         {
             Repaint(handle);
         }
+    }
+
+    private static readonly System.Windows.Media.Imaging.BitmapSource LightIcon = DrawCrown(Brushes.Black);
+    private static readonly System.Windows.Media.Imaging.BitmapSource DarkIcon = DrawCrown(Brushes.White);
+
+    private static readonly Dictionary<int, nint> TaskbarIcons = [];
+    private static readonly DependencyProperty TracksDpiProperty = DependencyProperty.RegisterAttached(
+        "TracksDpi", typeof(bool), typeof(SystemCaption), new PropertyMetadata(false));
+
+    private static void RestoreTaskbarIcon(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == 0)
+        {
+            return;
+        }
+        var dpi = GetDpiForWindow(handle);
+        var size = Math.Clamp(GetSystemMetricsForDpi(11, dpi == 0 ? 96 : dpi), 16, 256);
+        if (!TaskbarIcons.TryGetValue(size, out var icon))
+        {
+            icon = RenderTaskbarIcon(size);
+            TaskbarIcons.Add(size, icon);
+        }
+        if (icon != 0)
+        {
+            _ = SendMessage(handle, 0x0080, 1, icon);
+        }
+        if (!(bool)window.GetValue(TracksDpiProperty))
+        {
+            window.SetValue(TracksDpiProperty, true);
+            // WPF при смене DPI заново ставит обе коронки; большой значок
+            // возвращаем после его обработки, в точном физическом размере.
+            window.DpiChanged += (_, _) => window.Dispatcher.BeginInvoke(() => RestoreTaskbarIcon(window));
+        }
+    }
+
+    private static nint RenderTaskbarIcon(int size)
+    {
+        var bitmap = BrandLogo.Render(size);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var png = new System.IO.MemoryStream();
+        encoder.Save(png);
+        var bytes = png.ToArray();
+        var buffer = Marshal.AllocHGlobal(bytes.Length);
+        try
+        {
+            Marshal.Copy(bytes, 0, buffer, bytes.Length);
+            return CreateIconFromResourceEx(buffer, (uint)bytes.Length, true, 0x30000, size, size, 0);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    private static System.Windows.Media.Imaging.BitmapSource CrownIcon(bool dark) => dark ? DarkIcon : LightIcon;
+
+    private static System.Windows.Media.Imaging.RenderTargetBitmap DrawCrown(Brush brush)
+    {
+        var bitmap = CaptionCrown.NativeIcon(brush);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private static int ColorRef(Color color) => color.R | (color.G << 8) | (color.B << 16);
@@ -205,6 +275,18 @@ internal static class SystemCaption
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int size);
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessage(nint window, uint message, nint wParam, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint window);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetricsForDpi(int index, uint dpi);
+
+    [DllImport("user32.dll")]
+    private static extern nint CreateIconFromResourceEx(nint bits, uint size, bool fIcon, uint version, int width, int height, uint flags);
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(nint window, out Rect frame);

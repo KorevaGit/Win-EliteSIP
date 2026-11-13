@@ -93,6 +93,13 @@ public sealed class AudioSelfTestTests
         Assert.Equal(frame, played.Value.Payload.ToArray());
         Assert.True((await running).IsSuccess);
         Assert.Equal(1, engine.DisposeCount);
+        var recording = test.ReadLastRecording();
+        Assert.NotNull(recording);
+        Assert.Equal(8000, recording.Value.SampleRate);
+        Assert.Equal(frame.Length, recording.Value.Samples.Length);
+        var first = recording.Value.Samples[0];
+        recording.Value.Samples[0] = 0;
+        Assert.Equal(first, test.ReadLastRecording()!.Value.Samples[0]);
     }
 
     private static async Task<bool> WaitUntilAsync(Func<bool> condition)

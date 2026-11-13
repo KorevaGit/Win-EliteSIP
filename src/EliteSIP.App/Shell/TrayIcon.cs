@@ -73,6 +73,11 @@ public sealed class TrayIcon : IDisposable
     {
         _model = model;
         _actions = actions;
+        _menu.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("/EliteSIP.App;component/Shell/TrayMenu.xaml", UriKind.Relative),
+        });
+        _menu.SetResourceReference(FrameworkElement.StyleProperty, "TrayMenuStyle");
 
         // Своё окно, никогда не показываемое: щелчки по значку система
         // присылает сообщением, а слать его некуда, кроме как окну.
@@ -202,21 +207,21 @@ public sealed class TrayIcon : IDisposable
         // Первая строка — состояние словами. Цветная точка на значке говорит
         // «плохо», но не говорит «почему», а при спрятанной панели узнать
         // причину больше неоткуда.
-        _menu.Items.Add(new MenuItem { Header = StatusTitle, IsEnabled = false });
+        _menu.Items.Add(new MenuItem { Header = StatusTitle, IsEnabled = false, Icon = MenuIcon("settings.crown-split") });
         _menu.Items.Add(new Separator());
 
         // «Показать» и «Скрыть» — один пункт с двумя подписями: два отдельных,
         // из которых один всегда погашен, читаются как поломка.
-        Add(Strings.Get(_actions.IsPanelVisible() ? "TrayHidePanel" : "TrayShowPanel"), _actions.TogglePanel);
-        Add(Strings.Get("TrayHistory"), _actions.ShowHistory);
-        Add(Strings.Get("TraySettings"), _actions.ShowSettings);
+        Add(Strings.Get(_actions.IsPanelVisible() ? "TrayHidePanel" : "TrayShowPanel"), _actions.TogglePanel, "settings.monitor");
+        Add(Strings.Get("TrayHistory"), _actions.ShowHistory, "clock");
+        Add(Strings.Get("TraySettings"), _actions.ShowSettings, "settings.sliders-horizontal");
 
         _menu.Items.Add(new Separator());
 
         // Уход с линии — единственное здесь, что меняет состояние телефона.
         // Держится в меню потому, что сняться на обед надо каждый день, а ради
         // этого иначе приходится разворачивать панель.
-        var offline = Add(Strings.Get("TrayDoNotDisturb"), _actions.ToggleOffline);
+        var offline = Add(Strings.Get("TrayDoNotDisturb"), _actions.ToggleOffline, "settings.power");
         offline.IsChecked = _model.IsOfflineByChoice;
         offline.IsCheckable = true;
 
@@ -225,7 +230,7 @@ public sealed class TrayIcon : IDisposable
         offline.IsEnabled = !_model.IsInCall;
 
         _menu.Items.Add(new Separator());
-        Add(Strings.Get("TrayQuit"), _actions.Quit);
+        Add(Strings.Get("TrayQuit"), _actions.Quit, "settings.unplug");
 
         // Меню закрывается по щелчку мимо только у окна, которое система
         // считает передним. Своё окно у значка невидимое, но передним стать
@@ -237,9 +242,19 @@ public sealed class TrayIcon : IDisposable
         _menu.IsOpen = true;
     }
 
-    private MenuItem Add(string title, Action action)
+    private static Theme.Icon MenuIcon(string glyph)
     {
-        var item = new MenuItem { Header = title };
+        var icon = new Theme.Icon { Glyph = glyph, Size = 17 };
+        icon.SetBinding(Control.ForegroundProperty, new System.Windows.Data.Binding(nameof(Control.Foreground))
+        {
+            RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.FindAncestor, typeof(MenuItem), 1),
+        });
+        return icon;
+    }
+
+    private MenuItem Add(string title, Action action, string glyph)
+    {
+        var item = new MenuItem { Header = title, Icon = MenuIcon(glyph) };
         item.Click += (_, _) => action();
         _menu.Items.Add(item);
         return item;
@@ -276,41 +291,14 @@ public sealed class TrayIcon : IDisposable
 
     private nint CurrentIcon()
     {
-        _iconHandle = Draw(TaskbarIsLight ? Brushes.Black : Brushes.White, DotBrush());
+        _iconHandle = Draw(TaskbarIsLight ? Brushes.Black : Brushes.White, StatusBarBrush());
         return _iconHandle;
     }
 
-    /// <summary>Цвет точки. Словарь тот же, что в капсуле панели, плюс разговор.</summary>
-    ///
-    /// <remarks>
-    /// Разговор перекрывает регистрацию, а не приписывается к ней: при
-    /// спрятанной панели значок — единственный признак того, что микрофон
-    /// живой, и это важнее, чем «зарегистрирован», о котором и так говорит сам
-    /// факт разговора. Порядок тот же, что в macOS-версии.
-    /// </remarks>
-    private Brush DotBrush()
-    {
-        if (_model.IsOfflineByChoice)
-        {
-            return Resource("StatusOfflineBrush");
-        }
-
-        if (_model.IsInCall)
-        {
-            return Resource("StatusInCallBrush");
-        }
-
-        return _model.Registration switch
-        {
-            RegistrationState.Registered => Resource("StatusRegisteredBrush"),
-            RegistrationState.Registering => Resource("StatusConnectingBrush"),
-            RegistrationState.Failed => Resource("StatusFailureBrush"),
-            _ => Resource("StatusOfflineBrush"),
-        };
-    }
-
-    private static Brush Resource(string key)
-        => Application.Current.TryFindResource(key) as Brush ?? Brushes.Gray;
+    /// <summary>Зелёная полоса — регистрация готова, красная — телефон не на линии.</summary>
+    private SolidColorBrush StatusBarBrush()
+        => !_model.IsOfflineByChoice && _model.Registration is RegistrationState.Registered
+            ? Brushes.Lime : Brushes.Red;
 
     /// <summary>
     /// Цвет короны: чёрная на светлой панели задач, белая на тёмной.
@@ -336,78 +324,12 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
-    /// <summary>Рисует корону значка приложения и точку состояния под ней.</summary>
-    ///
-    /// <remarks>
-    /// Размер 32, а не 16: Windows берёт из значка ту величину, которая ей
-    /// нужна, и на масштабе 150% просит как раз 24. Нарисованный в 16 значок
-    /// там растягивается и мылится.
-    ///
-    /// <b>Композиция — та же, что в строке меню macOS.</b> Корона прижата к
-    /// верху и стоит по центру, точка состояния — по центру внизу, на месте
-    /// подставки короны из фирменного знака. Это не сходство ради сходства:
-    /// знак у приложения один, и оператор, у которого на столе и Mac, и
-    /// Windows, обязан узнавать его без раздумий.
-    ///
-    /// <b>Корона одноцветная, а не золотая.</b> Золотой градиент прошлой версии
-    /// был перенесён со значка приложения — того, что в проводнике и на панели
-    /// задач, где значок стоит на своём поле. В области уведомлений поля нет:
-    /// золото там оказывается цветным пятном среди одноцветных системных
-    /// значков и на светлой панели задач вдобавок теряет контраст. Строка меню
-    /// macOS решает это ровно так же — глиф под цвет полосы, цветной остаётся
-    /// одна точка.
-    ///
-    /// <b>Точка переехала из угла в середину низа и лишилась каймы.</b> Кайма
-    /// нужна была затем, чтобы зелёное не сливалось с золотом; под короной,
-    /// стоящей отдельно, сливаться не с чем, и точка стала тем единственным
-    /// цветным, чем ей и положено быть.
-    ///
-    /// Фигура — из того же комплекта, что и остальные значки приложения
-    /// (<c>crown.fill</c> в <c>Theme/Icons.xaml</c>), поэтому вторая правда о
-    /// форме короны не заводится.
-    /// </remarks>
-    private static nint Draw(Brush glyph, Brush dot)
-    {
-        const int size = 32;
+    /// <summary>Корона приложения с двумя полосами статуса.</summary>
+    private static nint Draw(Brush glyph, Brush status)
+        => ToIcon(RenderIcon(glyph, status, 32));
 
-        // Доли, а не точки: они же в macOS-версии, только там сторона 18.
-        // Корона занимает верхние две трети, точка — нижнюю треть, между ними
-        // остаётся волосок воздуха.
-        const double crownWidth = size * 15.0 / 18.0;
-        const double crownHeight = size * 11.0 / 18.0;
-        const double dotDiameter = size * 5.0 / 18.0;
-
-        var visual = new DrawingVisual();
-        using (var canvas = visual.RenderOpen())
-        {
-            var crown = Geometry.Parse(
-                "M1.6 16.2V3.4c0-.5.6-.75.95-.4l3.7 3.6L9.3 1.5c.32-.5 1.06-.5 1.38 0l3.07 5.1 "
-                + "3.7-3.6c.36-.35.95-.1.95.4v12.8z");
-
-            // Фигура вписывается в свой прямоугольник по замеренным границам, а
-            // не по сетке 20×20, на которой нарисована: поля внутри этой сетки
-            // у неё неодинаковые, и корона, растянутая по сетке, встала бы
-            // не по центру.
-            var bounds = crown.Bounds;
-            var scale = Math.Min(crownWidth / bounds.Width, crownHeight / bounds.Height);
-
-            canvas.PushTransform(new TranslateTransform(
-                (size - bounds.Width * scale) / 2 - bounds.X * scale,
-                -bounds.Y * scale));
-            canvas.PushTransform(new ScaleTransform(scale, scale));
-            canvas.DrawGeometry(glyph, pen: null, crown);
-            canvas.Pop();
-            canvas.Pop();
-
-            var centre = new System.Windows.Point(size / 2.0, size - dotDiameter / 2);
-            canvas.DrawEllipse(dot, pen: null, centre, dotDiameter / 2, dotDiameter / 2);
-        }
-
-        var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
-
-        return ToIcon(bitmap);
-    }
+    internal static RenderTargetBitmap RenderIcon(Brush glyph, Brush status, int size)
+        => Theme.CrownArtwork.Render(glyph, status, size);
 
     /// <summary>Собирает ручку значка из растра.</summary>
     ///

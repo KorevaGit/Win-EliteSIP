@@ -92,10 +92,7 @@ internal sealed partial class AppendOnlyFile : IDisposable
         return written;
     }
 
-    public void Flush()
-    {
-        _ = FlushFileBuffers(_handle);
-    }
+    public bool Flush() => FlushFileBuffers(_handle);
 
     public void Dispose()
     {

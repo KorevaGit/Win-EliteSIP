@@ -13,7 +13,7 @@
   <history:EqualityConverter x:Key="Equality" />
 
   <!--
-      Значок исхода. Кружок залит, когда поговорили, и обведён, когда нет;
+      Значок исхода. Кружок залит, когда поговорили; без ответа остаётся только стрелка;
       стрелка показывает направление, цвет — исход.
 
       Толщина обводки и стрелки — size/14, как в оригинале: на любом из двух
@@ -30,15 +30,10 @@
             <Grid Width="20" Height="20">
 
               <!-- Поговорили: залитый кружок. -->
+              <Ellipse x:Name="Ring" Margin="1" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.4" Visibility="Collapsed" />
               <Ellipse x:Name="Disc"
                        Fill="{TemplateBinding Foreground}"
                        Visibility="Collapsed" />
-
-              <!-- Не поговорили: одно кольцо. -->
-              <Ellipse x:Name="Ring"
-                       Stroke="{TemplateBinding Foreground}"
-                       StrokeThickness="1.43"
-                       Margin="0.7" />
 
               <!--
                   Стрелка. Внутри залитого кружка она рисуется фоном окна, а не
@@ -59,7 +54,6 @@
           <ControlTemplate.Triggers>
             <Trigger Property="IsCompleted" Value="True">
               <Setter TargetName="Disc" Property="Visibility" Value="Visible" />
-              <Setter TargetName="Ring" Property="Visibility" Value="Collapsed" />
               <Setter TargetName="Arrow" Property="Stroke" Value="{DynamicResource WindowBackgroundBrush}" />
             </Trigger>
 
@@ -70,22 +64,23 @@
 
             <!-- Цвет — исход. Четыре, и четвёртый не оттенок третьего. -->
             <Trigger Property="Outcome" Value="Missed">
-              <Setter Property="Foreground" Value="{DynamicResource OutcomeMissedBrush}" />
+              <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+              <Setter Property="Foreground" Value="{DynamicResource HistoryMissedBrush}" />
             </Trigger>
             <Trigger Property="Outcome" Value="Busy">
-              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource HistoryOutgoingBrush}" />
             </Trigger>
             <Trigger Property="Outcome" Value="NoAnswer">
-              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource HistoryOutgoingBrush}" />
             </Trigger>
             <Trigger Property="Outcome" Value="UnknownNumber">
-              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource HistoryOutgoingBrush}" />
             </Trigger>
             <Trigger Property="Outcome" Value="Declined">
-              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource HistoryOutgoingBrush}" />
             </Trigger>
             <Trigger Property="Outcome" Value="Failed">
-              <Setter Property="Foreground" Value="{DynamicResource OutcomeUnreachableBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource HistoryOutgoingBrush}" />
             </Trigger>
 
             <!--

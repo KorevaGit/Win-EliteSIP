@@ -1,0 +1,89 @@
+using System.Windows.Media;
+using System.Windows;
+using System.Globalization;
+using System.IO;
+using System.Windows.Media.Imaging;
+using EliteSIP.App.Theme;
+using EliteSIP.App.Shell;
+
+namespace EliteSIP.App.Tests;
+
+[Collection("Settings popup windows")]
+public sealed class TrayAppearanceTests
+{
+    [Fact]
+    public void Icon_directory_sizes_match_embedded_png_frames() => WpfHost.Run(() =>
+    {
+        var resource = Application.GetResourceStream(new Uri("pack://application:,,,/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico"))!;
+        using var stream = resource.Stream;
+        using var reader = new BinaryReader(stream);
+        Assert.Equal(0, reader.ReadUInt16());
+        Assert.Equal(1, reader.ReadUInt16());
+        var count = reader.ReadUInt16();
+        var entries = new List<(int Size, int Length, int Offset)>();
+        for (var index = 0; index < count; index++)
+        {
+            var width = reader.ReadByte();
+            Assert.Equal(width, reader.ReadByte());
+            _ = reader.ReadUInt16();
+            _ = reader.ReadUInt16();
+            Assert.Equal(32, reader.ReadUInt16());
+            entries.Add((width == 0 ? 256 : width, reader.ReadInt32(), reader.ReadInt32()));
+        }
+        foreach (var entry in entries)
+        {
+            stream.Position = entry.Offset;
+            using var png = new MemoryStream(reader.ReadBytes(entry.Length));
+            var frame = BitmapFrame.Create(png, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            Assert.Equal(entry.Size, frame.PixelWidth);
+            Assert.Equal(entry.Size, frame.PixelHeight);
+        }
+        Assert.Equal(entries.Count, entries.Select(entry => entry.Size).Distinct().Count());
+    });
+
+    [Theory]
+    [InlineData(12)]
+    [InlineData(14)]
+    public void Корона_совпадает_по_высоте_с_заглавной_буквой(int fontSize) => WpfHost.Run(() =>
+    {
+        var family = new FontFamily("Segoe UI");
+        var crown = new CaptionCrown { FontFamily = family, FontSize = fontSize, Foreground = Brushes.White };
+        crown.Measure(new Size(100, 100));
+        crown.Arrange(new Rect(new Point(), crown.DesiredSize));
+        crown.UpdateLayout();
+        var width = (int)Math.Ceiling(crown.ActualWidth);
+        var height = (int)Math.Ceiling(crown.ActualHeight);
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(crown);
+        var pixels = new byte[width * height * 4];
+        bitmap.CopyPixels(pixels, width * 4, 0);
+        var rows = Enumerable.Range(0, height).Where(y => Enumerable.Range(0, width).Any(x => pixels[(y * width + x) * 4 + 3] > 128)).ToArray();
+        Assert.NotEmpty(rows);
+        var text = new FormattedText("E", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.White, 1);
+        var capital = text.BuildGeometry(new Point()).Bounds;
+        Assert.InRange(Math.Abs(rows[0] - (capital.Top - 1.5)), 0, 1);
+        Assert.InRange(Math.Abs(rows[^1] + 1 - capital.Bottom), 0, 1);
+    });
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(32)]
+    public void Контур_короны_не_зависит_от_цвета_полосы(int size) => WpfHost.Run(() =>
+    {
+        var green = TrayIcon.RenderIcon(Brushes.White, Brushes.Lime, size);
+        var red = TrayIcon.RenderIcon(Brushes.White, Brushes.Red, size);
+        var a = new byte[size * size * 4];
+        var b = new byte[a.Length];
+        green.CopyPixels(a, size * 4, 0);
+        red.CopyPixels(b, size * 4, 0);
+        var line = ((int)(size * 0.8) * size + (int)(size * 0.35)) * 4;
+        Assert.True(a[line + 1] > a[line + 2]);
+        Assert.True(b[line + 2] > b[line + 1]);
+        var body = size * (int)(size * 0.7) * 4;
+        Assert.Equal(a.AsSpan(0, body).ToArray(), b.AsSpan(0, body).ToArray());
+        var gap = ((int)(size * 0.8) * size + size / 2) * 4;
+        Assert.True(a[gap + 3] < 96);
+        Assert.Equal(0, a[3]);
+        Assert.True(Enumerable.Range(0, size * size).Count(pixel => a[pixel * 4 + 3] == 0) > size * size / 3);
+    });
+}

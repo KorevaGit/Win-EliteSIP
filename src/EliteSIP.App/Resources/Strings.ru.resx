@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
     Русские подписи — язык, на котором приложение написано и на котором его
     читает заказчик. Лежат отдельным каталогом, а не в нейтральном, потому что
@@ -315,7 +315,7 @@
     <value>Версия</value>
   </data>
   <data name="SupportCheckUpdates" xml:space="preserve">
-    <value>Проверить обновления</value>
+    <value>Проверить обновление</value>
   </data>
   <data name="SupportNewKeySection" xml:space="preserve">
     <value>Новый ключ</value>
@@ -750,7 +750,7 @@
     <value>Настройки…</value>
   </data>
   <data name="TrayDoNotDisturb" xml:space="preserve">
-    <value>Не беспокоить</value>
+    <value>Отключен</value>
   </data>
   <data name="TrayQuit" xml:space="preserve">
     <value>Завершить EliteSIP</value>
@@ -1316,4 +1316,119 @@
   <data name="StatusMediaNetworkError" xml:space="preserve">
     <value>Сбой сети звука</value>
   </data>
+  <data name="WindowMinimize" xml:space="preserve"><value>Свернуть</value></data>
+  <data name="WindowMaximize" xml:space="preserve"><value>Развернуть / восстановить</value></data>
+  <data name="WindowClose" xml:space="preserve"><value>Закрыть</value></data>
+  <data name="HistoryDirectionIncoming" xml:space="preserve"><value>Входящий</value></data>
+  <data name="HistoryDirectionOutgoing" xml:space="preserve"><value>Исходящий</value></data>
+  <data name="HistoryAllDaysLabel" xml:space="preserve"><value>Все дни</value></data>
+  <data name="SettingsSystem" xml:space="preserve"><value>Система</value></data>
+  <data name="SettingsMelody" xml:space="preserve"><value>Мелодия вызова</value></data>
+  <data name="SettingsConversation" xml:space="preserve"><value>Разговор</value></data>
+  <data name="SettingsMicrophone" xml:space="preserve"><value>Микрофон</value></data>
+  <data name="SettingsSpeakers" xml:space="preserve"><value>Динамики</value></data>
+  <data name="SettingsLanguageRestart" xml:space="preserve"><value>Перезапуск · текущий звонок завершится</value></data>
+  <data name="SettingsMeterHint" xml:space="preserve"><value>Шкалы: при разговоре или самопроверке</value></data>
+  <data name="SettingsThisPc" xml:space="preserve"><value>Этот ПК</value></data>
+  <data name="SettingsPbx" xml:space="preserve"><value>АТС</value></data>
+  <data name="SettingsConnection" xml:space="preserve"><value>Запуск и подключение</value></data>
+  <data name="SettingsApplication" xml:space="preserve"><value>Приложение</value></data>
+  <data name="SettingsProcessing" xml:space="preserve"><value>Обработка · до → после</value></data>
+  <data name="SettingsManagement" xml:space="preserve"><value>Управление</value></data>
+  <data name="SettingsTest" xml:space="preserve"><value>Проверить</value></data>
+  <data name="SettingsListen" xml:space="preserve"><value>Слушать</value></data>
+  <data name="SettingsAgc" xml:space="preserve"><value>Автоуровень микрофона</value></data>
+  <data name="SettingsReceive" xml:space="preserve"><value>Выравнивание собеседника</value></data>
+  <data name="SettingsVoices" xml:space="preserve"><value>Подавление чужих голосов</value></data>
+  <data name="SettingsOfficeNetwork" xml:space="preserve"><value>Офисная сеть</value></data>
+  <data name="SettingsInternet" xml:space="preserve"><value>Интернет</value></data>
+  <data name="SettingsRecordFiveSeconds" xml:space="preserve"><value>Записать 5 сек</value></data>
+  <data name="SettingsRecordingFlow" xml:space="preserve"><value>Запись → прослушивание</value></data>
+  <data name="SettingsSupportArchive" xml:space="preserve"><value>Архив для поддержки</value></data>
+  <data name="SettingsCollect" xml:space="preserve"><value>Собрать</value></data>
+  <data name="SettingsMachineId" xml:space="preserve"><value>ID машины</value></data>
+  <data name="SettingsCopyId" xml:space="preserve"><value>Копировать ID машины</value></data>
+  <data name="SettingsPresets" xml:space="preserve"><value>Предустановки</value></data>
+  <data name="SettingsCheckNow" xml:space="preserve"><value>Проверить сейчас</value></data>
+  <data name="SettingsMelodyShort" xml:space="preserve"><value>Мелодия</value></data>
+  <data name="SettingsOutput" xml:space="preserve"><value>Вывод</value></data>
+  <data name="SettingsPlayMelody" xml:space="preserve"><value>Проигрывать мелодию</value></data>
+  <data name="SettingsStartup" xml:space="preserve"><value>Запускать с Windows</value></data>
+  <data name="SettingsReleaseDevices" xml:space="preserve"><value>Освобождать устройства в простое</value></data>
+  <data name="SettingsSelfTest" xml:space="preserve"><value>Самопроверка</value></data>
+  <data name="SettingsOutputTestNote" xml:space="preserve"><value>Воспроизвести тестовый сигнал на выбранных динамиках</value></data>
+  <data name="SettingsToggleTheme" xml:space="preserve"><value>Сменить тему</value></data>
+  <data name="SettingsRestoreConnection" xml:space="preserve"><value>Восстановить подключение</value></data>
+  <data name="SettingsRestore" xml:space="preserve"><value>Восстановить</value></data>
+  <data name="SettingsSignalLevel" xml:space="preserve"><value>Уровень сигнала</value></data>
+  <data name="SettingsSystemSpeakers" xml:space="preserve"><value>Системные динамики</value></data>
+  <data name="SettingsCallDevice" xml:space="preserve"><value>Устройство разговора</value></data>
+  <data name="SettingsRussian" xml:space="preserve"><value>Русский</value></data>
+  <data name="SettingsLanguageEffect" xml:space="preserve"><value>Смена языка: перезапуск и завершение текущего звонка</value></data>
+  <data name="SettingsPlayRecording" xml:space="preserve"><value>Прослушать запись</value></data>
+  <data name="SettingsRestartRequired" xml:space="preserve"><value>Требуется перезапуск</value></data>
+  <data name="SettingsApplicationUpdates" xml:space="preserve"><value>Приложение и обновления</value></data>
+  <data name="SettingsSparkProfile" xml:space="preserve"><value>Spark · профиль и предустановки</value></data>
+  <data name="SettingsWholeWorkplace" xml:space="preserve"><value>Настройки всего рабочего места</value></data>
+  <data name="SettingsAdminPassword" xml:space="preserve"><value>Пароль администратора</value></data>
+  <data name="SettingsPasswordAbsent" xml:space="preserve"><value>Пароль не установлен. Доступ к настройкам не защищён.</value></data>
+  <data name="SettingsManageEffect" xml:space="preserve"><value>Изменения применяются ко всему рабочему месту.</value></data>
+  <data name="SettingsUnlockEffect" xml:space="preserve"><value>Выбор «Офис / Из дома» доступен до закрытия настроек.</value></data>
+  <data name="SettingsOfflineEffect" xml:space="preserve"><value>Смена места → офлайн: Spark больше не присылает настройки, клавиши и адреса АТС.</value></data>
+  <data name="SettingsOnlineEffect" xml:space="preserve"><value>Вернуть связь: Система → Вернуться в онлайн. Настройки Spark заменят местные.</value></data>
+  <data name="SettingsOnlyOnSwitch" xml:space="preserve"><value>Офлайн включится только при смене места.</value></data>
+  <data name="SettingsCallWillEnd" xml:space="preserve"><value>Текущий разговор завершится.</value></data>
+  <data name="SettingsRestartEffect" xml:space="preserve"><value>EliteSIP перезапустится с выбранным языком.</value></data>
+  <data name="SettingsRegistrationEffect" xml:space="preserve"><value>Регистрация на АТС восстановится после запуска.</value></data>
+  <data name="SettingsUpdateReady" xml:space="preserve"><value>Новая версия скачана и готова к установке.</value></data>
+  <data name="SettingsUpdateRestart" xml:space="preserve"><value>EliteSIP закроется на время установки и запустится снова.</value></data>
+  <data name="SettingsWindowsProcessor" xml:space="preserve"><value>Windows обработчик</value></data>
+  <data name="AdminConnection" xml:space="preserve"><value>Подключение</value></data>
+  <data name="AdminProfiles" xml:space="preserve"><value>Учётные записи</value></data>
+  <data name="AdminProfileLabel" xml:space="preserve"><value>Подпись</value></data>
+  <data name="AdminProfileAdd" xml:space="preserve"><value>Добавить учётную запись</value></data>
+  <data name="AdminProfileRemove" xml:space="preserve"><value>Удалить учётную запись</value></data>
+  <data name="AdminProfileSwitchHint" xml:space="preserve"><value>Переключение — в капсуле номера</value></data>
+  <data name="AdminActiveProfile" xml:space="preserve"><value>Активная учётная запись</value></data>
+  <data name="AdminProfileNumberRequired" xml:space="preserve"><value>Заполните номер новой учётной записи.</value></data>
+  <data name="AdminProfileDuplicate" xml:space="preserve"><value>Номера учётных записей должны различаться.</value></data>
+  <data name="AdminConnectionAdvanced" xml:space="preserve"><value>Порт, транспорт и безопасность</value></data>
+  <data name="AdminMacroTransferShort" xml:space="preserve"><value>Перевод</value></data>
+  <data name="AdminTransferEffect" xml:space="preserve"><value>Перевод → отметка в истории</value></data>
+  <data name="AdminConversation" xml:space="preserve"><value>Разговор</value></data>
+  <data name="AdminCall" xml:space="preserve"><value>Вызов</value></data>
+  <data name="AdminRetentionEffect" xml:space="preserve"><value>Очистка старых</value></data>
+  <data name="AdminLogShort" xml:space="preserve"><value>Журнал</value></data>
+  <data name="AdminAccessShort" xml:space="preserve"><value>Доступ</value></data>
+  <data name="AdminResetData" xml:space="preserve"><value>Настройки · история · журнал</value></data>
+  <data name="AdminResetGone" xml:space="preserve"><value>Удаление</value></data>
+  <data name="AdminResetIrreversible" xml:space="preserve"><value>Без восстановления. Пароль администратора тоже будет удалён.</value></data>
+  <data name="AdminGuardOffShort" xml:space="preserve"><value>Приём без защиты отмечается в журнале</value></data>
+  <data name="AdminReceivePreview" xml:space="preserve"><value>Подтверждение приёма</value></data>
+  <data name="AdminReceive" xml:space="preserve"><value>Приём</value></data>
+  <data name="AdminData" xml:space="preserve"><value>Данные</value></data>
+  <data name="AdminUpdateShort" xml:space="preserve"><value>Обновление</value></data>
+  <data name="AdminAccessOpenSession" xml:space="preserve"><value>Доступ открыт</value></data>
+  <data name="AdminAnswerOperatorShort" xml:space="preserve"><value>Оператор</value></data>
+  <data name="AdminAnswerAlwaysShort" xml:space="preserve"><value>Всегда</value></data>
+  <data name="AdminAnswerHeaderShort" xml:space="preserve"><value>По запросу АТС</value></data>
+  <data name="AdminAnswerListShort" xml:space="preserve"><value>Номера из списка</value></data>
+  <data name="AdminProfileChanged" xml:space="preserve"><value>Активная учётная запись изменилась. Нажмите «Отменить», чтобы обновить черновик.</value></data>
+  <data name="AdminPasswordPresentShort" xml:space="preserve"><value>Пароль задан</value></data>
+  <data name="AdminPasswordMissingShort" xml:space="preserve"><value>Пароль не задан</value></data>
+  <data name="WizardAdminOptional" xml:space="preserve"><value>Пароль Управления · необязательно</value></data>
+  <data name="WizardFromSpark" xml:space="preserve"><value>Настройки из Spark</value></data>
+  <data name="WizardLaunchNote" xml:space="preserve"><value>Главный экран откроется после завершения настройки</value></data>
+  <data name="WizardLocal" xml:space="preserve"><value>Локальная настройка</value></data>
+  <data name="WizardManual" xml:space="preserve"><value>Вручную</value></data>
+  <data name="WizardPaired" xml:space="preserve"><value>Привязано</value></data>
+  <data name="WizardReady" xml:space="preserve"><value>Всё настроено</value></data>
+  <data name="WizardSpark" xml:space="preserve"><value>Через Spark</value></data>
+  <data name="WizardThemeLive" xml:space="preserve"><value>Тема применяется сразу</value></data>
+  <data name="UpdateLater" xml:space="preserve"><value>Отложить</value></data>
+  <data name="UpdateNoNotes" xml:space="preserve"><value>Описание изменений для этого выпуска не добавлено.</value></data>
+  <data name="UpdateOfferHeading" xml:space="preserve"><value>Доступно обновление</value></data>
+  <data name="UpdateReminderShort" xml:space="preserve"><value>Напомним через 30 мин</value></data>
+  <data name="UpdateWhatsNew" xml:space="preserve"><value>Что нового</value></data>
+  <data name="SupportLogsCollecting" xml:space="preserve"><value>Собираем журнал и сведения об устройствах…</value></data>
 </root>

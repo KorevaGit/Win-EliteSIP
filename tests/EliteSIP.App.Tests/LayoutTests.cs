@@ -20,10 +20,109 @@ namespace EliteSIP.App.Tests;
 /// </remarks>
 public sealed class LayoutTests
 {
+    [Theory]
+    [InlineData(Appearance.Light, false)]
+    [InlineData(Appearance.Dark, false)]
+    [InlineData(Appearance.Light, true)]
+    [InlineData(Appearance.Dark, true)]
+    public void Входящий_вызов_вмещает_длинное_имя_и_сохраняет_порядок_действий(Appearance theme, bool guarded) => WpfHost.Run(() =>
+    {
+        WpfHost.UseTheme(theme);
+        var subject = EliteSIP.App.Incoming.IncomingCallSubject.Classify("172", "Отдел сопровождения корпоративных клиентов", false, "176", true);
+        var challenge = guarded ? new EliteSIP.CallGuard.CallGuardChallenge { Targets = ['1', '2', '3', '4', '5', '6', '7', '8', '9'], Answer = '7' } : EliteSIP.CallGuard.CallGuardChallenge.Unguarded;
+        var model = new EliteSIP.App.Incoming.IncomingCallViewModel(subject, challenge, guarded, _ => { }, () => { });
+        var window = new EliteSIP.App.Incoming.IncomingCallWindow(model);
+        var root = (FrameworkElement)window.Content;
+        root.Measure(new Size(window.Width - 2, double.PositiveInfinity));
+        root.Arrange(new Rect(new Point(), root.DesiredSize));
+        root.UpdateLayout();
+        var name = (TextBlock)window.FindName("CallerHeadline");
+        Assert.InRange(name.ActualHeight, 55, 60);
+        var answer = (Button)window.FindName("AnswerButton");
+        var decline = (Button)window.FindName("DeclineButton");
+        if (!guarded)
+        {
+            Assert.InRange(answer.ActualHeight, 49, 51);
+            Assert.True(answer.TranslatePoint(new Point(), root).X < decline.TranslatePoint(new Point(), root).X);
+        }
+        else
+        {
+            var targets = Descendants(root).OfType<Button>().Where(button => button.Command == model.AttemptCommand && button.Content is string { Length: 1 }).ToArray();
+            Assert.Equal(9, targets.Length);
+            Assert.All(targets, button => Assert.True(button.ActualWidth >= 24));
+        }
+    });
+
+    [Fact]
+    public void Длинное_имя_переносит_таймер_вниз_и_возвращает_при_расширении() => WpfHost.Run(() =>
+    {
+        var model = new PanelViewModel();
+        var line = new CallLineViewModel { SecondaryNumber = "172", Title = "Очень длинное название собеседника", IsActive = true, ConnectedAt = DateTimeOffset.Now.AddSeconds(-34) };
+        model.Lines.Add(line);
+        model.ActiveLine = line;
+        model.CallStatus = "разговор";
+        var window = new PanelWindow(model);
+        var root = (FrameworkElement)window.Content;
+        root.Measure(new Size(324, 700));
+        root.Arrange(new Rect(0, 0, 324, 700));
+        root.UpdateLayout();
+        Assert.True(window.UsesWideCallTitle);
+        root.Measure(new Size(900, 700));
+        root.Arrange(new Rect(0, 0, 900, 700));
+        root.UpdateLayout();
+        Assert.False(window.UsesWideCallTitle);
+    });
+
+    [Fact]
+    public void Отключённый_профиль_показывает_только_подпись_без_номера_и_точки() => WpfHost.Run(() =>
+    {
+        var window = new PanelWindow(new PanelViewModel { StatusTitle = "176", StatusLabel = "Офис", IsOfflineByChoice = true });
+        WpfHost.Layout(window, 324, 600);
+        Assert.Equal(Visibility.Visible, ((TextBlock)window.FindName("OfflineProfileLabel")).Visibility);
+        Assert.Equal(Visibility.Collapsed, ((Grid)window.FindName("OnlineProfileIdentity")).Visibility);
+    });
+
+    [Theory]
+    [InlineData(Appearance.Dark)]
+    [InlineData(Appearance.Light)]
+    public void Меню_профиля_отображает_подпись_через_Emoji_без_разделителя(Appearance theme) => WpfHost.Run(() =>
+    {
+        WpfHost.UseTheme(theme);
+        var model = new PanelViewModel { StatusTitle = "176", StatusLabel = "Апатия 🎶 🧹 📢" };
+        var window = new PanelWindow(model);
+        var menu = ((Button)window.FindName("ProfilePill")).ContextMenu!;
+        menu.DataContext = model;
+        menu.ApplyTemplate();
+        menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        menu.Arrange(new Rect(menu.DesiredSize));
+        menu.UpdateLayout();
+        Assert.True(menu.DesiredSize.Width >= 190);
+        Assert.Empty(menu.Items.OfType<Separator>());
+        var header = Assert.IsType<TextBlock>(menu.Items.OfType<MenuItem>().First().Header);
+        Assert.Equal(model.ProfileMenuTitle, Emoji.GetText(header));
+    });
+
+    [Theory]
+    [InlineData(Appearance.Dark)]
+    [InlineData(Appearance.Light)]
+    public void Заголовок_панели_загружается_и_содержимое_доходит_до_нижней_рамки(Appearance theme) => WpfHost.Run(() =>
+    {
+        WpfHost.UseTheme(theme);
+        var window = new PanelWindow(new PanelViewModel());
+        Assert.True(window.ApplyTemplate());
+        var chrome = (FrameworkElement)VisualTreeHelper.GetChild(window, 0);
+        chrome.Measure(new Size(400, 1000));
+        chrome.Arrange(new Rect(0, 0, 400, 1000));
+        chrome.UpdateLayout();
+        var content = (FrameworkElement)window.Content;
+        var bounds = content.TransformToAncestor(chrome).TransformBounds(new Rect(content.RenderSize));
+        Assert.InRange(chrome.ActualHeight - bounds.Bottom, 0, 1.5);
+    });
+
     // Клиентская область мастера на Windows 10 при 100 %: окно 460 × 440 без
     // рамок по 8 точек и заголовка в 31.
-    private const double WizardClientWidth = 460 - 16;
-    private const double WizardClientHeight = 440 - 8 - 31;
+    private const double WizardClientWidth = 560 - 2;
+    private const double WizardClientHeight = 440 - 34;
 
     public static TheoryData<FirstRunStep, Appearance> Steps()
     {
@@ -59,7 +158,7 @@ public sealed class LayoutTests
     [InlineData(FirstRunStep.Welcome)]
     [InlineData(FirstRunStep.Appearance)]
     [InlineData(FirstRunStep.Finale)]
-    public void Короткий_шаг_стоит_по_центру_а_не_у_верха(FirstRunStep step) => WpfHost.Run(() =>
+    public void Шаги_мастера_начинаются_на_одном_уровне(FirstRunStep step) => WpfHost.Run(() =>
     {
         var model = new FirstRunViewModel(new AppSettings(), new AdminAccessState());
         WpfHost.SetPrivate(model, nameof(FirstRunViewModel.Step), step);
@@ -71,9 +170,9 @@ public sealed class LayoutTests
         var shown = ((Grid)scroll.Content).Children.OfType<StackPanel>()
             .First(panel => panel.Visibility == Visibility.Visible);
         var top = shown.TranslatePoint(default, scroll).Y;
-        var bottom = scroll.ViewportHeight - top - shown.ActualHeight;
-
-        Assert.InRange(Math.Abs(top - bottom), 0, 2);
+        Assert.InRange(top, 0, 1);
+        Assert.Equal(560, window.Width);
+        Assert.Equal(440, window.Height);
     });
 
     [Fact]
@@ -161,15 +260,15 @@ public sealed class LayoutTests
     }
 
     [Fact]
-    public void Растянутое_окно_с_клавишами_растит_управление_на_половину_остальное_клавишам() => WpfHost.Run(() =>
+    public void Растянутое_окно_сохраняет_компактное_управление_и_отдаёт_высоту_клавишам() => WpfHost.Run(() =>
     {
         var natural = MeasurePanel(double.PositiveInfinity, withMacros: true);
         var tall = MeasurePanel(1000, withMacros: true);
 
-        Assert.Equal(68, natural.Controls, 0.5);
-        Assert.Equal(102, tall.Controls, 0.5);
+        Assert.Equal(96, natural.Controls, 0.5);
+        Assert.Equal(112, tall.Controls, 0.5);
         Assert.True(tall.Key > natural.Key + 20, $"клавиша {natural.Key:0} → {tall.Key:0}");
-        Assert.True(tall.Font > natural.Font + 4, $"кегль {natural.Font:0.#} → {tall.Font:0.#}");
+        Assert.InRange(tall.Font, 10.8, 18);
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
     });
 
@@ -188,7 +287,7 @@ public sealed class LayoutTests
         var natural = frame.DesiredSize.Height;
 
         var tight = MeasurePanel(natural, withMacros: true);
-        Assert.Equal(68, tight.Controls, 0.5);
+        Assert.Equal(96, tight.Controls, 0.5);
     });
 
     [Fact]
@@ -201,7 +300,7 @@ public sealed class LayoutTests
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
     });
     [Fact]
-    public void Пробный_замер_окна_не_сбрасывает_выросший_кегль() => WpfHost.Run(() =>
+    public void Пробный_замер_окна_сохраняет_спокойный_кегль_макросов() => WpfHost.Run(() =>
     {
         // Окно после растягивания мерит содержимое на бесконечной высоте, чтобы
         // узнать свой нижний предел. В 0.1.64 этот замер возвращал подписям
@@ -222,7 +321,7 @@ public sealed class LayoutTests
         frame.Arrange(new Rect(0, 0, 300, 1000));
         frame.UpdateLayout();
 
-        Assert.True(grown > 20, $"кегль не вырос: {grown:0.#}");
+        Assert.InRange(grown, 10.8, 18);
         Assert.Equal(grown, text.FontSize, 0.5);
     });
 

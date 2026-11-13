@@ -60,7 +60,9 @@ internal sealed class NetworkWatch : IDisposable
             _settling.Stop();
             bool addressChanged = _addressChanged;
             _addressChanged = false;
-            if (addressChanged || _sipRouteChanged())
+            bool? routeChanged = addressChanged ? null : _sipRouteChanged();
+            _log($"проверка сети: изменены адреса={addressChanged}; изменён маршрут SIP={routeChanged?.ToString() ?? "не проверялся после смены IP"}");
+            if (addressChanged || routeChanged is true)
             {
                 _onNetworkChanged();
             }

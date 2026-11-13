@@ -12,6 +12,139 @@ namespace EliteSIP.Audio.Tests;
 public sealed class RestartSupervisorTests
 {
     [Fact]
+    public async Task Zero_window_timer_can_fire_safely()
+    {
+        var rebuilt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var supervisor = new RestartSupervisor(_ => rebuilt.TrySetResult(), window: TimeSpan.Zero);
+        supervisor.Notify("immediate");
+        await rebuilt.Task.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public void Independent_predicates_without_key_do_not_replace_each_other()
+    {
+        ManualScheduler scheduler = new();
+        List<string> rebuilds = [];
+        using var supervisor = Supervisor(scheduler, rebuilds);
+        supervisor.Notify("already handled", () => false);
+        supervisor.Notify("new change", () => true);
+        scheduler.Fire();
+        Assert.Equal(["new change"], rebuilds);
+    }
+
+    [Fact]
+    public async Task Independent_notifications_during_rebuild_are_retained_for_one_followup()
+    {
+        ManualScheduler scheduler = new();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var count = 0;
+        using var supervisor = new RestartSupervisor(_ =>
+        {
+            if (Interlocked.Increment(ref count) == 1) { entered.Set(); release.Wait(); }
+        }, scheduler.Schedule);
+        supervisor.Notify("first");
+        var rebuilding = Task.Run(scheduler.Fire);
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try
+        {
+            for (var index = 0; index < 1000; index++) { supervisor.Notify("new independent change"); }
+            Assert.Equal(0, scheduler.PendingCount);
+            Assert.Equal(1, count);
+        }
+        finally { release.Set(); }
+        await rebuilding.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(1, scheduler.PendingCount);
+        scheduler.Fire();
+        Assert.Equal(2, count);
+        Assert.Equal(0, scheduler.PendingCount);
+    }
+
+    [Fact]
+    public void Already_applied_default_does_not_start_another_rebuild()
+    {
+        ManualScheduler scheduler = new();
+        var binding = new AudioRouteBinding(null, null, "mic", "old-output");
+        RestartSupervisor? supervisor = null;
+        var count = 0;
+        supervisor = new RestartSupervisor(_ =>
+        {
+            count++;
+            var observed = binding;
+            var change = new AudioDeviceChange(AudioDeviceChangeKind.DefaultChanged, "new-output", AudioDeviceDirection.Render, null);
+            supervisor!.Notify("default changed while opening", () => DeviceChangeRelevance.StillRequiresRebuild(change, observed, binding), "default:render");
+            binding = new AudioRouteBinding(null, null, "mic", "new-output");
+            scheduler.Fire(); // Никаких вложенных таймеров во время сборки.
+        }, scheduler.Schedule);
+        using (supervisor)
+        {
+            supervisor.Notify("initial change");
+            scheduler.Fire();
+            Assert.Equal(1, scheduler.PendingCount);
+            scheduler.Fire();
+            Assert.Equal(1, count);
+            Assert.Equal(0, scheduler.PendingCount);
+        }
+    }
+
+    [Fact]
+    public void Latest_default_replaces_intermediate_selection()
+    {
+        ManualScheduler scheduler = new();
+        List<string> rebuilds = [];
+        using var supervisor = Supervisor(scheduler, rebuilds);
+        var binding = new AudioRouteBinding(null, null, "mic", "output-A");
+        var first = new AudioDeviceChange(AudioDeviceChangeKind.DefaultChanged, "output-B", AudioDeviceDirection.Render, null);
+        var last = first with { DeviceId = "output-A" };
+        supervisor.Notify("A to B", () => DeviceChangeRelevance.StillRequiresRebuild(first, binding, binding), "default:render");
+        supervisor.Notify("B to A", () => DeviceChangeRelevance.StillRequiresRebuild(last, binding, binding), "default:render");
+        scheduler.Fire();
+        Assert.Empty(rebuilds);
+        Assert.Equal(0, scheduler.PendingCount);
+    }
+
+    [Fact]
+    public void Dispose_during_rebuild_discards_followup()
+    {
+        ManualScheduler scheduler = new();
+        RestartSupervisor? supervisor = null;
+        var count = 0;
+        supervisor = new RestartSupervisor(_ =>
+        {
+            count++;
+            supervisor!.Notify("independent change");
+            supervisor.Dispose();
+        }, scheduler.Schedule);
+        using (supervisor)
+        {
+            supervisor.Notify("first");
+            scheduler.Fire();
+            scheduler.FireEvenIfCancelled();
+            Assert.Equal(1, count);
+            Assert.Equal(0, scheduler.PendingCount);
+        }
+    }
+
+    [Fact]
+    public void Old_timer_callback_cannot_consume_a_new_batch()
+    {
+        List<Action> callbacks = [];
+        var count = 0;
+        using var supervisor = new RestartSupervisor(_ => count++, (_, action) =>
+        {
+            callbacks.Add(action);
+            return new CancellationTokenSource();
+        });
+        supervisor.Notify("first");
+        callbacks[0]();
+        supervisor.Notify("second");
+        callbacks[0](); // Поздний повтор старого callback.
+        Assert.Equal(1, count);
+        callbacks[1]();
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
     public void Повод_не_пересобирает_немедленно()
     {
         // Пока устройство в переходе, пересобирать бесполезно: получим тот же

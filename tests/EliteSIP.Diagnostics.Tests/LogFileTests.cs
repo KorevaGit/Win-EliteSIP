@@ -16,6 +16,142 @@ namespace EliteSIP.Diagnostics.Tests;
 /// </summary>
 public sealed class LogFileTests : IDisposable
 {
+    [Fact]
+    public void Stalled_disk_does_not_allow_unbounded_log_memory()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try
+        {
+            for (var index = 0; index < 5000; index++) { log.Write("bounded queue", "info"); }
+            Assert.True(log.DroppedLines > 0);
+        }
+        finally { release.Set(); }
+        log.Dispose();
+        Assert.Contains("pendingBytes=0", log.DiagnosticSummary(), StringComparison.Ordinal);
+    }
+
+    private static void Queue(LogFile log, Action action)
+    {
+        const System.Reflection.BindingFlags Flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var job = typeof(LogFile).GetNestedType("Job", System.Reflection.BindingFlags.NonPublic)!;
+        typeof(LogFile).GetMethod("Enqueue", Flags)!.Invoke(log,
+            [Activator.CreateInstance(job, [null, action, null])]);
+    }
+
+    [Fact]
+    public async Task Dispose_drains_pending_writes_and_releases_file()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        log.Write("last-before-exit", "info");
+        var stopping = Task.Run(log.Dispose);
+        try
+        {
+            Assert.NotSame(stopping, await Task.WhenAny(stopping, Task.Delay(150)));
+        }
+        finally { release.Set(); }
+        await stopping.WaitAsync(TimeSpan.FromSeconds(3));
+        using var exclusive = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using var reader = new StreamReader(exclusive);
+        Assert.Contains("last-before-exit", await reader.ReadToEndAsync(), StringComparison.Ordinal);
+        log.Write("after-exit", "info");
+        Assert.False(log.Flush(TimeSpan.FromMilliseconds(100)));
+    }
+
+    [Fact]
+    public async Task Dispose_timeout_leaves_file_owned_by_worker_until_it_finishes()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Flush();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var drained = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        log.Write("after-slow-disk", "info");
+        Queue(log, drained.Set);
+        try
+        {
+            await Task.Run(log.Dispose).WaitAsync(TimeSpan.FromSeconds(8));
+            Assert.Throws<IOException>(() =>
+            {
+                using var exclusive = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            });
+        }
+        finally { release.Set(); }
+        Assert.True(drained.Wait(TimeSpan.FromSeconds(3)));
+        // A second Dispose waits for the same worker's finally, without closing its file.
+        log.Dispose();
+        using var file = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using var reader = new StreamReader(file);
+        Assert.Contains("after-slow-disk", await reader.ReadToEndAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Flush_is_bounded_when_disk_queue_is_stalled()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try { Assert.False(log.Flush(TimeSpan.FromMilliseconds(50))); }
+        finally { release.Set(); }
+        Assert.True(log.Flush(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
+    public void Disk_operation_error_does_not_kill_log_queue()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        Queue(log, () => throw new IOException("injected disk error"));
+        log.Write("after-disk-error", "info");
+        Assert.True(log.Flush(TimeSpan.FromSeconds(3)));
+        Assert.Contains("after-disk-error", Read(log.CurrentFilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Failed_worker_does_not_leave_flush_waiting_or_file_open()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Flush();
+        Queue(log, () => throw new NotSupportedException("injected unexpected worker fault"));
+        Assert.False(await Task.Run(() => log.Flush(TimeSpan.FromSeconds(10))).WaitAsync(TimeSpan.FromSeconds(3)));
+        log.Dispose();
+        using var file = new FileStream(log.CurrentFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    }
+
+    [Fact]
+    public async Task Support_archive_reports_unconfirmed_flush_instead_of_waiting_forever()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Write("already-written", "info");
+        log.Flush();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        var destination = Path.Combine(_directory, "stalled.zip");
+        try
+        {
+            await Task.Run(() => SupportArchive.MakeFromDirectory(_directory, "probe", destination, log))
+                .WaitAsync(TimeSpan.FromSeconds(8));
+            using var archive = ZipFile.OpenRead(destination);
+            using var reader = new StreamReader(archive.GetEntry("collection.txt")!.Open());
+            Assert.Contains("последние строки могут отсутствовать", await reader.ReadToEndAsync(), StringComparison.Ordinal);
+            Assert.NotNull(archive.GetEntry(LogFile.CurrentFileName));
+        }
+        finally { release.Set(); }
+        log.Flush();
+    }
+
     private readonly string _directory;
 
     public LogFileTests()
@@ -190,6 +326,52 @@ public sealed class LogFileTests : IDisposable
 
         Assert.True(new FileInfo(destination).Length > 0);
         Assert.EndsWith(".zip", destination, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Сборка_из_каталога_сбрасывает_очередь_и_передаёт_файлы_а_не_строки()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Write("REGISTER 401 then 200; Contact 203.0.113.7:41234", "info");
+        var destination = Path.Combine(_directory, "support.zip");
+        SupportArchive.MakeFromDirectory(_directory, "summary", destination, log);
+        using var archive = ZipFile.OpenRead(destination);
+        using var reader = new StreamReader(archive.GetEntry(LogFile.CurrentFileName)!.Open());
+        Assert.Contains("REGISTER 401 then 200", reader.ReadToEnd(), StringComparison.Ordinal);
+        Assert.NotNull(archive.GetEntry("collection.txt"));
+    }
+
+    [Fact]
+    public void Без_писателя_собираются_старые_журналы_и_аварии_с_маскированием()
+    {
+        File.WriteAllText(Path.Combine(_directory, "elitesip.log"), "root registration");
+        Directory.CreateDirectory(Path.Combine(_directory, "Logs"));
+        File.WriteAllText(Path.Combine(_directory, "Logs", "elitesip.log"), "legacy registration");
+        File.WriteAllText(Path.Combine(_directory, "crash.log"), "failure password=secret-from-crash");
+        File.WriteAllText(Path.Combine(_directory, "settings.json"), "must-not-be-exported");
+        var destination = Path.Combine(_directory, "support.zip");
+        SupportArchive.MakeFromDirectory(_directory, "summary", destination);
+        using var archive = ZipFile.OpenRead(destination);
+        Assert.Null(archive.GetEntry("settings.json"));
+        Assert.Equal(archive.Entries.Count, archive.Entries.Select(entry => entry.FullName).Distinct().Count());
+        var text = string.Join('\n', archive.Entries.Select(entry =>
+        {
+            using var reader = new StreamReader(entry.Open());
+            return reader.ReadToEnd();
+        }));
+        Assert.Contains("root registration", text, StringComparison.Ordinal);
+        Assert.Contains("legacy registration", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-from-crash", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Отсутствие_журналов_указывается_явно()
+    {
+        var destination = Path.Combine(_directory, "support.zip");
+        SupportArchive.MakeFromDirectory(_directory, "logging disabled", destination);
+        using var archive = ZipFile.OpenRead(destination);
+        using var reader = new StreamReader(archive.GetEntry("collection.txt")!.Open());
+        Assert.Contains("не найдены", reader.ReadToEnd(), StringComparison.Ordinal);
     }
 
     /// <summary>

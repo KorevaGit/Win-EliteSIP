@@ -9,9 +9,8 @@ namespace EliteSIP.App.Admin;
 /// <summary>Разделы «Управления».</summary>
 ///
 /// <remarks>
-/// Девять. Девятый — «Входящие», политика защиты от автокликеров, — приехал с
-/// W9 вместе с окном входящего вызова: заводить раздел настроек раньше того,
-/// чем он управляет, значило бы показать выключатели, за которыми ничего нет.
+/// Пять пунктов навигации объединяют связанные настройки. Значения прежних
+/// разделов сохранены для переходов из других окон.
 /// </remarks>
 public enum AdminSectionKind
 {
@@ -24,15 +23,13 @@ public enum AdminSectionKind
     Diagnostics,
     Maintenance,
 
-    /// <summary>Защита приёма вызова: девятый раздел, приехал с W9.</summary>
+    /// <summary>Защита приёма вызова.</summary>
     Incoming,
 
     /// <summary>
-    /// Связь с панелью: десятый раздел, приехал с W10.
+    /// Связь с панелью Spark.
     ///
-    /// Единственный, где кнопки действуют сразу, а не по «Сохранить». Так и
-    /// должно быть: «Проверить настройки сейчас» и перепрошивка — это не правки
-    /// машины, а обращения к каналу, и придерживать их черновиком не за чем.
+    /// Команды канала действуют сразу, а не по «Сохранить».
     /// </summary>
     Support,
 }
@@ -56,12 +53,12 @@ public sealed record AdminSectionItem(AdminSectionKind Kind, string Title, strin
 /// не та и ещё не эта. Поэтому здесь есть «Сохранить» и «Отменить», а точка у
 /// пункта списка показывает, где лежит несохранённое.
 /// </remarks>
-public sealed class AdministrationViewModel : Observable
+public sealed partial class AdministrationViewModel : Observable
 {
     private readonly AppSettings _settings;
     private readonly AdminAccessState _access;
 
-    private AdminSectionKind _section = AdminSectionKind.Macros;
+    private AdminSectionKind _section = AdminSectionKind.Account;
     private int _macroColumns;
     private int _macroHeight;
     private bool _macroHeightIsManual;
@@ -110,18 +107,12 @@ public sealed class AdministrationViewModel : Observable
         // которая её открывает; у первой группы заголовка нет намеренно.
         Sections =
         [
-            new(AdminSectionKind.Account, Strings.Get("AdminSectionAccount"), "person.crop.circle", null),
-            new(AdminSectionKind.Pbx, Strings.Get("AdminSectionPbx"), "phone.arrow.right", null),
-            new(AdminSectionKind.Macros, Strings.Get("AdminSectionMacros"), "square.grid.3x3", Strings.Get("AdminGroupCall")),
-            new(AdminSectionKind.Queues, Strings.Get("AdminSectionQueues"), "person.3.fill", null),
-            new(AdminSectionKind.Incoming, Strings.Get("AdminSectionIncoming"), "bell.badge", null),
-            new(AdminSectionKind.History, Strings.Get("AdminSectionHistory"), "clock", Strings.Get("AdminGroupMachine")),
-            new(AdminSectionKind.Access, Strings.Get("AdminSectionAccess"), "lock.shield.fill", null),
-            new(AdminSectionKind.Diagnostics, Strings.Get("AdminSectionDiagnostics"), "stethoscope", null),
-            new(AdminSectionKind.Maintenance, Strings.Get("AdminSectionMaintenance"), "hammer.fill", null),
-            new(AdminSectionKind.Support, Strings.Get("AdminSectionSupport"), "crown.fill", null),
+            new(AdminSectionKind.Account, Strings.Get("AdminConnection"), "settings.network", null),
+            new(AdminSectionKind.Macros, Strings.Get("AdminSectionMacros"), "settings.panels-top-left", null),
+            new(AdminSectionKind.Incoming, Strings.Get("AdminSectionIncoming"), "settings.headset", null),
+            new(AdminSectionKind.History, Strings.Get("SettingsSystem"), "settings.monitor", null),
+            new(AdminSectionKind.Support, "Spark", "settings.cloud", null),
         ];
-
         Revert();
     }
 
@@ -206,7 +197,8 @@ public sealed class AdministrationViewModel : Observable
         get => _section;
         set
         {
-            Set(ref _section, value);
+            Set(ref _section, NormalizeSection(value));
+            NotifyRedesign();
             foreach (var name in new[]
             {
                 nameof(ShowsAccount), nameof(ShowsPbx), nameof(ShowsMacros), nameof(ShowsQueues),
@@ -225,19 +217,19 @@ public sealed class AdministrationViewModel : Observable
 
     public bool ShowsAccount => _section is AdminSectionKind.Account;
 
-    public bool ShowsPbx => _section is AdminSectionKind.Pbx;
+    public bool ShowsPbx => ShowsAccount;
 
     public bool ShowsMacros => _section is AdminSectionKind.Macros;
 
-    public bool ShowsQueues => _section is AdminSectionKind.Queues;
+    public bool ShowsQueues => ShowsIncoming && IncomingPage is AdminIncomingPage.Queues;
 
-    public bool ShowsHistory => _section is AdminSectionKind.History;
+    public bool ShowsHistory => ShowsSystem && SystemPage is AdminSystemPage.Data;
 
-    public bool ShowsAccess => _section is AdminSectionKind.Access;
+    public bool ShowsAccess => ShowsSystem && SystemPage is AdminSystemPage.Access;
 
-    public bool ShowsDiagnostics => _section is AdminSectionKind.Diagnostics;
+    public bool ShowsDiagnostics => ShowsSystem && SystemPage is AdminSystemPage.Updates;
 
-    public bool ShowsMaintenance => _section is AdminSectionKind.Maintenance;
+    public bool ShowsMaintenance => ShowsSystem && SystemPage is AdminSystemPage.Data;
 
     public bool ShowsIncoming => _section is AdminSectionKind.Incoming;
 
@@ -266,14 +258,7 @@ public sealed class AdministrationViewModel : Observable
         }
     }
 
-    /// <summary>Новый пароль учётки. Пустой — оставить прежний.</summary>
-    ///
-    /// <remarks>
-    /// Прежний сюда не подставляется, и это решение: показать пароль в поле —
-    /// значит показать его всякому, кто заглянул через плечо администратора, а
-    /// прочитать его отсюда всё равно нельзя (он уходит под DPAPI). Поэтому
-    /// поле пустое, а рядом стоит строка «пароль задан».
-    /// </remarks>
+    /// <summary>Пароль текущей учётки, видимый администратору в черновике.</summary>
     public string SipPassword
     {
         get => _sipPassword;
@@ -606,6 +591,7 @@ public sealed class AdministrationViewModel : Observable
             Set(ref _isDirty, value);
             NotifyChanged(nameof(SaveStateTitle));
             NotifyChanged(nameof(SaveStateBody));
+            NotifyChanged(nameof(CanSave));
         }
     }
 
@@ -654,6 +640,7 @@ public sealed class AdministrationViewModel : Observable
         NewPassword = string.Empty;
         RepeatedPassword = string.Empty;
         NotifyChanged(nameof(IsProtected));
+        NotifyChanged(nameof(AccessStatus));
     }
 
     /// <summary>Снимает пароль. Машина остаётся настроенной, но открытой.</summary>
@@ -662,6 +649,7 @@ public sealed class AdministrationViewModel : Observable
         _access.RemovePassword();
         _settings.Admin.From(credential: null);
         NotifyChanged(nameof(IsProtected));
+        NotifyChanged(nameof(AccessStatus));
     }
 
     /// <summary>Добавляет пустую клавишу — её тут же и правят.</summary>
@@ -699,6 +687,8 @@ public sealed class AdministrationViewModel : Observable
     /// <summary>Пишет черновик в настройки.</summary>
     public void Save()
     {
+        if (HasAccountError) { throw new InvalidOperationException(AccountError); }
+
         // Правки на машине, которой управляет Spark, уводят её в оффлайн: с
         // этой минуты конфигурация и предустановка её настроек не трогают.
         // Прежде сохранённое здесь молча жило до следующей ревизии и молча же
@@ -711,7 +701,7 @@ public sealed class AdministrationViewModel : Observable
         }
 
         var connectionBefore = ConnectionKey();
-        var passwordChanged = SipPassword.Length > 0;
+        var passwordChanged = SipPassword != (_settings.Credentials.Password() ?? string.Empty);
 
         _settings.Dtmf.Macros.Clear();
         foreach (var macro in Macros)
@@ -735,15 +725,15 @@ public sealed class AdministrationViewModel : Observable
         _settings.Account.Username = Username;
         _settings.Account.DisplayName = DisplayName;
 
-        // Пустое поле означает «оставить прежний», а не «стереть»: стирают
-        // паролем в одно нажатие только по ошибке.
-        if (SipPassword.Length > 0)
+        // Видимый пароль — полный черновик значения, включая явную очистку.
+        if (passwordChanged)
         {
             _settings.Credentials.SetPassword(SipPassword);
-            SipPassword = string.Empty;
+
             NotifyChanged(nameof(HasSipPassword));
         }
 
+        SaveAccounts();
         _settings.Pbx.OfficeAddress = OfficeAddress;
         _settings.Pbx.RemoteAddress = RemoteAddress;
         _settings.Pbx.Port = Port;
@@ -857,7 +847,7 @@ public sealed class AdministrationViewModel : Observable
 
         _username = _settings.Account.Username;
         _displayName = _settings.Account.DisplayName;
-        _sipPassword = string.Empty;
+        _sipPassword = _settings.Credentials.Password() ?? string.Empty;
         _officeAddress = _settings.Pbx.OfficeAddress;
         _remoteAddress = _settings.Pbx.RemoteAddress;
         _port = _settings.Pbx.Port;
@@ -912,8 +902,9 @@ public sealed class AdministrationViewModel : Observable
             NotifyChanged(name);
         }
 
+        LoadAccounts();
         IsDirty = false;
     }
 
-    private void MarkDirty() => IsDirty = true;
+    private void MarkDirty() { IsDirty = true; NotifyRedesign(); }
 }

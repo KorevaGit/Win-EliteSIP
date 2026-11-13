@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
@@ -35,22 +36,29 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     private readonly Action<string> _log;
     private readonly PortKnockThrottle _throttle;
     private readonly Ping _ping = new();
+    private readonly Lock _lifetime = new();
+    private readonly SemaphoreSlim _serial = new(1, 1);
+    private readonly CancellationTokenSource _stopping = new();
+    private bool _disposed;
+    private int _users;
+    private readonly TimeProvider _clock;
+    internal Func<string, int, Task<bool>>? PacketSender { get; init; }
 
     /// <summary>
-    /// Отказ, о котором уже сказали в журнал.
+    /// Номер последовательности для сопоставления пакетов и результата.
     /// </summary>
     ///
     /// <remarks>
-    /// Повторять «ICMP недоступен» каждые десять минут бессмысленно: если он
-    /// запрещён правилом машины, он запрещён навсегда, а журнал нужен читаемым.
+    /// Каждая попытка пишет результат: сеть удалённого сотрудника может меняться.
     /// </remarks>
-    private bool _reportedFailure;
+    private int _attemptNumber;
 
-    private PortKnocker(string serverHost, PortKnockSequence sequence, Action<string> log)
+    internal PortKnocker(string serverHost, PortKnockSequence sequence, Action<string> log, TimeProvider? clock = null)
     {
         _serverHost = serverHost;
         _sequence = sequence;
         _log = log;
+        _clock = clock ?? TimeProvider.System;
         _throttle = new PortKnockThrottle(TimeSpan.FromSeconds(sequence.RepeatIntervalSeconds));
     }
 
@@ -74,6 +82,7 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
 
         if (!PortKnockPolicy.NeedsKnocking(serverHost, site) || sequence.IsEmpty)
         {
+            log($"стук пропущен: сервер={serverHost}; {PortKnockPolicy.Explanation(serverHost, site)}; последовательность {(sequence.IsEmpty ? "пуста" : "задана")}");
             return null;
         }
 
@@ -81,24 +90,77 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     }
 
     /// <summary>Сеть сменилась — прошлый стук больше ничего не значит.</summary>
-    public void Invalidate() => _throttle.Invalidate();
+    public void Invalidate()
+    {
+        _log($"стук: сброшено ограничение повторов, сервер={_serverHost}");
+        _throttle.Invalidate();
+    }
 
     public async Task OpenPathAsync(SipPathOpenReason reason)
     {
+        lock (_lifetime)
+        {
+            if (_disposed) { return; }
+            _users++;
+        }
+        var entered = false;
+        try
+        {
+            await _serial.WaitAsync(_stopping.Token).ConfigureAwait(false);
+            entered = true;
+            await OpenSequenceAsync(reason, _stopping.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { }
+        finally
+        {
+            if (entered) { _serial.Release(); }
+            lock (_lifetime)
+            {
+                if (--_users == 0 && _disposed) { DisposeSynchronization(); }
+            }
+        }
+    }
+
+    private async Task OpenSequenceAsync(SipPathOpenReason reason, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
         var now = DateTimeOffset.UtcNow;
         if (!_throttle.ShouldKnock(reason, now))
         {
+            _log($"стук пропущен: сервер={_serverHost}; повод={reason}; интервал повторов={_throttle.MinimumInterval.TotalSeconds:0.#} с");
             return;
         }
 
-        // Отметка ставится до отправки, а не после: иначе повтор регистрации,
-        // пришедший в середине семисекундной последовательности, начал бы вторую
-        // поверх первой и перемешал порядок пакетов.
-        _throttle.RecordKnock(now);
+        // Сериализация не даёт перемешать пакеты. Неудачная отправка/DNS
+        // не должны запрещать следующую обычную попытку ещё на час.
 
-        _log($"стук: {_sequence.PacketCount} пакетов, повод {reason}");
+        var attempt = Interlocked.Increment(ref _attemptNumber);
+        var clock = Stopwatch.StartNew();
+        _log($"стук #{attempt}: сервер={_serverHost}; {_sequence.Steps.Count} шагов, {_sequence.PacketCount} пакетов; повод={reason}; пауза={_sequence.SpacingSeconds:0.###} с");
+
+        var targets = new Dictionary<string, System.Net.IPAddress>(StringComparer.OrdinalIgnoreCase);
+        if (PacketSender is null)
+        {
+            using var resolution = CancellationTokenSource.CreateLinkedTokenSource(token);
+            resolution.CancelAfter(TimeSpan.FromSeconds(10));
+            try
+            {
+                foreach (var host in _sequence.Steps.Select(step => step.ResolvedHost(_serverHost)).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    if (System.Net.IPAddress.TryParse(host, out var literal)) { targets[host] = literal; continue; }
+                    var addresses = await System.Net.Dns.GetHostAddressesAsync(host, resolution.Token).ConfigureAwait(false);
+                    var address = addresses.FirstOrDefault(value => value.AddressFamily == AddressFamily.InterNetwork) ?? addresses.FirstOrDefault();
+                    if (address is null) { _log($"стук: DNS {host} не вернул адресов"); return; }
+                    targets[host] = address;
+                }
+            }
+            catch (SocketException error) { _log($"стук: DNS недоступен: {error.SocketErrorCode}"); return; }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested) { _log("стук: DNS превысил срок 10 с"); return; }
+        }
 
         var sent = 0;
+        var lastSentAt = TimeSpan.Zero;
+        var cadenceStarted = _clock.GetTimestamp();
         foreach (var step in _sequence.Steps)
         {
             var host = step.ResolvedHost(_serverHost);
@@ -107,11 +169,16 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
             {
                 if (sent > 0)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(_sequence.SpacingSeconds)).ConfigureAwait(false);
+                    var remaining = TimeSpan.FromSeconds(_sequence.SpacingSeconds) - (_clock.GetElapsedTime(cadenceStarted) - lastSentAt);
+                    if (remaining > TimeSpan.Zero) { await Task.Delay(remaining, _clock, token).ConfigureAwait(false); }
                 }
 
-                if (!await SendAsync(host, step.PayloadBytes).ConfigureAwait(false))
+                token.ThrowIfCancellationRequested();
+                lastSentAt = _clock.GetElapsedTime(cadenceStarted);
+                _log($"стук #{attempt}: пакет {sent + 1}/{_sequence.PacketCount}; host={host}; payload={step.PayloadBytes}; ICMP={step.PayloadBytes + 8} байт");
+                if (!await (PacketSender?.Invoke(host, step.PayloadBytes) ?? SendAsync(host, targets[host], step.PayloadBytes)).ConfigureAwait(false))
                 {
+                    _log($"стук #{attempt} прерван: обработано {sent}/{_sequence.PacketCount}; прошло={clock.Elapsed.TotalMilliseconds:0} мс");
                     return;
                 }
 
@@ -125,12 +192,29 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
         // REGISTER, и её делает регистрация, а не стук. Именно этим он
         // отличается от скрипта, который печатал «Successfully connected!»
         // безусловно.
+        if (sent == _sequence.PacketCount) { _throttle.RecordKnock(DateTimeOffset.UtcNow); }
         _log(sent == _sequence.PacketCount
-            ? "стук отправлен"
+            ? $"стук #{attempt} отправлен: {sent} пакетов, {clock.Elapsed.TotalMilliseconds:0} мс; доступность SIP проверит REGISTER"
             : $"стук отправлен частично: {sent} из {_sequence.PacketCount}");
     }
 
-    public void Dispose() => _ping.Dispose();
+    public void Dispose()
+    {
+        lock (_lifetime)
+        {
+            if (_disposed) { return; }
+            _disposed = true;
+            _stopping.Cancel();
+            if (_users == 0) { DisposeSynchronization(); }
+        }
+        _ping.Dispose();
+    }
+
+    private void DisposeSynchronization()
+    {
+        _serial.Dispose();
+        _stopping.Dispose();
+    }
 
     /// <summary>
     /// Один пакет. <see langword="false"/> — дальше стучать нечем.
@@ -142,17 +226,18 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     /// не дала отправить: нет разрешения на ICMP, не разрешилось имя, нет
     /// маршрута.
     ///
-    /// Ожидание ответа при этом задаёт темп: тайм-аут равен паузе между
-    /// пакетами, то есть молчащий шлюз растягивает стук ровно на ту же семёрку
-    /// секунд, что и отвечающий.
+    /// Ожидание эха засчитывается в интервал между отправками, а не добавляется
+    /// к нему. Последний пакет может потребовать ещё один timeout ожидания эха.
     /// </remarks>
-    private async Task<bool> SendAsync(string host, int payloadBytes)
+    private async Task<bool> SendAsync(string host, System.Net.IPAddress address, int payloadBytes)
     {
+        var clock = Stopwatch.StartNew();
         try
         {
             var timeout = (int)Math.Max(1, _sequence.SpacingSeconds * 1000);
-            await _ping.SendPingAsync(host, timeout, PortKnockPayload.Make(payloadBytes))
+            var reply = await _ping.SendPingAsync(address, timeout, PortKnockPayload.Make(payloadBytes))
                 .ConfigureAwait(false);
+            _log($"ICMP host={host}; ip={reply.Address}; status={reply.Status}; RTT={reply.RoundtripTime} мс; elapsed={clock.Elapsed.TotalMilliseconds:0} мс; timeout={timeout} мс");
 
             return true;
         }
@@ -161,16 +246,13 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
         // Стучать больше некуда и незачем — новое подключение уже стучит своим.
         catch (ObjectDisposedException)
         {
+            _log($"ICMP отменён при смене подключения: host={host}; elapsed={clock.Elapsed.TotalMilliseconds:0} мс");
             return false;
         }
         catch (Exception error) when (error is PingException or SocketException
                                           or InvalidOperationException)
         {
-            if (!_reportedFailure)
-            {
-                _reportedFailure = true;
-                _log($"стук не отправлен: {error.Message}");
-            }
+            _log($"стук не отправлен: host={host}; payload={payloadBytes}; elapsed={clock.Elapsed.TotalMilliseconds:0} мс; {error.GetType().Name}: {error.Message}; inner={error.InnerException?.Message}");
 
             return false;
         }

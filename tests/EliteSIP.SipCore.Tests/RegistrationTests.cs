@@ -7,6 +7,52 @@ namespace EliteSIP.SipCore.Tests;
 /// </summary>
 public sealed class RegistrationTests
 {
+    [Fact]
+    public async Task Принудительное_восстановление_немедленно_переоткрывает_путь()
+    {
+        var opener = new RecordingPathOpener();
+        var server = new ScriptedSipServer((request, _) => ScriptedSipServer.RegistrationAccepted(request));
+        using var agent = new SipUserAgent(TestSupport.TestAccount(), TestSupport.TestCredentials, server,
+            TestSupport.FastTimers(), pathOpener: opener);
+        await agent.StartAsync();
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.RegistrationState.IsRegistered));
+        await agent.ReregisterNowAsync();
+        Assert.True(await TestSupport.WaitUntilAsync(() => opener.Reasons.Contains(SipPathOpenReason.Recovery)));
+        await agent.StopAsync();
+    }
+
+    private sealed class RecordingPathOpener : ISipPathOpener
+    {
+        internal System.Collections.Concurrent.ConcurrentQueue<SipPathOpenReason> Reasons { get; } = new();
+        public Task OpenPathAsync(SipPathOpenReason reason) { Reasons.Enqueue(reason); return Task.CompletedTask; }
+    }
+
+    [Fact]
+    public async Task Журнал_регистрации_показывает_вызов_ответ_и_наблюдаемый_IP()
+    {
+        var observed = new SipEndpoint("203.0.113.7", 41234);
+        var server = new ScriptedSipServer((request, index) => index == 0
+            ? ScriptedSipServer.Unauthorized(request, observedAddress: observed)
+            : ScriptedSipServer.RegistrationAccepted(request));
+        using var agent = MakeAgent(server);
+        var logs = new List<string>();
+        var reader = Task.Run(async () =>
+        {
+            await foreach (var value in agent.Events)
+            {
+                if (value is SipUserAgentEvent.Log log) { logs.Add(log.Message); }
+            }
+        });
+        await agent.StartAsync();
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.RegistrationState.IsRegistered));
+        await agent.StopAsync();
+        await reader;
+        Assert.Contains(logs, line => line.Contains("REGISTER ответ: 401", StringComparison.Ordinal));
+        Assert.Contains(logs, line => line.Contains("REGISTER ответ: 200", StringComparison.Ordinal));
+        Assert.Contains(logs, line => line.Contains("203.0.113.7", StringComparison.Ordinal));
+        Assert.Contains(logs, line => line.Contains("транспорт=", StringComparison.Ordinal) && line.Contains("expires=", StringComparison.Ordinal));
+    }
+
     private static SipUserAgent MakeAgent(ScriptedSipServer server, SipAccount? account = null) =>
         new(
             account ?? TestSupport.TestAccount(server.Transport),

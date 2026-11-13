@@ -288,8 +288,9 @@ public sealed class SipTransactionLayer : IDisposable
     }
 
     /// <summary>Ждёт готовности канала и возвращает локальный адрес.</summary>
-    public async Task<SipEndpoint> WaitUntilReadyAsync(TimeSpan? timeout = null)
+    public async Task<SipEndpoint> WaitUntilReadyAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         TimeSpan limit = timeout ?? TimeSpan.FromSeconds(10);
 
         var id = Guid.NewGuid();
@@ -312,10 +313,28 @@ public sealed class SipTransactionLayer : IDisposable
                 Schedule(limit, () => ExpireReadiness(id)));
         }
 
+        using var cancellation = cancellationToken.Register(() =>
+        {
+            ReadinessWaiter waiter;
+            lock (_gate) { if (!_readinessWaiters.Remove(id, out waiter)) { return; } }
+            waiter.Timeout?.Cancel();
+            waiter.Completion.TrySetCanceled(cancellationToken);
+        });
         return await completion.Task.ConfigureAwait(false);
     }
 
     // Не-INVITE
+
+    public async Task<SipEndpoint?> TryNextRemoteAsync(CancellationToken cancellationToken)
+    {
+        var local = await _channel.TryNextRemoteAsync(cancellationToken).ConfigureAwait(false);
+        if (local is { } endpoint)
+        {
+            lock (_gate) { _localEndpoint = endpoint; _failureReason = null; }
+            ResolveReadiness(endpoint, null);
+        }
+        return local;
+    }
 
     /// <summary>
     /// Отправляет запрос и ждёт финального ответа.
@@ -324,9 +343,10 @@ public sealed class SipTransactionLayer : IDisposable
     /// оригинале структура копировалась, здесь копии нет, и это единственное
     /// место, где слой правит чужой объект.
     /// </summary>
-    public async Task<SipResponse> SendAsync(SipRequest request)
+    public async Task<SipResponse> SendAsync(SipRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
 
         SipVia? via = request.TopVia
             ?? throw new SipTransactionException(SipTransactionErrorKind.NotReady, "в запросе нет Via");
@@ -350,6 +370,7 @@ public sealed class SipTransactionLayer : IDisposable
         {
             _clientTransactions[key] = new ClientTransaction(method, data, completion)
             {
+                Cancellation = cancellationToken,
                 TimeoutCts = Schedule(_timers.TransactionTimeout, () =>
                 {
                     Finish(key, null, new SipTransactionException(SipTransactionErrorKind.Timeout));
@@ -358,7 +379,10 @@ public sealed class SipTransactionLayer : IDisposable
             };
         }
 
-        await TransmitAsync(key, data).ConfigureAwait(false);
+        using var cancellation = cancellationToken.Register(() =>
+            Finish(key, null, new OperationCanceledException(cancellationToken)));
+        try { await TransmitAsync(key, data, cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) { Finish(key, null, new OperationCanceledException(cancellationToken)); }
         return await completion.Task.ConfigureAwait(false);
     }
 
@@ -820,11 +844,11 @@ public sealed class SipTransactionLayer : IDisposable
 
     // Передача
 
-    private async Task TransmitAsync(string key, byte[] data)
+    private async Task TransmitAsync(string key, byte[] data, CancellationToken cancellationToken = default)
     {
         try
         {
-            await _channel.SendAsync(data).ConfigureAwait(false);
+            await _channel.SendAsync(data, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -877,9 +901,11 @@ public sealed class SipTransactionLayer : IDisposable
     private async Task<bool> ResendAsync(string key)
     {
         byte[]? data;
+        CancellationToken cancellation;
         lock (_gate)
         {
             data = _clientTransactions.TryGetValue(key, out ClientTransaction? transaction) ? transaction.Data : null;
+            cancellation = transaction?.Cancellation ?? default;
         }
         if (data is null)
         {
@@ -888,8 +914,9 @@ public sealed class SipTransactionLayer : IDisposable
 
         try
         {
-            await _channel.SendAsync(data).ConfigureAwait(false);
+            await _channel.SendAsync(data, cancellation).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) { return false; }
         catch (IOException)
         {
             // Молчим: у транзакции есть свой таймер, он и решит её судьбу.
@@ -1620,6 +1647,7 @@ public sealed class SipTransactionLayer : IDisposable
 
     private sealed class ClientTransaction(SipMethod method, byte[] data, TaskCompletionSource<SipResponse> completion)
     {
+        public CancellationToken Cancellation { get; init; }
         public SipMethod Method { get; } = method;
 
         public byte[] Data { get; } = data;

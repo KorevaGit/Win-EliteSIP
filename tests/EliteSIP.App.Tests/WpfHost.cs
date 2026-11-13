@@ -18,7 +18,7 @@ namespace EliteSIP.App.Tests;
 /// </remarks>
 internal static class WpfHost
 {
-    private static readonly string[] Dictionaries = ["Theme/Icons.xaml", "Theme/Controls.xaml", "Theme/SettingsKit.xaml", "History/History.xaml"];
+    private static readonly string[] Dictionaries = ["Theme/Icons.xaml", "Settings/Icons.Settings.xaml", "Theme/Controls.xaml", "Theme/SettingsKit.xaml", "History/History.xaml"];
 
     private static readonly Lazy<(Thread Thread, System.Windows.Threading.Dispatcher Dispatcher)> Host = new(Start);
 

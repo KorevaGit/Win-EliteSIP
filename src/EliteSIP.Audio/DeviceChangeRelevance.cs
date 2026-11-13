@@ -70,12 +70,14 @@ public static class DeviceChangeRelevance
         change.Kind switch
         {
             // Системное устройство сменилось — но касается это только той
-            // стороны, которая за умолчанием и следует. Если микрофон назначен
-            // явно, смена системного микрофона нас не трогает.
+            // стороны, которая следует за default или работает на его подмене.
+            // Исправное явно выбранное устройство не трогаем.
             AudioDeviceChangeKind.DefaultChanged => change.Direction switch
             {
-                AudioDeviceDirection.Capture => binding.FollowsDefaultInput,
-                AudioDeviceDirection.Render => binding.FollowsDefaultOutput,
+                AudioDeviceDirection.Capture => (binding.FollowsDefaultInput || binding.UsesFallbackInput)
+                    && !SameEndpoint(change.DeviceId, binding.ActiveInputId),
+                AudioDeviceDirection.Render => (binding.FollowsDefaultOutput || binding.UsesFallbackOutput)
+                    && !SameEndpoint(change.DeviceId, binding.ActiveOutputId),
 
                 // Направление неизвестно — считаем, что касается. Пропустить
                 // смену маршрута хуже, чем пересобрать лишний раз.
@@ -95,6 +97,27 @@ public static class DeviceChangeRelevance
 
             _ => false,
         };
+
+    /// <summary>
+    /// Нужен ли ещё повод после ожидания/пересборки. Экземпляр binding — поколение
+    /// открытого тракта: новая сборка публикует новый экземпляр даже при тех же ID.
+    /// </summary>
+    public static bool StillRequiresRebuild(AudioDeviceChange change, AudioRouteBinding observed, AudioRouteBinding current)
+    {
+        if (!AffectsRoute(change, current)) { return false; }
+        return change.Kind switch
+        {
+            AudioDeviceChangeKind.DefaultChanged => true,
+            AudioDeviceChangeKind.DeviceAdded => IsAwaitedReturn(change.DeviceId, current),
+            AudioDeviceChangeKind.DeviceStateChanged when change.Availability == AudioDeviceAvailability.Active
+                => IsAwaitedReturn(change.DeviceId, current),
+            // Уже заново открытый тракт обработал предыдущее исчезновение.
+            _ => ReferenceEquals(observed, current),
+        };
+    }
+
+    private static bool SameEndpoint(string? first, string? second) =>
+        string.Equals(first ?? string.Empty, second ?? string.Empty, StringComparison.Ordinal);
 
     /// <summary>Это одно из устройств, на которых тракт работает прямо сейчас.</summary>
     private static bool IsOurs(string deviceId, AudioRouteBinding binding) =>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics;
 using System.Threading.Channels;
 
 namespace EliteSIP.SipCore;
@@ -458,7 +459,7 @@ public sealed partial class SipUserAgent : IDisposable
             _registrationCts = fresh;
         }
 
-        _ = Task.Run(() => RunRegistrationLoopAsync(fresh.Token), CancellationToken.None);
+        _ = Task.Run(() => RunRegistrationLoopAsync(fresh.Token, forcePathOpen: true), CancellationToken.None);
         return Task.CompletedTask;
     }
 
@@ -625,7 +626,7 @@ public sealed partial class SipUserAgent : IDisposable
 
     // Регистрация
 
-    private async Task RunRegistrationLoopAsync(CancellationToken token)
+    private async Task RunRegistrationLoopAsync(CancellationToken token, bool forcePathOpen = false)
     {
         while (!token.IsCancellationRequested)
         {
@@ -647,8 +648,9 @@ public sealed partial class SipUserAgent : IDisposable
                 if (_pathOpener is not null)
                 {
                     await _pathOpener.OpenPathAsync(
-                        _consecutiveFailures > 0 ? SipPathOpenReason.Retry : SipPathOpenReason.Registration)
+                        forcePathOpen ? SipPathOpenReason.Recovery : _consecutiveFailures > 0 ? SipPathOpenReason.Retry : SipPathOpenReason.Registration)
                         .ConfigureAwait(false);
+                    forcePathOpen = false;
                 }
 
                 token.ThrowIfCancellationRequested();
@@ -697,6 +699,25 @@ public sealed partial class SipUserAgent : IDisposable
                 }
 
                 LastRegistrationFailure = error as SipRegistrationException;
+                bool canRotate;
+                lock (_gate) { canRotate = _account.Transport == SipTransport.Udp && _calls.Count == 0 && _reservedLines.Count == 0; }
+                Log(SipLogLevel.Debug, $"DNS failover: eligible={canRotate}; error={error.GetType().Name}; kind={(error as SipTransactionException)?.Kind}");
+                if (canRotate && error is SipTransactionException { Kind: SipTransactionErrorKind.Timeout })
+                {
+                    try
+                    {
+                        if (await _transactions.TryNextRemoteAsync(token).ConfigureAwait(false) is { } local)
+                        {
+                            lock (_gate) { _contactEndpoint = local; _cachedChallenge = null; _nonceCount = 0; }
+                            Log(SipLogLevel.Info, "REGISTER не получил ответа: выбран следующий DNS-адрес АТС");
+                        }
+                    }
+                    catch (OperationCanceledException) { return; }
+                    catch (Exception rotateError) when (rotateError is IOException or System.Net.Sockets.SocketException)
+                    {
+                        Log(SipLogLevel.Warning, $"не удалось сменить DNS-адрес: {rotateError.Message}");
+                    }
+                }
                 int delay = RetryDelay(failures, error);
                 string reason = Describe(error);
 
@@ -747,7 +768,16 @@ public sealed partial class SipUserAgent : IDisposable
         for (int attempt = 0; attempt < 4; attempt++)
         {
             token.ThrowIfCancellationRequested();
-            SipResponse response = await SendRegisterAsync(requestedExpires).ConfigureAwait(false);
+            var started = Stopwatch.GetTimestamp();
+            Log(SipLogLevel.Info, $"REGISTER: сервер={_account.Domain}:{_account.ServerPort}; транспорт={_account.Transport}; номер={_account.Username}; expires={requestedExpires}; раунд={attempt + 1}; авторизация={challengeAnswers > 0}");
+            SipResponse response;
+            try { response = await SendRegisterAsync(requestedExpires, token).ConfigureAwait(false); }
+            catch (Exception error)
+            {
+                Log(SipLogLevel.Warning, $"REGISTER без ответа: {_account.Domain}:{_account.ServerPort}; {Stopwatch.GetElapsedTime(started).TotalMilliseconds:0} мс; {error.GetType().Name}: {error.Message}");
+                throw;
+            }
+            Log(SipLogLevel.Info, $"REGISTER ответ: {response.StatusCode} {response.ReasonPhrase}; {Stopwatch.GetElapsedTime(started).TotalMilliseconds:0} мс; раунд={attempt + 1}");
 
             // Внешний адрес узнаём из ЛЮБОГО ответа, включая 401. Тогда повтор с
             // авторизацией уже несёт правильный Contact, и лишнего круга
@@ -830,19 +860,19 @@ public sealed partial class SipUserAgent : IDisposable
         throw new SipRegistrationException(SipRegistrationErrorKind.TooManyAttempts);
     }
 
-    private async Task<SipResponse> SendRegisterAsync(int expires)
+    private async Task<SipResponse> SendRegisterAsync(int expires, CancellationToken token)
     {
-        SipRequest request = await MakeRegisterAsync(expires).ConfigureAwait(false);
+        SipRequest request = await MakeRegisterAsync(expires, token).ConfigureAwait(false);
         Log(SipLogLevel.Debug, $"-> REGISTER expires={expires.ToString(CultureInfo.InvariantCulture)}");
 
-        SipResponse response = await _transactions.SendAsync(request).ConfigureAwait(false);
+        SipResponse response = await _transactions.SendAsync(request, token).ConfigureAwait(false);
         Log(SipLogLevel.Debug, $"<- {response.StatusCode.ToString(CultureInfo.InvariantCulture)} {response.ReasonPhrase}");
         return response;
     }
 
-    private async Task<SipRequest> MakeRegisterAsync(int expires)
+    private async Task<SipRequest> MakeRegisterAsync(int expires, CancellationToken token)
     {
-        SipEndpoint local = await _transactions.WaitUntilReadyAsync().ConfigureAwait(false);
+        SipEndpoint local = await _transactions.WaitUntilReadyAsync(cancellationToken: token).ConfigureAwait(false);
 
         SipEndpoint contact;
         int sequence;
@@ -925,7 +955,7 @@ public sealed partial class SipUserAgent : IDisposable
             _contactEndpoint = discovered;
         }
 
-        Log(SipLogLevel.Debug, $"сервер видит нас как {discovered}, в Contact было {previous}");
+        Log(SipLogLevel.Info, $"сервер видит нас как {discovered}, в Contact было {previous}");
         return true;
     }
 

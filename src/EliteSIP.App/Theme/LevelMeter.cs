@@ -24,6 +24,13 @@ namespace EliteSIP.App.Theme;
 /// </remarks>
 public sealed class LevelMeter : FrameworkElement
 {
+    public static readonly DependencyProperty ActiveBrushProperty = DependencyProperty.Register(
+        nameof(ActiveBrush), typeof(Brush), typeof(LevelMeter), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty TrackBrushProperty = DependencyProperty.Register(
+        nameof(TrackBrush), typeof(Brush), typeof(LevelMeter), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public Brush? ActiveBrush { get => (Brush?)GetValue(ActiveBrushProperty); set => SetValue(ActiveBrushProperty, value); }
+    public Brush? TrackBrush { get => (Brush?)GetValue(TrackBrushProperty); set => SetValue(TrackBrushProperty, value); }
     /// <summary>Уровень, линейный: 0 — тишина, 1 — полная шкала.</summary>
     public static readonly DependencyProperty LevelProperty = DependencyProperty.Register(
         nameof(Level),
@@ -63,6 +70,12 @@ public sealed class LevelMeter : FrameworkElement
         var meter = (LevelMeter)owner;
         meter._shown = Math.Sqrt(Math.Clamp((double)change.NewValue, 0, 1));
 
+        if (meter._shown == 0)
+        {
+            meter._peak = 0;
+            return;
+        }
+
         var now = DateTime.UtcNow;
         if (meter._shown >= meter._peak || now - meter._peakAt > PeakHold)
         {
@@ -80,7 +93,7 @@ public sealed class LevelMeter : FrameworkElement
             return;
         }
 
-        var unlit = TryFindResource("SeparatorBrush") as Brush ?? Brushes.LightGray;
+        var unlit = TrackBrush ?? TryFindResource("SeparatorBrush") as Brush ?? Brushes.LightGray;
         var segment = (width - (Gap * (Segments - 1))) / Segments;
         var lit = (int)Math.Round(_shown * Segments);
         var peak = Math.Clamp((int)Math.Ceiling(_peak * Segments) - 1, -1, Segments - 1);
@@ -92,7 +105,7 @@ public sealed class LevelMeter : FrameworkElement
             var on = index < lit || (index == peak && _peak > 0.02);
 
             drawingContext.DrawRoundedRectangle(
-                on ? color : unlit,
+                on ? ActiveBrush ?? color : unlit,
                 null,
                 new Rect(index * (segment + Gap), 0, segment, height),
                 1.5,

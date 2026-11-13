@@ -1,4 +1,5 @@
 using System.Net;
+using System.Diagnostics;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -85,8 +86,11 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     private readonly SemaphoreSlim _writing = new(1, 1);
 
     private Socket? _socket;
+    private IPEndPoint? _peer;
     private Task? _worker;
     private bool _isStopped;
+    internal Func<string, CancellationToken, Task<IPAddress[]>> ResolveHost { get; init; } =
+        (host, token) => Dns.GetHostAddressesAsync(host, token);
 
     /// <summary>Чем кончилось последнее рукопожатие TLS.</summary>
     private string? _handshakeFailure;
@@ -142,9 +146,8 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     /// </summary>
     ///
     /// <remarks>
-    /// <c>null</c> — не пишем, и это обычное состояние: трасса вываливает в
-    /// журнал пароли в <c>Authorization</c> и весь SDP, поэтому включается она
-    /// руками в «Обслуживании» и только на время разбора.
+    /// <c>null</c> — не пишем. Клиент включает трассу по настройке (по умолчанию
+    /// включена) и маскирует Authorization и ключи SDP до записи в файл.
     ///
     /// Здесь, в транспорте, а не в слое транзакций: тут ровно один выход и
     /// один вход, а в слое отправка размазана по шести местам, и седьмое
@@ -155,8 +158,16 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     /// </remarks>
     public Action<bool, ReadOnlyMemory<byte>>? Trace { get; set; }
 
-    public async Task SendAsync(ReadOnlyMemory<byte> data)
+    /// <summary>DNS, выбранный маршрут и результат соединения; без содержимого пакетов.</summary>
+    public Action<string>? Diagnostics { get; set; }
+
+    public Task SendAsync(ReadOnlyMemory<byte> data) => SendAsync(data, CancellationToken.None);
+
+    public async Task SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
     {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
+        var token = linked.Token;
+        token.ThrowIfCancellationRequested();
         Trace?.Invoke(true, data);
 
         Socket socket;
@@ -169,11 +180,11 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
 
         if (stream is not null)
         {
-            await _writing.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+            await _writing.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                await stream.WriteAsync(data, _lifetime.Token).ConfigureAwait(false);
-                await stream.FlushAsync(_lifetime.Token).ConfigureAwait(false);
+                await stream.WriteAsync(data, token).ConfigureAwait(false);
+                await stream.FlushAsync(token).ConfigureAwait(false);
                 return;
             }
             catch (Exception error) when (error is IOException or ObjectDisposedException)
@@ -188,7 +199,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
 
         try
         {
-            await socket.SendAsync(data, SocketFlags.None, _lifetime.Token).ConfigureAwait(false);
+            await socket.SendAsync(data, SocketFlags.None, token).ConfigureAwait(false);
         }
         catch (SocketException error)
         {
@@ -302,67 +313,103 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     private async Task<string?> ConnectAsync(CancellationToken token)
     {
         Socket? socket = null;
+        var clock = Stopwatch.StartNew();
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(10));
         try
         {
+            Diagnostics?.Invoke($"SIP транспорт: подключение к {Remote.Host}:{Remote.Port} ({Transport})");
             IPAddress[] addresses = IPAddress.TryParse(Remote.Host, out IPAddress? literal)
                 ? [literal]
-                : await Dns.GetHostAddressesAsync(Remote.Host, token).ConfigureAwait(false);
+                : await ResolveHost(Remote.Host, budget.Token).ConfigureAwait(false);
+            Diagnostics?.Invoke($"DNS {Remote.Host}: {string.Join(", ", addresses.Select(value => value.ToString()))}; {clock.Elapsed.TotalMilliseconds:0} мс");
 
             if (addresses.Length == 0)
             {
                 return $"имя {Remote.Host} не разрешается";
             }
 
-            var endpoint = new IPEndPoint(addresses[0], Remote.Port);
-            socket = new Socket(
-                endpoint.AddressFamily,
-                Transport == SipTransport.Udp ? SocketType.Dgram : SocketType.Stream,
-                Transport == SipTransport.Udp ? ProtocolType.Udp : ProtocolType.Tcp);
-
-            // Соединённый UDP-сокет, а не «отправить кому угодно», и это не
-            // мелочь: он приносит локальный адрес, отсекает чужие датаграммы на
-            // нашем порту и доносит ICMP-отказ как ошибку сокета. Без него
-            // «порт закрыт» выглядело бы как молчание сервера.
-            await socket.ConnectAsync(endpoint, token).ConfigureAwait(false);
-
-            SslStream? stream = null;
-            if (Transport == SipTransport.Tls)
+            string? lastFailure = null;
+            foreach (var address in addresses.Distinct())
             {
-                stream = await HandshakeAsync(socket, token).ConfigureAwait(false);
-                if (stream is null)
+                using var attempt = CancellationTokenSource.CreateLinkedTokenSource(budget.Token);
+                attempt.CancelAfter(TimeSpan.FromSeconds(3));
+                var endpoint = new IPEndPoint(address, Remote.Port);
+                try
                 {
-                    // Причина уже описана внутри — там же, где известно, чем
-                    // именно кончилось рукопожатие.
-                    return _handshakeFailure;
-                }
-            }
+                    socket = new Socket(
+                        endpoint.AddressFamily,
+                        Transport == SipTransport.Udp ? SocketType.Dgram : SocketType.Stream,
+                        Transport == SipTransport.Udp ? ProtocolType.Udp : ProtocolType.Tcp);
 
-            var local = socket.LocalEndPoint as IPEndPoint;
-            lock (_gate)
-            {
-                if (_isStopped)
-                {
-                    stream?.Dispose();
+                    // Соединённый UDP-сокет, а не «отправить кому угодно», и это не
+                    // мелочь: он приносит локальный адрес, отсекает чужие датаграммы на
+                    // нашем порту и доносит ICMP-отказ как ошибку сокета. Без него
+                    // «порт закрыт» выглядело бы как молчание сервера.
+                    await socket.ConnectAsync(endpoint, attempt.Token).ConfigureAwait(false);
+
+                    SslStream? stream = null;
+                    if (Transport == SipTransport.Tls)
+                    {
+                        stream = await HandshakeAsync(socket, attempt.Token).ConfigureAwait(false);
+                        if (stream is null)
+                        {
+                            Diagnostics?.Invoke($"TLS не установлен: {_handshakeFailure}; {clock.Elapsed.TotalMilliseconds:0} мс");
+                            // Причина уже описана внутри — там же, где известно, чем
+                            // именно кончилось рукопожатие.
+                            attempt.Token.ThrowIfCancellationRequested();
+                            lastFailure = _handshakeFailure;
+                            socket.Dispose();
+                            socket = null;
+                            continue;
+                        }
+                    }
+
+                    var local = socket.LocalEndPoint as IPEndPoint;
+                    Diagnostics?.Invoke($"SIP сокет: local={local}; remote={endpoint}; транспорт={Transport}; {clock.Elapsed.TotalMilliseconds:0} мс"
+                        + (stream is null ? string.Empty : $"; TLS={stream.SslProtocol}; cipher={stream.NegotiatedCipherSuite}"));
+                    lock (_gate)
+                    {
+                        if (_isStopped)
+                        {
+                            stream?.Dispose();
+                            return null;
+                        }
+                        _stream?.Dispose();
+                        _socket?.Dispose();
+                        _socket = socket;
+                        _peer = endpoint;
+                        _stream = stream;
+                        socket = null;
+                    }
+
+                    _events.Writer.TryWrite(new SipTransportEvent.Ready(
+                        new SipEndpoint(local?.Address.ToString() ?? "0.0.0.0", (ushort)(local?.Port ?? 0))));
+
                     return null;
                 }
-                _stream?.Dispose();
-                _socket?.Dispose();
-                _socket = socket;
-                _stream = stream;
-                socket = null;
+                catch (SocketException error)
+                {
+                    lastFailure = SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport);
+                    Diagnostics?.Invoke($"SIP адрес {endpoint} недоступен: {error.SocketErrorCode}; пробуем следующий DNS-адрес");
+                }
+                catch (OperationCanceledException) when (!budget.IsCancellationRequested)
+                {
+                    lastFailure = $"подключение к {endpoint}: превышен срок 3 с";
+                    Diagnostics?.Invoke(lastFailure);
+                }
+                finally { socket?.Dispose(); socket = null; }
             }
-
-            _events.Writer.TryWrite(new SipTransportEvent.Ready(
-                new SipEndpoint(local?.Address.ToString() ?? "0.0.0.0", (ushort)(local?.Port ?? 0))));
-
-            return null;
+            return lastFailure ?? $"нет доступных адресов {Remote.Host}";
         }
         catch (OperationCanceledException)
         {
-            return null;
+            Diagnostics?.Invoke($"SIP подключение отменено: {Remote}; {clock.Elapsed.TotalMilliseconds:0} мс");
+            return token.IsCancellationRequested ? null : $"подключение к {Remote}: превышен общий срок 10 с";
         }
         catch (SocketException error)
         {
+            Diagnostics?.Invoke($"SIP подключение не удалось: {Remote}; {clock.Elapsed.TotalMilliseconds:0} мс; {error.SocketErrorCode}; native={error.NativeErrorCode}; {error.Message}");
             return SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport);
         }
         finally
@@ -372,13 +419,55 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     }
 
     /// <summary>Проверяет, какой локальный адрес Windows выберет для нового сокета до АТС.</summary>
+    public async Task<SipEndpoint?> TryNextRemoteAsync(CancellationToken cancellationToken)
+    {
+        Diagnostics?.Invoke($"DNS failover requested: {Remote}; transport={Transport}");
+        if (Transport != SipTransport.Udp) { return null; }
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        budget.CancelAfter(TimeSpan.FromSeconds(10));
+        Socket previous;
+        IPAddress current;
+        lock (_gate)
+        {
+            if (_isStopped || _socket is null || _peer is not { } endpoint) { return null; }
+            previous = _socket;
+            current = endpoint.Address;
+        }
+        var addresses = IPAddress.TryParse(Remote.Host, out var literal)
+            ? [literal] : await ResolveHost(Remote.Host, budget.Token).ConfigureAwait(false);
+        addresses = addresses.Distinct().ToArray();
+        if (addresses.Length == 0 || (addresses.Length == 1 && addresses[0].Equals(current))) { return null; }
+        var index = Array.FindIndex(addresses, address => address.Equals(current));
+        var next = addresses[(index + 1) % addresses.Length];
+        Socket? socket = new Socket(next.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+        SipEndpoint local;
+        try
+        {
+            await socket.ConnectAsync(new IPEndPoint(next, Remote.Port), budget.Token).ConfigureAwait(false);
+            lock (_gate)
+            {
+                if (_isStopped || !ReferenceEquals(_socket, previous)) { return null; }
+                _socket = socket;
+                _peer = new IPEndPoint(next, Remote.Port);
+                var endpoint = (IPEndPoint)socket.LocalEndPoint!;
+                local = new SipEndpoint(endpoint.Address.ToString(), (ushort)endpoint.Port);
+                socket = null;
+            }
+        }
+        finally { socket?.Dispose(); }
+        previous.Dispose();
+        Diagnostics?.Invoke($"UDP: АТС не ответила, следующий адрес {next}; local={local}");
+        _events.Writer.TryWrite(new SipTransportEvent.Ready(local));
+        return local;
+    }
+
     public bool HasLocalRouteChanged()
     {
         IPEndPoint remote;
         IPAddress current;
         lock (_gate)
         {
-            if (_socket?.RemoteEndPoint is not IPEndPoint peer
+            if (_peer is not { } peer || _socket is null
                 || _socket.LocalEndPoint is not IPEndPoint local)
             {
                 return false;
@@ -522,6 +611,10 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
                     ? await socket.ReceiveAsync(buffer, SocketFlags.None, token).ConfigureAwait(false)
                     : await stream.ReadAsync(buffer, token).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested && SocketWasReplaced(socket))
+            {
+                continue;
+            }
             catch (OperationCanceledException)
             {
                 return;
@@ -538,6 +631,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             }
             catch (SocketException error)
             {
+                if (SocketWasReplaced(socket)) { continue; }
                 string reason = SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport);
 
                 // На UDP отказ приёма — это доехавший ICMP, а не конец канала:
@@ -563,6 +657,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             }
             catch (ObjectDisposedException)
             {
+                if (!token.IsCancellationRequested && SocketWasReplaced(socket)) { continue; }
                 return;
             }
 
@@ -612,6 +707,11 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
                 return;
             }
         }
+    }
+
+    private bool SocketWasReplaced(Socket socket)
+    {
+        lock (_gate) { return !ReferenceEquals(socket, _socket) && !_isStopped; }
     }
 
     /// <summary>

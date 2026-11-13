@@ -333,6 +333,14 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// замка, поэтому отдельно от <see cref="_running"/>.
     /// </summary>
     private bool _stopRequested;
+    private bool _teardownPending;
+    private readonly Lock _workerFailureGate = new();
+    private int _workerFailures;
+    private long _lastWorkerFailure;
+    private AudioRouteBinding? _lastWorkerFailureBinding;
+    private sealed record WorkerFailure(string Stage, Exception Error, bool Recoverable, AudioRouteBinding Binding);
+    private WorkerFailure? _workerFailure;
+    internal Action? BuildOverride { get; init; }
 
     public WasapiVoiceAudioEngine(VoiceAudioConfiguration configuration)
     {
@@ -520,7 +528,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
             // Новый запуск отменяет намерение остановиться: прежнее относилось
             // к прошлому разговору.
+            if (_teardownPending) { throw new VoiceAudioException("предыдущие аудиопотоки ещё завершаются"); }
             Volatile.Write(ref _stopRequested, false);
+            lock (_workerFailureGate) { _workerFailures = 0; _lastWorkerFailure = 0; _lastWorkerFailureBinding = null; }
 
             for (int attempt = 1; ; attempt++)
             {
@@ -530,7 +540,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     break;
                 }
                 catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException
-                                              or NotSupportedException)
+                                              or NotSupportedException or VoiceAudioException)
                 {
                     // Разбираем недособранное сами: оставить половину открытых
                     // потоков значит держать гарнитуру в режиме связи после
@@ -682,7 +692,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     return;
                 }
                 catch (Exception e) when (e is COMException or InvalidOperationException or ArgumentException
-                                              or NotSupportedException)
+                                              or NotSupportedException or VoiceAudioException)
                 {
                     Teardown();
 
@@ -717,7 +727,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// </summary>
     private void StartWatching()
     {
-        _supervisor = new RestartSupervisor(reason => Restart(reason));
+        _supervisor = new RestartSupervisor(RunSupervisedRestart);
+        if (Volatile.Read(ref _workerFailure) is { } failure) { PublishWorkerFailure(failure); }
 
         try
         {
@@ -740,6 +751,19 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _supervisor?.Dispose();
         _supervisor = null;
     }
+
+    private void RestartForDeviceChange(string reason)
+    {
+        if (Volatile.Read(ref _stopRequested)) { return; }
+        try { Restart(reason); }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _stopRequested))
+        {
+            // Отмена таймера могла пересечься с уже начавшимся callback.
+        }
+    }
+
+    private void RunSupervisedRestart(string reason) => AudioWorkerBoundary.Run(
+        () => RestartForDeviceChange(reason), error => HandleWorkerFailure("пересборка", error));
 
     /// <summary>
     /// Уведомление от звуковой службы.
@@ -768,7 +792,11 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
-        _supervisor?.Notify(Describe(change));
+        var key = change.Kind == AudioDeviceChangeKind.DefaultChanged
+            ? $"default:{change.Direction}"
+            : $"{change.Kind}:{change.DeviceId}:{change.Availability}";
+        _supervisor?.Notify(Describe(change),
+            () => DeviceChangeRelevance.StillRequiresRebuild(change, binding, Volatile.Read(ref _binding)), key);
     }
 
     private static string Describe(AudioDeviceChange change) => change.Kind switch
@@ -798,7 +826,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             _disposed = true;
             _running = false;
             Teardown();
-            _feedWake.Dispose();
+            if (!_teardownPending) { _feedWake.Dispose(); }
         }
     }
 
@@ -908,6 +936,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
     private void Build()
     {
+        if (_teardownPending) { throw new VoiceAudioException("аудиопотоки предыдущего тракта ещё работают"); }
+        if (BuildOverride is { } build) { build(); return; }
+        Volatile.Write(ref _workerFailure, null);
         // Вывод первым: по нему выбирается запасной микрофон — той же карты.
         _outputDevice = OpenDevice(_configuration.OutputDeviceId, AudioDeviceDirection.Render);
         _inputDevice = OpenInput();
@@ -1053,9 +1084,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         // Приоритет выше обычного: пропущенное пробуждение — это потерянный
         // звук. Реального времени не просим: под ним ошибка в цикле вешает
         // машину целиком.
-        _captureThread = StartThread("elitesip-capture", () => CaptureLoop(token));
-        _renderThread = StartThread("elitesip-render", () => RenderLoop(token));
-        _feedThread = StartThread("elitesip-feed", () => FeedLoop(token));
+        _captureThread = StartThread("elitesip-capture", () => CaptureLoop(token), error => HandleWorkerFailure("захват", error));
+        _renderThread = StartThread("elitesip-render", () => RenderLoop(token), error => HandleWorkerFailure("вывод", error));
+        _feedThread = StartThread("elitesip-feed", () => FeedLoop(token), error => HandleWorkerFailure("подача", error));
 
         // Имена устройств — первым делом. Жалоба «микрофон не идёт» 11 сентября
         // 2026 оказалась гарнитурой, которая лежала на столе: тракт открывал
@@ -1078,11 +1109,26 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             + $"обработка {processingRate} Гц, кодек {_configuration.Codec} {codecRate} Гц, "
             + $"запас кольца {targetFill} отсчётов, латентность потоков "
             + $"{_latencyFrames * 1000.0 / processingRate:F1} мс");
+        if (_inputDevice.State != DeviceState.Active || _outputDevice.State != DeviceState.Active)
+        {
+            throw new VoiceAudioException("устройство отключилось во время открытия аудио");
+        }
+        AcknowledgeRouteBuild();
     }
 
-    private static Thread StartThread(string name, Action body)
+    internal void AcknowledgeRouteBuild()
     {
-        Thread thread = new(() => body())
+        lock (_workerFailureGate)
+        {
+            // Собственные уведомления открытия относятся к уже завершённой
+            // сборке. Но обнаруженную рабочим потоком ошибку подтверждать нельзя.
+            if (_workerFailure is null) { Volatile.Write(ref _binding, Volatile.Read(ref _binding) with { }); }
+        }
+    }
+
+    private static Thread StartThread(string name, Action body, Action<Exception> failure)
+    {
+        Thread thread = new(() => AudioWorkerBoundary.Run(body, failure))
         {
             Priority = ThreadPriority.Highest,
             IsBackground = true,
@@ -1095,11 +1141,35 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
     private void Teardown()
     {
+        if (_teardownPending) { return; }
         _stop?.Cancel();
 
-        JoinThread(_captureThread);
-        JoinThread(_renderThread);
-        JoinThread(_feedThread);
+        Thread?[] threads = [_captureThread, _renderThread, _feedThread];
+        var joined = true;
+        foreach (var thread in threads) { joined &= JoinThread(thread); }
+        if (!joined)
+        {
+            _teardownPending = true;
+            _running = false;
+            Volatile.Write(ref _stopRequested, true);
+            SafeAudioReport(() => Report(new VoiceAudioEvent.Broken("аудиопоток не завершился; ресурсы будут освобождены после его выхода")));
+            _ = Task.Run(() =>
+            {
+                foreach (var thread in threads) { thread?.Join(); }
+                lock (_control)
+                {
+                    ReleaseResources();
+                    _teardownPending = false;
+                    if (_disposed) { _feedWake.Dispose(); }
+                }
+            });
+            return;
+        }
+        ReleaseResources();
+    }
+
+    private void ReleaseResources()
+    {
         _captureThread = _renderThread = _feedThread = null;
 
         StopClient(_captureClient);
@@ -1126,15 +1196,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _uptime.Stop();
     }
 
-    private static void JoinThread(Thread? thread)
+    private static bool JoinThread(Thread? thread)
     {
         // Секунда — с запасом: и захват, и вывод просыпаются не реже чем раз в
         // сто миллисекунд даже при мёртвом устройстве. Ждать бесконечно нельзя:
         // поток, застрявший в драйвере, не должен утаскивать за собой отбой.
-        if (thread is not null && !thread.Join(TimeSpan.FromSeconds(1)))
-        {
-            Debug.Fail($"поток {thread.Name} не остановился за секунду");
-        }
+        return thread is null || (thread != Thread.CurrentThread && thread.Join(TimeSpan.FromSeconds(1)));
     }
 
     private static void StopClient(AudioClient? client)
@@ -2213,16 +2280,51 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// </summary>
     private void FailFromThread(string stage, Exception error)
     {
-        Diagnostic($"{stage}: устройство отказало ({error.Message})");
+        HandleWorkerFailure(stage, error);
+    }
 
-        RestartSupervisor? supervisor = _supervisor;
-        if (supervisor is null)
+    private void HandleWorkerFailure(string stage, Exception error)
+    {
+        if (error is OperationCanceledException && _stop?.IsCancellationRequested == true) { return; }
+        SafeAudioReport(() => Diagnostic($"аудиопоток {stage}: {error}"));
+        if (Volatile.Read(ref _stopRequested)) { return; }
+        WorkerFailure failure;
+        lock (_workerFailureGate)
         {
-            // Надзирателя нет — тракт уже останавливают. Чинить нечего.
+            var now = Stopwatch.GetTimestamp();
+            if (_lastWorkerFailure == 0 || Stopwatch.GetElapsedTime(_lastWorkerFailure, now) > TimeSpan.FromSeconds(30)) { _workerFailures = 0; }
+            var binding = Volatile.Read(ref _binding);
+            var prior = Volatile.Read(ref _workerFailure);
+            if (prior is { Recoverable: false } && ReferenceEquals(prior.Binding, binding)) { return; }
+            if (!ReferenceEquals(_lastWorkerFailureBinding, binding))
+            {
+                _lastWorkerFailureBinding = binding;
+                _workerFailures++;
+            }
+            _lastWorkerFailure = now;
+            var recoverable = (error is COMException or IOException or ObjectDisposedException) && _workerFailures <= 3;
+            failure = new WorkerFailure(stage, error, recoverable, binding);
+            Volatile.Write(ref _workerFailure, failure);
+        }
+        _stop?.Cancel();
+        PublishWorkerFailure(failure);
+    }
+
+    private void PublishWorkerFailure(WorkerFailure failure)
+    {
+        if (!failure.Recoverable)
+        {
+            _supervisor?.Dispose();
+            SafeAudioReport(() => Report(new VoiceAudioEvent.Broken($"сбой аудиопотока {failure.Stage}: {failure.Error.GetType().Name}")));
             return;
         }
+        _supervisor?.Notify($"{failure.Stage}: {failure.Error.Message}",
+            () => ReferenceEquals(failure.Binding, Volatile.Read(ref _binding)), $"stream:{failure.Stage}");
+    }
 
-        supervisor.Notify($"{stage}: {error.Message}");
+    private static void SafeAudioReport(Action report)
+    {
+        AudioWorkerBoundary.Run(report, error => Trace.TraceError($"Audio diagnostic failed: {error}"));
     }
 
     private void Diagnostic(string text) => Handlers.Diagnostic?.Invoke(text);

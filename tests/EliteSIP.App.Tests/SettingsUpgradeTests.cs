@@ -9,6 +9,48 @@ namespace EliteSIP.App.Tests;
 /// </summary>
 public sealed class SettingsUpgradeTests : IDisposable
 {
+    [Fact]
+    public void Ringtone_defaults_to_call_device_when_output_is_absent()
+    {
+        Assert.Equal(RingtoneOutput.CallDevice, new RingtoneSettings().Output);
+        File.WriteAllText(FilePath, "{\"Revision\":3,\"Ringtone\":{}}");
+        Assert.Equal(RingtoneOutput.CallDevice, AppSettings.Load(FilePath).Ringtone.Output);
+    }
+
+    [Theory]
+    [InlineData(RingtoneOutput.SystemDefault)]
+    [InlineData(RingtoneOutput.CallDevice)]
+    public void Explicit_ringtone_output_survives_reload(RingtoneOutput output)
+    {
+        var settings = AppSettings.Load(FilePath);
+        settings.Ringtone.Output = output;
+        settings.Save(FilePath);
+        Assert.Equal(output, AppSettings.Load(FilePath).Ringtone.Output);
+    }
+
+    [Fact]
+    public void Прежний_штатный_интервал_стука_меняется_на_час_однократно()
+    {
+        var old = new AppSettings { Revision = 2 };
+        old.PortKnock.RepeatIntervalSeconds = 600;
+        old.Save(FilePath);
+        var loaded = AppSettings.Load(FilePath);
+        Assert.Equal(3600, loaded.PortKnock.RepeatIntervalSeconds);
+        loaded.PortKnock.RepeatIntervalSeconds = 600;
+        loaded.Save(FilePath);
+        Assert.Equal(600, AppSettings.Load(FilePath).PortKnock.RepeatIntervalSeconds);
+    }
+
+    [Fact]
+    public void Нештатный_интервал_стука_не_перезаписывается_миграцией()
+    {
+        var old = new AppSettings { Revision = 2 };
+        old.PortKnock.RepeatIntervalSeconds = 900;
+        old.Save(FilePath);
+        Assert.Equal(900, AppSettings.Load(FilePath).PortKnock.RepeatIntervalSeconds);
+        Assert.Equal(3600, new PortKnockSettings().RepeatIntervalSeconds);
+    }
+
     private readonly string _directory = Directory.CreateTempSubdirectory("elitesip-settings-").FullName;
 
     private string FilePath => Path.Combine(_directory, "settings.json");

@@ -66,7 +66,7 @@ public sealed record ReleaseManifest
 
     public DateTimeOffset PublishedAt { get; init; }
 
-    /// <summary>Что нового — одной строкой, для журнала и для окна.</summary>
+    /// <summary>Что нового: текст, отдельные пункты разделяются переводом строки.</summary>
     public string Notes { get; init; } = string.Empty;
 
     /// <summary>Проверяет подпись и разбирает.</summary>

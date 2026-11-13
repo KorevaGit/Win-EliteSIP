@@ -48,7 +48,12 @@ public sealed class CallStampConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is DateTimeOffset moment
-            ? moment.ToLocalTime().ToString("HH:mm dd.MM.yyyy", culture)
+            ? moment.ToLocalTime().ToString((parameter as string) switch
+            {
+                "time" => "HH:mm",
+                "date" => "dd.MM.yyyy",
+                _ => "HH:mm dd.MM.yyyy",
+            }, culture)
             : string.Empty;
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -75,9 +80,19 @@ public sealed class CallTitleConverter : IMultiValueConverter
 public sealed class CallSubtitleConverter : IMultiValueConverter
 {
     public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
-        => values.Length > 0 && values[0] is CallRecord record
-            ? HistoryPresentation.Subtitle(record, CallRowValues.OwnNumber(values), CallRowValues.MasksMobileNumbers(values))
-            : string.Empty;
+    {
+        if (values.Length == 0 || values[0] is not CallRecord record)
+        {
+            return string.Empty;
+        }
+        var own = CallRowValues.OwnNumber(values);
+        var masked = CallRowValues.MasksMobileNumbers(values);
+        var subtitle = HistoryPresentation.Subtitle(record, own, masked);
+        var title = HistoryPresentation.Title(record, own, masked);
+        var direction = Resources.Strings.Get(record.Direction == CallDirection.Incoming
+            ? "HistoryDirectionIncoming" : "HistoryDirectionOutgoing");
+        return string.IsNullOrEmpty(subtitle) || subtitle == title ? direction : $"{subtitle} · {direction}";
+    }
 
     public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
