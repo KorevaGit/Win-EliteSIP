@@ -243,7 +243,6 @@ public sealed class SettingsRedesignTests
             try
             {
                 Assert.NotEqual(0, GetObject(iconInfo.ColorBitmap, Marshal.SizeOf<NativeBitmap>(), out var bitmap));
-                Assert.True(SystemCaption.TaskbarSourceSize >= 256);
                 Assert.InRange(bitmap.Width, 32, 256);
                 Assert.Equal(bitmap.Width, bitmap.Height);
             }

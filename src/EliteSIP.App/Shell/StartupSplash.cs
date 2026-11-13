@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using EliteSIP.App.Settings;
@@ -21,9 +22,19 @@ internal static class StartupSplash
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
-        var asset = ResourceFor(settings, AppearanceService.SystemPrefersDark());
+        var asset = ResourceForDpi(settings, AppearanceService.SystemPrefersDark(), GetDpiForSystem());
         new SplashScreen(typeof(App).Assembly, asset).Show(autoClose: true);
     }
+
+    internal static string ResourceForDpi(string? settings, bool systemDark, uint dpi)
+    {
+        var resource = ResourceFor(settings, systemDark);
+        var percent = Math.Clamp((int)Math.Round((dpi == 0 ? 96 : dpi) * 100d / 96 / 25) * 25, 100, 400);
+        return percent == 100 ? resource : resource.Replace(".png", $".{percent}.png", StringComparison.Ordinal);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForSystem();
 
     internal static string ResourceFor(string? settings, bool systemDark)
     {

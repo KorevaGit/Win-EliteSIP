@@ -107,23 +107,10 @@ internal static class SystemCaption
 
     private static readonly System.Windows.Media.Imaging.BitmapSource LightIcon = DrawCrown(Brushes.Black);
     private static readonly System.Windows.Media.Imaging.BitmapSource DarkIcon = DrawCrown(Brushes.White);
-    private static readonly Lazy<System.Windows.Media.Imaging.BitmapSource> TaskbarSource = new(LoadTaskbarSource);
+
     private static readonly Dictionary<int, nint> TaskbarIcons = [];
     private static readonly DependencyProperty TracksDpiProperty = DependencyProperty.RegisterAttached(
         "TracksDpi", typeof(bool), typeof(SystemCaption), new PropertyMetadata(false));
-
-    internal static int TaskbarSourceSize => TaskbarSource.Value.PixelWidth;
-
-    private static System.Windows.Media.Imaging.BitmapSource LoadTaskbarSource()
-    {
-        var resource = Application.GetResourceStream(new Uri("pack://application:,,,/EliteSIP.App;component/Assets/AppIcon/EliteSIP.ico"))!;
-        using var stream = resource.Stream;
-        var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(stream,
-            System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
-        var frame = decoder.Frames.MaxBy(item => item.PixelWidth)!.CloneCurrentValue();
-        frame.Freeze();
-        return frame;
-    }
 
     private static void RestoreTaskbarIcon(Window window)
     {
@@ -154,16 +141,7 @@ internal static class SystemCaption
 
     private static nint RenderTaskbarIcon(int size)
     {
-        var visual = new DrawingVisual();
-        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
-        using (var canvas = visual.RenderOpen())
-        {
-            // ICO уже заполнен новым прозрачным знаком.
-            // Рисуем без дополнительного увеличения и обрезания.
-            canvas.DrawImage(TaskbarSource.Value, new System.Windows.Rect(0, 0, size, size));
-        }
-        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
+        var bitmap = BrandLogo.Render(size);
         var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
         encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
         using var png = new System.IO.MemoryStream();
