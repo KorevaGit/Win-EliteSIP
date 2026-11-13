@@ -9,6 +9,29 @@ namespace EliteSIP.App.Tests;
 /// </summary>
 public sealed class SettingsUpgradeTests : IDisposable
 {
+    [Fact]
+    public void Прежний_штатный_интервал_стука_меняется_на_час_однократно()
+    {
+        var old = new AppSettings { Revision = 2 };
+        old.PortKnock.RepeatIntervalSeconds = 600;
+        old.Save(FilePath);
+        var loaded = AppSettings.Load(FilePath);
+        Assert.Equal(3600, loaded.PortKnock.RepeatIntervalSeconds);
+        loaded.PortKnock.RepeatIntervalSeconds = 600;
+        loaded.Save(FilePath);
+        Assert.Equal(600, AppSettings.Load(FilePath).PortKnock.RepeatIntervalSeconds);
+    }
+
+    [Fact]
+    public void Нештатный_интервал_стука_не_перезаписывается_миграцией()
+    {
+        var old = new AppSettings { Revision = 2 };
+        old.PortKnock.RepeatIntervalSeconds = 900;
+        old.Save(FilePath);
+        Assert.Equal(900, AppSettings.Load(FilePath).PortKnock.RepeatIntervalSeconds);
+        Assert.Equal(3600, new PortKnockSettings().RepeatIntervalSeconds);
+    }
+
     private readonly string _directory = Directory.CreateTempSubdirectory("elitesip-settings-").FullName;
 
     private string FilePath => Path.Combine(_directory, "settings.json");

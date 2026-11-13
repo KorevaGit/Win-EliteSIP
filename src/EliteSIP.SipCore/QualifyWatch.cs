@@ -122,6 +122,7 @@ public enum SipPathOpenReason
     /// вероятная причина отказа — что дорогу как раз закрыли.
     /// </summary>
     Retry,
+    Recovery,
 
     /// <summary>Тик по времени, пока всё хорошо.</summary>
     Periodic,

@@ -36,6 +36,11 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     private readonly Action<string> _log;
     private readonly PortKnockThrottle _throttle;
     private readonly Ping _ping = new();
+    private readonly Lock _lifetime = new();
+    private readonly SemaphoreSlim _serial = new(1, 1);
+    private readonly CancellationTokenSource _stopping = new();
+    private bool _disposed;
+    private int _users;
 
     /// <summary>
     /// Номер последовательности для сопоставления пакетов и результата.
@@ -90,6 +95,32 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
 
     public async Task OpenPathAsync(SipPathOpenReason reason)
     {
+        lock (_lifetime)
+        {
+            if (_disposed) { return; }
+            _users++;
+        }
+        var entered = false;
+        try
+        {
+            await _serial.WaitAsync(_stopping.Token).ConfigureAwait(false);
+            entered = true;
+            await OpenSequenceAsync(reason, _stopping.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested) { }
+        finally
+        {
+            if (entered) { _serial.Release(); }
+            lock (_lifetime)
+            {
+                if (--_users == 0 && _disposed) { DisposeSynchronization(); }
+            }
+        }
+    }
+
+    private async Task OpenSequenceAsync(SipPathOpenReason reason, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
         var now = DateTimeOffset.UtcNow;
         if (!_throttle.ShouldKnock(reason, now))
         {
@@ -115,7 +146,7 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
             {
                 if (sent > 0)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(_sequence.SpacingSeconds)).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(_sequence.SpacingSeconds), token).ConfigureAwait(false);
                 }
 
                 _log($"стук #{attempt}: пакет {sent + 1}/{_sequence.PacketCount}; host={host}; payload={step.PayloadBytes}; ICMP={step.PayloadBytes + 8} байт");
@@ -140,7 +171,23 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
             : $"стук отправлен частично: {sent} из {_sequence.PacketCount}");
     }
 
-    public void Dispose() => _ping.Dispose();
+    public void Dispose()
+    {
+        lock (_lifetime)
+        {
+            if (_disposed) { return; }
+            _disposed = true;
+            _stopping.Cancel();
+            if (_users == 0) { DisposeSynchronization(); }
+        }
+        _ping.Dispose();
+    }
+
+    private void DisposeSynchronization()
+    {
+        _serial.Dispose();
+        _stopping.Dispose();
+    }
 
     /// <summary>
     /// Один пакет. <see langword="false"/> — дальше стучать нечем.

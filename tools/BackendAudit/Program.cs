@@ -9,6 +9,9 @@ using EliteSIP.Diagnostics;
 using EliteSIP.SipCore;
 using EliteSIP.SipCore.Tests;
 
+if (args.Contains("--audio-thread-child")) { IncidentProbes.CrashWorkerChild(); return; }
+if (args.Contains("--incident")) { await IncidentProbes.RunAsync(); return; }
+
 Console.WriteLine("Backend audit probes; reference findings: e66331e. Simulated SIP peers, TCP/ICMP loopback only.");
 
 var timers = new SipTransactionTimers { T1 = TimeSpan.FromMilliseconds(80), T2 = TimeSpan.FromMilliseconds(160) };

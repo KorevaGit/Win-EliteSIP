@@ -1095,7 +1095,11 @@ public partial class App : Application, IDisposable
 
             var made = await Task.Run(() => SupportArchive.MakeFromDirectory(
                 Path.GetDirectoryName(AppSettings.DefaultPath)!, summary, destination, _logFile,
-                new Dictionary<string, byte[]> { ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)) }));
+                new Dictionary<string, byte[]>
+                {
+                    ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)),
+                    ["windows-crashes.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportCrashEvidence.Capture()),
+                }));
 
             model.ReportSupport(Strings.Format("SupportLogsCollected", System.IO.Path.GetFileName(made)), SupportArea.Logs);
         }

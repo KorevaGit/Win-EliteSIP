@@ -345,7 +345,7 @@ public sealed class PortKnockTests
         var empty = JsonSerializer.Deserialize<PortKnockSequence>("{}")!;
 
         Assert.Equal(PortKnockSequence.Production.Steps.Count, empty.Steps.Count);
-        Assert.Equal(600, empty.RepeatIntervalSeconds);
+        Assert.Equal(3600, empty.RepeatIntervalSeconds);
 
         var disabled = JsonSerializer.Deserialize<PortKnockSequence>("""{"Steps":[]}""")!;
 
@@ -362,5 +362,20 @@ public sealed class PortKnockTests
         Assert.Equal(
             PortKnockSequence.Production.Steps.Select(step => (step.Host, step.PayloadBytes, step.Count)),
             decoded.Steps.Select(step => (step.Host, step.PayloadBytes, step.Count)));
+    }
+
+    [Fact]
+    public void Часовой_интервал_не_блокирует_аварийное_восстановление()
+    {
+        var throttle = new PortKnockThrottle(TimeSpan.FromHours(1));
+        var start = DateTimeOffset.UtcNow;
+        throttle.RecordKnock(start);
+        Assert.False(throttle.ShouldKnock(SipPathOpenReason.Periodic, start.AddMinutes(10)));
+        Assert.False(throttle.ShouldKnock(SipPathOpenReason.Registration, start.AddMinutes(59)));
+        Assert.True(throttle.ShouldKnock(SipPathOpenReason.Periodic, start.AddHours(1)));
+        Assert.True(throttle.ShouldKnock(SipPathOpenReason.Retry, start.AddSeconds(1)));
+        Assert.True(throttle.ShouldKnock(SipPathOpenReason.Recovery, start.AddSeconds(1)));
+        throttle.Invalidate();
+        Assert.True(throttle.ShouldKnock(SipPathOpenReason.Registration, start.AddSeconds(1)));
     }
 }

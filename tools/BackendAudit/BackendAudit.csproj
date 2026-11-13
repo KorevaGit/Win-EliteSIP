@@ -5,6 +5,7 @@
   <ProjectReference Include="../../src/EliteSIP.SipCore/EliteSIP.SipCore.csproj" />
   <ProjectReference Include="../../src/EliteSIP.SipCore.Udp/EliteSIP.SipCore.Udp.csproj" />
   <ProjectReference Include="../../src/EliteSIP.Diagnostics/EliteSIP.Diagnostics.csproj" />
+  <ProjectReference Include="../../src/EliteSIP.CallHistory/EliteSIP.CallHistory.csproj" />
   <Compile Include="../../tests/EliteSIP.SipCore.Tests/ScriptedSipServer.cs" Link="ScriptedSipServer.cs" />
   <Compile Include="../../tests/EliteSIP.Audio.Tests/FakeVoiceAudioEngine.cs" Link="FakeVoiceAudioEngine.cs" />
  </ItemGroup>

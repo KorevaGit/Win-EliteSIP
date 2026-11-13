@@ -66,7 +66,7 @@ public sealed class PortKnockStepSetting : Observable
 public sealed class PortKnockSettings : Observable
 {
     private double _spacingSeconds = 1;
-    private double _repeatIntervalSeconds = 600;
+    private double _repeatIntervalSeconds = 3600;
 
     public PortKnockSettings()
     {

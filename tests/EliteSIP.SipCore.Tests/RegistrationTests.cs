@@ -8,6 +8,26 @@ namespace EliteSIP.SipCore.Tests;
 public sealed class RegistrationTests
 {
     [Fact]
+    public async Task Принудительное_восстановление_немедленно_переоткрывает_путь()
+    {
+        var opener = new RecordingPathOpener();
+        var server = new ScriptedSipServer((request, _) => ScriptedSipServer.RegistrationAccepted(request));
+        using var agent = new SipUserAgent(TestSupport.TestAccount(), TestSupport.TestCredentials, server,
+            TestSupport.FastTimers(), pathOpener: opener);
+        await agent.StartAsync();
+        Assert.True(await TestSupport.WaitUntilAsync(() => agent.RegistrationState.IsRegistered));
+        await agent.ReregisterNowAsync();
+        Assert.True(await TestSupport.WaitUntilAsync(() => opener.Reasons.Contains(SipPathOpenReason.Recovery)));
+        await agent.StopAsync();
+    }
+
+    private sealed class RecordingPathOpener : ISipPathOpener
+    {
+        internal System.Collections.Concurrent.ConcurrentQueue<SipPathOpenReason> Reasons { get; } = new();
+        public Task OpenPathAsync(SipPathOpenReason reason) { Reasons.Enqueue(reason); return Task.CompletedTask; }
+    }
+
+    [Fact]
     public async Task Журнал_регистрации_показывает_вызов_ответ_и_наблюдаемый_IP()
     {
         var observed = new SipEndpoint("203.0.113.7", 41234);

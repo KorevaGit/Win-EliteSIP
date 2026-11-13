@@ -459,7 +459,7 @@ public sealed partial class SipUserAgent : IDisposable
             _registrationCts = fresh;
         }
 
-        _ = Task.Run(() => RunRegistrationLoopAsync(fresh.Token), CancellationToken.None);
+        _ = Task.Run(() => RunRegistrationLoopAsync(fresh.Token, forcePathOpen: true), CancellationToken.None);
         return Task.CompletedTask;
     }
 
@@ -626,7 +626,7 @@ public sealed partial class SipUserAgent : IDisposable
 
     // Регистрация
 
-    private async Task RunRegistrationLoopAsync(CancellationToken token)
+    private async Task RunRegistrationLoopAsync(CancellationToken token, bool forcePathOpen = false)
     {
         while (!token.IsCancellationRequested)
         {
@@ -648,8 +648,9 @@ public sealed partial class SipUserAgent : IDisposable
                 if (_pathOpener is not null)
                 {
                     await _pathOpener.OpenPathAsync(
-                        _consecutiveFailures > 0 ? SipPathOpenReason.Retry : SipPathOpenReason.Registration)
+                        forcePathOpen ? SipPathOpenReason.Recovery : _consecutiveFailures > 0 ? SipPathOpenReason.Retry : SipPathOpenReason.Registration)
                         .ConfigureAwait(false);
+                    forcePathOpen = false;
                 }
 
                 token.ThrowIfCancellationRequested();

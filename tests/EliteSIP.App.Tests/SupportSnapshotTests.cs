@@ -6,6 +6,13 @@ namespace EliteSIP.App.Tests;
 [Collection("Settings popup windows")]
 public sealed class SupportSnapshotTests
 {
+    [Theory]
+    [InlineData("Application: EliteSIP.App.exe", true)]
+    [InlineData("Faulting app elitesip.exe", true)]
+    [InlineData("BackendAudit.exe; stack EliteSIP.Audio.WasapiVoiceAudioEngine", false)]
+    public void В_архив_попадают_только_системные_сбои_клиента(string xml, bool expected)
+        => Assert.Equal(expected, SupportCrashEvidence.IsClientEvent(xml));
+
     [Fact]
     public void SIP_трасса_включена_по_умолчанию_но_явное_отключение_сохраняется()
     {
