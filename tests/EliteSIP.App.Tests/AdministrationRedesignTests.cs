@@ -149,7 +149,7 @@ public sealed class AdministrationRedesignTests
     });
 
     [Fact]
-    public void Нижние_кнопки_панели_равны_полю_номера() => WpfHost.Run(() =>
+    public void Нижние_кнопки_панели_имеют_компактную_одинаковую_высоту() => WpfHost.Run(() =>
     {
         WpfHost.UseTheme(Appearance.Dark);
         var window = new PanelWindow(new PanelViewModel { CanPlaceCall = true });
@@ -159,8 +159,8 @@ public sealed class AdministrationRedesignTests
         var call = (Button)window.FindName("PrimaryCallButton");
         var history = (Button)window.FindName("HistoryActionButton");
         Assert.Equal(72, input.ActualHeight);
-        Assert.Equal(input.ActualHeight, call.ActualHeight);
-        Assert.Equal(input.ActualHeight, history.ActualHeight);
+        Assert.Equal(62, call.ActualHeight);
+        Assert.Equal(call.ActualHeight, history.ActualHeight);
         window.Close();
     });
 

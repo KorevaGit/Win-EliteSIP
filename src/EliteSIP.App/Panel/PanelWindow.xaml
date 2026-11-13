@@ -103,7 +103,7 @@
       <RowDefinition Height="10" />
       <!-- Неподвижный низ: звонок и история. С 0.1.60 от окна не растёт —
            лишняя высота вся уходит клавишам. -->
-      <RowDefinition Height="72" />
+      <RowDefinition Height="62" />
     </Grid.RowDefinitions>
 
     <!--
