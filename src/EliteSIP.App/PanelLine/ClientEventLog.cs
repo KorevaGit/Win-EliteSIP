@@ -24,8 +24,8 @@ namespace EliteSIP.App.PanelLine;
 /// откуда их забирает Spark.
 /// </para>
 /// <para>
-/// <b>Номеров собеседников здесь нет намеренно:</b> журнал читает не только
-/// тот, кому положено видеть историю звонков. Секреты маскирует
+/// Номер и имя собеседника передаются по запросу поддержки, как в истории.
+/// Секреты маскирует
 /// <see cref="LogRedaction"/> — так же, как в файле журнала.
 /// </para>
 /// <para>
@@ -98,6 +98,9 @@ internal sealed class ClientEventLog : IDisposable
     private bool _sending;
     private bool _wasRegistered;
     private bool _forgotten;
+    private bool _sessionStarted;
+    private bool _fatalCrash;
+    private bool _finishing;
 
     /// <summary>Пауза перед повтором после неудачной отправки; растёт до такта.</summary>
     private TimeSpan _retryDelay = TimeSpan.Zero;
@@ -143,6 +146,8 @@ internal sealed class ClientEventLog : IDisposable
         Call,
         Config,
         Error,
+        Crash,
+        Connection,
     }
 
     internal enum Level
@@ -178,14 +183,22 @@ internal sealed class ClientEventLog : IDisposable
 
         [JsonPropertyName("duration_s")]
         public int? DurationSeconds { get; init; }
+
+        [JsonPropertyName("peer_number")]
+        public string? PeerNumber { get; init; }
+
+        [JsonPropertyName("peer_name")]
+        public string? PeerName { get; init; }
     }
 
     /// <summary>Чем кончилась отправка: код ответа (<c>null</c> — ответа нет) и просьба сервера подождать.</summary>
     internal readonly record struct SendResult(HttpStatusCode? Status, TimeSpan? RetryAfter);
 
-    private sealed class Call(string direction)
+    private sealed class Call(string direction, string? number, string? name)
     {
         public string Direction { get; } = direction;
+        public string? Number { get; } = number;
+        public string? Name { get; } = name;
 
         public DateTimeOffset? AnsweredAt { get; set; }
     }
@@ -280,10 +293,76 @@ internal sealed class ClientEventLog : IDisposable
             _calls.Clear();
             _settings = null;
             _forgotten = true;
+            try { if (_path is not null) { File.Delete(_path + ".session"); } }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
     }
 
     // События
+
+    // Отдельный маркер переживает принудительное завершение, при котором
+    // обработчики исключений не выполняются. Это свидетельство, не диагноз.
+    internal void BeginSession()
+    {
+        lock (_gate)
+        {
+            if (_sessionStarted || _forgotten) { return; }
+            _sessionStarted = true;
+            var marker = _path + ".session";
+            try
+            {
+                if (_path is not null && File.Exists(marker))
+                {
+                    RecordLocked(Kind.Connection, Level.Warning,
+                        "Предыдущий запуск завершился без штатного выхода: возможны сбой, принудительное закрытие или выключение ПК");
+                }
+                if (_path is not null) { File.WriteAllText(marker, _now().ToString("O", CultureInfo.InvariantCulture)); }
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            RecordLocked(Kind.Connection, Level.Info, "Приложение запущено");
+        }
+    }
+
+    internal void EndSession()
+    {
+        lock (_gate)
+        {
+            if (!_sessionStarted || _fatalCrash || _forgotten) { return; }
+            _sessionStarted = false;
+            RecordLocked(Kind.Connection, Level.Info, $"Приложение закрыто: {_shutdownReason ?? "штатный выход"}");
+            try { if (_path is not null) { File.Delete(_path + ".session"); } }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    internal void FinishSession()
+    {
+        lock (_gate)
+        {
+            if (_finishing) { return; }
+            _finishing = true;
+        }
+        EndSession();
+        Dispose();
+        // На выходе больше не будет десятисекундного таймера. Пробуем отправить
+        // сейчас; при недоступной сети файл остаётся до следующего запуска.
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(750));
+        try { SendAsync(deadline.Token).WaitAsync(deadline.Token).GetAwaiter().GetResult(); }
+        catch (Exception error) when (error is OperationCanceledException or HttpRequestException or IOException) { }
+        Dispose();
+    }
+
+    internal void NoteCrash(Exception error, bool survived)
+    {
+        lock (_gate)
+        {
+            _fatalCrash |= !survived;
+            RecordLocked(Kind.Crash, Level.Error,
+                $"{(survived ? "Ошибка перехвачена, клиент продолжает работу" : "Аварийное завершение клиента")}: {error.GetType().Name}; HRESULT=0x{error.HResult:X8}; {error.Message}; {error.StackTrace}");
+        }
+    }
+
+    internal void NoteConnection(string reason) => Record(Kind.Connection, Level.Warning, reason);
 
     /// <summary>Почему регистрацию сейчас снимет само приложение. Первая причина главнее.</summary>
     internal void NoteShutdown(string reason)
@@ -340,11 +419,11 @@ internal sealed class ClientEventLog : IDisposable
         }
     }
 
-    internal void CallStarted(string callId, bool incoming)
+    internal void CallStarted(string callId, bool incoming, string? number = null, string? name = null)
     {
         lock (_gate)
         {
-            _calls[callId] = new Call(incoming ? "in" : "out");
+            _calls[callId] = new Call(incoming ? "in" : "out", CleanPeer(number, 128), CleanPeer(name, 256));
         }
     }
 
@@ -376,7 +455,8 @@ internal sealed class ClientEventLog : IDisposable
                     Level.Info,
                     $"{title} завершён",
                     direction: call.Direction,
-                    duration: Math.Max(0, (int)(_now() - answered).TotalSeconds));
+                    duration: Math.Max(0, (int)(_now() - answered).TotalSeconds),
+                    peerNumber: call.Number, peerName: call.Name);
             }
             else
             {
@@ -384,7 +464,7 @@ internal sealed class ClientEventLog : IDisposable
                     Kind.Call,
                     failed ? Level.Warning : Level.Info,
                     $"{title} без ответа: {reason}",
-                    direction: call.Direction);
+                    direction: call.Direction, peerNumber: call.Number, peerName: call.Name);
             }
         }
     }
@@ -427,7 +507,9 @@ internal sealed class ClientEventLog : IDisposable
         string message,
         int? sipCode = null,
         string? direction = null,
-        int? duration = null)
+        int? duration = null,
+        string? peerNumber = null,
+        string? peerName = null)
     {
         if (_forgotten)
         {
@@ -452,6 +534,8 @@ internal sealed class ClientEventLog : IDisposable
             SipCode = sipCode,
             Direction = direction,
             DurationSeconds = duration,
+            PeerNumber = peerNumber,
+            PeerName = peerName,
         });
 
         if (_pending.Count > Capacity)
@@ -463,12 +547,19 @@ internal sealed class ClientEventLog : IDisposable
         ScheduleFlush(FlushDelay);
     }
 
+    private static string? CleanPeer(string? value, int limit)
+    {
+        if (string.IsNullOrWhiteSpace(value)) { return null; }
+        var text = LogRedaction.Redact(value.Trim()).Replace('\r', ' ').Replace('\n', ' ');
+        return text.Length > limit ? text[..limit] : text;
+    }
+
     // Отправка
 
     /// <summary>Под замком. Уже назначенная отправка не переназначается.</summary>
     private void ScheduleFlush(TimeSpan delay)
     {
-        if (_flush is not null || _settings is null)
+        if (_flush is not null || _settings is null || _finishing)
         {
             return;
         }
@@ -516,7 +607,7 @@ internal sealed class ClientEventLog : IDisposable
     }
 
     /// <summary>Отправить накопленное одной пачкой. Повторный вызов во время отправки — пустой.</summary>
-    internal async Task SendAsync()
+    internal async Task SendAsync(CancellationToken cancellationToken = default)
     {
         List<Event> batch;
         Uri url;
@@ -561,7 +652,8 @@ internal sealed class ClientEventLog : IDisposable
                 Encoding.UTF8,
                 "application/json");
 
-            using CancellationTokenSource deadline = new(ChannelRequest.Timeout);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(ChannelRequest.Timeout);
             result = await Transport(request, deadline.Token).ConfigureAwait(false);
         }
         finally

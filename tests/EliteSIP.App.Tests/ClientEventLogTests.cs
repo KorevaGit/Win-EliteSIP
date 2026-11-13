@@ -22,7 +22,7 @@ public sealed class ClientEventLogTests : IDisposable
     public void Dispose() => Directory.Delete(_directory, recursive: true);
 
     [Fact]
-    public void AnsweredCallCarriesDurationAndNoNumber()
+    public void AnsweredCallCarriesDurationAndOptionalPeer()
     {
         var log = Make();
 
@@ -60,6 +60,52 @@ public sealed class ClientEventLogTests : IDisposable
         log.CallFinished("never-started", "отбой", failed: false);
 
         Assert.Empty(log.Pending);
+    }
+
+    [Fact]
+    public void Call_peer_fields_survive_restart_and_use_server_names()
+    {
+        var log = Make();
+        log.CallStarted("c1", incoming: true, "+79991234567", "Иван Петров");
+        log.CallAnswered("c1");
+        log.CallFinished("c1", "отбой", failed: false);
+        var item = Assert.Single(Make().Pending);
+        Assert.Equal("+79991234567", item.PeerNumber);
+        Assert.Equal("Иван Петров", item.PeerName);
+        using var data = JsonDocument.Parse(File.ReadAllText(FilePath));
+        Assert.Equal("Иван Петров", data.RootElement[0].GetProperty("peer_name").GetString());
+    }
+
+    [Fact]
+    public void Crash_survives_restart_and_unclean_exit_is_reported_without_claiming_cause()
+    {
+        using var log = Make();
+        log.BeginSession();
+        log.NoteCrash(new InvalidOperationException("injected crash"), survived: false);
+        log.EndSession();
+        using var restarted = Make();
+        restarted.BeginSession();
+        Assert.Single(restarted.Pending, item => item.Kind == ClientEventLog.Kind.Crash);
+        Assert.Contains(restarted.Pending, item => item.Kind == ClientEventLog.Kind.Connection
+            && item.Message.Contains("без штатного выхода", StringComparison.Ordinal));
+        restarted.EndSession();
+        using var next = Make();
+        var before = next.Pending.Count;
+        next.BeginSession();
+        Assert.Equal(before + 1, next.Pending.Count);
+        next.EndSession();
+    }
+
+    [Fact]
+    public void Survived_error_does_not_mark_clean_shutdown_as_crash_and_secrets_are_redacted()
+    {
+        using var log = Make();
+        log.BeginSession();
+        log.NoteCrash(new IOException("password=sample-secret"), survived: true);
+        log.EndSession();
+        var crash = Assert.Single(log.Pending, item => item.Kind == ClientEventLog.Kind.Crash);
+        Assert.DoesNotContain("sample-secret", crash.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(FilePath + ".session"));
     }
 
     [Fact]

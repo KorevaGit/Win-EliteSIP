@@ -610,7 +610,7 @@ public sealed class PhoneService : IDisposable
         // разговора вполне реально.
         _history.Begin(record);
         _records[call.CallId] = record;
-        ClientEventLog.Shared.CallStarted(call.CallId, incoming: false);
+        ClientEventLog.Shared.CallStarted(call.CallId, incoming: false, record.Number, record.DisplayName);
 
         // Панель узнаёт о вызове сейчас, а не по «ответили»: до этой строки она
         // выглядела свободной всё время гудков, и «Позвонить» нажималась
@@ -663,7 +663,7 @@ public sealed class PhoneService : IDisposable
 
         _history.Begin(record);
         _records[call.CallId] = record;
-        ClientEventLog.Shared.CallStarted(call.CallId, incoming: true);
+        ClientEventLog.Shared.CallStarted(call.CallId, incoming: true, record.Number, record.DisplayName);
 
         // Следим за завершением и при автоподъёме: его ветка ниже выходит
         // без окна. Иначе BYE/CANCEL закрывает SIP-диалог, но линия, звук

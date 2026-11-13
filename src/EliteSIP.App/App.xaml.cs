@@ -116,7 +116,7 @@ public partial class App : Application, IDisposable
 
         TaskScheduler.UnobservedTaskException += (_, failure) =>
         {
-            Record(failure.Exception);
+            Record(failure.Exception, survived: true);
 
             // Иначе исключение доедет до финализатора и уронит процесс целиком:
             // софтфон не должен закрываться из-за того, что не ответил канал.
@@ -421,6 +421,7 @@ public partial class App : Application, IDisposable
         // Журнал машины для Spark: регистрация, звонки, ошибки — раз в пять
         // минут пачкой на канал. Как на macOS с 0.1.60.
         ClientEventLog.Shared.Start(() => _settings!, Log);
+        ClientEventLog.Shared.BeginSession();
 
         // Линия обновлений (W12). Будильник у неё общий с предустановками: канал
         // один, и два независимых срока на нём разошлись бы через полгода.
@@ -1149,6 +1150,8 @@ public partial class App : Application, IDisposable
             return;
         }
 
+        ClientEventLog.Shared.NoteConnection($"Переподключение: {reason}{(_panel.IsInCall ? "; отложено до окончания разговора" : string.Empty)}");
+
         if (_panel.IsInCall)
         {
             // Отложить по-настоящему: прежде здесь было только обещание в
@@ -1358,6 +1361,7 @@ public partial class App : Application, IDisposable
         // названная раньше (обновление), главнее.
         ClientEventLog.Shared.NoteShutdown("выход из приложения");
         LeaveTheAir(TimeSpan.FromSeconds(2));
+        ClientEventLog.Shared.FinishSession();
         ClientEventLog.Shared.Dispose();
 
         if (_panelWindow is not null)
@@ -1470,6 +1474,7 @@ public partial class App : Application, IDisposable
 
     protected override void OnExit(ExitEventArgs e)
     {
+        ClientEventLog.Shared.FinishSession();
         Dispose();
         _logFile?.Dispose();
         base.OnExit(e);
@@ -1542,6 +1547,8 @@ public partial class App : Application, IDisposable
     /// </param>
     private static void Record(Exception failure, bool? survived = null)
     {
+        try { ClientEventLog.Shared.NoteCrash(failure, survived is true); }
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException) { }
         try
         {
             var outcome = survived switch
@@ -1558,7 +1565,7 @@ public partial class App : Application, IDisposable
                 DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture) + outcome
                     + Environment.NewLine + failure + Environment.NewLine + Environment.NewLine);
         }
-        catch (System.IO.IOException)
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
         {
             // Записать не удалось — падать второй раз из-за этого незачем.
         }
