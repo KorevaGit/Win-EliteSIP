@@ -752,7 +752,7 @@ public sealed partial class SipUserAgent : IDisposable
             var started = Stopwatch.GetTimestamp();
             Log(SipLogLevel.Info, $"REGISTER: сервер={_account.Domain}:{_account.ServerPort}; транспорт={_account.Transport}; номер={_account.Username}; expires={requestedExpires}; раунд={attempt + 1}; авторизация={challengeAnswers > 0}");
             SipResponse response;
-            try { response = await SendRegisterAsync(requestedExpires).ConfigureAwait(false); }
+            try { response = await SendRegisterAsync(requestedExpires, token).ConfigureAwait(false); }
             catch (Exception error)
             {
                 Log(SipLogLevel.Warning, $"REGISTER без ответа: {_account.Domain}:{_account.ServerPort}; {Stopwatch.GetElapsedTime(started).TotalMilliseconds:0} мс; {error.GetType().Name}: {error.Message}");
@@ -841,19 +841,19 @@ public sealed partial class SipUserAgent : IDisposable
         throw new SipRegistrationException(SipRegistrationErrorKind.TooManyAttempts);
     }
 
-    private async Task<SipResponse> SendRegisterAsync(int expires)
+    private async Task<SipResponse> SendRegisterAsync(int expires, CancellationToken token)
     {
-        SipRequest request = await MakeRegisterAsync(expires).ConfigureAwait(false);
+        SipRequest request = await MakeRegisterAsync(expires, token).ConfigureAwait(false);
         Log(SipLogLevel.Debug, $"-> REGISTER expires={expires.ToString(CultureInfo.InvariantCulture)}");
 
-        SipResponse response = await _transactions.SendAsync(request).ConfigureAwait(false);
+        SipResponse response = await _transactions.SendAsync(request, token).ConfigureAwait(false);
         Log(SipLogLevel.Debug, $"<- {response.StatusCode.ToString(CultureInfo.InvariantCulture)} {response.ReasonPhrase}");
         return response;
     }
 
-    private async Task<SipRequest> MakeRegisterAsync(int expires)
+    private async Task<SipRequest> MakeRegisterAsync(int expires, CancellationToken token)
     {
-        SipEndpoint local = await _transactions.WaitUntilReadyAsync().ConfigureAwait(false);
+        SipEndpoint local = await _transactions.WaitUntilReadyAsync(cancellationToken: token).ConfigureAwait(false);
 
         SipEndpoint contact;
         int sequence;

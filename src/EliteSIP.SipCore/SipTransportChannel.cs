@@ -63,6 +63,12 @@ public interface ISipTransportChannel
 
     public Task SendAsync(ReadOnlyMemory<byte> data);
 
+    public Task SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return SendAsync(data).WaitAsync(cancellationToken);
+    }
+
     public Task StopAsync();
 }
 

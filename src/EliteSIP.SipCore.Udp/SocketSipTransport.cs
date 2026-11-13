@@ -158,8 +158,13 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     /// <summary>DNS, выбранный маршрут и результат соединения; без содержимого пакетов.</summary>
     public Action<string>? Diagnostics { get; set; }
 
-    public async Task SendAsync(ReadOnlyMemory<byte> data)
+    public Task SendAsync(ReadOnlyMemory<byte> data) => SendAsync(data, CancellationToken.None);
+
+    public async Task SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
     {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
+        var token = linked.Token;
+        token.ThrowIfCancellationRequested();
         Trace?.Invoke(true, data);
 
         Socket socket;
@@ -172,11 +177,11 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
 
         if (stream is not null)
         {
-            await _writing.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+            await _writing.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                await stream.WriteAsync(data, _lifetime.Token).ConfigureAwait(false);
-                await stream.FlushAsync(_lifetime.Token).ConfigureAwait(false);
+                await stream.WriteAsync(data, token).ConfigureAwait(false);
+                await stream.FlushAsync(token).ConfigureAwait(false);
                 return;
             }
             catch (Exception error) when (error is IOException or ObjectDisposedException)
@@ -191,7 +196,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
 
         try
         {
-            await socket.SendAsync(data, SocketFlags.None, _lifetime.Token).ConfigureAwait(false);
+            await socket.SendAsync(data, SocketFlags.None, token).ConfigureAwait(false);
         }
         catch (SocketException error)
         {
@@ -306,12 +311,14 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     {
         Socket? socket = null;
         var clock = Stopwatch.StartNew();
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(10));
         try
         {
             Diagnostics?.Invoke($"SIP транспорт: подключение к {Remote.Host}:{Remote.Port} ({Transport})");
             IPAddress[] addresses = IPAddress.TryParse(Remote.Host, out IPAddress? literal)
                 ? [literal]
-                : await Dns.GetHostAddressesAsync(Remote.Host, token).ConfigureAwait(false);
+                : await Dns.GetHostAddressesAsync(Remote.Host, budget.Token).ConfigureAwait(false);
             Diagnostics?.Invoke($"DNS {Remote.Host}: {string.Join(", ", addresses.Select(value => value.ToString()))}; {clock.Elapsed.TotalMilliseconds:0} мс");
 
             if (addresses.Length == 0)
@@ -319,57 +326,82 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
                 return $"имя {Remote.Host} не разрешается";
             }
 
-            var endpoint = new IPEndPoint(addresses[0], Remote.Port);
-            socket = new Socket(
-                endpoint.AddressFamily,
-                Transport == SipTransport.Udp ? SocketType.Dgram : SocketType.Stream,
-                Transport == SipTransport.Udp ? ProtocolType.Udp : ProtocolType.Tcp);
-
-            // Соединённый UDP-сокет, а не «отправить кому угодно», и это не
-            // мелочь: он приносит локальный адрес, отсекает чужие датаграммы на
-            // нашем порту и доносит ICMP-отказ как ошибку сокета. Без него
-            // «порт закрыт» выглядело бы как молчание сервера.
-            await socket.ConnectAsync(endpoint, token).ConfigureAwait(false);
-
-            SslStream? stream = null;
-            if (Transport == SipTransport.Tls)
+            string? lastFailure = null;
+            foreach (var address in addresses.Distinct())
             {
-                stream = await HandshakeAsync(socket, token).ConfigureAwait(false);
-                if (stream is null)
+                using var attempt = CancellationTokenSource.CreateLinkedTokenSource(budget.Token);
+                attempt.CancelAfter(TimeSpan.FromSeconds(3));
+                var endpoint = new IPEndPoint(address, Remote.Port);
+                try
                 {
-                    Diagnostics?.Invoke($"TLS не установлен: {_handshakeFailure}; {clock.Elapsed.TotalMilliseconds:0} мс");
-                    // Причина уже описана внутри — там же, где известно, чем
-                    // именно кончилось рукопожатие.
-                    return _handshakeFailure;
-                }
-            }
+                    socket = new Socket(
+                        endpoint.AddressFamily,
+                        Transport == SipTransport.Udp ? SocketType.Dgram : SocketType.Stream,
+                        Transport == SipTransport.Udp ? ProtocolType.Udp : ProtocolType.Tcp);
 
-            var local = socket.LocalEndPoint as IPEndPoint;
-            Diagnostics?.Invoke($"SIP сокет: local={local}; remote={endpoint}; транспорт={Transport}; {clock.Elapsed.TotalMilliseconds:0} мс"
-                + (stream is null ? string.Empty : $"; TLS={stream.SslProtocol}; cipher={stream.NegotiatedCipherSuite}"));
-            lock (_gate)
-            {
-                if (_isStopped)
-                {
-                    stream?.Dispose();
+                    // Соединённый UDP-сокет, а не «отправить кому угодно», и это не
+                    // мелочь: он приносит локальный адрес, отсекает чужие датаграммы на
+                    // нашем порту и доносит ICMP-отказ как ошибку сокета. Без него
+                    // «порт закрыт» выглядело бы как молчание сервера.
+                    await socket.ConnectAsync(endpoint, attempt.Token).ConfigureAwait(false);
+
+                    SslStream? stream = null;
+                    if (Transport == SipTransport.Tls)
+                    {
+                        stream = await HandshakeAsync(socket, attempt.Token).ConfigureAwait(false);
+                        if (stream is null)
+                        {
+                            Diagnostics?.Invoke($"TLS не установлен: {_handshakeFailure}; {clock.Elapsed.TotalMilliseconds:0} мс");
+                            // Причина уже описана внутри — там же, где известно, чем
+                            // именно кончилось рукопожатие.
+                            attempt.Token.ThrowIfCancellationRequested();
+                            lastFailure = _handshakeFailure;
+                            socket.Dispose();
+                            socket = null;
+                            continue;
+                        }
+                    }
+
+                    var local = socket.LocalEndPoint as IPEndPoint;
+                    Diagnostics?.Invoke($"SIP сокет: local={local}; remote={endpoint}; транспорт={Transport}; {clock.Elapsed.TotalMilliseconds:0} мс"
+                        + (stream is null ? string.Empty : $"; TLS={stream.SslProtocol}; cipher={stream.NegotiatedCipherSuite}"));
+                    lock (_gate)
+                    {
+                        if (_isStopped)
+                        {
+                            stream?.Dispose();
+                            return null;
+                        }
+                        _stream?.Dispose();
+                        _socket?.Dispose();
+                        _socket = socket;
+                        _stream = stream;
+                        socket = null;
+                    }
+
+                    _events.Writer.TryWrite(new SipTransportEvent.Ready(
+                        new SipEndpoint(local?.Address.ToString() ?? "0.0.0.0", (ushort)(local?.Port ?? 0))));
+
                     return null;
                 }
-                _stream?.Dispose();
-                _socket?.Dispose();
-                _socket = socket;
-                _stream = stream;
-                socket = null;
+                catch (SocketException error)
+                {
+                    lastFailure = SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport);
+                    Diagnostics?.Invoke($"SIP адрес {endpoint} недоступен: {error.SocketErrorCode}; пробуем следующий DNS-адрес");
+                }
+                catch (OperationCanceledException) when (!budget.IsCancellationRequested)
+                {
+                    lastFailure = $"подключение к {endpoint}: превышен срок 3 с";
+                    Diagnostics?.Invoke(lastFailure);
+                }
+                finally { socket?.Dispose(); socket = null; }
             }
-
-            _events.Writer.TryWrite(new SipTransportEvent.Ready(
-                new SipEndpoint(local?.Address.ToString() ?? "0.0.0.0", (ushort)(local?.Port ?? 0))));
-
-            return null;
+            return lastFailure ?? $"нет доступных адресов {Remote.Host}";
         }
         catch (OperationCanceledException)
         {
             Diagnostics?.Invoke($"SIP подключение отменено: {Remote}; {clock.Elapsed.TotalMilliseconds:0} мс");
-            return null;
+            return token.IsCancellationRequested ? null : $"подключение к {Remote}: превышен общий срок 10 с";
         }
         catch (SocketException error)
         {
