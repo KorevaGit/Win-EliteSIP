@@ -178,7 +178,7 @@ public sealed class SetupSettings : Observable
 public sealed class MaintenanceSettings : Observable
 {
     private bool _logToFile = true;
-    private bool _logsSipTrace;
+    private bool _logsSipTrace = true;
 
     /// <summary>Вести ли журнал в файл.</summary>
     ///

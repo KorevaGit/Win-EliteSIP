@@ -1452,4 +1452,5 @@
   <data name="UpdateOfferHeading" xml:space="preserve"><value>An update is available</value></data>
   <data name="UpdateReminderShort" xml:space="preserve"><value>Remind in 30 min</value></data>
   <data name="UpdateWhatsNew" xml:space="preserve"><value>What&apos;s new</value></data>
+  <data name="SupportLogsCollecting" xml:space="preserve"><value>Collecting logs and device information…</value></data>
 </root>

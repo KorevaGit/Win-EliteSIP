@@ -65,7 +65,7 @@ public sealed class SettingsViewModel : Observable
         // его было некому. Проверка вернулась внутрь самого действия.
         RepairNetwork = new RelayCommand(_ => OnRepairNetwork?.Invoke());
         CheckPresets = new RelayCommand(_ => OnCheckPresets?.Invoke());
-        CollectLogs = new RelayCommand(_ => OnCollectLogs?.Invoke());
+        CollectLogs = new RelayCommand(_ => OnCollectLogs?.Invoke(), _ => !IsCollectingLogs);
         RunSelfTest = new RelayCommand(_ =>
         {
             if (_isSelfTestRunning)
@@ -123,6 +123,13 @@ public sealed class SettingsViewModel : Observable
 
     /// <summary>Собрать архив с журналом для поддержки.</summary>
     public RelayCommand CollectLogs { get; }
+
+    private bool _isCollectingLogs;
+    internal bool IsCollectingLogs
+    {
+        get => _isCollectingLogs;
+        set { _isCollectingLogs = value; CollectLogs.RaiseCanExecuteChanged(); }
+    }
 
     internal Action? OnRepairNetwork { get; init; }
 

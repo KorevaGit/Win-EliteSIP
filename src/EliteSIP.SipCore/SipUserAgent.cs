@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics;
 using System.Threading.Channels;
 
 namespace EliteSIP.SipCore;
@@ -747,7 +748,16 @@ public sealed partial class SipUserAgent : IDisposable
         for (int attempt = 0; attempt < 4; attempt++)
         {
             token.ThrowIfCancellationRequested();
-            SipResponse response = await SendRegisterAsync(requestedExpires).ConfigureAwait(false);
+            var started = Stopwatch.GetTimestamp();
+            Log(SipLogLevel.Info, $"REGISTER: сервер={_account.Domain}:{_account.ServerPort}; транспорт={_account.Transport}; номер={_account.Username}; expires={requestedExpires}; раунд={attempt + 1}; авторизация={challengeAnswers > 0}");
+            SipResponse response;
+            try { response = await SendRegisterAsync(requestedExpires).ConfigureAwait(false); }
+            catch (Exception error)
+            {
+                Log(SipLogLevel.Warning, $"REGISTER без ответа: {_account.Domain}:{_account.ServerPort}; {Stopwatch.GetElapsedTime(started).TotalMilliseconds:0} мс; {error.GetType().Name}: {error.Message}");
+                throw;
+            }
+            Log(SipLogLevel.Info, $"REGISTER ответ: {response.StatusCode} {response.ReasonPhrase}; {Stopwatch.GetElapsedTime(started).TotalMilliseconds:0} мс; раунд={attempt + 1}");
 
             // Внешний адрес узнаём из ЛЮБОГО ответа, включая 401. Тогда повтор с
             // авторизацией уже несёт правильный Contact, и лишнего круга
@@ -925,7 +935,7 @@ public sealed partial class SipUserAgent : IDisposable
             _contactEndpoint = discovered;
         }
 
-        Log(SipLogLevel.Debug, $"сервер видит нас как {discovered}, в Contact было {previous}");
+        Log(SipLogLevel.Info, $"сервер видит нас как {discovered}, в Contact было {previous}");
         return true;
     }
 

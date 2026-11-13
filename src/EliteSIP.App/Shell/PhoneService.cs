@@ -349,9 +349,12 @@ public sealed class PhoneService : IDisposable
         var account = _settings.Account;
         var pbx = _settings.Pbx;
         var address = account.Domain.Length > 0 ? account.Domain : pbx.OfficeAddress;
+        _log($"подключение: номер={account.Username}; площадка={account.Site}; адрес={address}:{pbx.Port}; транспорт={pbx.Transport}; expires={pbx.RegistrationExpirySeconds}; SIP-трасса={_settings.Maintenance.LogsSipTrace}");
+        foreach (var line in SupportSnapshot.Network().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)) { _log(line); }
 
         if (account.Username.Length == 0 || address.Length == 0)
         {
+            _log("регистрация не запущена: не указан номер или адрес АТС");
             Trouble("TroubleNoAccount", opensSettings: true);
             return;
         }
@@ -359,6 +362,7 @@ public sealed class PhoneService : IDisposable
         var password = _settings.Credentials.Password();
         if (password is null)
         {
+            _log("регистрация не запущена: сохранённый SIP-пароль недоступен");
             // Пароль не расшифровался — файл настроек принесли с чужой машины.
             // Сказать это словами: отказ регистрации без объяснений заставляет
             // разбирать сеть там, где сломан не она.
@@ -383,7 +387,7 @@ public sealed class PhoneService : IDisposable
             RegistrationExpires = pbx.RegistrationExpirySeconds,
         };
 
-        _transport = new SocketSipTransport(sipAccount.SignalingEndpoint, transport, TrustOf(pbx));
+        _transport = new SocketSipTransport(sipAccount.SignalingEndpoint, transport, TrustOf(pbx)) { Diagnostics = _log };
 
         // Трасса SIP — по переключателю в «Обслуживании».
         //
@@ -1712,6 +1716,7 @@ public sealed class PhoneService : IDisposable
     /// <summary>Переводит состояние регистрации в то, что видно на панели.</summary>
     private void Apply(SipRegistrationState state)
     {
+        _log($"регистрация: {state}");
         switch (state)
         {
             case SipRegistrationState.Registered:

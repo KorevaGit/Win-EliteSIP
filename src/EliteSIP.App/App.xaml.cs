@@ -683,7 +683,7 @@ public partial class App : Application, IDisposable
                 model!.ReportSupport(Strings.Get("SupportPresetsAsked"), SupportArea.Presets);
             },
 
-            OnCollectLogs = () => CollectSupportArchive(model!),
+            OnCollectLogs = () => _ = CollectSupportArchiveAsync(model!),
             OnRunSelfTest = () => _ = RunAudioSelfTestAsync(model!),
             OnStopSelfTest = () => _phone?.SelfTest.Abort(),
             OnSaveRecording = () => SaveSelfTestRecording(model!),
@@ -1064,24 +1064,20 @@ public partial class App : Application, IDisposable
         }
     }
 
-    private void CollectSupportArchive(Settings.SettingsViewModel model)
+    private bool _isCollectingSupportArchive;
+
+    private async Task CollectSupportArchiveAsync(Settings.SettingsViewModel model)
     {
+        if (_isCollectingSupportArchive) { return; }
+        _isCollectingSupportArchive = true;
+        model.IsCollectingLogs = true;
         try
         {
+            model.ReportSupport(Strings.Get("SupportLogsCollecting"), SupportArea.Logs);
             // Все файлы журнала — ротированные и текущий, от старых к новым; и с
             // общим доступом на запись: текущий держит открытым `LogFile`, и
             // обычное чтение на нём падало бы.
-            _logFile?.Flush();
-            var lines = new List<string>();
-            foreach (var path in (_logFile?.Files() ?? []).Reverse())
-            {
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var reader = new StreamReader(stream);
-                while (reader.ReadLine() is { } line)
-                {
-                    lines.Add(line);
-                }
-            }
+            Log("поддержка: сбор архива журнала");
 
             var destination = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
@@ -1089,15 +1085,28 @@ public partial class App : Application, IDisposable
 
             var summary = $"EliteSIP {Settings.SettingsViewModel.Version}"
                 + $"{Environment.NewLine}машина: {_settings?.Panel.InstallationID}"
-                + $"{Environment.NewLine}добавочный: {_settings?.Account.Username}";
+                + $"{Environment.NewLine}добавочный: {_settings?.Account.Username}"
+                + $"{Environment.NewLine}собрано: {DateTimeOffset.Now:O}"
+                + $"{Environment.NewLine}ОС: {System.Runtime.InteropServices.RuntimeInformation.OSDescription}"
+                + $"{Environment.NewLine}процесс: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}, {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}"
+                + $"{Environment.NewLine}журнал в файл: {_settings?.Maintenance.LogToFile}; SIP-трасса: {_settings?.Maintenance.LogsSipTrace}"
+                + $"{Environment.NewLine}площадка: {_settings?.Account.Site}; АТС: {_settings?.Account.Domain}; транспорт: {_settings?.Pbx.Transport}";
+            summary += $"{Environment.NewLine}регистрация: {_panel?.Registration}; отключён: {_panel?.IsOfflineByChoice}";
 
-            var made = SupportArchive.Make(lines, summary, destination);
+            var made = await Task.Run(() => SupportArchive.MakeFromDirectory(
+                Path.GetDirectoryName(AppSettings.DefaultPath)!, summary, destination, _logFile,
+                new Dictionary<string, byte[]> { ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)) }));
 
             model.ReportSupport(Strings.Format("SupportLogsCollected", System.IO.Path.GetFileName(made)), SupportArea.Logs);
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException)
         {
             model.ReportSupport(Strings.Format("SupportLogsFailed", error.Message), SupportArea.Logs);
+        }
+        finally
+        {
+            _isCollectingSupportArchive = false;
+            model.IsCollectingLogs = false;
         }
     }
 

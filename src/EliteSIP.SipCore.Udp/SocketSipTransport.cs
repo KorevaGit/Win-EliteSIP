@@ -1,4 +1,5 @@
 using System.Net;
+using System.Diagnostics;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -142,9 +143,8 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     /// </summary>
     ///
     /// <remarks>
-    /// <c>null</c> — не пишем, и это обычное состояние: трасса вываливает в
-    /// журнал пароли в <c>Authorization</c> и весь SDP, поэтому включается она
-    /// руками в «Обслуживании» и только на время разбора.
+    /// <c>null</c> — не пишем. Клиент включает трассу по настройке (по умолчанию
+    /// включена) и маскирует Authorization и ключи SDP до записи в файл.
     ///
     /// Здесь, в транспорте, а не в слое транзакций: тут ровно один выход и
     /// один вход, а в слое отправка размазана по шести местам, и седьмое
@@ -154,6 +154,9 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     /// подключён ни к чему: его читали только настройки, чтобы сохранить.
     /// </remarks>
     public Action<bool, ReadOnlyMemory<byte>>? Trace { get; set; }
+
+    /// <summary>DNS, выбранный маршрут и результат соединения; без содержимого пакетов.</summary>
+    public Action<string>? Diagnostics { get; set; }
 
     public async Task SendAsync(ReadOnlyMemory<byte> data)
     {
@@ -302,11 +305,14 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
     private async Task<string?> ConnectAsync(CancellationToken token)
     {
         Socket? socket = null;
+        var clock = Stopwatch.StartNew();
         try
         {
+            Diagnostics?.Invoke($"SIP транспорт: подключение к {Remote.Host}:{Remote.Port} ({Transport})");
             IPAddress[] addresses = IPAddress.TryParse(Remote.Host, out IPAddress? literal)
                 ? [literal]
                 : await Dns.GetHostAddressesAsync(Remote.Host, token).ConfigureAwait(false);
+            Diagnostics?.Invoke($"DNS {Remote.Host}: {string.Join(", ", addresses.Select(value => value.ToString()))}; {clock.Elapsed.TotalMilliseconds:0} мс");
 
             if (addresses.Length == 0)
             {
@@ -331,6 +337,7 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
                 stream = await HandshakeAsync(socket, token).ConfigureAwait(false);
                 if (stream is null)
                 {
+                    Diagnostics?.Invoke($"TLS не установлен: {_handshakeFailure}; {clock.Elapsed.TotalMilliseconds:0} мс");
                     // Причина уже описана внутри — там же, где известно, чем
                     // именно кончилось рукопожатие.
                     return _handshakeFailure;
@@ -338,6 +345,8 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
             }
 
             var local = socket.LocalEndPoint as IPEndPoint;
+            Diagnostics?.Invoke($"SIP сокет: local={local}; remote={endpoint}; транспорт={Transport}; {clock.Elapsed.TotalMilliseconds:0} мс"
+                + (stream is null ? string.Empty : $"; TLS={stream.SslProtocol}; cipher={stream.NegotiatedCipherSuite}"));
             lock (_gate)
             {
                 if (_isStopped)
@@ -359,10 +368,12 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
         }
         catch (OperationCanceledException)
         {
+            Diagnostics?.Invoke($"SIP подключение отменено: {Remote}; {clock.Elapsed.TotalMilliseconds:0} мс");
             return null;
         }
         catch (SocketException error)
         {
+            Diagnostics?.Invoke($"SIP подключение не удалось: {Remote}; {clock.Elapsed.TotalMilliseconds:0} мс; {error.SocketErrorCode}; native={error.NativeErrorCode}; {error.Message}");
             return SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport);
         }
         finally

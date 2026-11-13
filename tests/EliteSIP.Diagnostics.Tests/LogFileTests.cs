@@ -192,6 +192,52 @@ public sealed class LogFileTests : IDisposable
         Assert.EndsWith(".zip", destination, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Сборка_из_каталога_сбрасывает_очередь_и_передаёт_файлы_а_не_строки()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        log.Write("REGISTER 401 then 200; Contact 203.0.113.7:41234", "info");
+        var destination = Path.Combine(_directory, "support.zip");
+        SupportArchive.MakeFromDirectory(_directory, "summary", destination, log);
+        using var archive = ZipFile.OpenRead(destination);
+        using var reader = new StreamReader(archive.GetEntry(LogFile.CurrentFileName)!.Open());
+        Assert.Contains("REGISTER 401 then 200", reader.ReadToEnd(), StringComparison.Ordinal);
+        Assert.NotNull(archive.GetEntry("collection.txt"));
+    }
+
+    [Fact]
+    public void Без_писателя_собираются_старые_журналы_и_аварии_с_маскированием()
+    {
+        File.WriteAllText(Path.Combine(_directory, "elitesip.log"), "root registration");
+        Directory.CreateDirectory(Path.Combine(_directory, "Logs"));
+        File.WriteAllText(Path.Combine(_directory, "Logs", "elitesip.log"), "legacy registration");
+        File.WriteAllText(Path.Combine(_directory, "crash.log"), "failure password=secret-from-crash");
+        File.WriteAllText(Path.Combine(_directory, "settings.json"), "must-not-be-exported");
+        var destination = Path.Combine(_directory, "support.zip");
+        SupportArchive.MakeFromDirectory(_directory, "summary", destination);
+        using var archive = ZipFile.OpenRead(destination);
+        Assert.Null(archive.GetEntry("settings.json"));
+        Assert.Equal(archive.Entries.Count, archive.Entries.Select(entry => entry.FullName).Distinct().Count());
+        var text = string.Join('\n', archive.Entries.Select(entry =>
+        {
+            using var reader = new StreamReader(entry.Open());
+            return reader.ReadToEnd();
+        }));
+        Assert.Contains("root registration", text, StringComparison.Ordinal);
+        Assert.Contains("legacy registration", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-from-crash", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Отсутствие_журналов_указывается_явно()
+    {
+        var destination = Path.Combine(_directory, "support.zip");
+        SupportArchive.MakeFromDirectory(_directory, "logging disabled", destination);
+        using var archive = ZipFile.OpenRead(destination);
+        using var reader = new StreamReader(archive.GetEntry("collection.txt")!.Open());
+        Assert.Contains("не найдены", reader.ReadToEnd(), StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Настройки уезжают внутри архива, а не отдельной кнопкой.
     ///

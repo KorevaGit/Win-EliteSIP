@@ -1430,4 +1430,5 @@
   <data name="UpdateOfferHeading" xml:space="preserve"><value>Доступно обновление</value></data>
   <data name="UpdateReminderShort" xml:space="preserve"><value>Напомним через 30 мин</value></data>
   <data name="UpdateWhatsNew" xml:space="preserve"><value>Что нового</value></data>
+  <data name="SupportLogsCollecting" xml:space="preserve"><value>Собираем журнал и сведения об устройствах…</value></data>
 </root>

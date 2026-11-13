@@ -23,6 +23,27 @@ namespace EliteSIP.Diagnostics;
 /// </summary>
 public static class SupportArchive
 {
+    /// <summary>Собирает текущий, ротированные и аварийный журналы, даже без активного писателя.</summary>
+    public static string MakeFromDirectory(string directory, string summary, string destination, LogFile? current = null,
+        IReadOnlyDictionary<string, byte[]>? extras = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        current?.Flush();
+        var paths = new List<string>(current?.Files() ?? []);
+        foreach (var folder in new[] { directory, Path.Combine(directory, "Logs") })
+        {
+            try
+            {
+                paths.AddRange(Directory.GetFiles(folder).Where(path =>
+                    Path.GetFileName(path) is LogFile.CurrentFileName or "crash.log"
+                    || (Path.GetFileName(path).StartsWith("elitesip-", StringComparison.OrdinalIgnoreCase)
+                        && Path.GetExtension(path).Equals(".log", StringComparison.OrdinalIgnoreCase))));
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
+        return Make(paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), summary, destination, extras);
+    }
+
     /// <summary>
     /// Собирает архив из файлов журнала и текстовой справки.
     ///
@@ -52,7 +73,7 @@ public static class SupportArchive
         ArgumentNullException.ThrowIfNull(logs);
 
         // Готовый архив с прошлого раза перезаписывается: имя несёт отметку
-        // времени, и совпадение означает повтор в ту же минуту.
+        // времени, и совпадение означает повтор с тем же явно заданным именем.
         File.Delete(destination);
 
         using (FileStream output = File.Create(destination))
@@ -68,10 +89,23 @@ public static class SupportArchive
                 }
             }
 
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "summary.txt", "collection.txt" };
+            if (extras is not null) { used.UnionWith(extras.Keys); }
+            var report = new StringBuilder();
+            var copied = 0;
             foreach (string path in logs)
             {
-                CopyLog(archive, path);
+                var name = Path.GetFileName(path);
+                var index = 2;
+                var entryName = name;
+                while (!used.Add(entryName)) { entryName = $"logs-{index++}/{name}"; }
+                var included = CopyLog(archive, path, entryName);
+                if (included) { copied++; }
+                report.AppendLine(CultureInfo.InvariantCulture, $"{(included ? "добавлен" : "не удалось прочитать")}: {entryName}");
             }
+            report.Insert(0, $"Файлов журнала добавлено: {copied} из {logs.Count}{Environment.NewLine}");
+            if (logs.Count == 0) { report.AppendLine("Файлы журнала не найдены. Проверьте, включена ли запись журнала в Управлении."); }
+            WriteEntry(archive, "collection.txt", new UTF8Encoding(false).GetBytes(report.ToString()));
         }
 
         return destination;
@@ -83,7 +117,7 @@ public static class SupportArchive
     /// </summary>
     public static string SuggestedName(DateTime? now = null)
     {
-        string stamp = (now ?? DateTime.Now).ToString("yyyy-MM-dd-HHmm", CultureInfo.InvariantCulture);
+        string stamp = (now ?? DateTime.Now).ToString("yyyy-MM-dd-HHmmss-fff", CultureInfo.InvariantCulture);
         return $"EliteSIP-logs-{stamp}.zip";
     }
 
@@ -93,7 +127,7 @@ public static class SupportArchive
         entry.Write(contents, 0, contents.Length);
     }
 
-    private static void CopyLog(ZipArchive archive, string path)
+    private static bool CopyLog(ZipArchive archive, string path, string entryName)
     {
         // Текущий файл журнала открыт на запись прямо сейчас, поэтому читается с
         // FileShare.ReadWrite. Пропавший или занятый файл архив не роняет: цель
@@ -106,13 +140,16 @@ public static class SupportArchive
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return;
+            return false;
         }
 
         using (source)
         {
-            using Stream entry = archive.CreateEntry(Path.GetFileName(path), CompressionLevel.Optimal).Open();
-            source.CopyTo(entry);
+            using Stream entry = archive.CreateEntry(entryName, CompressionLevel.Optimal).Open();
+            using var reader = new StreamReader(source);
+            using var writer = new StreamWriter(entry, new UTF8Encoding(false));
+            while (reader.ReadLine() is { } line) { writer.WriteLine(LogRedaction.Redact(line)); }
         }
+        return true;
     }
 }
