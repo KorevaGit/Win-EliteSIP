@@ -10,6 +10,25 @@ namespace EliteSIP.App.Tests;
 public sealed class SettingsUpgradeTests : IDisposable
 {
     [Fact]
+    public void Ringtone_defaults_to_call_device_when_output_is_absent()
+    {
+        Assert.Equal(RingtoneOutput.CallDevice, new RingtoneSettings().Output);
+        File.WriteAllText(FilePath, "{\"Revision\":3,\"Ringtone\":{}}");
+        Assert.Equal(RingtoneOutput.CallDevice, AppSettings.Load(FilePath).Ringtone.Output);
+    }
+
+    [Theory]
+    [InlineData(RingtoneOutput.SystemDefault)]
+    [InlineData(RingtoneOutput.CallDevice)]
+    public void Explicit_ringtone_output_survives_reload(RingtoneOutput output)
+    {
+        var settings = AppSettings.Load(FilePath);
+        settings.Ringtone.Output = output;
+        settings.Save(FilePath);
+        Assert.Equal(output, AppSettings.Load(FilePath).Ringtone.Output);
+    }
+
+    [Fact]
     public void Прежний_штатный_интервал_стука_меняется_на_час_однократно()
     {
         var old = new AppSettings { Revision = 2 };

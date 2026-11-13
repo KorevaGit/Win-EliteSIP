@@ -16,6 +16,24 @@ namespace EliteSIP.Diagnostics.Tests;
 /// </summary>
 public sealed class LogFileTests : IDisposable
 {
+    [Fact]
+    public void Stalled_disk_does_not_allow_unbounded_log_memory()
+    {
+        using var log = new LogFile(new LogFile.Settings(_directory));
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Queue(log, () => { entered.Set(); release.Wait(); });
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try
+        {
+            for (var index = 0; index < 5000; index++) { log.Write("bounded queue", "info"); }
+            Assert.True(log.DroppedLines > 0);
+        }
+        finally { release.Set(); }
+        log.Dispose();
+        Assert.Contains("pendingBytes=0", log.DiagnosticSummary(), StringComparison.Ordinal);
+    }
+
     private static void Queue(LogFile log, Action action)
     {
         const System.Reflection.BindingFlags Flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;

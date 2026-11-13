@@ -42,7 +42,8 @@ public static class SupportArchive
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
         return Make(paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), summary, destination, extras,
-            collectionNote: flushed is false ? "Очередь журнала не подтвердила запись за 5 секунд; последние строки могут отсутствовать." : null);
+            collectionNote: (flushed is false ? "Очередь журнала не подтвердила запись за 5 секунд; последние строки могут отсутствовать.\n" : string.Empty)
+                + current?.DiagnosticSummary());
     }
 
     /// <summary>

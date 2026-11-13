@@ -83,8 +83,17 @@ public sealed class LogFile : IDisposable
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly Settings _settings;
-    private readonly Channel<Job> _queue = Channel.CreateUnbounded<Job>(
-        new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<Job> _queue = Channel.CreateBounded<Job>(
+        new BoundedChannelOptions(4096) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
+    private const long MaximumPendingBytes = 8 * 1024 * 1024;
+    private long _pendingBytes;
+    private long _droppedLines;
+    private long _writeFailures;
+
+    public long DroppedLines => Interlocked.Read(ref _droppedLines);
+    public long WriteFailures => Interlocked.Read(ref _writeFailures);
+    public string DiagnosticSummary() => string.Create(CultureInfo.InvariantCulture,
+        $"log: droppedLines={DroppedLines}; writeFailures={WriteFailures}; pendingBytes={Interlocked.Read(ref _pendingBytes)}");
 
     private readonly Task _worker;
 
@@ -165,7 +174,10 @@ public sealed class LogFile : IDisposable
     }
 
     /// <summary>Ограниченное ожидание. False — запись не подтверждена в срок.</summary>
-    public bool Flush(TimeSpan timeout) => RunOnQueueAndWait(() => _file?.Flush(), timeout);
+    public bool Flush(TimeSpan timeout) => RunOnQueueAndWait(() =>
+    {
+        if (_file is null || !_file.Flush()) { throw new IOException("журнал не подтвердил запись на диск"); }
+    }, timeout);
 
     /// <summary>Стирает журнал целиком, включая отложенные файлы.</summary>
     public void RemoveAll()
@@ -208,7 +220,18 @@ public sealed class LogFile : IDisposable
     {
         // Очередь закрыта — значит журнал уже остановлен. Терять строку на этом
         // этапе допустимо; бросать исключение из журнала — нет.
-        _ = _queue.Writer.TryWrite(job);
+        var bytes = (job.Line?.Length ?? 0) * 2L;
+        if (Interlocked.Add(ref _pendingBytes, bytes) > MaximumPendingBytes)
+        {
+            Interlocked.Add(ref _pendingBytes, -bytes);
+            Interlocked.Increment(ref _droppedLines);
+            return;
+        }
+        if (!_queue.Writer.TryWrite(job))
+        {
+            Interlocked.Add(ref _pendingBytes, -bytes);
+            if (job.Line is not null) { Interlocked.Increment(ref _droppedLines); }
+        }
     }
 
     private bool RunOnQueueAndWait(Action work, TimeSpan? timeout = null)
@@ -237,15 +260,22 @@ public sealed class LogFile : IDisposable
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
                 {
+                    Interlocked.Increment(ref _writeFailures);
                     // Недоступный диск не должен останавливать всю очередь.
                     job.Done?.TrySetResult(false);
                 }
+                finally { Interlocked.Add(ref _pendingBytes, -(job.Line?.Length ?? 0) * 2L); }
             }
         }
         finally
         {
             _queue.Writer.TryComplete();
-            while (_queue.Reader.TryRead(out var pending)) { pending.Done?.TrySetResult(false); }
+            while (_queue.Reader.TryRead(out var pending))
+            {
+                pending.Done?.TrySetResult(false);
+                Interlocked.Add(ref _pendingBytes, -(pending.Line?.Length ?? 0) * 2L);
+                if (pending.Line is not null) { Interlocked.Increment(ref _droppedLines); }
+            }
             CloseFile();
         }
     }
@@ -282,10 +312,13 @@ public sealed class LogFile : IDisposable
         _file ??= AppendOnlyFile.Open(CurrentFilePath);
         if (_file is null)
         {
+            Interlocked.Increment(ref _writeFailures);
             return;
         }
 
-        _writtenBytes += _file.Append(data);
+        var written = _file.Append(data);
+        if (written != data.Length) { Interlocked.Increment(ref _writeFailures); }
+        _writtenBytes += written;
 
         if (_writtenBytes >= _settings.MaximumFileBytes)
         {

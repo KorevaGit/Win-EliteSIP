@@ -214,7 +214,7 @@ public sealed class RingtoneSettings : Observable
 {
     private bool _isEnabled = true;
     private double _volume = 0.7;
-    private RingtoneOutput _output = RingtoneOutput.SystemDefault;
+    private RingtoneOutput _output = RingtoneOutput.CallDevice;
     private string? _customSoundPath;
 
     public bool IsEnabled
