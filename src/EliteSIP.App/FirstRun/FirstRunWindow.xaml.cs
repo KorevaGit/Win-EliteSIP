@@ -17,13 +17,27 @@ namespace EliteSIP.App.FirstRun;
 public partial class FirstRunWindow : Window
 {
     private readonly AppearanceService _appearance;
+    private readonly Appearance _originalAppearance;
 
     public FirstRunWindow(FirstRunViewModel model, AppearanceService appearance)
     {
         InitializeComponent();
         Model = model;
         _appearance = appearance;
+        _originalAppearance = appearance?.Appearance ?? Appearance.System;
         DataContext = model;
+        CommandBindings.Add(new System.Windows.Input.CommandBinding(SystemCommands.CloseWindowCommand, (_, _) => Close()));
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) { Template = null; }
+        else
+        {
+            WindowStyle = WindowStyle.None;
+            System.Windows.Shell.WindowChrome.SetWindowChrome(this, new System.Windows.Shell.WindowChrome
+            {
+                CaptionHeight = 32, ResizeBorderThickness = new Thickness(0), GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false,
+            });
+        }
+        Loaded += (_, _) => Model.Begin();
+        model.PropertyChanged += OnModelChanged;
     }
 
     public FirstRunViewModel Model { get; }
@@ -31,7 +45,7 @@ public partial class FirstRunWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        WindowCaption.Apply(this, _appearance.IsDark);
+        if (_appearance is not null) { WindowCaption.Apply(this, _appearance.IsDark); }
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -62,6 +76,8 @@ public partial class FirstRunWindow : Window
     {
         // Длинный опрос Spark не должен пережить окно.
         Model.Dispose();
+        Model.PropertyChanged -= OnModelChanged;
+        if (DialogResult is not true && _appearance is not null) { _appearance.Appearance = _originalAppearance; }
         base.OnClosed(e);
     }
 
@@ -70,6 +86,18 @@ public partial class FirstRunWindow : Window
     private void OnNewCodeClick(object sender, RoutedEventArgs e) => Model.RequestNewCode();
 
     private void OnManualSetupClick(object sender, RoutedEventArgs e) => Model.UseManualSetup();
+
+    private void OnSparkSetupClick(object sender, RoutedEventArgs e) => Model.UseSparkSetup();
+
+    private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FirstRunViewModel.Theme) && _appearance is not null)
+        {
+            _appearance.Appearance = Model.Theme;
+            if (PresentationSource.FromVisual(this) is not null) { WindowCaption.Apply(this, _appearance.IsDark); }
+        }
+        if (e.PropertyName == nameof(FirstRunViewModel.Step)) { StepScroll.ScrollToTop(); }
+    }
 
     private void OnForwardClick(object sender, RoutedEventArgs e)
     {

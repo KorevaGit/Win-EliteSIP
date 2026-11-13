@@ -1438,4 +1438,13 @@
   <data name="AdminProfileChanged" xml:space="preserve"><value>The active account changed. Revert to reload this draft.</value></data>
   <data name="AdminPasswordPresentShort" xml:space="preserve"><value>Password protected</value></data>
   <data name="AdminPasswordMissingShort" xml:space="preserve"><value>No password set</value></data>
+  <data name="WizardAdminOptional" xml:space="preserve"><value>Administration password · optional</value></data>
+  <data name="WizardFromSpark" xml:space="preserve"><value>Settings from Spark</value></data>
+  <data name="WizardLaunchNote" xml:space="preserve"><value>The main screen opens when setup is finished</value></data>
+  <data name="WizardLocal" xml:space="preserve"><value>Local setup</value></data>
+  <data name="WizardManual" xml:space="preserve"><value>Manually</value></data>
+  <data name="WizardPaired" xml:space="preserve"><value>Linked</value></data>
+  <data name="WizardReady" xml:space="preserve"><value>Everything is set</value></data>
+  <data name="WizardSpark" xml:space="preserve"><value>Through Spark</value></data>
+  <data name="WizardThemeLive" xml:space="preserve"><value>Theme applies immediately</value></data>
 </root>

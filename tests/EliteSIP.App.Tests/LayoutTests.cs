@@ -121,8 +121,8 @@ public sealed class LayoutTests
 
     // Клиентская область мастера на Windows 10 при 100 %: окно 460 × 440 без
     // рамок по 8 точек и заголовка в 31.
-    private const double WizardClientWidth = 460 - 16;
-    private const double WizardClientHeight = 440 - 8 - 31;
+    private const double WizardClientWidth = 560 - 2;
+    private const double WizardClientHeight = 440 - 34;
 
     public static TheoryData<FirstRunStep, Appearance> Steps()
     {
@@ -158,7 +158,7 @@ public sealed class LayoutTests
     [InlineData(FirstRunStep.Welcome)]
     [InlineData(FirstRunStep.Appearance)]
     [InlineData(FirstRunStep.Finale)]
-    public void Короткий_шаг_стоит_по_центру_а_не_у_верха(FirstRunStep step) => WpfHost.Run(() =>
+    public void Шаги_мастера_начинаются_на_одном_уровне(FirstRunStep step) => WpfHost.Run(() =>
     {
         var model = new FirstRunViewModel(new AppSettings(), new AdminAccessState());
         WpfHost.SetPrivate(model, nameof(FirstRunViewModel.Step), step);
@@ -170,9 +170,9 @@ public sealed class LayoutTests
         var shown = ((Grid)scroll.Content).Children.OfType<StackPanel>()
             .First(panel => panel.Visibility == Visibility.Visible);
         var top = shown.TranslatePoint(default, scroll).Y;
-        var bottom = scroll.ViewportHeight - top - shown.ActualHeight;
-
-        Assert.InRange(Math.Abs(top - bottom), 0, 2);
+        Assert.InRange(top, 0, 1);
+        Assert.Equal(560, window.Width);
+        Assert.Equal(440, window.Height);
     });
 
     [Fact]

@@ -1416,4 +1416,13 @@
   <data name="AdminProfileChanged" xml:space="preserve"><value>Активная учётная запись изменилась. Нажмите «Отменить», чтобы обновить черновик.</value></data>
   <data name="AdminPasswordPresentShort" xml:space="preserve"><value>Пароль задан</value></data>
   <data name="AdminPasswordMissingShort" xml:space="preserve"><value>Пароль не задан</value></data>
+  <data name="WizardAdminOptional" xml:space="preserve"><value>Пароль Управления · необязательно</value></data>
+  <data name="WizardFromSpark" xml:space="preserve"><value>Настройки из Spark</value></data>
+  <data name="WizardLaunchNote" xml:space="preserve"><value>Главный экран откроется после завершения настройки</value></data>
+  <data name="WizardLocal" xml:space="preserve"><value>Локальная настройка</value></data>
+  <data name="WizardManual" xml:space="preserve"><value>Вручную</value></data>
+  <data name="WizardPaired" xml:space="preserve"><value>Привязано</value></data>
+  <data name="WizardReady" xml:space="preserve"><value>Всё настроено</value></data>
+  <data name="WizardSpark" xml:space="preserve"><value>Через Spark</value></data>
+  <data name="WizardThemeLive" xml:space="preserve"><value>Тема применяется сразу</value></data>
 </root>
