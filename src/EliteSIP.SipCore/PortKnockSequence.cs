@@ -134,12 +134,12 @@ public sealed record PortKnockSequence
     ///
     /// <remarks>
     /// Нужно тому, кто его ждёт: это задержка перед первым REGISTER, и она
-    /// должна быть предсказуемой, а не сюрпризом. Считаются промежутки, а не
-    /// пакеты: после последнего ждать нечего.
+    /// должна быть предсказуемой. Оценка включает интервалы перед отправками и
+    /// последнее ожидание эха (без DNS и задержек планировщика).
     /// </remarks>
     [JsonIgnore]
     public TimeSpan EstimatedDuration
-        => TimeSpan.FromSeconds(Math.Max(0, PacketCount - 1) * SpacingSeconds);
+        => TimeSpan.FromSeconds(Math.Max(0, PacketCount) * Math.Max(0.001, SpacingSeconds));
 
     [JsonIgnore]
     public bool IsEmpty => PacketCount == 0;

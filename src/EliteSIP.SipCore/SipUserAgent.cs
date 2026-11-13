@@ -699,6 +699,25 @@ public sealed partial class SipUserAgent : IDisposable
                 }
 
                 LastRegistrationFailure = error as SipRegistrationException;
+                bool canRotate;
+                lock (_gate) { canRotate = _account.Transport == SipTransport.Udp && _calls.Count == 0 && _reservedLines.Count == 0; }
+                Log(SipLogLevel.Debug, $"DNS failover: eligible={canRotate}; error={error.GetType().Name}; kind={(error as SipTransactionException)?.Kind}");
+                if (canRotate && error is SipTransactionException { Kind: SipTransactionErrorKind.Timeout })
+                {
+                    try
+                    {
+                        if (await _transactions.TryNextRemoteAsync(token).ConfigureAwait(false) is { } local)
+                        {
+                            lock (_gate) { _contactEndpoint = local; _cachedChallenge = null; _nonceCount = 0; }
+                            Log(SipLogLevel.Info, "REGISTER не получил ответа: выбран следующий DNS-адрес АТС");
+                        }
+                    }
+                    catch (OperationCanceledException) { return; }
+                    catch (Exception rotateError) when (rotateError is IOException or System.Net.Sockets.SocketException)
+                    {
+                        Log(SipLogLevel.Warning, $"не удалось сменить DNS-адрес: {rotateError.Message}");
+                    }
+                }
                 int delay = RetryDelay(failures, error);
                 string reason = Describe(error);
 

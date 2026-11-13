@@ -28,6 +28,13 @@ internal sealed class ScriptedSipServer : ISipTransportChannel
     private readonly List<SipRequest> _receivedRequests = [];
     private readonly List<SipResponse> _sentResponses = [];
     private int _keepAliveCount;
+    private int _remoteSwitchAttempts;
+    public int RemoteSwitchAttempts => Volatile.Read(ref _remoteSwitchAttempts);
+    public Task<SipEndpoint?> TryNextRemoteAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _remoteSwitchAttempts);
+        return Task.FromResult<SipEndpoint?>(null);
+    }
 
     public ScriptedSipServer(
         Responder responder,

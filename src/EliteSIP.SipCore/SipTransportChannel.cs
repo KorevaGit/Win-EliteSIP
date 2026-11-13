@@ -70,6 +70,9 @@ public interface ISipTransportChannel
     }
 
     public Task StopAsync();
+
+    /// <summary>Следующий DNS-кандидат после молчания SIP на UDP. Null — альтернатив нет.</summary>
+    public Task<SipEndpoint?> TryNextRemoteAsync(CancellationToken cancellationToken) => Task.FromResult<SipEndpoint?>(null);
 }
 
 /// <summary>Как проверять сертификат сервера на TLS.</summary>

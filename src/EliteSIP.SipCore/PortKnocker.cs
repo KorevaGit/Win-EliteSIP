@@ -41,6 +41,8 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     private readonly CancellationTokenSource _stopping = new();
     private bool _disposed;
     private int _users;
+    private readonly TimeProvider _clock;
+    internal Func<string, int, Task<bool>>? PacketSender { get; init; }
 
     /// <summary>
     /// Номер последовательности для сопоставления пакетов и результата.
@@ -51,11 +53,12 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     /// </remarks>
     private int _attemptNumber;
 
-    private PortKnocker(string serverHost, PortKnockSequence sequence, Action<string> log)
+    internal PortKnocker(string serverHost, PortKnockSequence sequence, Action<string> log, TimeProvider? clock = null)
     {
         _serverHost = serverHost;
         _sequence = sequence;
         _log = log;
+        _clock = clock ?? TimeProvider.System;
         _throttle = new PortKnockThrottle(TimeSpan.FromSeconds(sequence.RepeatIntervalSeconds));
     }
 
@@ -128,16 +131,36 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
             return;
         }
 
-        // Отметка ставится до отправки, а не после: иначе повтор регистрации,
-        // пришедший в середине семисекундной последовательности, начал бы вторую
-        // поверх первой и перемешал порядок пакетов.
-        _throttle.RecordKnock(now);
+        // Сериализация не даёт перемешать пакеты. Неудачная отправка/DNS
+        // не должны запрещать следующую обычную попытку ещё на час.
 
         var attempt = Interlocked.Increment(ref _attemptNumber);
         var clock = Stopwatch.StartNew();
         _log($"стук #{attempt}: сервер={_serverHost}; {_sequence.Steps.Count} шагов, {_sequence.PacketCount} пакетов; повод={reason}; пауза={_sequence.SpacingSeconds:0.###} с");
 
+        var targets = new Dictionary<string, System.Net.IPAddress>(StringComparer.OrdinalIgnoreCase);
+        if (PacketSender is null)
+        {
+            using var resolution = CancellationTokenSource.CreateLinkedTokenSource(token);
+            resolution.CancelAfter(TimeSpan.FromSeconds(10));
+            try
+            {
+                foreach (var host in _sequence.Steps.Select(step => step.ResolvedHost(_serverHost)).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    if (System.Net.IPAddress.TryParse(host, out var literal)) { targets[host] = literal; continue; }
+                    var addresses = await System.Net.Dns.GetHostAddressesAsync(host, resolution.Token).ConfigureAwait(false);
+                    var address = addresses.FirstOrDefault(value => value.AddressFamily == AddressFamily.InterNetwork) ?? addresses.FirstOrDefault();
+                    if (address is null) { _log($"стук: DNS {host} не вернул адресов"); return; }
+                    targets[host] = address;
+                }
+            }
+            catch (SocketException error) { _log($"стук: DNS недоступен: {error.SocketErrorCode}"); return; }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested) { _log("стук: DNS превысил срок 10 с"); return; }
+        }
+
         var sent = 0;
+        var lastSentAt = TimeSpan.Zero;
+        var cadenceStarted = _clock.GetTimestamp();
         foreach (var step in _sequence.Steps)
         {
             var host = step.ResolvedHost(_serverHost);
@@ -146,11 +169,14 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
             {
                 if (sent > 0)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(_sequence.SpacingSeconds), token).ConfigureAwait(false);
+                    var remaining = TimeSpan.FromSeconds(_sequence.SpacingSeconds) - (_clock.GetElapsedTime(cadenceStarted) - lastSentAt);
+                    if (remaining > TimeSpan.Zero) { await Task.Delay(remaining, _clock, token).ConfigureAwait(false); }
                 }
 
+                token.ThrowIfCancellationRequested();
+                lastSentAt = _clock.GetElapsedTime(cadenceStarted);
                 _log($"стук #{attempt}: пакет {sent + 1}/{_sequence.PacketCount}; host={host}; payload={step.PayloadBytes}; ICMP={step.PayloadBytes + 8} байт");
-                if (!await SendAsync(host, step.PayloadBytes).ConfigureAwait(false))
+                if (!await (PacketSender?.Invoke(host, step.PayloadBytes) ?? SendAsync(host, targets[host], step.PayloadBytes)).ConfigureAwait(false))
                 {
                     _log($"стук #{attempt} прерван: обработано {sent}/{_sequence.PacketCount}; прошло={clock.Elapsed.TotalMilliseconds:0} мс");
                     return;
@@ -166,6 +192,7 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
         // REGISTER, и её делает регистрация, а не стук. Именно этим он
         // отличается от скрипта, который печатал «Successfully connected!»
         // безусловно.
+        if (sent == _sequence.PacketCount) { _throttle.RecordKnock(DateTimeOffset.UtcNow); }
         _log(sent == _sequence.PacketCount
             ? $"стук #{attempt} отправлен: {sent} пакетов, {clock.Elapsed.TotalMilliseconds:0} мс; доступность SIP проверит REGISTER"
             : $"стук отправлен частично: {sent} из {_sequence.PacketCount}");
@@ -199,17 +226,16 @@ public sealed class PortKnocker : ISipPathOpener, IDisposable
     /// не дала отправить: нет разрешения на ICMP, не разрешилось имя, нет
     /// маршрута.
     ///
-    /// Ожидание ответа при этом задаёт темп: тайм-аут равен паузе между
-    /// пакетами, то есть молчащий шлюз растягивает стук ровно на ту же семёрку
-    /// секунд, что и отвечающий.
+    /// Ожидание эха засчитывается в интервал между отправками, а не добавляется
+    /// к нему. Последний пакет может потребовать ещё один timeout ожидания эха.
     /// </remarks>
-    private async Task<bool> SendAsync(string host, int payloadBytes)
+    private async Task<bool> SendAsync(string host, System.Net.IPAddress address, int payloadBytes)
     {
         var clock = Stopwatch.StartNew();
         try
         {
             var timeout = (int)Math.Max(1, _sequence.SpacingSeconds * 1000);
-            var reply = await _ping.SendPingAsync(host, timeout, PortKnockPayload.Make(payloadBytes))
+            var reply = await _ping.SendPingAsync(address, timeout, PortKnockPayload.Make(payloadBytes))
                 .ConfigureAwait(false);
             _log($"ICMP host={host}; ip={reply.Address}; status={reply.Status}; RTT={reply.RoundtripTime} мс; elapsed={clock.Elapsed.TotalMilliseconds:0} мс; timeout={timeout} мс");
 

@@ -325,6 +325,17 @@ public sealed class SipTransactionLayer : IDisposable
 
     // Не-INVITE
 
+    public async Task<SipEndpoint?> TryNextRemoteAsync(CancellationToken cancellationToken)
+    {
+        var local = await _channel.TryNextRemoteAsync(cancellationToken).ConfigureAwait(false);
+        if (local is { } endpoint)
+        {
+            lock (_gate) { _localEndpoint = endpoint; _failureReason = null; }
+            ResolveReadiness(endpoint, null);
+        }
+        return local;
+    }
+
     /// <summary>
     /// Отправляет запрос и ждёт финального ответа.
     ///
