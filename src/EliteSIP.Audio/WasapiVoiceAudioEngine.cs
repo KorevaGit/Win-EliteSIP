@@ -717,7 +717,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
     /// </summary>
     private void StartWatching()
     {
-        _supervisor = new RestartSupervisor(reason => Restart(reason));
+        _supervisor = new RestartSupervisor(RestartForDeviceChange);
 
         try
         {
@@ -739,6 +739,16 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         _supervisor?.Dispose();
         _supervisor = null;
+    }
+
+    private void RestartForDeviceChange(string reason)
+    {
+        if (Volatile.Read(ref _stopRequested)) { return; }
+        try { Restart(reason); }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _stopRequested))
+        {
+            // Отмена таймера могла пересечься с уже начавшимся callback.
+        }
     }
 
     /// <summary>
@@ -768,7 +778,11 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
-        _supervisor?.Notify(Describe(change));
+        var key = change.Kind == AudioDeviceChangeKind.DefaultChanged
+            ? $"default:{change.Direction}"
+            : $"{change.Kind}:{change.DeviceId}";
+        _supervisor?.Notify(Describe(change),
+            () => DeviceChangeRelevance.StillRequiresRebuild(change, binding, Volatile.Read(ref _binding)), key);
     }
 
     private static string Describe(AudioDeviceChange change) => change.Kind switch
@@ -2222,7 +2236,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             return;
         }
 
-        supervisor.Notify($"{stage}: {error.Message}");
+        var binding = Volatile.Read(ref _binding);
+        supervisor.Notify($"{stage}: {error.Message}",
+            () => ReferenceEquals(binding, Volatile.Read(ref _binding)), $"stream:{stage}");
     }
 
     private void Diagnostic(string text) => Handlers.Diagnostic?.Invoke(text);
