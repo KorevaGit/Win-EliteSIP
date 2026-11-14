@@ -47,7 +47,7 @@ public sealed class CaptionCrown : Control
         var capital = text.BuildGeometry(new Point()).Bounds;
         var source = (Canvas)Application.Current.FindResource("settings.crown-split");
         var drawing = new DrawingGroup();
-        var pen = new Pen(brush, 1.7) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        var pen = new Pen(brush, 2.3) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         var paths = source.Children.OfType<System.Windows.Shapes.Path>().ToArray();
         for (var index = 0; index < paths.Length; index++)
         {
@@ -62,7 +62,7 @@ public sealed class CaptionCrown : Control
         var shadow = drawing.CloneCurrentValue();
         foreach (var part in shadow.Children.Cast<GeometryDrawing>())
         {
-            part.Pen = new Pen(Brushes.Black, 2.0) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+            part.Pen = new Pen(Brushes.Black, 2.7) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         }
         canvas.PushOpacity(0.2);
         canvas.PushTransform(new TranslateTransform(0, 0.7 / scale));

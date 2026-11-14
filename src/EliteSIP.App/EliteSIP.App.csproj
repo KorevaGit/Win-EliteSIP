@@ -38,7 +38,6 @@
     -->
     <Resource Include="Assets\Splash*.png" />
     <Resource Include="Assets\AppIcon\EliteSIP.ico" />
-    <EmbeddedResource Include="Assets\AppIcon\BrandGold.png" LogicalName="EliteSIP.BrandGold.png" />
 
     <!--
         Смайлики Apple для подписей (0.1.66): один файл рядом с exe, 64×64,
