@@ -26,6 +26,7 @@ namespace EliteSIP.App;
 public partial class App : Application, IDisposable
 {
     private AppearanceService? _appearance;
+    private WindowBackgroundService? _background;
     private AppSettings? _settings;
     private SettingsWindow? _settingsWindow;
     private CallHistoryWindow? _historyWindow;
@@ -181,6 +182,7 @@ public partial class App : Application, IDisposable
         _access = new AdminAccessState(_settings.Admin.ToCredential());
 
         _appearance = new AppearanceService(this) { Appearance = _settings.Appearance.Theme };
+        _background = new WindowBackgroundService(this, _settings.Appearance, _appearance, Log);
 
         // Подписка до первого `Apply`: первое же окно должно открыться с
         // полосой заголовка нужного тона, а не перекраситься на глазах.
@@ -1574,6 +1576,8 @@ public partial class App : Application, IDisposable
 
     public void Dispose()
     {
+        _background?.Dispose();
+        _background = null;
         _appearance?.Dispose();
         _appearance = null;
 

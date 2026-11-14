@@ -13,7 +13,7 @@
     <ControlTemplate TargetType="Window">
       <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
         <DockPanel LastChildFill="True">
-          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+          <Grid DockPanel.Dock="Top" Height="32" Background="Transparent">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
@@ -52,7 +52,7 @@
       </Border>
     </ControlTemplate>
   </Window.Template>
-  <Grid Margin="8">
+  <Grid x:Name="SettingsRoot" Margin="8">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="142" />
       <ColumnDefinition Width="*" />
@@ -164,7 +164,6 @@
                     </Button>
                   </Grid>
                 </theme:SettingsRow>
-                <theme:SettingsNote Text="{res:Loc WorkSiteLockLiftedNote}" IsAlarming="True" Visibility="{Binding IsWorkplaceLockLifted, Converter={StaticResource BoolToVisibility}}" />
               </theme:SettingsSection>
               <theme:SettingsSection Header="" Tag="settings.power">
                 <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding StartsWithWindows}">
@@ -478,10 +477,11 @@
             <StackPanel Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
               <theme:SettingsSection Header="{res:Loc AppearanceTheme}" Tag="settings.panels-top-left">
                 <theme:SettingsRow Header="">
-                  <UniformGrid Columns="3" Margin="0,12,-8,12">
-                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="System" GroupName="Theme" Content="{res:Loc AppearanceSystem}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
-                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Light" GroupName="Theme" Content="{res:Loc AppearanceLight}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
-                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Dark" GroupName="Theme" Content="{res:Loc AppearanceDark}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
+                  <UniformGrid Columns="4" Margin="0,12,-8,12">
+                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="System" GroupName="Theme" Click="OnThemeChosen" Content="{res:Loc AppearanceSystem}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
+                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Light" GroupName="Theme" Click="OnThemeChosen" Content="{res:Loc AppearanceLight}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
+                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Dark" GroupName="Theme" Click="OnThemeChosen" Content="{res:Loc AppearanceDark}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Dark}" />
+                    <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Wallpaper" GroupName="Theme" Click="OnThemeChosen" Content="{res:Loc AppearanceWallpaper}" IsEnabled="{Binding Settings.Appearance.HasBackgroundImage}" IsChecked="{Binding Settings.Appearance.Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Wallpaper}" />
                   </UniformGrid>
                 </theme:SettingsRow>
                 <Grid MinHeight="55">
@@ -504,6 +504,52 @@
                     <TextBlock Text="{res:Loc SettingsRestartRequired}" Margin="6,0,0,0" FontSize="11" Foreground="{DynamicResource SettingsWarningBrush}" VerticalAlignment="Center" />
                   </StackPanel>
                 </Grid>
+              </theme:SettingsSection>
+              <theme:SettingsSection Header="{res:Loc AppearanceBackground}" Tag="settings.image">
+                <Grid Margin="0,4,0,10">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Click="OnChooseBackgroundClick">
+                    <StackPanel Orientation="Horizontal">
+                      <theme:Icon Glyph="settings.image" Size="17" VerticalAlignment="Center" />
+                      <TextBlock Text="{res:Loc BackgroundChoose}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button Grid.Column="1" Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc BackgroundReset}" Click="OnResetBackgroundClick" IsEnabled="{Binding Settings.Appearance.HasBackgroundImage}" />
+                </Grid>
+                <Border x:Name="BackgroundPreview" Height="108" CornerRadius="10" Background="{DynamicResource PanelWindowBackgroundBrush}" ClipToBounds="True" Margin="0,0,0,8">
+                  <Border Width="148" Padding="12,9" CornerRadius="9" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{DynamicResource SettingsSurfaceBrush}" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource SettingsEdgeBrush}">
+                    <StackPanel>
+                      <TextBlock Text="EliteSIP" FontWeight="SemiBold" FontSize="15" HorizontalAlignment="Center" />
+                      <Border Height="5" Margin="0,7,0,0" CornerRadius="2" Background="{DynamicResource SettingsGreenBrush}" />
+                    </StackPanel>
+                  </Border>
+                </Border>
+                <Grid IsEnabled="{Binding Settings.Appearance.HasBackgroundImage}">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="105" /><ColumnDefinition Width="*" /><ColumnDefinition Width="45" /></Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions><RowDefinition Height="38" /><RowDefinition Height="38" /><RowDefinition Height="38" /></Grid.RowDefinitions>
+                  <TextBlock Text="{res:Loc BackgroundScale}" VerticalAlignment="Center" />
+                  <Slider Grid.Column="1" Minimum="50" Maximum="200" Value="{Binding Settings.Appearance.BackgroundScale}" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Column="2" Text="{Binding Settings.Appearance.BackgroundScale, StringFormat={}{0}%}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Row="1" Text="{res:Loc BackgroundBlur}" VerticalAlignment="Center" />
+                  <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="24" Value="{Binding Settings.Appearance.BackgroundBlur}" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Settings.Appearance.BackgroundBlur}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Row="2" Text="{res:Loc BackgroundBrightness}" VerticalAlignment="Center" />
+                  <Slider Grid.Row="2" Grid.Column="1" Minimum="30" Maximum="170" Value="{Binding Settings.Appearance.BackgroundBrightness}" VerticalAlignment="Center" Margin="8,0" />
+                  <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Settings.Appearance.BackgroundBrightness, StringFormat={}{0}%}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" />
+                </Grid>
+                <Grid Margin="0,8,0,0" MinHeight="47">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <TextBlock Text="{res:Loc BackgroundTranslucent}" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Background="{DynamicResource SettingsTrackBrush}" CornerRadius="9" Padding="3" IsEnabled="{Binding Settings.Appearance.HasBackgroundImage}">
+                    <UniformGrid Columns="4">
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" Content="{res:Loc TransparencyOff}" GroupName="Transparency" Click="OnTransparencyChosen" IsChecked="{Binding Settings.Appearance.BackgroundTransparency, Converter={StaticResource EnumToBool}, ConverterParameter=Off}" />
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" Content="{res:Loc TransparencyLight}" GroupName="Transparency" Click="OnTransparencyChosen" IsChecked="{Binding Settings.Appearance.BackgroundTransparency, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" Content="{res:Loc TransparencyMedium}" GroupName="Transparency" Click="OnTransparencyChosen" IsChecked="{Binding Settings.Appearance.BackgroundTransparency, Converter={StaticResource EnumToBool}, ConverterParameter=Medium}" />
+                      <RadioButton Style="{StaticResource SettingsSegmentStyle}" Content="{res:Loc TransparencyStrong}" GroupName="Transparency" Click="OnTransparencyChosen" IsChecked="{Binding Settings.Appearance.BackgroundTransparency, Converter={StaticResource EnumToBool}, ConverterParameter=Strong}" />
+                    </UniformGrid>
+                  </Border>
+                </Grid>
+                <theme:SettingsNote x:Name="BackgroundProblem" IsAlarming="True" Visibility="Collapsed" />
               </theme:SettingsSection>
             </StackPanel>
             <StackPanel Visibility="{Binding ShowsSupport, Converter={StaticResource BoolToVisibility}}">
@@ -577,7 +623,13 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                   </Grid.ColumnDefinitions>
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                  <StackPanel Grid.Column="0" x:Name="SparkMachineIdentity" Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding MachineID}">
+                    <TextBlock Text="{Binding ShortMachineID}" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,6,0" />
+                    <Button Style="{StaticResource SettingsButtonStyle}" Width="28" Padding="0" Click="OnCopyMachineClick" ToolTip="{res:Loc SettingsCopyId}" AutomationProperties.Name="{res:Loc SettingsCopyId}">
+                      <theme:Icon Glyph="settings.copy" Size="14" />
+                    </Button>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" x:Name="SparkConnectionDiagram" Orientation="Horizontal" VerticalAlignment="Center">
                     <StackPanel Width="58">
                       <theme:Icon Glyph="settings.monitor" Size="27" HorizontalAlignment="Center" />
                       <TextBlock Text="{res:Loc SettingsThisPc}" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" />
@@ -587,26 +639,10 @@
                       <theme:Icon Glyph="settings.cloud" Size="27" HorizontalAlignment="Center" />
                       <TextBlock Text="Spark" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" />
                     </StackPanel>
-                    <Border Background="{DynamicResource SettingsLineBrush}" CornerRadius="6" Padding="8,4" Margin="16,0,0,0" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding LinkState}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    </Border>
                   </StackPanel>
-                </Grid>
-                <Grid MinHeight="47">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <theme:Icon Glyph="settings.fingerprint" Size="18" VerticalAlignment="Center" />
-                    <TextBlock Text="{res:Loc SettingsMachineId}" Margin="7,0,0,0" VerticalAlignment="Center" />
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding MachineID}" FontFamily="Consolas" FontSize="12" MaxWidth="340" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Margin="8,0" />
-                    <Button Style="{StaticResource SettingsButtonStyle}" Width="32" Padding="0" Click="OnCopyMachineClick" ToolTip="{res:Loc SettingsCopyId}" AutomationProperties.Name="{res:Loc SettingsCopyId}">
-                      <theme:Icon Glyph="settings.copy" Size="16" />
-                    </Button>
-                  </StackPanel>
+                  <Border Grid.Column="2" x:Name="SparkConnectionStatus" Background="{DynamicResource SettingsLineBrush}" CornerRadius="6" Padding="8,4" Margin="8,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding LinkState}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                  </Border>
                 </Grid>
                 <Grid MinHeight="47">
                   <Grid.ColumnDefinitions>

@@ -44,14 +44,44 @@ public sealed class TrayAppearanceTests
         var b = new byte[a.Length];
         green.CopyPixels(a, size * 4, 0);
         red.CopyPixels(b, size * 4, 0);
-        var line = ((int)(size * 21d / 24) * size + (int)(size * 0.35)) * 4;
-        Assert.True(a[line + 1] > a[line + 2]);
-        Assert.True(b[line + 2] > b[line + 1]);
-        var body = size * (int)(size * 18d / 24) * 4;
-        Assert.Equal(a.AsSpan(0, body).ToArray(), b.AsSpan(0, body).ToArray());
-        var gap = ((int)(size * 21d / 24) * size + size / 2) * 4;
-        Assert.True(a[gap + 3] < 96);
-        var centre = (size / 2 * size + size / 2) * 4;
-        Assert.Equal(0, a[centre + 3]);
+        bool Colored(byte[] pixels, int x, int y, bool isGreen)
+        {
+            var offset = (y * size + x) * 4;
+            return pixels[offset + 3] > 96 && (isGreen
+                ? pixels[offset + 1] > pixels[offset + 2] + 32
+                : pixels[offset + 2] > pixels[offset + 1] + 32);
+        }
+        var statusPixels = 0;
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                if (Colored(a, x, y, true))
+                {
+                    statusPixels++;
+                    Assert.True(Colored(b, x, y, false));
+                    Assert.True(y >= size * 0.65, "Цвет статуса не должен затрагивать корону");
+                }
+                var offset = (y * size + x) * 4;
+                if (!a.AsSpan(offset, 4).SequenceEqual(b.AsSpan(offset, 4)))
+                {
+                    Assert.True(y >= size * 0.65);
+                    Assert.Equal(a[offset + 3], b[offset + 3]);
+                    Assert.True(a[offset + 1] >= a[offset + 2]);
+                    Assert.True(b[offset + 2] >= b[offset + 1]);
+                }
+            }
+        }
+        Assert.True(statusPixels >= size * size * 0.05, "Статус должен оставаться заметным в малом размере");
+        var row = Enumerable.Range(0, size).MaxBy(y => Enumerable.Range(0, size).Count(x => Colored(a, x, y, true)));
+        var segments = 0;
+        var previous = false;
+        for (var x = 0; x < size; x++)
+        {
+            var current = Colored(a, x, row, true);
+            if (current && !previous) { segments++; }
+            previous = current;
+        }
+        Assert.Equal(2, segments);
     });
 }

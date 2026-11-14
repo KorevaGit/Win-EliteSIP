@@ -34,6 +34,7 @@ internal static class WindowCaption
     /// <summary>Ставит окну тёмную или светлую полосу заголовка.</summary>
     public static void Apply(Window window, bool isDark)
     {
+        MaximizedWindowBounds.Attach(window);
         if (PresentationSource.FromVisual(window) is not HwndSource source)
         {
             // Окно ещё не создано в системе — красить нечего. Зовущий обязан

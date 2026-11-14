@@ -40,6 +40,7 @@ internal sealed class PanelLineHost : IDisposable
 
     private readonly PresetService _presets;
     private readonly MachineService _machine;
+    private readonly WorkFormatSync _workFormatSync;
 
     private readonly DispatcherTimer _machineTimer;
 
@@ -71,6 +72,7 @@ internal sealed class PanelLineHost : IDisposable
         _reset = reset;
         _log = log;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        _workFormatSync = new WorkFormatSync(settings.Panel, SendWorkFormatRequestAsync, log);
 
         _presets = new PresetService(() => _settings, ApplyPreset, isBlocked, log);
         _presets.NoteContact = () => _settings.Panel.LastContactAt = DateTimeOffset.UtcNow;
@@ -158,44 +160,22 @@ internal sealed class PanelLineHost : IDisposable
 
         if (!_settings.Panel.IsOffline)
         {
-            await SendWorkFormatAsync().ConfigureAwait(true);
+            await _workFormatSync.SendAsync().ConfigureAwait(true);
             await _machine.CheckConfigAsync().ConfigureAwait(true);
         }
     }
 
-    private bool _sendingWorkFormat;
-    private async Task SendWorkFormatAsync()
+    private static async Task<System.Net.HttpStatusCode> SendWorkFormatRequestAsync(WorkFormatSync.Request change, CancellationToken cancellationToken)
     {
-        var panel = _settings.Panel;
-        var format = panel.PendingWorkFormat;
-        if (_sendingWorkFormat || !panel.IsManaged || format.Length == 0 || panel.ChannelKey() is not { } key)
-        {
-            return;
-        }
-        _sendingWorkFormat = true;
-        try
-        {
-            using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post,
-                new Uri(Provisioning.Current?.PairBase ?? new Uri(Provisioning.DefaultPairUrl), "api/pair/work-format"));
-            ChannelRequest.Authorize(request, panel.InstallationID, key);
-            request.Content = System.Net.Http.Json.JsonContent.Create(new { work_format = format });
-            using var deadline = new CancellationTokenSource(ChannelRequest.Timeout);
-            using var response = await ChannelRequest.Client.SendAsync(request, deadline.Token).ConfigureAwait(true);
-            if ((response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Conflict)
-                && panel.PendingWorkFormat == format)
-            {
-                panel.PendingWorkFormat = string.Empty;
-            }
-            else
-            {
-                _log($"формат работы: Spark ответил {(int)response.StatusCode}; повтор при следующей синхронизации");
-            }
-        }
-        catch (Exception error) when (error is System.Net.Http.HttpRequestException or OperationCanceledException)
-        {
-            _log("формат работы: отправка в Spark отложена до восстановления связи");
-        }
-        finally { _sendingWorkFormat = false; }
+        var address = new Uri(Provisioning.Current?.PairBase ?? new Uri(Provisioning.DefaultPairUrl), "api/pair/work-format");
+        if (address.Scheme != Uri.UriSchemeHttps) { throw new System.Net.Http.HttpRequestException("Spark requires HTTPS"); }
+        using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, address);
+        ChannelRequest.Authorize(request, change.InstallationID, change.Key);
+        request.Content = System.Net.Http.Json.JsonContent.Create(new { work_format = change.Format });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(ChannelRequest.Timeout);
+        using var response = await ChannelRequest.Client.SendAsync(request, deadline.Token).ConfigureAwait(false);
+        return response.StatusCode;
     }
 
     /// <summary>
@@ -217,6 +197,7 @@ internal sealed class PanelLineHost : IDisposable
 
         _settings.Panel.Mode = PanelMode.Managed;
         _settings.Panel.WantsResync = true;
+        _settings.Panel.PendingWorkFormat = string.Empty;
         _settings.Panel.AppliedConfigRevision = 0;
         _log("машина возвращена в онлайн: местные правки заменит Spark");
         StateChanged?.Invoke();
@@ -246,6 +227,7 @@ internal sealed class PanelLineHost : IDisposable
     public void Dispose()
     {
         _machineTimer.Stop();
+        _workFormatSync.Dispose();
     }
 
     private void OnUi(Action action)
@@ -558,8 +540,11 @@ internal static class MachineReset
     /// после сброса машина показывает новый код и привязывается заново.
     /// </remarks>
     internal static IReadOnlyList<string> Wipe()
+        => Wipe(Path.GetDirectoryName(AppSettings.DefaultPath)!);
+
+    internal static IReadOnlyList<string> Wipe(string directory)
     {
-        var directory = Path.GetDirectoryName(AppSettings.DefaultPath)!;
+        directory = Path.GetFullPath(directory);
         var failures = new List<string>();
 
         foreach (var name in new[]
@@ -569,7 +554,11 @@ internal static class MachineReset
             "history.db",
             "history.db-wal",
             "history.db-shm",
+            "history.db.pending",
+            "history.db.pending.tmp",
             "activation-draft.dat",
+            "window-background.png",
+            "window-background.png.tmp",
             "elitesip.log",
             "crash.log",
             ClientEventLog.FileName,
@@ -583,6 +572,35 @@ internal static class MachineReset
             {
                 failures.Add(name);
             }
+        }
+
+        // Только известный каталог recovery; junction/symlink не обходится.
+        var recovery = Path.Combine(directory, "history.db.recovery");
+        try
+        {
+            if (Directory.Exists(recovery))
+            {
+                if ((File.GetAttributes(recovery) & FileAttributes.ReparsePoint) != 0)
+                {
+                    failures.Add("history.db.recovery (reparse point)");
+                }
+                else
+                {
+                    foreach (var file in Directory.GetFiles(recovery))
+                    {
+                        try { File.Delete(file); }
+                        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                        {
+                            failures.Add("history.db.recovery/" + Path.GetFileName(file));
+                        }
+                    }
+                    Directory.Delete(recovery, recursive: false);
+                }
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            failures.Add("history.db.recovery");
         }
 
         // Ротированные файлы журнала: elitesip-<время>.log.

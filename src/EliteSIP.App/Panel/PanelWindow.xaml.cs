@@ -213,6 +213,7 @@ public partial class PanelWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        Theme.MaximizedWindowBounds.Attach(this);
 
         // Исходная ширина содержимого — та, что была бы при 270 точках окна:
         // на ней панель свёрстана. Считается от настоящей ширины за вычетом

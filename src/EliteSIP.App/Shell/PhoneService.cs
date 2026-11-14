@@ -77,6 +77,8 @@ public sealed class PhoneService : IDisposable
     /// первым, и софтфон показывал регистрацию, которой нет.
     /// </remarks>
     private readonly SemaphoreSlim _connection = new(1, 1);
+    private long _connectionRequest;
+    private bool _disposed;
 
     // BYE может прийти во время запуска звука после 200 OK. Очистка ждёт
     // завершения запуска, иначе тот заведёт линию уже после её снятия.
@@ -317,9 +319,12 @@ public sealed class PhoneService : IDisposable
     /// </param>
     public async Task ConnectAsync(string? statusKey = null)
     {
+        var request = Interlocked.Increment(ref _connectionRequest);
         await _connection.WaitAsync().ConfigureAwait(true);
         try
         {
+            // После серии переключений обслуживаем только последний ожидающий запрос.
+            if (_disposed || request != Interlocked.Read(ref _connectionRequest)) { return; }
             _panel.CanPlaceCall = false;
             if (_agent is not null)
             {
@@ -495,6 +500,7 @@ public sealed class PhoneService : IDisposable
     /// <summary>Снимает регистрацию и отпускает всё, что держит.</summary>
     public async Task DisconnectAsync()
     {
+        Interlocked.Increment(ref _connectionRequest);
         await _connection.WaitAsync().ConfigureAwait(true);
         try
         {
@@ -2179,6 +2185,9 @@ public sealed class PhoneService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) { return; }
+        _disposed = true;
+        Interlocked.Increment(ref _connectionRequest);
         // Синхронно: приложение закрывается, и ждать снятия регистрации дольше
         // мгновения нельзя — иначе выход выглядит зависанием.
         _settings.Audio.PropertyChanged -= OnAudioSettingsChanged;

@@ -546,6 +546,10 @@ public sealed class SettingsViewModel : Observable
         ? Settings.Panel.InstallationID
         : Strings.Get("SupportMachineNotPaired");
 
+    public string ShortMachineID => Settings.Panel.IsActivated
+        ? "ID " + (MachineID.Length > 8 ? MachineID[..8] + "…" : MachineID)
+        : "ID —";
+
     /// <summary>Связь словами — та же строка, что в «Управлении».</summary>
     public string LinkState => Strings.Get(
         Settings.Panel.Mode is PanelMode.Managed && Settings.Panel.HasChannelKey ? "SupportLinkOnline"
@@ -565,6 +569,7 @@ public sealed class SettingsViewModel : Observable
     internal void RefreshLink()
     {
         NotifyChanged(nameof(MachineID));
+        NotifyChanged(nameof(ShortMachineID));
         NotifyChanged(nameof(LinkState));
         NotifyChanged(nameof(IsPanelOffline));
     }

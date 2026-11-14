@@ -27,11 +27,11 @@ internal static class CrownArtwork
                 };
                 if (isBase && emphasizeStatus)
                 {
-                    // На 16 px каждая половина статуса остаётся почти 4 px высотой.
+                    // Статус утолщён отдельно от полноразмерного знака для читаемости в трее.
                     drawing.Children.Add(new GeometryDrawing(status, null,
-                        new RectangleGeometry(new Rect(2.3, 19, 8.1, 5.5), 1.2, 1.2)));
+                        new RectangleGeometry(new Rect(2.3, 22, 11.1, 5.5), 1.2, 1.2)));
                     drawing.Children.Add(new GeometryDrawing(status, null,
-                        new RectangleGeometry(new Rect(13.6, 19, 8.1, 5.5), 1.2, 1.2)));
+                        new RectangleGeometry(new Rect(16.6, 22, 5.1, 5.5), 1.2, 1.2)));
                 }
                 else
                 {

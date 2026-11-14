@@ -13,8 +13,10 @@ namespace EliteSIP.App.Tests;
 
 public sealed class NetworkRecoveryTests
 {
-    [Fact]
-    public async Task Закрытие_канала_переподключает_телефон_и_возвращает_исходящие()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task Закрытие_канала_переподключает_телефон_и_возвращает_исходящие(int queuedConnections)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var token = deadline.Token;
@@ -37,7 +39,11 @@ public sealed class NetworkRecoveryTests
             phone = new PhoneService(settings, panel, history,
                 new IncomingCallPresenter(_ => { }, () => 0), Dispatcher.CurrentDispatcher, _ => { });
             phone.RecoverConnection = () => _ = phone.ConnectAsync();
-            startup = phone.ConnectAsync();
+            var gate = (SemaphoreSlim)typeof(PhoneService).GetField("_connection",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(phone)!;
+            Assert.True(gate.Wait(0));
+            try { startup = Task.WhenAll(Enumerable.Range(0, queuedConnections).Select(_ => phone.ConnectAsync())); }
+            finally { gate.Release(); }
         });
 
         try

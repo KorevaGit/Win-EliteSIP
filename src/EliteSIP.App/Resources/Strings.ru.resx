@@ -1431,4 +1431,19 @@
   <data name="UpdateReminderShort" xml:space="preserve"><value>Напомним через 30 мин</value></data>
   <data name="UpdateWhatsNew" xml:space="preserve"><value>Что нового</value></data>
   <data name="SupportLogsCollecting" xml:space="preserve"><value>Собираем журнал и сведения об устройствах…</value></data>
+  <data name="AppearanceBackground" xml:space="preserve"><value>Фон окон</value></data>
+  <data name="BackgroundChoose" xml:space="preserve"><value>Выбрать изображение</value></data>
+  <data name="BackgroundReset" xml:space="preserve"><value>Сбросить</value></data>
+  <data name="BackgroundScale" xml:space="preserve"><value>Масштаб</value></data>
+  <data name="BackgroundBlur" xml:space="preserve"><value>Размытие</value></data>
+  <data name="BackgroundBrightness" xml:space="preserve"><value>Яркость</value></data>
+  <data name="BackgroundTranslucent" xml:space="preserve"><value>Прозрачность</value></data>
+  <data name="BackgroundAutomaticTheme" xml:space="preserve"><value>Адаптируется к светлой и тёмной теме</value></data>
+  <data name="BackgroundInvalidImage" xml:space="preserve"><value>Не удалось открыть изображение. Выберите PNG, JPEG или BMP размером до 30 МБ.</value></data>
+  <data name="BackgroundAmbient" xml:space="preserve"><value>Цвета из фонового изображения</value></data>
+<data name="AppearanceWallpaper" xml:space="preserve"><value>Цвета обоев</value></data>
+<data name="TransparencyOff" xml:space="preserve"><value>Выкл.</value></data>
+<data name="TransparencyLight" xml:space="preserve"><value>Лёгкая</value></data>
+<data name="TransparencyMedium" xml:space="preserve"><value>Средняя</value></data>
+<data name="TransparencyStrong" xml:space="preserve"><value>Сильная</value></data>
 </root>

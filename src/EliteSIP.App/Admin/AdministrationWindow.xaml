@@ -10,7 +10,7 @@
     <ControlTemplate TargetType="Window">
       <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
         <DockPanel LastChildFill="True">
-          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+          <Grid DockPanel.Dock="Top" Height="32" Background="Transparent">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
@@ -49,7 +49,7 @@
       </Border>
     </ControlTemplate>
   </Window.Template>
-  <Grid Margin="8">
+  <Grid x:Name="AdministrationRoot" Margin="8">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="150" />
       <ColumnDefinition Width="*" />
@@ -801,7 +801,7 @@
           </StackPanel>
         </StackPanel>
       </ScrollViewer>
-      <Grid Grid.Row="1" Margin="26,8,18,0">
+      <Grid x:Name="AdministrationFooter" Grid.Row="1" Margin="26,8,18,0">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />

@@ -58,6 +58,7 @@ internal static class SystemCaption
     /// </param>
     public static void Apply(Window window, bool dark, bool repaint = false)
     {
+        MaximizedWindowBounds.Attach(window);
         window.Icon = CrownIcon(dark);
         var handle = new WindowInteropHelper(window).Handle;
 
@@ -87,7 +88,7 @@ internal static class SystemCaption
         // отделял заголовок от клиента. Кнопки и их поведение рисует DWM.
         // Windows 10 не знает этих атрибутов: там остаётся светлая/тёмная
         // системная полоса, совпадающая с белым/чёрным фоном нашей палитры.
-        if (window.Background is SolidColorBrush background)
+        if ((window.Background as SolidColorBrush ?? window.TryFindResource("PersonalizationCaptionBrush") as SolidColorBrush) is { } background)
         {
             var color = ColorRef(background.Color);
             _ = DwmSetWindowAttribute(handle, CaptionColor, ref color, sizeof(int));
@@ -207,22 +208,13 @@ internal static class SystemCaption
     /// </remarks>
     private static void Repaint(nint handle)
     {
-        if (!GetWindowRect(handle, out var frame))
-        {
-            return;
-        }
-
-        var width = frame.Right - frame.Left;
-        var height = frame.Bottom - frame.Top;
-
-        const uint NoMove = 0x0002;
-        const uint NoZOrder = 0x0004;
-        const uint NoActivate = 0x0010;
-        const uint Flags = NoMove | NoZOrder | NoActivate;
-
-        _ = SetWindowPos(handle, 0, 0, 0, width + 1, height, Flags);
-        _ = SetWindowPos(handle, 0, 0, 0, width, height, Flags);
+        // Invalidate the frame without changing window geometry or forcing layout.
+        _ = RedrawWindow(handle, 0, 0, 0x0001 | 0x0400);
     }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool RedrawWindow(nint window, nint update, nint region, uint flags);
 
     /// <summary>Переставляет полосу всем окнам, которые сейчас на экране.</summary>
     ///
@@ -301,18 +293,4 @@ internal static class SystemCaption
     [DllImport("user32.dll")]
     private static extern nint CreateIconFromResourceEx(nint bits, uint size, bool fIcon, uint version, int width, int height, uint flags);
 
-    [DllImport("user32.dll")]
-    private static extern bool GetWindowRect(nint window, out Rect frame);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(nint window, nint after, int x, int y, int width, int height, uint flags);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
 }

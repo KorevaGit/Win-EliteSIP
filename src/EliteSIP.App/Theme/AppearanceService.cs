@@ -15,6 +15,7 @@ public enum Appearance
     System,
     Light,
     Dark,
+    Wallpaper,
 }
 
 /// <summary>
@@ -31,6 +32,7 @@ public enum Appearance
 /// </remarks>
 public sealed class AppearanceService : IDisposable
 {
+    internal static event Action? PaletteChanged;
     private static readonly Uri LightPalette = new("Theme/Palette.Light.xaml", UriKind.Relative);
     private static readonly Uri DarkPalette = new("Theme/Palette.Dark.xaml", UriKind.Relative);
 
@@ -55,6 +57,7 @@ public sealed class AppearanceService : IDisposable
         get => _appearance;
         set
         {
+            if (_appearance == value && _current is not null) { return; }
             _appearance = value;
             Apply();
         }
@@ -65,6 +68,7 @@ public sealed class AppearanceService : IDisposable
     {
         Appearance.Light => false,
         Appearance.Dark => true,
+        Appearance.Wallpaper => true,
         _ => SystemPrefersDark(),
     };
 
@@ -89,6 +93,7 @@ public sealed class AppearanceService : IDisposable
         // Полоса заголовка живёт вне палитры: её рисует диспетчер окон, и
         // словарь ресурсов до неё не достаёт. Переставляется она здесь же,
         // чтобы окно не осталось тёмным под белой полосой.
+        PaletteChanged?.Invoke();
         SystemCaption.ApplyToOpenWindows(_application, IsDark);
     }
 

@@ -78,6 +78,8 @@ public sealed class TrayIcon : IDisposable
             Source = new Uri("/EliteSIP.App;component/Shell/TrayMenu.xaml", UriKind.Relative),
         });
         _menu.SetResourceReference(FrameworkElement.StyleProperty, "TrayMenuStyle");
+        RefreshMenuPalette(_menu);
+        Theme.AppearanceService.PaletteChanged += OnPaletteChanged;
 
         // Своё окно, никогда не показываемое: щелчки по значку система
         // присылает сообщением, а слать его некуда, кроме как окну.
@@ -202,6 +204,7 @@ public sealed class TrayIcon : IDisposable
     /// </remarks>
     private void ShowMenu()
     {
+        RefreshMenuPalette(_menu);
         _menu.Items.Clear();
 
         // Первая строка — состояние словами. Цветная точка на значке говорит
@@ -240,6 +243,25 @@ public sealed class TrayIcon : IDisposable
 
         _menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
         _menu.IsOpen = true;
+    }
+
+    private void OnPaletteChanged() => RefreshMenuPalette(_menu);
+
+    internal static void RefreshMenuPalette(ContextMenu menu)
+    {
+        // Popup не входит в дерево окон. Обновляем его локальную палитру целиком:
+        // вложенные Freezable-кисти из прежнего словаря иначе сохраняют старый фон.
+        var resources = Application.Current.Resources;
+        var top = (System.Windows.Media.Color)resources["SettingsSurfaceTopColor"];
+        var bottom = (System.Windows.Media.Color)resources["SettingsSurfaceBottomColor"];
+        menu.Resources["PanelControlBrush"] = new System.Windows.Media.LinearGradientBrush(
+            System.Windows.Media.Color.FromRgb(top.R, top.G, top.B),
+            System.Windows.Media.Color.FromRgb(bottom.R, bottom.G, bottom.B), 90);
+        menu.Resources["TextPrimaryBrush"] = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)resources["SettingsInkColor"]);
+        menu.Resources["TextSecondaryBrush"] = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)resources["SettingsSubColor"]);
+        menu.Resources["SettingsLineBrush"] = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)resources["SettingsLineColor"]);
+        menu.Resources["PanelHoverBrush"] = resources["PanelHoverBrush"];
+        menu.Resources["PanelEdgeBrush"] = resources["PanelEdgeBrush"];
     }
 
     private static Theme.Icon MenuIcon(string glyph)
@@ -413,6 +435,7 @@ public sealed class TrayIcon : IDisposable
 
     public void Dispose()
     {
+        Theme.AppearanceService.PaletteChanged -= OnPaletteChanged;
         if (_disposed)
         {
             return;

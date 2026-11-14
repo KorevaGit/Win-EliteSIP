@@ -128,9 +128,11 @@
         </Border><ContentPresenter HorizontalAlignment="Center" Margin="0,7,0,0" /></StackPanel>
       </Border>
       <ControlTemplate.Triggers>
+        <Trigger Property="Tag" Value="Wallpaper"><Setter TargetName="MiniWindow" Property="Background" Value="{DynamicResource PanelWindowBackgroundBrush}" /><Setter TargetName="MiniHeader" Property="Background" Value="#597775" /><Setter TargetName="MiniCall" Property="Background" Value="#355552" /></Trigger>
         <Trigger Property="Tag" Value="Dark"><Setter TargetName="MiniWindow" Property="Background" Value="#191919" /><Setter TargetName="MiniHeader" Property="Background" Value="#343434" /><Setter TargetName="MiniCall" Property="Background" Value="#343434" /></Trigger>
         <Trigger Property="Tag" Value="System"><Setter TargetName="MiniWindow" Property="Background"><Setter.Value><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#EFEFEF" Offset="0.5" /><GradientStop Color="#191919" Offset="0.5" /></LinearGradientBrush></Setter.Value></Setter><Setter TargetName="MiniCall" Property="Background"><Setter.Value><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="White" Offset="0.5" /><GradientStop Color="#343434" Offset="0.5" /></LinearGradientBrush></Setter.Value></Setter><Setter TargetName="MiniHeader" Property="Background"><Setter.Value><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="White" Offset="0.5" /><GradientStop Color="#343434" Offset="0.5" /></LinearGradientBrush></Setter.Value></Setter></Trigger>
         <Trigger Property="IsChecked" Value="True"><Setter TargetName="Outline" Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" /><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
         <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Outline" Property="Background" Value="{DynamicResource SettingsHoverBrush}" /></Trigger>
       </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>

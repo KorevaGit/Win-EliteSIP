@@ -130,6 +130,43 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void OnChooseBackgroundClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = Strings.Get("BackgroundChoose"),
+            Filter = "PNG, JPEG, BMP|*.png;*.jpg;*.jpeg;*.bmp",
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog(this) is not true) { return; }
+        try
+        {
+            BackgroundImages.Import(dialog.FileName, BackgroundImages.StoredPath);
+            Model.Settings.Appearance.BackgroundImagePath = BackgroundImages.StoredPath;
+            Model.Settings.Appearance.NotifyBackgroundChanged();
+            Model.Settings.Appearance.ApplyWallpaperDefaults();
+            BackgroundProblem.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException
+            or System.Runtime.InteropServices.COMException or ArgumentException or FileFormatException)
+        {
+            BackgroundProblem.Text = Strings.Get("BackgroundInvalidImage");
+            BackgroundProblem.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnResetBackgroundClick(object sender, RoutedEventArgs e)
+    {
+        Model.Settings.Appearance.ResetBackground();
+        BackgroundProblem.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnThemeChosen(object sender, RoutedEventArgs e)
+        => Model.Settings.Appearance.ThemeChosenByUser = true;
+
+    private void OnTransparencyChosen(object sender, RoutedEventArgs e)
+        => Model.Settings.Appearance.TransparencyChosenByUser = true;
+
     /// <summary>Выбор файла рингтона.</summary>
     private void OnChooseRingtoneClick(object sender, RoutedEventArgs e)
     {

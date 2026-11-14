@@ -11,6 +11,30 @@ namespace EliteSIP.App.Tests;
 public sealed class StartupAndUpdateTests
 {
     [Theory]
+    [InlineData(96u, 300, 210)]
+    [InlineData(120u, 375, 262)]
+    [InlineData(144u, 450, 315)]
+    [InlineData(192u, 600, 420)]
+    [InlineData(288u, 900, 630)]
+    [InlineData(384u, 1200, 840)]
+    public void Заставки_обеих_тем_существуют_для_физического_DPI(uint dpi, int width, int height) => WpfHost.Run(() =>
+    {
+        for (var theme = 0; theme < 2; theme++)
+        {
+            var path = StartupSplash.ResourceForDpi(null, theme != 0, dpi);
+            var resource = Application.GetResourceStream(new Uri("pack://application:,,,/EliteSIP.App;component/" + path));
+            Assert.NotNull(resource);
+            using var stream = resource.Stream;
+            var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(stream,
+                System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+            var frame = Assert.Single(decoder.Frames);
+            Assert.Equal(width, frame.PixelWidth);
+            Assert.Equal(height, frame.PixelHeight);
+        }
+    });
+
+    [Theory]
     [InlineData("{\"Appearance\":{\"Theme\":\"Dark\"}}", false, "Assets/Splash.png")]
     [InlineData("{\"Appearance\":{\"Theme\":\"dark\"}}", false, "Assets/Splash.png")]
     [InlineData("{\"Appearance\":{\"Theme\":\"Light\"}}", true, "Assets/Splash.Light.png")]

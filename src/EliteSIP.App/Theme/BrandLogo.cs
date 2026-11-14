@@ -8,7 +8,9 @@ namespace EliteSIP.App.Theme;
 internal static class BrandLogo
 {
     private static readonly Geometry Crown = Geometry.Parse("M112 156 L182 298 L256 133 L330 298 L400 156 L256 263 Z");
-    private static readonly Geometry Base = Geometry.Parse("M155 333H233 M279 333H357");
+    private static readonly Geometry NumberField = Geometry.Parse("M182 344H330");
+    // Дополнительный просвет остаётся различимым и после уменьшения до 16–32 px.
+    private static readonly Geometry Actions = Geometry.Parse("M182 378H252 M312 378H330");
 
     internal static DrawingImage Image()
     {
@@ -22,19 +24,18 @@ internal static class BrandLogo
                 StartPoint = new Point(0.2, 0), EndPoint = new Point(0.8, 1),
                 GradientStops =
                 [
-                    new GradientStop(Color.FromRgb(116, 117, 130), 0),
-                    new GradientStop(Color.FromRgb(60, 61, 72), 0.32),
-                    new GradientStop(Color.FromRgb(21, 22, 29), 1),
+                    new GradientStop(Color.FromRgb(52, 52, 62), 0),
+                    new GradientStop(Color.FromRgb(37, 37, 46), 0.5),
+                    new GradientStop(Color.FromRgb(24, 24, 30), 1),
                 ],
             };
-            canvas.DrawRoundedRectangle(surface, new Pen(new SolidColorBrush(Color.FromRgb(139, 138, 142)), 2),
-                new Rect(6, 6, 500, 500), 102, 102);
-            canvas.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(90, 11, 11, 15)), 4),
-                new Rect(9, 9, 494, 494), 100, 100);
-            canvas.PushTransform(new TranslateTransform(-92, -63));
-            canvas.PushTransform(new ScaleTransform(1.36, 1.36));
-            DrawPart(canvas, Crown, 24);
-            DrawPart(canvas, Base, 32);
+            canvas.DrawRoundedRectangle(surface, null, new Rect(8, 8, 496, 496), 106, 106);
+            // Единый масштаб сохраняет исходные пропорции короны; композиция центрирована.
+            canvas.PushTransform(new TranslateTransform(-76.8, -76.8));
+            canvas.PushTransform(new ScaleTransform(1.3, 1.3));
+            DrawPart(canvas, Crown, 18);
+            DrawPart(canvas, NumberField, 22);
+            DrawPart(canvas, Actions, 22);
             canvas.Pop();
             canvas.Pop();
         }

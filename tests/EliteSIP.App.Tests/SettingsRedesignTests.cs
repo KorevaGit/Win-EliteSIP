@@ -11,6 +11,44 @@ namespace EliteSIP.App.Tests;
 
 public sealed class SettingsRedesignTests
 {
+    [Theory]
+    [InlineData(Appearance.Light)]
+    [InlineData(Appearance.Dark)]
+    public void Схема_Spark_центрирована_между_коротким_ID_и_статусом(Appearance theme) => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = theme };
+        using var sounds = new SignalSoundPlayer();
+        var settings = new AppSettings();
+        settings.Panel.InstallationID = "b2918329d5e21f8b55fab312d5bc876f";
+        var model = new SettingsViewModel(settings) { Section = SettingsSectionKind.Support };
+        var window = new SettingsWindow(model, appearance, sounds);
+        var root = WpfHost.Layout(window, 720, 460);
+        var diagram = (FrameworkElement)window.FindName("SparkConnectionDiagram");
+        var identity = (FrameworkElement)window.FindName("SparkMachineIdentity");
+        var status = (FrameworkElement)window.FindName("SparkConnectionStatus");
+        var grid = (Grid)VisualTreeHelper.GetParent(diagram);
+        var at = diagram.TranslatePoint(default, grid);
+        Assert.InRange(Math.Abs(at.X + diagram.ActualWidth / 2 - grid.ActualWidth / 2), 0, 1);
+        Assert.True(identity.TranslatePoint(default, grid).X + identity.ActualWidth <= at.X);
+        Assert.True(status.TranslatePoint(default, grid).X >= at.X + diagram.ActualWidth);
+        Assert.Equal("ID b2918329…", model.ShortMachineID);
+        Assert.Equal(settings.Panel.InstallationID, model.MachineID);
+        var directory = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !System.IO.File.Exists(System.IO.Path.Combine(directory.FullName, "WinEliteSIP.slnx")))
+        {
+            directory = directory.Parent;
+        }
+        Assert.NotNull(directory);
+        var output = System.IO.Path.Combine(directory.FullName, "artifacts", "final-audit-2026-11-14", "settings-" + theme + ".png");
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output)!);
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(720, 460, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(root);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using (var file = System.IO.File.Create(output)) { encoder.Save(file); }
+        window.Close();
+    });
+
     [Fact]
     public void Значок_находит_ресурс_после_присоединения_к_окну() => WpfHost.Run(() =>
     {
@@ -141,7 +179,7 @@ public sealed class SettingsRedesignTests
         var window = new SettingsWindow(new SettingsViewModel(settings), appearance, sounds);
         var root = WpfHost.Layout(window, 848, 460);
         Assert.Equal(460, window.Height);
-        Assert.Equal(780, window.Width);
+        Assert.Equal(window.MinWidth, window.Width);
         Assert.DoesNotContain(Descendants(root).OfType<TextBlock>(), block => block.Text == "87654321" || block.Text == "Не показывать профиль");
         Assert.Equal(ink, ((SolidColorBrush)window.FindResource("TextPrimaryBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));
         Assert.Equal(secondary, ((SolidColorBrush)window.FindResource("TextSecondaryBrush")).Color.ToString(System.Globalization.CultureInfo.InvariantCulture));

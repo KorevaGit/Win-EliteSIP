@@ -42,7 +42,7 @@
     <ControlTemplate TargetType="Window">
       <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
         <DockPanel LastChildFill="True">
-          <Grid DockPanel.Dock="Top" Height="32" Background="{TemplateBinding Background}">
+          <Grid DockPanel.Dock="Top" Height="32" Background="Transparent">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Margin="9,0,0,0" VerticalAlignment="Center">
               <theme:CaptionCrown FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />

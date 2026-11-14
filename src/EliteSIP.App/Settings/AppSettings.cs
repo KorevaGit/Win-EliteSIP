@@ -302,10 +302,66 @@ public sealed class PanelPlacementSettings : Observable
     }
 }
 
+public enum BackgroundTransparency { Off, Light, Medium, Strong }
+
 public sealed class AppearanceSettings : Observable
 {
     private AppearanceMode _theme = AppearanceMode.System;
     private LanguageSetting _language = LanguageSetting.System;
+    private string _backgroundImagePath = string.Empty;
+    private int _backgroundScale = 100;
+    private int _backgroundBlur = 8;
+    private int _backgroundBrightness = 100;
+    private BackgroundTransparency _backgroundTransparency;
+    private bool _themeChosenByUser;
+    private bool _transparencyChosenByUser;
+    public bool ThemeChosenByUser { get => _themeChosenByUser; set => Set(ref _themeChosenByUser, value); }
+    public bool TransparencyChosenByUser { get => _transparencyChosenByUser; set => Set(ref _transparencyChosenByUser, value); }
+
+    public string BackgroundImagePath
+    {
+        get => _backgroundImagePath;
+        set
+        {
+            Set(ref _backgroundImagePath, value ?? string.Empty);
+            NotifyChanged(nameof(HasBackgroundImage));
+        }
+    }
+
+    [JsonIgnore]
+    public bool HasBackgroundImage => !string.IsNullOrWhiteSpace(BackgroundImagePath);
+
+    public int BackgroundScale { get => _backgroundScale; set => Set(ref _backgroundScale, Math.Clamp(value, 50, 200)); }
+    public int BackgroundBlur { get => _backgroundBlur; set => Set(ref _backgroundBlur, Math.Clamp(value, 0, 24)); }
+    public int BackgroundBrightness { get => _backgroundBrightness; set => Set(ref _backgroundBrightness, Math.Clamp(value, 30, 170)); }
+    public bool BackgroundTranslucent
+    {
+        get => BackgroundTransparency != BackgroundTransparency.Off;
+        set => BackgroundTransparency = value ? BackgroundTransparency.Light : BackgroundTransparency.Off;
+    }
+    public BackgroundTransparency BackgroundTransparency
+    {
+        get => _backgroundTransparency;
+        set { Set(ref _backgroundTransparency, value); NotifyChanged(nameof(BackgroundTranslucent)); }
+    }
+
+    internal void ApplyWallpaperDefaults()
+    {
+        if (!ThemeChosenByUser) { Theme = AppearanceMode.Wallpaper; }
+        if (!TransparencyChosenByUser) { BackgroundTransparency = BackgroundTransparency.Light; }
+    }
+
+    internal void NotifyBackgroundChanged() => NotifyChanged(nameof(BackgroundImagePath));
+
+    internal void ResetBackground()
+    {
+        BackgroundImagePath = string.Empty;
+        BackgroundScale = 100;
+        BackgroundBlur = 8;
+        BackgroundBrightness = 100;
+        BackgroundTranslucent = false;
+        if (Theme == AppearanceMode.Wallpaper) { Theme = AppearanceMode.System; }
+    }
 
     public AppearanceMode Theme
     {

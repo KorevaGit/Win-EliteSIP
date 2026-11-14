@@ -1453,4 +1453,19 @@
   <data name="UpdateReminderShort" xml:space="preserve"><value>Remind in 30 min</value></data>
   <data name="UpdateWhatsNew" xml:space="preserve"><value>What&apos;s new</value></data>
   <data name="SupportLogsCollecting" xml:space="preserve"><value>Collecting logs and device information…</value></data>
+  <data name="AppearanceBackground" xml:space="preserve"><value>Window background</value></data>
+  <data name="BackgroundChoose" xml:space="preserve"><value>Choose image</value></data>
+  <data name="BackgroundReset" xml:space="preserve"><value>Reset</value></data>
+  <data name="BackgroundScale" xml:space="preserve"><value>Scale</value></data>
+  <data name="BackgroundBlur" xml:space="preserve"><value>Blur</value></data>
+  <data name="BackgroundBrightness" xml:space="preserve"><value>Brightness</value></data>
+  <data name="BackgroundTranslucent" xml:space="preserve"><value>Transparency</value></data>
+  <data name="BackgroundAutomaticTheme" xml:space="preserve"><value>Adapts to light and dark themes</value></data>
+  <data name="BackgroundInvalidImage" xml:space="preserve"><value>Could not open this image. Choose a PNG, JPEG or BMP under 30 MB.</value></data>
+  <data name="BackgroundAmbient" xml:space="preserve"><value>Ambient colors from background</value></data>
+<data name="AppearanceWallpaper" xml:space="preserve"><value>Wallpaper colors</value></data>
+<data name="TransparencyOff" xml:space="preserve"><value>Off</value></data>
+<data name="TransparencyLight" xml:space="preserve"><value>Light</value></data>
+<data name="TransparencyMedium" xml:space="preserve"><value>Medium</value></data>
+<data name="TransparencyStrong" xml:space="preserve"><value>Strong</value></data>
 </root>
