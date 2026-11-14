@@ -71,8 +71,6 @@ public partial class App : Application, IDisposable
         _lastMark = now;
     }
 
-    public App() => Shell.StartupSplash.Show();
-
     protected override void OnStartup(StartupEventArgs e)
     {
         _startup.Restart();
@@ -89,6 +87,9 @@ public partial class App : Application, IDisposable
         System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
 
         base.OnStartup(e);
+        // InitializeComponent has loaded the icon dictionaries before a WPF
+        // splash can render or process dispatcher work.
+        Shell.StartupSplash.Show();
 
         // Необработанное исключение в потоке интерфейса кладёт софтфон молча:
         // окно исчезает, в системном журнале остаётся только код 0xE0434352.
