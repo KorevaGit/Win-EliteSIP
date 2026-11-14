@@ -154,16 +154,7 @@ internal static class SystemCaption
 
     private static nint RenderTaskbarIcon(int size)
     {
-        var visual = new DrawingVisual();
-        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
-        using (var canvas = visual.RenderOpen())
-        {
-            // У исходного ICO широкое прозрачное поле. Уменьшаем его,
-            // увеличивая рисунок на 20 %, без обрезания самого знака.
-            canvas.DrawImage(TaskbarSource.Value, new System.Windows.Rect(-size * 0.1, -size * 0.1, size * 1.2, size * 1.2));
-        }
-        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
+        var bitmap = BrandLogo.Render(size);
         var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
         encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
         using var png = new System.IO.MemoryStream();

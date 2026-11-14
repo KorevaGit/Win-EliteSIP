@@ -23,7 +23,7 @@ internal sealed class MachineRecovery
     internal async Task CheckAsync(AppSettings settings, Action<string> log)
     {
         var panel = settings.Panel;
-        if (_sending || !panel.IsManaged || !panel.HasChannelKey || panel.AppliedRevision < 1
+        if (_sending || !panel.HasChannelKey || panel.AppliedRevision < 1
             || panel.RecoverySubmittedInstallationID == panel.InstallationID)
         {
             return;
@@ -41,7 +41,7 @@ internal sealed class MachineRecovery
         try
         {
             using var window = await Client.GetAsync(endpoint).ConfigureAwait(true);
-            if (window.StatusCode != HttpStatusCode.NoContent || !panel.IsManaged
+            if (window.StatusCode != HttpStatusCode.NoContent
                 || panel.InstallationID != installationID)
             {
                 return;

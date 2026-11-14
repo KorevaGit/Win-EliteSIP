@@ -29,6 +29,12 @@ public enum PanelMode
 /// <summary>Что машина знает о панели: чем она для неё опознаётся и чем ходит.</summary>
 public sealed class PanelSettings : Observable
 {
+    private string _pendingWorkFormat = string.Empty;
+    public string PendingWorkFormat
+    {
+        get => _pendingWorkFormat;
+        set => Set(ref _pendingWorkFormat, value);
+    }
     private string _installationID = string.Empty;
     private string? _recoverySubmittedInstallationID;
 

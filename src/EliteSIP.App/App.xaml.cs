@@ -733,6 +733,7 @@ public partial class App : Application, IDisposable
                     ClientEventLog.Level.Warning,
                     "Закреплённый формат работы сменён на месте по паролю настроек — машина в оффлайне");
             },
+            OnWorkplaceChanged = () => _ = _panelLine?.CheckMachineAsync(),
         };
 
         var settings = model;

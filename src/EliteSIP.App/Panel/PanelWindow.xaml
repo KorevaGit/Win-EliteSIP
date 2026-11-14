@@ -434,12 +434,11 @@
                   номер — нажали Enter. Отдельной кнопкой «позвонить» это не
                   заменяется, потому что до неё надо дотянуться мышью.
               -->
-              <TextBox Grid.Column="0"
+              <TextBox x:Name="DialedNumberField" Grid.Column="0"
                        Style="{StaticResource PanelTextBoxStyle}"
                        Text="{Binding DialedNumber, UpdateSourceTrigger=PropertyChanged}"
                        Tag="{res:Loc PanelNumberPlaceholder}"
                        FontSize="20"
-                       IsEnabled="{Binding CanPlaceCall}"
                        KeyDown="OnDialedNumberKeyDown"
                        PreviewTextInput="OnDialedNumberTextInput" />
 

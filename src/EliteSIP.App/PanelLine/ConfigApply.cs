@@ -37,6 +37,14 @@ internal static class ConfigApply
         // Площадка одна на все номера сотрудника: формат работы — его, а не
         // номера. Неизвестное значение площадку не трогает.
         var site = PanelSettings.SiteOf(config.WorkFormat);
+        if (config.WorkFormatLocked)
+        {
+            settings.Panel.PendingWorkFormat = string.Empty;
+        }
+        else if (settings.Panel.PendingWorkFormat.Length > 0)
+        {
+            site = settings.Account.Site;
+        }
 
         var lines = config.EffectiveLines;
         if (lines.Count > 0)

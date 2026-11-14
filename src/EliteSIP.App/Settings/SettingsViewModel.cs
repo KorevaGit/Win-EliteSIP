@@ -198,6 +198,7 @@ public sealed class SettingsViewModel : Observable
 
     /// <summary>Площадку переключили поверх закрепления — машина ушла в оффлайн.</summary>
     internal Action? OnWorkplaceWentOffline { get; init; }
+    internal Action? OnWorkplaceChanged { get; init; }
 
     /// <summary>«Снять закрепление…».</summary>
     public RelayCommand UnlockWorkplace { get; }
@@ -268,6 +269,11 @@ public sealed class SettingsViewModel : Observable
         }
 
         Settings.Account.Site = site;
+        if (Settings.Panel.IsManaged && Settings.Panel.LockedSite is null)
+        {
+            Settings.Panel.PendingWorkFormat = site is WorkplaceSite.Remote ? "remote" : "office";
+            OnWorkplaceChanged?.Invoke();
+        }
         RefreshWorkplace();
     }
 

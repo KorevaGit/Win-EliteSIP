@@ -154,12 +154,48 @@ internal sealed class PanelLineHost : IDisposable
     internal async Task CheckMachineAsync()
     {
         await _machine.CheckRevocationAsync().ConfigureAwait(true);
+        await _recovery.CheckAsync(_settings, _log).ConfigureAwait(true);
 
         if (!_settings.Panel.IsOffline)
         {
+            await SendWorkFormatAsync().ConfigureAwait(true);
             await _machine.CheckConfigAsync().ConfigureAwait(true);
-            await _recovery.CheckAsync(_settings, _log).ConfigureAwait(true);
         }
+    }
+
+    private bool _sendingWorkFormat;
+    private async Task SendWorkFormatAsync()
+    {
+        var panel = _settings.Panel;
+        var format = panel.PendingWorkFormat;
+        if (_sendingWorkFormat || !panel.IsManaged || format.Length == 0 || panel.ChannelKey() is not { } key)
+        {
+            return;
+        }
+        _sendingWorkFormat = true;
+        try
+        {
+            using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post,
+                new Uri(Provisioning.Current?.PairBase ?? new Uri(Provisioning.DefaultPairUrl), "api/pair/work-format"));
+            ChannelRequest.Authorize(request, panel.InstallationID, key);
+            request.Content = System.Net.Http.Json.JsonContent.Create(new { work_format = format });
+            using var deadline = new CancellationTokenSource(ChannelRequest.Timeout);
+            using var response = await ChannelRequest.Client.SendAsync(request, deadline.Token).ConfigureAwait(true);
+            if ((response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                && panel.PendingWorkFormat == format)
+            {
+                panel.PendingWorkFormat = string.Empty;
+            }
+            else
+            {
+                _log($"формат работы: Spark ответил {(int)response.StatusCode}; повтор при следующей синхронизации");
+            }
+        }
+        catch (Exception error) when (error is System.Net.Http.HttpRequestException or OperationCanceledException)
+        {
+            _log("формат работы: отправка в Spark отложена до восстановления связи");
+        }
+        finally { _sendingWorkFormat = false; }
     }
 
     /// <summary>

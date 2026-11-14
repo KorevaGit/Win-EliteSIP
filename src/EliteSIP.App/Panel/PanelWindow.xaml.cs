@@ -249,6 +249,11 @@ public partial class PanelWindow : Window
         // пересборка разметки панели весь рабочий день.
         Model.PropertyChanged += (_, change) =>
         {
+            if ((change.PropertyName is nameof(PanelViewModel.IsInCall) or nameof(PanelViewModel.IsTransferEntryVisible))
+                && !Model.IsInCall && !Model.IsTransferEntryVisible)
+            {
+                Dispatcher.BeginInvoke(() => DialedNumberField.Focus(), DispatcherPriority.Input);
+            }
             if (change.PropertyName is nameof(PanelViewModel.IsTransferEntryVisible)
                 or nameof(PanelViewModel.HasMacros)
                 or nameof(PanelViewModel.ShowsMacros)
