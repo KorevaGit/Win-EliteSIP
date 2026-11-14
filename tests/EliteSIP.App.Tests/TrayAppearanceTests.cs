@@ -36,7 +36,7 @@ public sealed class TrayAppearanceTests
     [Theory]
     [InlineData(16)]
     [InlineData(32)]
-    public void Контур_короны_не_зависит_от_цвета_полосы(int size) => WpfHost.Run(() =>
+    public void Весь_символ_трея_окрашен_статусом_без_подложки(int size) => WpfHost.Run(() =>
     {
         var green = TrayIcon.RenderIcon(Brushes.White, Brushes.Lime, size);
         var red = TrayIcon.RenderIcon(Brushes.White, Brushes.Red, size);
@@ -44,44 +44,21 @@ public sealed class TrayAppearanceTests
         var b = new byte[a.Length];
         green.CopyPixels(a, size * 4, 0);
         red.CopyPixels(b, size * 4, 0);
-        bool Colored(byte[] pixels, int x, int y, bool isGreen)
+        var visible = 0;
+        var transparent = 0;
+        for (var offset = 0; offset < a.Length; offset += 4)
         {
-            var offset = (y * size + x) * 4;
-            return pixels[offset + 3] > 96 && (isGreen
-                ? pixels[offset + 1] > pixels[offset + 2] + 32
-                : pixels[offset + 2] > pixels[offset + 1] + 32);
+            Assert.Equal(a[offset + 3], b[offset + 3]);
+            if (a[offset + 3] == 0) { transparent++; continue; }
+            visible++;
+            Assert.Equal(0, a[offset]);
+            Assert.Equal(0, a[offset + 2]);
+            Assert.Equal(a[offset + 3], a[offset + 1]);
+            Assert.Equal(0, b[offset]);
+            Assert.Equal(0, b[offset + 1]);
+            Assert.Equal(b[offset + 3], b[offset + 2]);
         }
-        var statusPixels = 0;
-        for (var y = 0; y < size; y++)
-        {
-            for (var x = 0; x < size; x++)
-            {
-                if (Colored(a, x, y, true))
-                {
-                    statusPixels++;
-                    Assert.True(Colored(b, x, y, false));
-                    Assert.True(y >= size * 0.65, "Цвет статуса не должен затрагивать корону");
-                }
-                var offset = (y * size + x) * 4;
-                if (!a.AsSpan(offset, 4).SequenceEqual(b.AsSpan(offset, 4)))
-                {
-                    Assert.True(y >= size * 0.65);
-                    Assert.Equal(a[offset + 3], b[offset + 3]);
-                    Assert.True(a[offset + 1] >= a[offset + 2]);
-                    Assert.True(b[offset + 2] >= b[offset + 1]);
-                }
-            }
-        }
-        Assert.True(statusPixels >= size * size * 0.05, "Статус должен оставаться заметным в малом размере");
-        var row = Enumerable.Range(0, size).MaxBy(y => Enumerable.Range(0, size).Count(x => Colored(a, x, y, true)));
-        var segments = 0;
-        var previous = false;
-        for (var x = 0; x < size; x++)
-        {
-            var current = Colored(a, x, row, true);
-            if (current && !previous) { segments++; }
-            previous = current;
-        }
-        Assert.Equal(2, segments);
+        Assert.True(visible > size * size * 0.2);
+        Assert.True(transparent > size * size * 0.3);
     });
 }

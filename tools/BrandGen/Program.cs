@@ -36,6 +36,6 @@ internal static class Program
         {
             writer.Write(png);
         }
-        Console.WriteLine("Transparent vector logo: PNG 16–512; ICO 16–256.");
+        Console.WriteLine("Approved gold artwork: PNG 16–512; ICO 16–256.");
     }
 }

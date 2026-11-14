@@ -27,6 +27,12 @@ internal static class MaximizedWindowBounds
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
         if (monitor == 0 || !GetMonitorInfo(monitor, ref info)) { return 0; }
         var bounds = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+        if (HwndSource.FromHwnd(hwnd)?.RootVisual is Window window)
+        {
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(window);
+            bounds.MinTrackSize.X = Math.Max(bounds.MinTrackSize.X, (int)Math.Ceiling(window.MinWidth * dpi.DpiScaleX));
+            bounds.MinTrackSize.Y = Math.Max(bounds.MinTrackSize.Y, (int)Math.Ceiling(window.MinHeight * dpi.DpiScaleY));
+        }
         // Win32 сообщает эти прямоугольники в физических пикселях, уже с DPI монитора.
         bounds.MaxPosition.X = info.Work.Left - info.Monitor.Left;
         bounds.MaxPosition.Y = info.Work.Top - info.Monitor.Top;

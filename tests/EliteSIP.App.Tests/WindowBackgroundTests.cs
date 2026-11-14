@@ -140,6 +140,34 @@ public sealed class WindowBackgroundTests : IDisposable
     });
 
     [Fact]
+    public void Изменение_размеров_и_повторное_применение_не_пересобирают_фон_и_палитру() => WpfHost.Run(() =>
+    {
+        using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Dark };
+        var settings = new AppearanceSettings { BackgroundImagePath = SaveImage("cached.png"), BackgroundTranslucent = true };
+        using var backgrounds = new WindowBackgroundService(Application.Current, settings, appearance, _ => { });
+        var brush = Assert.IsType<ImageBrush>(Application.Current.FindResource("PanelWindowBackgroundBrush"));
+        var surface = Application.Current.FindResource("PanelMacroBrush");
+        var border = new Border { Background = brush };
+        for (var i = 0; i < 40; i++)
+        {
+            border.Measure(new Size(300 + i * 10, 400 + i * 10));
+            border.Arrange(new Rect(0, 0, 300 + i * 10, 400 + i * 10));
+            border.UpdateLayout();
+            backgrounds.ApplyNow();
+        }
+        Assert.Equal(1, backgrounds.CompositionCount);
+        Assert.Same(brush, Application.Current.FindResource("PanelWindowBackgroundBrush"));
+        Assert.Same(surface, Application.Current.FindResource("PanelMacroBrush"));
+        Assert.True(brush.ImageSource.IsFrozen);
+        Assert.All(Pixels((BitmapSource)brush.ImageSource).Where((_, i) => i % 4 == 3), alpha => Assert.Equal(255, alpha));
+        settings.BackgroundBrightness = 80;
+        backgrounds.ApplyNow();
+        Assert.Equal(2, backgrounds.CompositionCount);
+        Assert.NotSame(brush, Application.Current.FindResource("PanelWindowBackgroundBrush"));
+        Assert.Same(surface, Application.Current.FindResource("PanelMacroBrush"));
+    });
+
+    [Fact]
     public void Фон_адаптируется_к_теме_а_прозрачность_обратима() => WpfHost.Run(() =>
     {
         using var appearance = new AppearanceService(Application.Current) { Appearance = Appearance.Dark };
@@ -147,9 +175,9 @@ public sealed class WindowBackgroundTests : IDisposable
         settings.Appearance.BackgroundImagePath = SaveImage("background.png");
         settings.Appearance.BackgroundBlur = 0;
         using var backgrounds = new WindowBackgroundService(Application.Current, settings.Appearance, appearance, _ => { });
-        var dark = (DrawingBrush)Application.Current.FindResource("PanelWindowBackgroundBrush");
+        var dark = (ImageBrush)Application.Current.FindResource("PanelWindowBackgroundBrush");
         appearance.Appearance = Appearance.Light;
-        var light = (DrawingBrush)Application.Current.FindResource("PanelWindowBackgroundBrush");
+        var light = (ImageBrush)Application.Current.FindResource("PanelWindowBackgroundBrush");
         Assert.True(Centre(light) > Centre(dark));
         Assert.True(light.IsFrozen);
         settings.Appearance.BackgroundTranslucent = true;
@@ -193,13 +221,13 @@ public sealed class WindowBackgroundTests : IDisposable
         var window = new SettingsWindow(new SettingsViewModel(settings) { Section = SettingsSectionKind.Appearance }, appearance, sounds);
         var root = WpfHost.Layout(window, 720, 460);
         var preview = (Border)window.FindName("BackgroundPreview");
-        Assert.IsType<DrawingBrush>(preview.Background);
+        Assert.IsType<ImageBrush>(preview.Background);
         Assert.Equal(245, ((LinearGradientBrush)window.FindResource("SettingsSurfaceBrush")).GradientStops[0].Color.A);
         Assert.Equal(1, root.Opacity);
         appearance.Appearance = Appearance.Light;
         root.UpdateLayout();
         Assert.True(((LinearGradientBrush)window.FindResource("SettingsSurfaceBrush")).GradientStops[0].Color.R > 220);
-        Assert.IsType<DrawingBrush>(preview.Background);
+        Assert.IsType<ImageBrush>(preview.Background);
         var scroller = (ScrollViewer)window.FindName("SettingsScroller");
         scroller.ScrollToEnd();
         root.UpdateLayout();

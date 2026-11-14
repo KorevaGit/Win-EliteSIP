@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using EliteSIP.AdminAccess;
 using EliteSIP.App.Admin;
 using EliteSIP.App.Panel;
@@ -36,6 +38,18 @@ public sealed class MaximizedWindowTests
         {
             window.Show();
             window.UpdateLayout();
+            var memory = Marshal.AllocHGlobal(40);
+            try
+            {
+                Marshal.Copy(new int[10], 0, memory, 10);
+                _ = SendMessage(new WindowInteropHelper(window).Handle, 0x0024, 0, memory);
+                var limits = new int[10];
+                Marshal.Copy(memory, limits, 0, 10);
+                var dpi = VisualTreeHelper.GetDpi(window);
+                Assert.True(limits[6] >= Math.Ceiling(window.MinWidth * dpi.DpiScaleX));
+                Assert.True(limits[7] >= Math.Ceiling(window.MinHeight * dpi.DpiScaleY));
+            }
+            finally { Marshal.FreeHGlobal(memory); }
             window.WindowState = WindowState.Maximized;
             window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             window.UpdateLayout();
@@ -60,4 +74,7 @@ public sealed class MaximizedWindowTests
             window.Close();
         }
     });
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessage(nint hwnd, int message, nint wParam, nint lParam);
 }

@@ -5,7 +5,7 @@ using System.Windows.Media.Imaging;
 
 namespace EliteSIP.App.Theme;
 
-/// <summary>Общая контурная корона для трея и штатных заголовков окон.</summary>
+/// <summary>Контурный оператор в короне; в трее весь символ окрашивается статусом.</summary>
 internal static class CrownArtwork
 {
     internal static RenderTargetBitmap Render(Brush glyph, Brush status, int size, bool emphasizeStatus)
@@ -18,25 +18,13 @@ internal static class CrownArtwork
             var drawing = new DrawingGroup();
             for (var index = 0; index < paths.Length; index++)
             {
-                var isBase = index == paths.Length - 1;
-                var pen = new Pen(isBase ? status : glyph, paths[index].StrokeThickness)
+                var pen = new Pen(emphasizeStatus ? status : glyph, paths[index].StrokeThickness)
                 {
                     StartLineCap = PenLineCap.Round,
                     EndLineCap = PenLineCap.Round,
                     LineJoin = PenLineJoin.Round,
                 };
-                if (isBase && emphasizeStatus)
-                {
-                    // Статус утолщён отдельно от полноразмерного знака для читаемости в трее.
-                    drawing.Children.Add(new GeometryDrawing(status, null,
-                        new RectangleGeometry(new Rect(2.3, 22, 11.1, 5.5), 1.2, 1.2)));
-                    drawing.Children.Add(new GeometryDrawing(status, null,
-                        new RectangleGeometry(new Rect(16.6, 22, 5.1, 5.5), 1.2, 1.2)));
-                }
-                else
-                {
-                    drawing.Children.Add(new GeometryDrawing(null, pen, paths[index].Data));
-                }
+                drawing.Children.Add(new GeometryDrawing(null, pen, paths[index].Data));
             }
             var bounds = drawing.Bounds;
             var scale = (size - 1d) / Math.Max(bounds.Width, bounds.Height);
