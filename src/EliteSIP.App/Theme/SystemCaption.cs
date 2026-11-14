@@ -90,6 +90,12 @@ internal static class SystemCaption
         // системная полоса, совпадающая с белым/чёрным фоном нашей палитры.
         if ((window.Background as SolidColorBrush ?? window.TryFindResource("PersonalizationCaptionBrush") as SolidColorBrush) is { } background)
         {
+            if (!window.AllowsTransparency && HwndSource.FromHwnd(handle)?.CompositionTarget is { } target)
+            {
+                // Newly exposed pixels during live resize must match the theme,
+                // rather than flashing the HWND's default clear color.
+                target.BackgroundColor = Color.FromRgb(background.Color.R, background.Color.G, background.Color.B);
+            }
             var color = ColorRef(background.Color);
             _ = DwmSetWindowAttribute(handle, CaptionColor, ref color, sizeof(int));
             _ = DwmSetWindowAttribute(handle, BorderColor, ref color, sizeof(int));

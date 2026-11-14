@@ -13,6 +13,7 @@ internal static class MaximizedWindowBounds
 
     internal static void Attach(Window window)
     {
+        InteractiveResize.Attach(window);
         if ((bool)window.GetValue(AttachedProperty) || WindowChrome.GetWindowChrome(window) is null
             || PresentationSource.FromVisual(window) is not HwndSource source) { return; }
         source.AddHook(Hook);

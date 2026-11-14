@@ -75,16 +75,11 @@ public partial class App : Application, IDisposable
     {
         _startup.Restart();
 
-        // Отрисовка программная, а не видеокартой — до первого окна, иначе не
-        // действует.
-        //
-        // 30 сентября 2026, замер на машине разработчика: первый показ даже
-        // пустого окна WPF — 1,9–2,1 с на подъём Direct3D и драйвера, панели —
-        // ещё 1,1 с. Программно — 1,0 с и 0,2 с: запуск короче почти на две
-        // секунды. Панели видеокарта не нужна: кнопки и текст, перерисовка раз
-        // в секунду по таймеру разговора. На старых машинах выигрыш больше —
-        // там драйвер видеокарты либо слабый, либо давно не обновлялся.
-        System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+        // WPF selects hardware acceleration when available and falls back to
+        // software itself. Forcing CPU rendering penalizes live resize and
+        // shadows even with a plain background. Keep an explicit diagnostic fallback.
+        System.Windows.Media.RenderOptions.ProcessRenderMode = e.Args.Contains("--software-rendering")
+            ? System.Windows.Interop.RenderMode.SoftwareOnly : System.Windows.Interop.RenderMode.Default;
 
         base.OnStartup(e);
         // InitializeComponent has loaded the icon dictionaries before a WPF
@@ -190,6 +185,7 @@ public partial class App : Application, IDisposable
         SystemCaption.Watch(() => _appearance!.IsDark);
         _appearance.Apply();
         Mark("настройки и палитра");
+        Log($"отрисовка: {System.Windows.Media.RenderOptions.ProcessRenderMode}; WPF tier={System.Windows.Media.RenderCapability.Tier >> 16}");
 
         // Решение о мастере пишется в журнал до мастера, а не после.
         //

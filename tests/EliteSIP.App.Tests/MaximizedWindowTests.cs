@@ -38,6 +38,9 @@ public sealed class MaximizedWindowTests
         {
             window.Show();
             window.UpdateLayout();
+            SystemCaption.Apply(window, appearance.IsDark);
+            var target = ((HwndSource)PresentationSource.FromVisual(window)).CompositionTarget;
+            Assert.Equal(((SolidColorBrush)window.Background).Color, target.BackgroundColor);
             var memory = Marshal.AllocHGlobal(40);
             try
             {
