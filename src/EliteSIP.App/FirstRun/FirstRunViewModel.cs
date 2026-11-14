@@ -122,12 +122,8 @@ public sealed partial class FirstRunViewModel : Observable, IDisposable
     /// <summary>Есть ли канал: без заводской настройки привязывать некуда.</summary>
     public static bool HasChannel => PanelLine.Provisioning.Current?.Updates is not null;
 
-    /// <summary>См. <see cref="HasChannel"/>; экземплярным — ради привязки разметки.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Performance",
-        "CA1822:Пометьте члены как статические",
-        Justification = "Статическое свойство разметка не находит: привязка ищет его у объекта.")]
-    public bool HasNoChannel => !HasChannel;
+    /// <summary>Нет канала и ещё нет кода привязки, который можно показать.</summary>
+    public bool HasNoChannel => !HasChannel && !HasPairCode;
 
     /// <summary>Куда писать о ходе привязки. <c>null</c> — некуда.</summary>
     internal Action<string>? Log { get; init; }
@@ -140,6 +136,7 @@ public sealed partial class FirstRunViewModel : Observable, IDisposable
         {
             Set(ref _pairCode, value);
             NotifyChanged(nameof(HasPairCode));
+            NotifyChanged(nameof(HasNoChannel));
             NotifyLayout();
         }
     }

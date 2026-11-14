@@ -1257,7 +1257,7 @@
     <value>Getting a code…</value>
   </data>
   <data name="FirstRunPairWaiting" xml:space="preserve">
-    <value>Waiting for pairing. The code stays the same while the machine is on — it can be paired days later.</value>
+    <value>Waiting for Spark pairing. You can use this code later.</value>
   </data>
   <data name="FirstRunPairSettingUp" xml:space="preserve">
     <value>Paired — fetching settings…</value>

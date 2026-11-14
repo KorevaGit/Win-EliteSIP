@@ -27,6 +27,19 @@
         <Setter Property="FontSize" Value="12" />
         <Setter Property="VerticalAlignment" Value="Center" />
       </Style>
+      <Style x:Key="WizardStepIcon" TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
+        <Setter Property="Size" Value="16" /><Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,7,0" /><Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      </Style>
+      <Style x:Key="WizardConnectionIcon" TargetType="theme:Icon" BasedOn="{StaticResource WizardStepIcon}">
+        <Style.Triggers><DataTrigger Binding="{Binding ShowsConnection}" Value="True"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /></DataTrigger></Style.Triggers>
+      </Style>
+      <Style x:Key="WizardAppearanceIcon" TargetType="theme:Icon" BasedOn="{StaticResource WizardStepIcon}">
+        <Style.Triggers><DataTrigger Binding="{Binding ShowsAppearance}" Value="True"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /></DataTrigger></Style.Triggers>
+      </Style>
+      <Style x:Key="WizardFinaleIcon" TargetType="theme:Icon" BasedOn="{StaticResource WizardStepIcon}">
+        <Style.Triggers><DataTrigger Binding="{Binding ShowsFinale}" Value="True"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /></DataTrigger></Style.Triggers>
+      </Style>
     </ResourceDictionary>
   </Window.Resources>
   <Grid Margin="18,8,18,14">
@@ -36,52 +49,38 @@
       <RowDefinition Height="*" />
       <RowDefinition Height="48" />
     </Grid.RowDefinitions>
-    <Grid>
+    <Grid x:Name="WizardProgress" HorizontalAlignment="Center">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="24" />
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="24" />
-        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="40" />
+        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="40" />
+        <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-      <TextBlock Text="{res:Loc AdminConnection}">
-        <TextBlock.Style>
-          <Style TargetType="TextBlock" BasedOn="{StaticResource WizardStep}">
-            <Style.Triggers>
-              <DataTrigger Binding="{Binding ShowsConnection}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-              </DataTrigger>
-            </Style.Triggers>
-          </Style>
-        </TextBlock.Style>
-      </TextBlock>
-      <theme:Icon Grid.Column="1" Glyph="settings.arrow-right" Size="13" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
-      <TextBlock Grid.Column="2" Text="{res:Loc SectionAppearance}" HorizontalAlignment="Center">
-        <TextBlock.Style>
-          <Style TargetType="TextBlock" BasedOn="{StaticResource WizardStep}">
-            <Style.Triggers>
-              <DataTrigger Binding="{Binding ShowsAppearance}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-              </DataTrigger>
-            </Style.Triggers>
-          </Style>
-        </TextBlock.Style>
-      </TextBlock>
-      <theme:Icon Grid.Column="3" Glyph="settings.arrow-right" Size="13" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
-      <TextBlock Grid.Column="4" Text="{res:Loc FirstRunFinaleTitle}" HorizontalAlignment="Right">
-        <TextBlock.Style>
-          <Style TargetType="TextBlock" BasedOn="{StaticResource WizardStep}">
-            <Style.Triggers>
-              <DataTrigger Binding="{Binding ShowsFinale}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-              </DataTrigger>
-            </Style.Triggers>
-          </Style>
-        </TextBlock.Style>
-      </TextBlock>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <theme:Icon Glyph="settings.network" Style="{StaticResource WizardConnectionIcon}" />
+        <TextBlock x:Name="ConnectionStepLabel" Text="{res:Loc AdminConnection}">
+          <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource WizardStep}"><Style.Triggers>
+            <DataTrigger Binding="{Binding ShowsConnection}" Value="True"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
+          </Style.Triggers></Style></TextBlock.Style>
+        </TextBlock>
+      </StackPanel>
+      <theme:Icon Grid.Column="1" Glyph="settings.arrow-right" Size="13" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+        <theme:Icon Glyph="settings.panels-top-left" Style="{StaticResource WizardAppearanceIcon}" />
+        <TextBlock x:Name="AppearanceStepLabel" Text="{res:Loc SectionAppearance}">
+          <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource WizardStep}"><Style.Triggers>
+            <DataTrigger Binding="{Binding ShowsAppearance}" Value="True"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
+          </Style.Triggers></Style></TextBlock.Style>
+        </TextBlock>
+      </StackPanel>
+      <theme:Icon Grid.Column="3" Glyph="settings.arrow-right" Size="13" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+      <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+        <theme:Icon Glyph="settings.check" Style="{StaticResource WizardFinaleIcon}" />
+        <TextBlock x:Name="FinaleStepLabel" Text="{res:Loc FirstRunFinaleTitle}">
+          <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource WizardStep}"><Style.Triggers>
+            <DataTrigger Binding="{Binding ShowsFinale}" Value="True"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger>
+          </Style.Triggers></Style></TextBlock.Style>
+        </TextBlock>
+      </StackPanel>
     </Grid>
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions>
@@ -95,25 +94,27 @@
         <ComboBoxItem Tag="{x:Static settings:LanguageSetting.English}" Content="English" />
       </ComboBox>
     </Grid>
-    <ScrollViewer Grid.Row="2" x:Name="StepScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Style="{StaticResource SettingsContentScrollViewerStyle}">
+    <Grid Grid.Row="2" x:Name="StepContent">
       <Grid>
-        <StackPanel Visibility="{Binding ShowsConnection, Converter={StaticResource BoolToVisibility}}">
+        <Grid Visibility="{Binding ShowsConnection, Converter={StaticResource BoolToVisibility}}">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <Border Background="{DynamicResource SettingsTrackBrush}" CornerRadius="9" Padding="3" Margin="0,3,0,10">
             <UniformGrid Columns="2">
               <RadioButton Style="{StaticResource SettingsSegmentStyle}" Content="{res:Loc WizardSpark}" IsChecked="{Binding ShowsPairing, Mode=OneWay}" Click="OnSparkSetupClick" />
               <RadioButton Style="{StaticResource SettingsSegmentStyle}" Content="{res:Loc WizardManual}" IsChecked="{Binding ShowsUser, Mode=OneWay}" IsEnabled="{Binding IsPaired, Converter={StaticResource NotBool}}" Click="OnManualSetupClick" />
             </UniformGrid>
           </Border>
-          <StackPanel Visibility="{Binding ShowsPairing, Converter={StaticResource BoolToVisibility}}">
-            <Border Style="{StaticResource SettingsDialogCardStyle}" Visibility="{Binding IsPaired, Converter={StaticResource NotBoolToVisibility}}">
-              <StackPanel>
+          <Grid Grid.Row="1" Visibility="{Binding ShowsPairing, Converter={StaticResource BoolToVisibility}}">
+            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Border x:Name="PairingCard" Style="{StaticResource SettingsDialogCardStyle}" Visibility="{Binding IsPaired, Converter={StaticResource NotBoolToVisibility}}">
+              <StackPanel VerticalAlignment="Center">
                 <Grid Visibility="{Binding HasPairCode, Converter={StaticResource BoolToVisibility}}">
                   <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="128" />
                     <ColumnDefinition Width="*" />
                   </Grid.ColumnDefinitions>
                   <Border Background="White" CornerRadius="7" Padding="4">
-                    <Image Source="{Binding PairQr}" Width="112" Height="112" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                    <Image x:Name="PairingQr" Source="{Binding PairQr}" Width="120" Height="120" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                   </Border>
                   <StackPanel Grid.Column="1" Margin="22,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="{res:Loc FirstRunPairCodeLabel}" Style="{StaticResource WizardLabel}" />
@@ -167,7 +168,7 @@
                 </StackPanel>
               </StackPanel>
             </Border>
-            <TextBlock Text="{Binding PairStatus}" TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" Visibility="{Binding HasPairStatus, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock x:Name="PairingStatus" Grid.Row="1" Text="{Binding PairStatus}" ToolTip="{Binding PairStatus}" TextTrimming="CharacterEllipsis" FontSize="11" Margin="0,8,0,0" Visibility="{Binding HasPairStatus, Converter={StaticResource BoolToVisibility}}">
               <TextBlock.Style>
                 <Style TargetType="TextBlock">
                   <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
@@ -179,8 +180,8 @@
                 </Style>
               </TextBlock.Style>
             </TextBlock>
-          </StackPanel>
-          <Border Padding="12" Style="{StaticResource SettingsDialogCardStyle}" Visibility="{Binding ShowsUser, Converter={StaticResource BoolToVisibility}}">
+          </Grid>
+          <Border Grid.Row="1" Padding="12" Style="{StaticResource SettingsDialogCardStyle}" Visibility="{Binding ShowsUser, Converter={StaticResource BoolToVisibility}}">
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -237,10 +238,10 @@
               <TextBlock Grid.Row="4" Grid.ColumnSpan="3" Text="{res:Loc AdminAccessMismatch}" FontSize="11" Foreground="{DynamicResource CautionBrush}" TextWrapping="Wrap" Visibility="{Binding AdminPasswordsDiffer, Converter={StaticResource BoolToVisibility}}" />
             </Grid>
           </Border>
-        </StackPanel>
-        <StackPanel Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
+        </Grid>
+        <Grid Visibility="{Binding ShowsAppearance, Converter={StaticResource BoolToVisibility}}">
           <Border Style="{StaticResource SettingsDialogCardStyle}">
-            <StackPanel>
+            <StackPanel VerticalAlignment="Center">
               <UniformGrid Columns="3">
                 <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="System" GroupName="WizardTheme" Content="{res:Loc AppearanceSystem}" IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=System}" />
                 <RadioButton Style="{StaticResource SettingsThemeTileStyle}" Tag="Light" GroupName="WizardTheme" Content="{res:Loc AppearanceLight}" IsChecked="{Binding Theme, Converter={StaticResource EnumToBool}, ConverterParameter=Light}" />
@@ -252,9 +253,9 @@
               </StackPanel>
             </StackPanel>
           </Border>
-        </StackPanel>
-        <StackPanel Visibility="{Binding ShowsFinale, Converter={StaticResource BoolToVisibility}}">
-          <Grid Margin="4,4,0,0">
+        </Grid>
+        <Grid Visibility="{Binding ShowsFinale, Converter={StaticResource BoolToVisibility}}">
+          <Grid Margin="4,4,0,0" VerticalAlignment="Center">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="180" />
               <ColumnDefinition Width="26" />
@@ -304,10 +305,10 @@
               <TextBlock Text="{res:Loc WizardLaunchNote}" Style="{StaticResource WizardLabel}" TextWrapping="Wrap" Margin="0,8,0,0" />
             </StackPanel>
           </Grid>
-        </StackPanel>
+        </Grid>
       </Grid>
-    </ScrollViewer>
-    <Grid Grid.Row="3" Margin="0,8,18,0">
+    </Grid>
+    <Grid Grid.Row="3" Margin="0,8,0,0">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />

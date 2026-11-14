@@ -119,7 +119,7 @@ public sealed class LayoutTests
         Assert.InRange(chrome.ActualHeight - bounds.Bottom, 0, 1.5);
     });
 
-    // Клиентская область мастера на Windows 10 при 100 %: окно 460 × 440 без
+    // Клиентская область мастера на Windows 10 при 100 %: окно 560 × 440 без
     // рамок по 8 точек и заголовка в 31.
     private const double WizardClientWidth = 560 - 2;
     private const double WizardClientHeight = 440 - 34;
@@ -141,17 +141,18 @@ public sealed class LayoutTests
     public void Шаг_мастера_помещается_без_прокрутки(FirstRunStep step, Appearance theme) => WpfHost.Run(() =>
     {
         WpfHost.UseTheme(theme);
-        var model = new FirstRunViewModel(new AppSettings(), new AdminAccessState());
+        using var model = new FirstRunViewModel(new AppSettings(), new AdminAccessState());
         WpfHost.SetPrivate(model, nameof(FirstRunViewModel.Step), step);
 
         var window = new FirstRunWindow(model, null!);
         var root = WpfHost.Layout(window, WizardClientWidth, WizardClientHeight);
-        var scroll = (ScrollViewer)window.FindName("StepScroll");
-
-        var shownStep = ((Grid)scroll.Content).Children.OfType<StackPanel>().First(panel => panel.Visibility == Visibility.Visible);
+        var content = (Grid)window.FindName("StepContent");
+        var steps = (Grid)content.Children[0];
+        var shownStep = steps.Children.OfType<System.Windows.Controls.Panel>().First(panel => panel.Visibility == Visibility.Visible);
         var parts = string.Join(", ", shownStep.Children.OfType<FrameworkElement>().Select(child => $"{child.GetType().Name}:{child.ActualHeight:0}"));
-        Assert.True(scroll.ScrollableHeight <= 0.5,
-            $"шаг {step} просит на {scroll.ScrollableHeight:0} точек больше, чем есть ({scroll.ViewportHeight:0}): {parts}");
+        shownStep.Measure(new Size(content.ActualWidth, double.PositiveInfinity));
+        Assert.True(shownStep.DesiredSize.Height <= content.ActualHeight + 0.5,
+            $"шаг {step} требует {shownStep.DesiredSize.Height:0}, доступно {content.ActualHeight:0}: {parts}");
     });
 
     [Theory]
@@ -160,16 +161,15 @@ public sealed class LayoutTests
     [InlineData(FirstRunStep.Finale)]
     public void Шаги_мастера_начинаются_на_одном_уровне(FirstRunStep step) => WpfHost.Run(() =>
     {
-        var model = new FirstRunViewModel(new AppSettings(), new AdminAccessState());
+        using var model = new FirstRunViewModel(new AppSettings(), new AdminAccessState());
         WpfHost.SetPrivate(model, nameof(FirstRunViewModel.Step), step);
 
         var window = new FirstRunWindow(model, null!);
         var root = WpfHost.Layout(window, WizardClientWidth, WizardClientHeight);
-        var scroll = (ScrollViewer)window.FindName("StepScroll");
-
-        var shown = ((Grid)scroll.Content).Children.OfType<StackPanel>()
+        var content = (Grid)window.FindName("StepContent");
+        var shown = ((Grid)content.Children[0]).Children.OfType<System.Windows.Controls.Panel>()
             .First(panel => panel.Visibility == Visibility.Visible);
-        var top = shown.TranslatePoint(default, scroll).Y;
+        var top = shown.TranslatePoint(default, content).Y;
         Assert.InRange(top, 0, 1);
         Assert.Equal(560, window.Width);
         Assert.Equal(440, window.Height);

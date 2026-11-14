@@ -1235,7 +1235,7 @@
     <value>Получаю код…</value>
   </data>
   <data name="FirstRunPairWaiting" xml:space="preserve">
-    <value>Ждём привязки. Код не меняется, пока машина включена, — можно привязать и через несколько дней.</value>
+    <value>Ждём привязки в Spark. Код сохранён — можно привязать позже.</value>
   </data>
   <data name="FirstRunPairSettingUp" xml:space="preserve">
     <value>Привязали — забираю настройки…</value>

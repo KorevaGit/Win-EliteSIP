@@ -96,7 +96,6 @@ public partial class FirstRunWindow : Window
             _appearance.Appearance = Model.Theme;
             if (PresentationSource.FromVisual(this) is not null) { WindowCaption.Apply(this, _appearance.IsDark); }
         }
-        if (e.PropertyName == nameof(FirstRunViewModel.Step)) { StepScroll.ScrollToTop(); }
     }
 
     private void OnForwardClick(object sender, RoutedEventArgs e)
