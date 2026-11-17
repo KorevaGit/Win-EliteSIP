@@ -24,7 +24,12 @@ public sealed class RingtoneTests : IDisposable
     public void Dispose()
     {
         _player.Dispose();
-        Directory.Delete(_root, recursive: true);
+        // Driver cleanup is asynchronous; the file owner closes on that worker.
+        Assert.True(SpinWait.SpinUntil(() =>
+        {
+            try { Directory.Delete(_root, recursive: true); return true; }
+            catch (IOException) { return false; }
+        }, TimeSpan.FromSeconds(5)));
     }
 
     [Fact]

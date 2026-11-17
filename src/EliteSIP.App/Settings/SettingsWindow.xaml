@@ -359,12 +359,6 @@
                     </UniformGrid>
                   </Border>
                 </theme:SettingsRow>
-                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding Settings.Audio.ReleasesDeviceWhenIdle}">
-                  <StackPanel Orientation="Horizontal">
-                    <theme:Icon Glyph="settings.unplug" Size="18" VerticalAlignment="Center" />
-                    <TextBlock Text="{res:Loc SettingsReleaseDevices}" Margin="7,0,0,0" VerticalAlignment="Center" />
-                  </StackPanel>
-                </CheckBox>
               </theme:SettingsSection>
               <theme:SettingsSection Header="{res:Loc SettingsSelfTest}" Tag="settings.mic-vocal">
                 <Grid Margin="0,3,0,10">

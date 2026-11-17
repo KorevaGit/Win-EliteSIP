@@ -87,13 +87,13 @@ public static class DeviceChangeRelevance
             // Устройство исчезло или сменило состояние. Наше — пересобираем.
             AudioDeviceChangeKind.DeviceRemoved => IsOurs(change.DeviceId, binding),
             AudioDeviceChangeKind.DeviceStateChanged => IsOurs(change.DeviceId, binding)
-                || IsAwaitedReturn(change.DeviceId, binding),
+                || IsAwaitedReturn(change.DeviceId, binding) || MissingInputReturned(change, binding),
 
             // Появилось устройство. Интересно ровно одним: это может быть та
             // самая гарнитура из настроек, на подмене которой мы сейчас
             // работаем. Ждать, пока оператор сам заметит и переключит, — значит
             // оставить его говорить в динамики ноутбука весь разговор.
-            AudioDeviceChangeKind.DeviceAdded => IsAwaitedReturn(change.DeviceId, binding),
+            AudioDeviceChangeKind.DeviceAdded => IsAwaitedReturn(change.DeviceId, binding) || MissingInputReturned(change, binding),
 
             _ => false,
         };
@@ -105,6 +105,7 @@ public static class DeviceChangeRelevance
     public static bool StillRequiresRebuild(AudioDeviceChange change, AudioRouteBinding observed, AudioRouteBinding current)
     {
         if (!AffectsRoute(change, current)) { return false; }
+        if (MissingInputReturned(change, current)) { return ReferenceEquals(observed, current); }
         return change.Kind switch
         {
             AudioDeviceChangeKind.DefaultChanged => true,
@@ -132,4 +133,9 @@ public static class DeviceChangeRelevance
                 && string.Equals(deviceId, binding.ConfiguredInputId, StringComparison.Ordinal))
             || (binding.UsesFallbackOutput
                 && string.Equals(deviceId, binding.ConfiguredOutputId, StringComparison.Ordinal)));
+
+    private static bool MissingInputReturned(AudioDeviceChange change, AudioRouteBinding binding) =>
+        binding.ActiveInputId is null && change.Direction == AudioDeviceDirection.Capture
+        && (change.Kind == AudioDeviceChangeKind.DeviceAdded || change.Availability == AudioDeviceAvailability.Active)
+        && (binding.FollowsDefaultInput || string.Equals(change.DeviceId, binding.ConfiguredInputId, StringComparison.Ordinal));
 }

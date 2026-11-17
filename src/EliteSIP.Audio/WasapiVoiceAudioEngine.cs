@@ -941,19 +941,16 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         Volatile.Write(ref _workerFailure, null);
         // Вывод первым: по нему выбирается запасной микрофон — той же карты.
         _outputDevice = OpenDevice(_configuration.OutputDeviceId, AudioDeviceDirection.Render);
-        _inputDevice = OpenInput();
-
-        if (_inputDevice is null || _outputDevice is null)
+        if (_outputDevice is null)
         {
-            throw new VoiceAudioException(
-                _inputDevice is null && _outputDevice is null
-                    ? "в системе нет ни микрофона, ни выхода"
-                    : _inputDevice is null ? "нет микрофона" : "нет устройства воспроизведения");
+            throw new VoiceAudioException("нет устройства воспроизведения");
         }
-
-        _inputDeviceId = _inputDevice.ID;
-        _inputDeviceName = _inputDevice.FriendlyName;
         _outputDeviceName = _outputDevice.FriendlyName;
+        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
+        _renderClient = _outputDevice.CreateAudioClient();
+        _renderClient.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.None);
+        _renderFormat = _renderClient.MixFormat;
+        OpenCaptureForBuild(_renderFormat);
 
         // Привязка запоминается до открытия потоков: по ней фильтруются
         // уведомления, а прийти они могут уже в следующую миллисекунду.
@@ -962,30 +959,13 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             new AudioRouteBinding(
                 _configuration.InputDeviceId,
                 _configuration.OutputDeviceId,
-                _inputDevice.ID,
+                _inputDevice?.ID,
                 _outputDevice.ID));
-
-        _echoFree = AudioDeviceCatalog.IsEchoFree(_outputDevice);
-        AudioTransport captureTransport = AudioDeviceCatalog.TransportOf(_inputDevice);
-        _inputIsHeadset = AudioDeviceCatalog.IsHeadsetPair(
-            captureTransport,
-            _inputDeviceName,
-            AudioDeviceCatalog.TransportOf(_outputDevice),
-            _outputDeviceName);
-
-        _captureClient = _inputDevice.CreateAudioClient();
-        _renderClient = _outputDevice.CreateAudioClient();
 
         // Категория «связь» — не косметика: по ней система решает, приглушать
         // ли остальные звуки и как вести себя с гарнитурой. Она остаётся в
         // любом положении переключателя; RAW — только у микрофона (см.
         // WindowsCaptureProcessing).
-        _captureMode = OpenCaptureMode(_captureClient, _inputDevice, captureTransport);
-        _renderClient.SetClientProperties(AudioStreamCategory.Communications, AudioClientStreamOptions.None);
-
-        _captureFormat = _captureClient.MixFormat;
-        _renderFormat = _renderClient.MixFormat;
-
         _captureLayout = LayoutOf(_captureFormat, "захват");
         _renderLayout = LayoutOf(_renderFormat, "вывод");
 
@@ -1039,14 +1019,6 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _rateController = new PlaybackRateController(targetFill, _renderFormat.SampleRate);
         _drift.Reset();
 
-        _captureClient.Initialize(
-            AudioClientShareMode.Shared,
-            AudioClientStreamFlags.EventCallback,
-            _captureClient.DefaultDevicePeriod,
-            0,
-            _captureFormat,
-            Guid.Empty);
-
         _renderClient.Initialize(
             AudioClientShareMode.Shared,
             AudioClientStreamFlags.EventCallback,
@@ -1057,17 +1029,16 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
 
         // Эффекты известны только у инициализированного клиента — поэтому
         // здесь, а не при выборе устройства. Пишется ниже, вместе с именами.
-        string systemProcessing = _captureMode + "; " + CaptureEffects.Describe(
-            _captureClient,
-            ownEcho: !_echoFree,
-            ownNoise: _configuration.NoiseSuppression);
+        string systemProcessing = _captureClient is null ? "микрофон недоступен: только приём"
+            : _captureMode + "; " + CaptureEffects.Describe(
+                _captureClient, ownEcho: !_echoFree, ownNoise: _configuration.NoiseSuppression);
 
-        _latencyFrames = (int)((_captureClient.StreamLatency + _renderClient.StreamLatency)
+        _latencyFrames = (int)(((_captureClient?.StreamLatency ?? 0) + _renderClient.StreamLatency)
             / 10_000_000.0 * processingRate);
 
-        _captureReady = new EventWaitHandle(false, EventResetMode.AutoReset);
+        _captureReady = _captureClient is null ? null : new EventWaitHandle(false, EventResetMode.AutoReset);
         _renderReady = new EventWaitHandle(false, EventResetMode.AutoReset);
-        _captureClient.SetEventHandle(_captureReady.SafeWaitHandle.DangerousGetHandle());
+        if (_captureClient is not null) { _captureClient.SetEventHandle(_captureReady!.SafeWaitHandle.DangerousGetHandle()); }
         _renderClient.SetEventHandle(_renderReady.SafeWaitHandle.DangerousGetHandle());
 
         _stop = new CancellationTokenSource();
@@ -1078,13 +1049,22 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _captureChannelPeaks = new float[_captureFormat.Channels];
         _captureOverloads = 0;
         _uptime.Restart();
-        _captureClient.Start();
+        if (_captureClient is not null)
+        {
+            try { _captureClient.Start(); }
+            catch (Exception error) when (error is COMException or InvalidOperationException)
+            {
+                DropCapture(error.Message);
+                Volatile.Write(ref _binding, _binding with { ActiveInputId = null });
+            }
+        }
         _renderClient.Start();
 
         // Приоритет выше обычного: пропущенное пробуждение — это потерянный
         // звук. Реального времени не просим: под ним ошибка в цикле вешает
         // машину целиком.
-        _captureThread = StartThread("elitesip-capture", () => CaptureLoop(token), error => HandleWorkerFailure("захват", error));
+        _captureThread = _captureClient is null ? null
+            : StartThread("elitesip-capture", () => CaptureLoop(token), error => HandleWorkerFailure("захват", error));
         _renderThread = StartThread("elitesip-render", () => RenderLoop(token), error => HandleWorkerFailure("вывод", error));
         _feedThread = StartThread("elitesip-feed", () => FeedLoop(token), error => HandleWorkerFailure("подача", error));
 
@@ -1094,7 +1074,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         // одни форматы, этого было не видно вовсе. Откуда взят каждый —
         // рядом с именем: это первое, что спрашивают при разборе.
         Diagnostic(
-            $"тракт поднят: микрофон «{_inputDevice.FriendlyName}» ({InputOrigin()}), "
+            $"тракт поднят: микрофон «{_inputDevice?.FriendlyName ?? "недоступен — только приём"}» ({InputOrigin()}), "
             + $"наушники «{_outputDevice.FriendlyName}» "
             + (_configuration.OutputDeviceId is null ? "(системные для связи)" : "(из настроек)"));
 
@@ -1109,11 +1089,53 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
             + $"обработка {processingRate} Гц, кодек {_configuration.Codec} {codecRate} Гц, "
             + $"запас кольца {targetFill} отсчётов, латентность потоков "
             + $"{_latencyFrames * 1000.0 / processingRate:F1} мс");
-        if (_inputDevice.State != DeviceState.Active || _outputDevice.State != DeviceState.Active)
+        if ((_inputDevice is not null && _inputDevice.State != DeviceState.Active) || _outputDevice.State != DeviceState.Active)
         {
             throw new VoiceAudioException("устройство отключилось во время открытия аудио");
         }
         AcknowledgeRouteBuild();
+        Report(new VoiceAudioEvent.InputAvailability(_captureClient is not null));
+    }
+
+    [System.Diagnostics.CodeAnalysis.MemberNotNull(nameof(_captureFormat))]
+    private void OpenCaptureForBuild(WaveFormat renderFormat)
+    {
+        _inputDeviceId = _inputDeviceName = null;
+        _inputIsHeadset = false;
+        _captureFormat = WaveFormat.CreateIeeeFloatWaveFormat(renderFormat.SampleRate, 1);
+        try
+        {
+            _inputDevice = OpenInput();
+            if (_inputDevice is null) { DropCapture("нет микрофона"); return; }
+            _inputDeviceId = _inputDevice.ID;
+            _inputDeviceName = _inputDevice.FriendlyName;
+            var transport = AudioDeviceCatalog.TransportOf(_inputDevice);
+            _inputIsHeadset = AudioDeviceCatalog.IsHeadsetPair(transport, _inputDeviceName,
+                AudioDeviceCatalog.TransportOf(_outputDevice!), _outputDeviceName);
+            _captureClient = _inputDevice.CreateAudioClient();
+            _captureMode = OpenCaptureMode(_captureClient, _inputDevice, transport);
+            _captureFormat = _captureClient.MixFormat;
+            _captureClient.Initialize(AudioClientShareMode.Shared, AudioClientStreamFlags.EventCallback,
+                _captureClient.DefaultDevicePeriod, 0, _captureFormat, Guid.Empty);
+        }
+        catch (Exception error) when (error is COMException or InvalidOperationException or ArgumentException or NotSupportedException)
+        {
+            DropCapture(error.Message);
+            _captureFormat = WaveFormat.CreateIeeeFloatWaveFormat(renderFormat.SampleRate, 1);
+        }
+    }
+
+    private void DropCapture(string reason)
+    {
+        Diagnostic($"микрофон недоступен: {reason}; продолжаем только приём");
+        try { _captureClient?.Dispose(); }
+        catch (COMException) { }
+        _captureClient = null;
+        try { _inputDevice?.Dispose(); }
+        catch (COMException) { }
+        _inputDevice = null;
+        _inputDeviceId = _inputDeviceName = null;
+        _echoFree = true;
     }
 
     internal void AcknowledgeRouteBuild()
@@ -1670,6 +1692,8 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         float[] scratch = new float[bufferFrames];
         float[] reversePending = new float[format.SampleRate];
         int reverseCount = 0;
+        var silentClock = _captureClient is null ? new ReceiveOnlyClock(format.SampleRate, _configuration.PacketTimeMilliseconds) : null;
+        var silence = silentClock is null ? null : _configuration.Codec.SilencePayload(_configuration.PacketTimeMilliseconds);
 
         // Сглаживание краёв звука: вход — 5 мс, спад — около 4 мс.
         int fadeLength = Math.Max(1, format.SampleRate / 200);
@@ -1757,6 +1781,12 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 }
 
                 WriteFrames(render, scratch, free, channels, layout);
+                if (silentClock is not null)
+                {
+                    var count = silentClock.Advance(free);
+                    for (var packet = 0; packet < count; packet++) { Handlers.EncodedFrame?.Invoke(silence!); }
+                    continue;
+                }
 
                 // Опорный сигнал эхоподавителю — ровно то, что мы отдали
                 // устройству, и в том же порядке. Брать его до умножения на

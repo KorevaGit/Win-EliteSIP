@@ -19,6 +19,30 @@ namespace EliteSIP.App.Tests;
 public sealed class IncomingLifecycleTests
 {
     [Fact]
+    public void Missing_microphone_warning_survives_restart_and_legacy_idle_setting_is_automatic()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"mic-status-{Guid.NewGuid():N}.db");
+        using var history = new CallHistoryStore(new(path));
+        WpfHost.Run(() =>
+        {
+            var settings = new AppSettings();
+            settings.Audio.ReleasesDeviceWhenIdle = false;
+            var panel = new PanelViewModel();
+            using var phone = new PhoneService(settings, panel, history,
+                new IncomingCallPresenter(_ => { }, () => 0), Dispatcher.CurrentDispatcher, _ => { });
+            Assert.True(phone.AudioConfiguration().ReleasesDeviceWhenIdle);
+            var show = typeof(PhoneService).GetMethod("ShowAudioStatus", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            show.Invoke(phone, [new VoiceAudioEvent.InputAvailability(false)]);
+            Assert.NotNull(panel.Activity);
+            var warning = panel.Activity;
+            show.Invoke(phone, [new VoiceAudioEvent.Restarted("device returned")]);
+            Assert.Equal(warning, panel.Activity);
+            show.Invoke(phone, [new VoiceAudioEvent.InputAvailability(true)]);
+            Assert.Null(panel.Activity);
+        });
+    }
+
+    [Fact]
     public async Task Accepted_call_remains_visible_and_can_end_while_media_line_is_blocked()
     {
         var path = Path.Combine(Path.GetTempPath(), $"pending-media-{Guid.NewGuid():N}.db");

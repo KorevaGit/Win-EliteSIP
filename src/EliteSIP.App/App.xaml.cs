@@ -689,7 +689,7 @@ public partial class App : Application, IDisposable
 
             OnCollectLogs = () => _ = CollectSupportArchiveAsync(model!),
             OnRunSelfTest = () => _ = RunAudioSelfTestAsync(model!),
-            OnStopSelfTest = () => _phone?.SelfTest.Abort(),
+            OnStopSelfTest = () => _phone?.SelfTest.RequestAbort(),
             OnSaveRecording = () => SaveSelfTestRecording(model!),
             OnPlayRecording = () =>
             {

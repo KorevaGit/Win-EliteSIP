@@ -61,7 +61,7 @@ internal static class SupportSnapshot
             text.AppendLine(CultureInfo.InvariantCulture, $"вход: {audio.InputDeviceName ?? "системный"}; ID={audio.InputDeviceId ?? "default"}");
             text.AppendLine(CultureInfo.InvariantCulture, $"выход: {audio.OutputDeviceName ?? "системный"}; ID={audio.OutputDeviceId ?? "default"}");
             text.AppendLine(CultureInfo.InvariantCulture, $"микрофон: gain={audio.MicrophoneGain}, mute={audio.MicrophoneMuted}; громкость={audio.PlaybackVolume}; AGC={audio.AutomaticGainControl}; receiveAGC={audio.ReceiveGainControl}");
-            text.AppendLine(CultureInfo.InvariantCulture, $"noise={audio.NoiseSuppression}; voices={audio.BackgroundVoiceSuppression}; Windows={audio.WindowsProcessing}; освобождать в простое={audio.ReleasesDeviceWhenIdle}; мелодия={settings.Ringtone.Output}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"noise={audio.NoiseSuppression}; voices={audio.BackgroundVoiceSuppression}; Windows={audio.WindowsProcessing}; освобождение в простое=автоматически; мелодия={settings.Ringtone.Output}");
             if (!includeAudioInventory) { return; }
             foreach (var direction in new[] { AudioDeviceDirection.Capture, AudioDeviceDirection.Render })
             {

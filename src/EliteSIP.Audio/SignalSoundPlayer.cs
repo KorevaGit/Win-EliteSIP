@@ -30,17 +30,23 @@ public sealed class SignalSoundPlayer : IDisposable
     private readonly object _gate = new();
     private readonly Action<string>? _log;
 
-    private WasapiPlayer? _output;
+    private ISignalOutput? _output;
+    private Signal? _wantedSignal;
+    private readonly LatestAudioWork _signalWork;
+    internal Func<string?, ISignalOutput> OutputFactory { get; set; } = id => new SignalOutput(Open(id));
 
     /// <summary>Что играет: гудки и рингтон снимаются каждый своей кнопкой.</summary>
-    private Signal _signal;
 
     /// <summary>Источник, если он владеет файлом. Снимается вместе с выводом.</summary>
     private IDisposable? _sourceOwner;
 
     private bool _disposed;
 
-    public SignalSoundPlayer(Action<string>? log = null) => _log = log;
+    public SignalSoundPlayer(Action<string>? log = null)
+    {
+        _log = log;
+        _signalWork = new LatestAudioWork(error => _log?.Invoke($"служебный звук: {error}"));
+    }
 
     /// <summary>Играют ли гудки или рингтон прямо сейчас.</summary>
     public bool IsPlaying
@@ -49,7 +55,7 @@ public sealed class SignalSoundPlayer : IDisposable
         {
             lock (_gate)
             {
-                return _output is not null;
+                return _wantedSignal is not null;
             }
         }
     }
@@ -202,16 +208,21 @@ public sealed class SignalSoundPlayer : IDisposable
     /// <param name="only">снять, только если играет это. <c>null</c> — что угодно.</param>
     private void Stop(Signal? only)
     {
-        WasapiPlayer? going;
+        lock (_gate)
+        {
+            if (only is Signal wanted && _wantedSignal != wanted) { return; }
+            _wantedSignal = null;
+            _signalWork.Post(_ => StopCore());
+        }
+    }
+
+    private void StopCore()
+    {
+        ISignalOutput? going;
         IDisposable? owner;
 
         lock (_gate)
         {
-            if (only is Signal wanted && (_output is null || _signal != wanted))
-            {
-                return;
-            }
-
             going = _output;
             owner = _sourceOwner;
             _output = null;
@@ -234,8 +245,8 @@ public sealed class SignalSoundPlayer : IDisposable
         }
         finally
         {
-            going.Dispose();
-            owner?.Dispose();
+            try { going.Dispose(); }
+            finally { owner?.Dispose(); }
         }
     }
 
@@ -243,32 +254,43 @@ public sealed class SignalSoundPlayer : IDisposable
     {
         lock (_gate)
         {
-            if (_disposed || _output is not null)
+            if (_disposed || _wantedSignal is not null)
             {
+                if (provider is IDisposable unused)
+                {
+                    _ = Task.Run(() => AudioWorkerBoundary.Run(unused.Dispose,
+                        error => _log?.Invoke($"закрытие источника сигнала: {error.Message}")));
+                }
                 return;
             }
+            _wantedSignal = signal;
+            _signalWork.Post(version => StartCore(provider, deviceId, signal, version),
+                () => (provider as IDisposable)?.Dispose());
         }
+    }
 
+    private void StartCore(ISampleProvider provider, string? deviceId, Signal signal, long version)
+    {
+        ISignalOutput? output = null;
+        var published = false;
         try
         {
-            WasapiPlayer output = Open(deviceId);
+            StopCore();
+            if (!_signalWork.IsCurrent(version)) { return; }
+            output = OutputFactory(deviceId);
             output.Init(provider);
+            if (!_signalWork.IsCurrent(version)) { return; }
             output.Play();
 
             lock (_gate)
             {
                 // Пока мы открывали устройство, звонок мог кончиться: открытие
                 // WASAPI занимает десятки миллисекунд, а трубку снимают быстрее.
-                if (_disposed)
-                {
-                    output.Dispose();
-                    (provider as IDisposable)?.Dispose();
-                    return;
-                }
+                if (_disposed || !_signalWork.IsCurrent(version)) { return; }
 
                 _output = output;
-                _signal = signal;
                 _sourceOwner = provider as IDisposable;
+                published = true;
             }
         }
         catch (Exception error)
@@ -276,6 +298,18 @@ public sealed class SignalSoundPlayer : IDisposable
             // Отсутствие служебного звука не должно ронять звонок: без гудка
             // разговор состоится, без исключения в потоке сигнализации — нет.
             _log?.Invoke($"{signal switch { Signal.Ringback => "гудки", Signal.Preview => "прослушивание", _ => "рингтон" }} не играют: {error.Message}");
+            lock (_gate)
+            {
+                if (_signalWork.IsCurrent(version)) { _wantedSignal = null; }
+            }
+        }
+        finally
+        {
+            if (!published)
+            {
+                try { output?.Dispose(); }
+                finally { (provider as IDisposable)?.Dispose(); }
+            }
         }
     }
 
@@ -366,7 +400,7 @@ public sealed class SignalSoundPlayer : IDisposable
     private static readonly TimeSpan CueIdleClose = TimeSpan.FromSeconds(3);
 
     private readonly object _cueGate = new();
-    private WasapiPlayer? _cueOutput;
+    private ISignalOutput? _cueOutput;
     private MixingSampleProvider? _cueMixer;
     private string? _cueDeviceId;
     private Timer? _cueIdle;
@@ -434,10 +468,11 @@ public sealed class SignalSoundPlayer : IDisposable
                     // короткий кадр, — иначе вывод остановится после первой
                     // же подсказки.
                     MixingSampleProvider mixer = new(cue.WaveFormat) { ReadFully = true };
-                    WasapiPlayer output = Open(deviceId);
+                    ISignalOutput output = OutputFactory(deviceId);
                     // Keep ownership before Init: a disconnected driver may throw there.
                     _cueOutput = output;
                     output.Init(mixer);
+                    if (Volatile.Read(ref _disposed)) { CloseCuesLocked(); return; }
                     output.Play();
 
                     _cueMixer = mixer;
@@ -474,7 +509,7 @@ public sealed class SignalSoundPlayer : IDisposable
         _cueIdle?.Dispose();
         _cueIdle = null;
 
-        WasapiPlayer? output = _cueOutput;
+        ISignalOutput? output = _cueOutput;
         _cueOutput = null;
         _cueMixer = null;
         _cueDeviceId = null;

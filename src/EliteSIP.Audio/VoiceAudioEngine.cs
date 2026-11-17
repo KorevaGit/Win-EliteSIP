@@ -8,6 +8,7 @@ namespace EliteSIP.Audio;
 /// </summary>
 public abstract record VoiceAudioEvent
 {
+    public sealed record InputAvailability(bool Available) : VoiceAudioEvent;
     // Закрытый конструктор запирает список наследников этим файлом: в C# нет
     // размеченного объединения, и без этого «событие тракта» мог бы объявить
     // кто угодно, а разбор по случаям молча перестал бы быть полным.

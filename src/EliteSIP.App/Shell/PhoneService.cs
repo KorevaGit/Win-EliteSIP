@@ -203,10 +203,10 @@ public sealed class PhoneService : IDisposable
         return owner is null || owner.IsMicrophoneMuted ? levels with { Voice = 0 } : levels;
     }
 
-    /// <summary>Снимает проверку ради звонка. Возвращается, когда устройство отпущено.</summary>
+    /// <summary>Просит снять проверку; устройство ожидается фоновым запуском разговора.</summary>
     private void AbortSelfTestForCall(string why)
     {
-        if (SelfTest.Abort())
+        if (SelfTest.RequestAbort())
         {
             _log($"проверка звука снята: {why}");
         }
@@ -223,7 +223,6 @@ public sealed class PhoneService : IDisposable
         nameof(AudioSettings.AutomaticGainControl),
         nameof(AudioSettings.NoiseSuppression),
         nameof(AudioSettings.BackgroundVoiceSuppression),
-        nameof(AudioSettings.ReleasesDeviceWhenIdle),
         nameof(AudioSettings.WindowsProcessing),
     ];
 
@@ -249,16 +248,10 @@ public sealed class PhoneService : IDisposable
             return;
         }
 
-        // Ползунок, сдвинутый во время проверки, действует сразу и виден на
-        // шкале. Применение дешёвое (громкость и усиление читаются на такте),
-        // поэтому прямо здесь.
-        if (SelfTest.IsRunning)
-        {
-            SelfTest.Apply(AudioConfiguration());
-        }
-
+        // Даже применение настроек может попасть в блокировку драйвера:
+        // проверка и разговор обновляются общим фоновым работником.
         // Между звонками применять некуда: тракт возьмёт настройки при подъёме.
-        if (_sessions.IsEmpty)
+        if (_sessions.IsEmpty && !SelfTest.IsRunning)
         {
             return;
         }
@@ -293,6 +286,7 @@ public sealed class PhoneService : IDisposable
             }
 
             var audio = AudioConfiguration();
+            if (SelfTest.IsRunning) { SelfTest.Apply(audio); }
             foreach (var session in _sessions.Values)
             {
                 try
@@ -546,7 +540,8 @@ public sealed class PhoneService : IDisposable
         // диалогами, о которых он думает, что они живы.
         if (_lines is not null)
         {
-            await _lines.HangUpAllAsync().ConfigureAwait(true);
+            var closingLines = _lines;
+            await Task.Run(closingLines.HangUpAllAsync).ConfigureAwait(true);
         }
 
         if (_running is not null)
@@ -564,7 +559,8 @@ public sealed class PhoneService : IDisposable
         _agent.Dispose();
         _transport?.Dispose();
         _knocker?.Dispose();
-        _bus?.Dispose();
+        var closingBus = _bus;
+        if (closingBus is not null) { await Task.Run(closingBus.Dispose).ConfigureAwait(true); }
         _running?.Dispose();
 
         _agent = null;
@@ -801,7 +797,7 @@ public sealed class PhoneService : IDisposable
         try
         {
             var session = OpenSession(call.CallId, negotiated, reservation);
-
+            if (SelfTest.IsRunning) { await Task.Run(SelfTest.Abort).ConfigureAwait(true); }
             await session.StartAsync(lifetime).ConfigureAwait(true);
             _log($"входящий {call.CallId}: звук запущен, подключаем линию");
             await Task.Run(async () =>
@@ -948,14 +944,16 @@ public sealed class PhoneService : IDisposable
 
     public async Task ToggleHoldAsync()
     {
-        if (_lines?.ActiveCallId is not string callId)
+        var lines = _lines;
+        if (lines is null || _panel.ActiveLine?.CallId is not string callId)
         {
             return;
         }
 
         try
         {
-            await _lines.HoldAsync(callId, !_panel.IsOnHold).ConfigureAwait(true);
+            var held = !_panel.IsOnHold;
+            await Task.Run(() => lines.HoldAsync(callId, held)).ConfigureAwait(true);
         }
         finally
         {
@@ -979,7 +977,7 @@ public sealed class PhoneService : IDisposable
         AutomaticGainControl = _settings.Audio.AutomaticGainControl,
         NoiseSuppression = _settings.Audio.NoiseSuppression,
         BackgroundVoiceSuppression = _settings.Audio.BackgroundVoiceSuppression,
-        ReleasesDeviceWhenIdle = _settings.Audio.ReleasesDeviceWhenIdle,
+        ReleasesDeviceWhenIdle = true,
         MicrophoneGain = (float)_settings.Audio.MicrophoneGain,
         PlaybackVolume = (float)_settings.Audio.PlaybackVolume,
         ReceiveGainControl = _settings.Audio.ReceiveGainControl,
@@ -993,12 +991,31 @@ public sealed class PhoneService : IDisposable
     public void ToggleMicrophone()
     {
         _settings.Audio.MicrophoneMuted = !_settings.Audio.MicrophoneMuted;
-        if (_lines is not null)
-        {
-            _lines.IsMicrophoneMuted = _settings.Audio.MicrophoneMuted;
-        }
+        var lines = _lines;
+        if (lines is not null) { _ = ApplyMuteAsync(lines, _settings.Audio.MicrophoneMuted, Interlocked.Increment(ref _muteVersion)); }
 
         _panel.IsMicrophoneMuted = _settings.Audio.MicrophoneMuted;
+    }
+
+    private readonly SemaphoreSlim _muteGate = new(1, 1);
+    private long _muteVersion;
+
+    private async Task ApplyMuteAsync(LineController lines, bool muted, long version)
+    {
+        await _muteGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!_disposed && version == Interlocked.Read(ref _muteVersion))
+            {
+                await Task.Run(() => lines.IsMicrophoneMuted = muted).ConfigureAwait(false);
+            }
+        }
+        catch (Exception error) when (error is ObjectDisposedException or InvalidOperationException
+            or System.Runtime.InteropServices.COMException or VoiceAudioException)
+        {
+            _log($"микрофон: команда не применена: {error.Message}");
+        }
+        finally { _muteGate.Release(); }
     }
 
     /// <summary>Отправляет тоны макроса в линию.</summary>
@@ -1012,7 +1029,9 @@ public sealed class PhoneService : IDisposable
         macro.IsBusy = true;
         try
         {
-            var outcome = await _lines.SendDtmfAsync(new DtmfSequence(macro.Tones)).ConfigureAwait(true);
+            var lines = _lines;
+            var tones = new DtmfSequence(macro.Tones);
+            var outcome = await Task.Run(() => lines.SendDtmfAsync(tones)).ConfigureAwait(true);
             if (outcome is not DtmfOutcome.Sent)
             {
                 _log($"макрос «{macro.Title}» не ушёл: {outcome}");
@@ -1040,7 +1059,8 @@ public sealed class PhoneService : IDisposable
             return;
         }
 
-        var outcome = await _lines.SendConferenceCodeAsync(code).ConfigureAwait(true);
+        var lines = _lines;
+        var outcome = await Task.Run(() => lines.SendConferenceCodeAsync(code)).ConfigureAwait(true);
         _panel.IsConferenceStarted = outcome is DtmfOutcome.Sent;
 
         // Собирает комнату АТС, и о том, собрала ли, она не сообщает: в журнале
@@ -1052,7 +1072,8 @@ public sealed class PhoneService : IDisposable
     /// <summary>Переводит активную линию на другой номер.</summary>
     public async Task TransferAsync(string target)
     {
-        if (_lines?.ActiveCallId is not string callId || target.Trim().Length == 0)
+        var lines = _lines;
+        if (lines is null || _panel.ActiveLine?.CallId is not string callId || target.Trim().Length == 0)
         {
             return;
         }
@@ -1060,7 +1081,7 @@ public sealed class PhoneService : IDisposable
         _panel.IsTransferring = true;
         try
         {
-            var result = await _lines.TransferAsync(callId, target.Trim()).ConfigureAwait(true);
+            var result = await Task.Run(() => lines.TransferAsync(callId, target.Trim())).ConfigureAwait(true);
             if (result.Succeeded)
             {
                 _panel.CancelTransferEntry();
@@ -1368,6 +1389,7 @@ public sealed class PhoneService : IDisposable
 
             var session = OpenSession(callId, negotiated, reservation);
 
+            if (SelfTest.IsRunning) { SelfTest.Abort(); }
             await session.StartAsync(lifetime).ConfigureAwait(false);
             lifetime.ThrowIfCancellationRequested();
             await lines.AttachAsync(callId, new MediaSessionLine(session, offer), number).ConfigureAwait(false);
@@ -1463,6 +1485,7 @@ public sealed class PhoneService : IDisposable
         var audioFailed = false;
         try
         {
+            if (SelfTest.IsRunning) { SelfTest.Abort(); }
             await session.StartListeningAsync(claimAudio, lifetime).ConfigureAwait(false);
         }
         catch (VoiceAudioException failure)
@@ -2148,10 +2171,17 @@ public sealed class PhoneService : IDisposable
     }
 
     /// <summary>События тракта — в статусы.</summary>
+    private volatile bool _inputUnavailable;
+
     private void ShowAudioStatus(VoiceAudioEvent value)
     {
         switch (value)
         {
+            case VoiceAudioEvent.InputAvailability availability:
+                _inputUnavailable = !availability.Available;
+                if (availability.Available) { ClearStatus(StatusSlot.Microphone); }
+                else { ShowStatus(StatusSlot.Microphone, "StatusMicUnavailable", "mic.slash.fill", isWarning: true); }
+                break;
             case VoiceAudioEvent.Restarting:
                 ShowStatus(StatusSlot.Audio, "StatusAudioRestarting", "speaker.wave.2");
                 break;
@@ -2160,7 +2190,7 @@ public sealed class PhoneService : IDisposable
                 // Новый тракт — заново неизвестно, молчит ли микрофон: его
                 // проверка идёт на каждом подъёме и скажет сама.
                 ClearStatus(StatusSlot.Audio);
-                ClearStatus(StatusSlot.Microphone);
+                if (!_inputUnavailable) { ClearStatus(StatusSlot.Microphone); }
                 break;
 
             case VoiceAudioEvent.Broken:
@@ -2305,12 +2335,24 @@ public sealed class PhoneService : IDisposable
         // мгновения нельзя — иначе выход выглядит зависанием.
         _settings.Audio.PropertyChanged -= OnAudioSettingsChanged;
         _monitor.Stop();
-        SelfTest.Dispose();
         _lines = null;
         _running?.Cancel();
         _agent?.Dispose();
         _transport?.Dispose();
-        _bus?.Dispose();
+        var bus = _bus;
+        _bus = null;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                try { SelfTest.Dispose(); }
+                finally { bus?.Dispose(); }
+            }
+            catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException or VoiceAudioException)
+            {
+                _log($"закрытие аудио: {error.Message}");
+            }
+        });
         _sounds.Dispose();
         _running?.Dispose();
     }

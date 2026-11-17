@@ -60,7 +60,8 @@ public sealed class AudioSelfTest : IDisposable
     private readonly Lock _gate = new();
 
     /// <summary>Отпущено ли устройство. Взводится в начале, опускается в самом конце.</summary>
-    private readonly ManualResetEventSlim _released = new(initialState: true);
+    private TaskCompletionSource? _released;
+    private bool _disposed;
 
     private CancellationTokenSource? _cancellation;
     private IVoiceAudioEngine? _engine;
@@ -174,13 +175,14 @@ public sealed class AudioSelfTest : IDisposable
         CancellationTokenSource cancellation;
         lock (_gate)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (_isRunning)
             {
                 return new AudioSelfTestResult(false, "проверка уже идёт");
             }
 
             _isRunning = true;
-            _released.Reset();
+            _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
             cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
             _cancellation = cancellation;
         }
@@ -216,6 +218,19 @@ public sealed class AudioSelfTest : IDisposable
     /// </remarks>
     public bool Abort()
     {
+        Task released;
+        lock (_gate) { released = _released?.Task ?? Task.CompletedTask; }
+        if (!RequestAbort()) { return false; }
+        if (!released.Wait(ReleaseTimeout))
+        {
+            _log?.Invoke("проверка звука не отпустила устройство за секунду");
+        }
+        return true;
+    }
+
+    /// <summary>Cancel from UI without waiting for a driver to return.</summary>
+    public bool RequestAbort()
+    {
         CancellationTokenSource? cancellation;
         lock (_gate)
         {
@@ -234,11 +249,6 @@ public sealed class AudioSelfTest : IDisposable
         catch (ObjectDisposedException)
         {
             // Проверка кончилась сама между проверкой и отменой.
-        }
-
-        if (!_released.Wait(ReleaseTimeout))
-        {
-            _log?.Invoke("проверка звука не отпустила устройство за секунду");
         }
 
         return true;
@@ -305,7 +315,7 @@ public sealed class AudioSelfTest : IDisposable
         }
         finally
         {
-            _released.Set();
+            _released?.TrySetResult();
         }
     }
 
@@ -432,8 +442,8 @@ public sealed class AudioSelfTest : IDisposable
     /// <summary>Снимает идущую проверку и отпускает своё.</summary>
     public void Dispose()
     {
+        lock (_gate) { _disposed = true; }
         Abort();
-        _released.Dispose();
     }
 
     private static void Wait(TimeSpan span, CancellationToken token)
