@@ -9,7 +9,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="{res:Loc PanelWindowTitle}"
+        Title="{Binding WindowTitle}"
         Width="324"
         MinWidth="270"
         SizeToContent="Height"
@@ -161,6 +161,7 @@
             <MenuItem Header="{res:Loc PanelOffline}"
                       IsChecked="{Binding IsOfflineByChoice, Mode=OneWay}"
                       Command="{Binding GoOffline}" />
+            <MenuItem Header="{res:Loc TrayQuit}" Command="{Binding Quit}" />
           </ContextMenu>
         </Button.ContextMenu>
 

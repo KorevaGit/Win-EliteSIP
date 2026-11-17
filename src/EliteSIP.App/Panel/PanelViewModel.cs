@@ -230,6 +230,7 @@ public sealed class PanelViewModel : Observable
         {
             Set(ref _statusTitle, value);
             NotifyChanged(nameof(ProfileMenuTitle));
+            NotifyChanged(nameof(WindowTitle));
         }
     }
 
@@ -315,6 +316,8 @@ public sealed class PanelViewModel : Observable
     public string ProfileMenuTitle => string.IsNullOrEmpty(StatusLabel)
         ? StatusTitle
         : StatusTitle + " · " + StatusLabel;
+
+    public string WindowTitle => Resources.Strings.Get("PanelYourNumber") + " " + StatusTitle;
 
     /// <summary>На линии ли профиль. Обратное <see cref="IsOfflineByChoice"/>.</summary>
     ///
@@ -671,6 +674,7 @@ public sealed class PanelViewModel : Observable
     public ICommand? ShowHistory { get; set; }
 
     public ICommand? ShowSettings { get; set; }
+    public ICommand? Quit { get; set; }
 
     /// <summary>Открывает поле перевода. Само по себе — дело панели, а не протокола.</summary>
     public void ShowTransferEntry()

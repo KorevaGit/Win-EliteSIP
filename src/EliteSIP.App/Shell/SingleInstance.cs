@@ -34,6 +34,7 @@ internal sealed class SingleInstance : IDisposable
     private readonly Mutex _mutex;
     private readonly EventWaitHandle _wake;
     private readonly CancellationTokenSource _watching = new();
+    private Thread? _watchThread;
 
     private SingleInstance(Mutex mutex, EventWaitHandle wake)
     {
@@ -49,13 +50,13 @@ internal sealed class SingleInstance : IDisposable
     /// <see langword="null"/> означает «мы вторые»: первому уже сказано
     /// показаться, и звать больше нечего — надо просто выйти.
     /// </remarks>
-    internal static SingleInstance? Claim()
+    internal static SingleInstance? Claim(string? testScope = null)
     {
         // Событие заводится до захвата замка и обеими копиями: первая на нём
         // ждёт, вторая его дёргает. `EventWaitHandle` с именем — тот же объект
         // ядра у обоих процессов.
-        EventWaitHandle wake = new(false, EventResetMode.AutoReset, WakeName);
-        Mutex mutex = new(initiallyOwned: true, MutexName, out var isFirst);
+        EventWaitHandle wake = new(false, EventResetMode.AutoReset, WakeName + testScope);
+        Mutex mutex = new(initiallyOwned: true, MutexName + testScope, out var isFirst);
 
         if (isFirst)
         {
@@ -85,11 +86,12 @@ internal sealed class SingleInstance : IDisposable
         // Своим потоком, а не задачей из пула: он почти всё время спит на
         // ожидании, и держать под это поток пула — значит держать его занятым
         // всю жизнь приложения.
+        var stopping = _watching.Token;
         Thread thread = new(() =>
         {
-            var handles = new[] { _wake, _watching.Token.WaitHandle };
+            var handles = new[] { _wake, stopping.WaitHandle };
 
-            while (!_watching.IsCancellationRequested)
+            while (!stopping.IsCancellationRequested)
             {
                 if (WaitHandle.WaitAny(handles) == 0)
                 {
@@ -102,12 +104,16 @@ internal sealed class SingleInstance : IDisposable
             Name = "EliteSIP.SingleInstance",
         };
 
+        _watchThread = thread;
         thread.Start();
     }
 
     public void Dispose()
     {
         _watching.Cancel();
+        // The watcher must release its wait handles before those handles are disposed.
+        // UI activation is queued by the application and never blocks this join.
+        _watchThread?.Join();
 
         // Замок отпускается явно: брошенный `Mutex` достаётся следующему
         // ожидающему с признаком «прежний владелец умер», и второй запуск

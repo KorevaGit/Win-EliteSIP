@@ -28,6 +28,24 @@ internal static class SupportSnapshot
             text.AppendLine(CultureInfo.InvariantCulture, $"программа: {Environment.ProcessPath}; настройки: {AppSettings.DefaultPath}");
         });
         text.Append(Network());
+        Section(text, "Экземпляры EliteSIP", () =>
+        {
+            foreach (var instance in Process.GetProcessesByName("EliteSIP.App"))
+            {
+                using (instance)
+                {
+                    try
+                    {
+                        text.AppendLine(CultureInfo.InvariantCulture,
+                            $"PID={instance.Id}; session={instance.SessionId}; start={instance.StartTime:O}; RAM={instance.WorkingSet64 / 1048576} МБ");
+                    }
+                    catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+                    {
+                        text.AppendLine(CultureInfo.InvariantCulture, $"PID={instance.Id}: {error.GetType().Name}");
+                    }
+                }
+            }
+        });
         Section(text, "Конфигурация подключения", () =>
         {
             text.AppendLine(CultureInfo.InvariantCulture, $"площадка: {settings.Account.Site}; номер: {settings.Account.Username}; профиль: {settings.Account.ProfileId}");

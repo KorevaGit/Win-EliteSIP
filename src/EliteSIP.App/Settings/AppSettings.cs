@@ -531,7 +531,7 @@ public sealed class AppSettings : Observable
     public int? Revision { get; set; }
 
     /// <summary>Текущая ревизия. См. <see cref="Upgrade"/>.</summary>
-    public const int CurrentRevision = 3;
+    public const int CurrentRevision = 4;
 
     /// <summary>Однократные правки старых файлов. Зовётся при чтении.</summary>
     ///
@@ -570,6 +570,11 @@ public sealed class AppSettings : Observable
         if ((Revision is null or < 3) && PortKnock.RepeatIntervalSeconds == 600)
         {
             PortKnock.RepeatIntervalSeconds = 3600;
+        }
+        if (Revision is null or < 4)
+        {
+            Maintenance.LogToFile = true;
+            Maintenance.LogsSipTrace = true;
         }
         Revision = CurrentRevision;
     }

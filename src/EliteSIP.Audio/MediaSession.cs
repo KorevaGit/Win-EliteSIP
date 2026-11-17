@@ -1180,7 +1180,7 @@ public sealed class MediaSession : IDisposable
 
         // Уровни есть только у того, кто держит тракт: у фоновой линии звука
         // нет, и спрашивать его не у кого.
-        if (_bus.TryWithEngine(_token, engine => (engine as WasapiVoiceAudioEngine)?.LevelSummary, out string? levels)
+        if (_bus.TryInspectEngine(_token, engine => (engine as WasapiVoiceAudioEngine)?.LevelSummary, out string? levels)
             && levels is not null)
         {
             summary = $"{summary}, {levels}";

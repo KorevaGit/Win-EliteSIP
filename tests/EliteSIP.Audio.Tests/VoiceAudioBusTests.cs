@@ -14,6 +14,27 @@ namespace EliteSIP.Audio.Tests;
 public sealed class VoiceAudioBusTests
 {
     [Fact]
+    public async Task Diagnostic_inspection_does_not_wait_for_driver_operation()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var bus = new VoiceAudioBus(new FakeVoiceAudioEngine(), _ => new FakeVoiceAudioEngine());
+        var token = AudioOwnerToken.New();
+        bus.Claim(token, new VoiceAudioConfiguration(), VoiceAudioHandlers.None);
+        var control = Task.Run(() => bus.WithEngine(token, _ => { entered.Set(); release.Wait(); }));
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try
+        {
+            var inspection = Task.Run(() => bus.TryInspectEngine(token, _ => true, out _));
+            Assert.False(await inspection.WaitAsync(TimeSpan.FromSeconds(1)));
+        }
+        finally { release.Set(); }
+        await control;
+        Assert.True(bus.TryInspectEngine(token, _ => 42, out var result));
+        Assert.Equal(42, result);
+        Assert.False(bus.TryInspectEngine(AudioOwnerToken.New(), _ => 42, out _));
+    }
+    [Fact]
     public async Task Validated_owner_action_finishes_before_next_owner_can_change_engine()
     {
         using var entered = new ManualResetEventSlim();

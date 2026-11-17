@@ -791,13 +791,14 @@ public sealed class PhoneService : IDisposable
             var session = OpenSession(call.CallId, negotiated, reservation);
 
             await session.StartAsync(CancellationToken.None).ConfigureAwait(true);
+            _log($"входящий {call.CallId}: звук запущен, подключаем линию");
             await _lines.AttachAsync(call.CallId, new MediaSessionLine(session, answer), call.DisplayNumber)
                 .ConfigureAwait(true);
             WatchMedia(call.CallId, session);
 
-            MarkAnsweredCore(call.CallId, confirmedBeforeMedia: true);
-
             SyncLines();
+            _log($"входящий {call.CallId}: панель обновлена, active={_lines.ActiveCallId}; inCall={_panel.IsInCall}");
+            MarkAnsweredCore(call.CallId, confirmedBeforeMedia: true);
         }
         catch (VoiceAudioException failure)
         {
@@ -1188,12 +1189,11 @@ public sealed class PhoneService : IDisposable
                         answered = true;
                         await _dispatcher.InvokeAsync(() =>
                         {
-                            MarkAnsweredCore(call.CallId, confirmedBeforeMedia: true);
-
                             // Ответили — вызов перестал быть ожидаемым и стал
                             // линией; дальше состояние держит `SyncLines`.
                             ClearPending(call.CallId);
                             SyncLines();
+                            MarkAnsweredCore(call.CallId, confirmedBeforeMedia: true);
                         });
 
                         break;
@@ -1632,9 +1632,12 @@ public sealed class PhoneService : IDisposable
         => _ = Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-            if (_sessions.TryGetValue(callId, out var current) && ReferenceEquals(current, session))
+            var elapsed = 5;
+            while (_sessions.TryGetValue(callId, out var current) && ReferenceEquals(current, session))
             {
-                _log($"медиа через 5 с: {session.Summary()}");
+                _log($"медиа через {elapsed} с, Call-ID {callId}, PID={Environment.ProcessId}: {session.Summary()}");
+                await Task.Delay(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                elapsed += 30;
             }
         });
 

@@ -41,6 +41,7 @@ public partial class App : Application, IDisposable
     private PanelLineHost? _panelLine;
     private UpdateService? _updates;
     private SingleInstance? _instance;
+    private ResponsivenessWatch? _responsiveness;
 
     /// <summary>Решает, переживать ли непойманное исключение интерфейса.</summary>
     private readonly Shell.CrashGuard _crashGuard = new();
@@ -159,7 +160,7 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        _instance.Watch(() => Dispatcher.Invoke(ShowPanel));
+        _instance.Watch(() => Dispatcher.BeginInvoke(ShowPanel));
         Mark("экземпляр");
 
         // Только у экземпляра, который остаётся работать: второй выходит сразу.
@@ -226,6 +227,7 @@ public partial class App : Application, IDisposable
         {
             ShowSettings = new RelayCommand(_ => ShowSettings()),
             ShowHistory = new RelayCommand(_ => ShowHistory()),
+            Quit = new RelayCommand(_ => Quit()),
         };
 
         // Окно входящего вызова вместе с защитой от автокликеров (W9). Мигает
@@ -242,6 +244,7 @@ public partial class App : Application, IDisposable
         _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
         _phone.RecoverConnection = () => Reconnect("канал закрыт");
         Mark("телефон");
+        _responsiveness = new ResponsivenessWatch(Dispatcher, Log);
 
         // Рингтон входящего. Настройка его обещала с самого начала, а играть
         // было нечем: звонок на Windows не звонил вовсе, и входящий выдавала
@@ -1474,6 +1477,7 @@ public partial class App : Application, IDisposable
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _responsiveness?.Dispose();
         ClientEventLog.Shared.FinishSession();
         Dispose();
         _logFile?.Dispose();
@@ -1573,6 +1577,7 @@ public partial class App : Application, IDisposable
 
     public void Dispose()
     {
+        _responsiveness?.Dispose();
         _background?.Dispose();
         _background = null;
         _appearance?.Dispose();

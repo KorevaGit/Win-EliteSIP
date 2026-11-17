@@ -10,6 +10,21 @@ namespace EliteSIP.App.Tests;
 public sealed class SettingsUpgradeTests : IDisposable
 {
     [Fact]
+    public void Support_trace_is_enabled_once_for_existing_installations()
+    {
+        var old = new AppSettings { Revision = 3 };
+        old.Maintenance.LogToFile = false;
+        old.Maintenance.LogsSipTrace = false;
+        old.Save(FilePath);
+        var upgraded = AppSettings.Load(FilePath);
+        Assert.True(upgraded.Maintenance.LogToFile);
+        Assert.True(upgraded.Maintenance.LogsSipTrace);
+        upgraded.Maintenance.LogsSipTrace = false;
+        upgraded.Save(FilePath);
+        Assert.False(AppSettings.Load(FilePath).Maintenance.LogsSipTrace);
+        Assert.True(new MaintenanceSettings().LogsSipTrace);
+    }
+    [Fact]
     public void Ringtone_defaults_to_call_device_when_output_is_absent()
     {
         Assert.Equal(RingtoneOutput.CallDevice, new RingtoneSettings().Output);

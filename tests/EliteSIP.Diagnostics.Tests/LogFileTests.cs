@@ -333,11 +333,16 @@ public sealed class LogFileTests : IDisposable
     {
         using var log = new LogFile(new LogFile.Settings(_directory));
         log.Write("REGISTER 401 then 200; Contact 203.0.113.7:41234", "info");
+        log.Write("<- INVITE sip:724@example.test SIP/2.0\r\nCall-ID: support-trace-test\r\nAuthorization: Digest response=\"test-secret\"\r\n", "info");
         var destination = Path.Combine(_directory, "support.zip");
         SupportArchive.MakeFromDirectory(_directory, "summary", destination, log);
         using var archive = ZipFile.OpenRead(destination);
         using var reader = new StreamReader(archive.GetEntry(LogFile.CurrentFileName)!.Open());
-        Assert.Contains("REGISTER 401 then 200", reader.ReadToEnd(), StringComparison.Ordinal);
+        var archived = reader.ReadToEnd();
+        Assert.Contains("REGISTER 401 then 200", archived, StringComparison.Ordinal);
+        Assert.Contains("INVITE sip:724@example.test", archived, StringComparison.Ordinal);
+        Assert.Contains("support-trace-test", archived, StringComparison.Ordinal);
+        Assert.DoesNotContain("test-secret", archived, StringComparison.Ordinal);
         Assert.NotNull(archive.GetEntry("collection.txt"));
     }
 

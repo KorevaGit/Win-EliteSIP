@@ -62,6 +62,7 @@
     <value>EliteSIP</value>
     <comment>заголовок окна панели</comment>
   </data>
+  <data name="PanelYourNumber" xml:space="preserve"><value>YOUR NUMBER</value></data>
   <data name="PanelSettings" xml:space="preserve">
     <value>Settings</value>
     <comment>шестерёнка в строке состояния</comment>

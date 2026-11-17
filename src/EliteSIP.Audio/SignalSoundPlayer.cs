@@ -350,10 +350,7 @@ public sealed class SignalSoundPlayer : IDisposable
 
         Stop();
 
-        lock (_cueGate)
-        {
-            CloseCuesLocked();
-        }
+        _ = Task.Run(() => { lock (_cueGate) { CloseCuesLocked(); } });
     }
 
     // MARK: - Подсказки: нажатие клавиши, подключение, отбой
@@ -373,6 +370,9 @@ public sealed class SignalSoundPlayer : IDisposable
     private MixingSampleProvider? _cueMixer;
     private string? _cueDeviceId;
     private Timer? _cueIdle;
+    private readonly object _cueQueueGate = new();
+    private readonly Queue<(ISampleProvider Cue, string? Device)> _cueQueue = new();
+    private bool _cueWorkerRunning;
 
     /// <summary>
     /// Играет короткий звук поверх того, что уже играет.
@@ -383,6 +383,39 @@ public sealed class SignalSoundPlayer : IDisposable
     /// выводе, а не вывод на каждую подсказку.
     /// </summary>
     private void PlayCue(ISampleProvider cue, string? deviceId)
+    {
+        lock (_cueQueueGate)
+        {
+            if (Volatile.Read(ref _disposed)) { return; }
+            // Short cues are optional. Never accumulate work behind a stalled driver.
+            if (_cueQueue.Count >= 8) { _cueQueue.Dequeue(); }
+            _cueQueue.Enqueue((cue, deviceId));
+            if (_cueWorkerRunning) { return; }
+            _cueWorkerRunning = true;
+            _ = Task.Run(DrainCues);
+        }
+    }
+
+    private void DrainCues()
+    {
+        while (true)
+        {
+            (ISampleProvider Cue, string? Device) next;
+            lock (_cueQueueGate)
+            {
+                if (_cueQueue.Count == 0 || Volatile.Read(ref _disposed))
+                {
+                    _cueQueue.Clear();
+                    _cueWorkerRunning = false;
+                    return;
+                }
+                next = _cueQueue.Dequeue();
+            }
+            PlayCueCore(next.Cue, next.Device);
+        }
+    }
+
+    private void PlayCueCore(ISampleProvider cue, string? deviceId)
     {
         lock (_cueGate)
         {
@@ -402,6 +435,8 @@ public sealed class SignalSoundPlayer : IDisposable
                     // же подсказки.
                     MixingSampleProvider mixer = new(cue.WaveFormat) { ReadFully = true };
                     WasapiPlayer output = Open(deviceId);
+                    // Keep ownership before Init: a disconnected driver may throw there.
+                    _cueOutput = output;
                     output.Init(mixer);
                     output.Play();
 
@@ -460,7 +495,11 @@ public sealed class SignalSoundPlayer : IDisposable
         }
         finally
         {
-            output.Dispose();
+            try { output.Dispose(); }
+            catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException)
+            {
+                _log?.Invoke($"вывод подсказок уже отключён: {error.Message}");
+            }
         }
     }
 

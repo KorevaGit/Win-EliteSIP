@@ -218,6 +218,22 @@ public sealed class VoiceAudioBus : IDisposable
         }
     }
 
+    /// <summary>Diagnostic reads must never wait for a driver operation holding the bus.</summary>
+    public bool TryInspectEngine<TResult>(AudioOwnerToken token,
+        Func<IVoiceAudioEngine, TResult> read, out TResult result)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        result = default!;
+        if (!Monitor.TryEnter(_gate)) { return false; }
+        try
+        {
+            if (_disposed || !_ownership.IsOwner(token)) { return false; }
+            result = read(_current);
+            return true;
+        }
+        finally { Monitor.Exit(_gate); }
+    }
+
     /// <summary>
     /// Применяет настройки к тракту на ходу — если он за этим владельцем.
     ///
