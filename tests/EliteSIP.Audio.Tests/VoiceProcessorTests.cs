@@ -11,6 +11,31 @@ public sealed class VoiceProcessorTests
     /// <summary>Длительность прогона: АРУ нужно время, чтобы разогнаться.</summary>
     private const int Seconds = 12;
 
+    [Fact]
+    public void Headset_processing_without_AEC_does_not_need_reverse_audio()
+    {
+        using var withReverse = new VoiceProcessor(Rate, true, true, false, true);
+        using var withoutReverse = new VoiceProcessor(Rate, true, true, false, true);
+        var near = new float[Rate / 100];
+        var far = new float[near.Length];
+        var expected = new float[near.Length];
+        var actual = new float[near.Length];
+        for (var frame = 0; frame < 500; frame++)
+        {
+            for (var i = 0; i < near.Length; i++)
+            {
+                near[i] = (float)(.08 * Math.Sin((frame * near.Length + i) * .071));
+                far[i] = (float)(.2 * Math.Sin((frame * near.Length + i) * .11));
+            }
+            withReverse.AnalyzeReverse(far);
+            withReverse.Process(near, expected, 30);
+            withoutReverse.Process(near, actual, 30);
+            for (var i = 0; i < near.Length; i++) { Assert.InRange(Math.Abs(actual[i] - expected[i]), 0, 1e-6f); }
+        }
+        Assert.Equal(0, withoutReverse.FailedFrames);
+        Assert.Equal(0, withReverse.FailedFrames);
+    }
+
     /// <summary>
     /// АРУ обязана поднимать тихий голос, а не только стоять в настройках.
     /// </summary>

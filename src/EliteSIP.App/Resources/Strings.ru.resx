@@ -1352,6 +1352,7 @@
   <data name="SettingsMachineId" xml:space="preserve"><value>ID машины</value></data>
   <data name="SettingsCopyId" xml:space="preserve"><value>Копировать ID машины</value></data>
   <data name="SettingsPresets" xml:space="preserve"><value>Предустановки</value></data>
+  <data name="SettingsPresetNotApplied" xml:space="preserve"><value>Не применены</value></data>
   <data name="SettingsCheckNow" xml:space="preserve"><value>Проверить сейчас</value></data>
   <data name="SettingsMelodyShort" xml:space="preserve"><value>Мелодия</value></data>
   <data name="SettingsOutput" xml:space="preserve"><value>Вывод</value></data>

@@ -283,6 +283,7 @@ public sealed class SettingsViewModel : Observable
     /// </summary>
     internal void RefreshWorkplace()
     {
+        NotifyChanged(nameof(CurrentPreset));
         NotifyChanged(nameof(WorkplaceSite));
         NotifyChanged(nameof(IsWorkplaceSwitchLocked));
         NotifyChanged(nameof(CanSwitchWorkplace));
@@ -314,6 +315,10 @@ public sealed class SettingsViewModel : Observable
 
     private void OnWorkplaceSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(PanelSettings.PresetName) or nameof(PanelSettings.PresetID))
+        {
+            NotifyChanged(nameof(CurrentPreset));
+        }
         if (e.PropertyName is nameof(AccountSettings.Site)
             or nameof(PanelSettings.Mode)
             or nameof(PanelSettings.LockedWorkFormat))
@@ -323,6 +328,12 @@ public sealed class SettingsViewModel : Observable
     }
 
     // --- Самопроверка звука --------------------------------------------------
+
+    public string CurrentPreset => !string.IsNullOrWhiteSpace(Settings.Panel.PresetName)
+        ? Settings.Panel.PresetName
+        : !string.IsNullOrWhiteSpace(Settings.Panel.PresetID)
+            ? Settings.Panel.PresetID
+            : Strings.Get("SettingsPresetNotApplied");
 
     private string? _selfTestResult;
 

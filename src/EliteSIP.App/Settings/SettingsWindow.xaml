@@ -643,10 +643,16 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
-                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Grid VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
                     <theme:Icon Glyph="settings.list-checks" Size="18" VerticalAlignment="Center" />
-                    <TextBlock Text="{res:Loc SettingsPresets}" Margin="7,0,0,0" VerticalAlignment="Center" />
-                  </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{res:Loc SettingsPresets}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding CurrentPreset}" ToolTip="{Binding CurrentPreset}" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                  </Grid>
                   <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource SettingsButtonStyle}" Command="{Binding CheckPresets}" Visibility="{Binding IsPanelOffline, Converter={StaticResource NotBoolToVisibility}}">
                       <StackPanel Orientation="Horizontal">

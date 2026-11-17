@@ -868,8 +868,8 @@ public sealed partial class SipUserAgent
         string target = "",
         SipDialogIdentifier? replacing = null)
     {
-        Channel<SipTransferEvent> events = Channel.CreateBounded<SipTransferEvent>(
-            new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.DropOldest });
+        // One Accepted and one terminal result per subscription, not packet traffic.
+        Channel<SipTransferEvent> events = Channel.CreateUnbounded<SipTransferEvent>();
 
         IAsyncEnumerable<SipTransferEvent> Reject(int status, string reason)
         {

@@ -107,6 +107,8 @@ internal sealed class ScriptedSipServer : ISipTransportChannel
     /// <summary>Объявляет готовность вручную — для тех, кто её так и не дождался.</summary>
     public void BecomeReady() => _events.Writer.TryWrite(new SipTransportEvent.Ready(Local));
 
+    public bool FailResponseWrites { get; set; }
+
     public Task SendAsync(ReadOnlyMemory<byte> data)
     {
         // Пакет удержания NAT — не сообщение: ни метода, ни заголовков, только
@@ -135,6 +137,7 @@ internal sealed class ScriptedSipServer : ISipTransportChannel
 
         if (message.AsResponse is SipResponse response)
         {
+            if (FailResponseWrites) { throw new IOException("synthetic response send failure"); }
             lock (_gate)
             {
                 _sentResponses.Add(response);

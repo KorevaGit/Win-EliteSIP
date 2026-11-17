@@ -11,6 +11,25 @@ namespace EliteSIP.App.Tests;
 
 public sealed class SettingsRedesignTests
 {
+    [Fact]
+    public void Current_preset_name_updates_while_settings_are_open() => WpfHost.Run(() =>
+    {
+        var settings = new AppSettings();
+        var model = new SettingsViewModel(settings);
+        model.WatchWorkplace(true);
+        try
+        {
+            var changes = new List<string?>();
+            model.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+            settings.Panel.PresetID = "remote-call-center";
+            Assert.Equal("remote-call-center", model.CurrentPreset);
+            settings.Panel.PresetName = "Колл-центр · Из дома";
+            Assert.Equal("Колл-центр · Из дома", model.CurrentPreset);
+            Assert.Contains(nameof(SettingsViewModel.CurrentPreset), changes);
+        }
+        finally { model.WatchWorkplace(false); }
+    });
+
     [Theory]
     [InlineData(Appearance.Light)]
     [InlineData(Appearance.Dark)]

@@ -982,7 +982,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         _captureToProcessing = new Resampler(_captureFormat.SampleRate, processingRate);
         _processingToCodec = new Resampler(processingRate, codecRate);
         _codecToRender = new Resampler(codecRate, _renderFormat.SampleRate, adjustable: true);
-        _renderToProcessing = new Resampler(_renderFormat.SampleRate, processingRate);
+        _renderToProcessing = _echoFree ? null : new Resampler(_renderFormat.SampleRate, processingRate);
 
         int targetFill = _configuration.TargetPlaybackFrames
             * _configuration.PacketTimeMilliseconds
@@ -1681,7 +1681,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         AudioClient client = _renderClient!;
         WaveFormat format = _renderFormat!;
         VoiceProcessor processor = _processor!;
-        Resampler toProcessing = _renderToProcessing!;
+        Resampler? toProcessing = _echoFree ? null : _renderToProcessing;
         SampleRing ring = _playbackRing!;
 
         AudioRenderClient render = client.AudioRenderClient;
@@ -1690,7 +1690,7 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         int bufferFrames = client.BufferSize;
 
         float[] scratch = new float[bufferFrames];
-        float[] reversePending = new float[format.SampleRate];
+        float[] reversePending = toProcessing is null ? [] : new float[format.SampleRate];
         int reverseCount = 0;
         var silentClock = _captureClient is null ? new ReceiveOnlyClock(format.SampleRate, _configuration.PacketTimeMilliseconds) : null;
         var silence = silentClock is null ? null : _configuration.Codec.SilencePayload(_configuration.PacketTimeMilliseconds);
@@ -1787,6 +1787,10 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                     for (var packet = 0; packet < count; packet++) { Handlers.EncodedFrame?.Invoke(silence!); }
                     continue;
                 }
+
+                // Headphone routes have AEC disabled. Reverse resampling,
+                // native analysis and the capture processing lock serve only AEC.
+                if (toProcessing is null) { continue; }
 
                 // Опорный сигнал эхоподавителю — ровно то, что мы отдали
                 // устройству, и в том же порядке. Брать его до умножения на

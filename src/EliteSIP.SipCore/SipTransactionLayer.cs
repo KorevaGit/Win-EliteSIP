@@ -106,13 +106,13 @@ public sealed class SipTransactionLayer : IDisposable
 
     private readonly Channel<SipRequest> _inbound =
         Channel.CreateBounded<SipRequest>(
-            new BoundedChannelOptions(InboundQueueCapacity) { FullMode = BoundedChannelFullMode.DropOldest });
+            new BoundedChannelOptions(InboundQueueCapacity) { FullMode = BoundedChannelFullMode.Wait });
 
     private readonly Channel<SipServerInviteEvent> _serverInviteEvents =
-        Channel.CreateBounded<SipServerInviteEvent>(new BoundedChannelOptions(16) { FullMode = BoundedChannelFullMode.DropOldest });
+        Channel.CreateUnbounded<SipServerInviteEvent>();
 
     private readonly Channel<string> _channelClosures =
-        Channel.CreateBounded<string>(new BoundedChannelOptions(4) { FullMode = BoundedChannelFullMode.DropOldest });
+        Channel.CreateUnbounded<string>();
 
     /// <summary>
     /// Ключ — branch плюс метод: CANCEL несёт тот же branch, что отменяемый
@@ -397,8 +397,7 @@ public sealed class SipTransactionLayer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        Channel<SipInviteEvent> events = Channel.CreateBounded<SipInviteEvent>(
-            new BoundedChannelOptions(32) { FullMode = BoundedChannelFullMode.DropOldest });
+        var events = new SipInviteEventQueue();
 
         string? branchValue = null;
         if (request.TopVia is SipVia via)
@@ -413,9 +412,8 @@ public sealed class SipTransactionLayer : IDisposable
 
         if (branchValue is not string branch)
         {
-            events.Writer.TryWrite(new SipInviteEvent.TransportFailed("в запросе нет Via"));
-            events.Writer.TryComplete();
-            return events.Reader.ReadAllAsync();
+            events.TryWrite(new SipInviteEvent.TransportFailed("в запросе нет Via"));
+            return events.ReadAllAsync();
         }
 
         byte[] data = request.Encoded();
@@ -423,7 +421,7 @@ public sealed class SipTransactionLayer : IDisposable
 
         lock (_gate)
         {
-            _inviteTransactions[key] = new InviteTransaction(request, data, events.Writer)
+            _inviteTransactions[key] = new InviteTransaction(request, data, events)
             {
                 // Таймер B живёт только в состоянии Calling: после первого 1xx
                 // сервер уже получил запрос, и гудки могут идти сколько угодно —
@@ -438,7 +436,7 @@ public sealed class SipTransactionLayer : IDisposable
 
         _ = Task.Run(() => TransmitInviteAsync(key, data), CancellationToken.None);
 
-        return events.Reader.ReadAllAsync();
+        return events.ReadAllAsync();
     }
 
     /// <summary>
@@ -1069,7 +1067,10 @@ public sealed class SipTransactionLayer : IDisposable
             {
                 return;
             }
-            _inbound.Writer.TryWrite(request);
+            if (!_inbound.Writer.TryWrite(request))
+            {
+                OnDiscarded?.Invoke(SipLogLevel.Warning, "очередь входящих полна: неподтверждённый ACK не принят");
+            }
             return;
         }
 
@@ -1101,21 +1102,32 @@ public sealed class SipTransactionLayer : IDisposable
             return;
         }
 
-        // Очередь входящих ограничена и при переполнении вытесняет самое
-        // старое — то есть теряет запрос, который уже приняли, но не успели
-        // разобрать. Переполнить её может только затор наверху, и тогда
-        // пропасть может что угодно, включая BYE. Проверка до записи, потому
-        // что вытеснение само по себе тихое: TryWrite в этом режиме всегда
-        // отвечает «записал».
-        if (_inbound.Reader.Count >= InboundQueueCapacity)
+        // Never evict an already admitted BYE/CANCEL/INVITE. Reject new work
+        // explicitly instead of blocking the transport reader or losing state.
+        if (!_inbound.Writer.TryWrite(request))
         {
             OnDiscarded?.Invoke(
                 SipLogLevel.Warning,
                 $"очередь входящих полна ({InboundQueueCapacity.ToString(CultureInfo.InvariantCulture)}), "
-                    + $"самый старый запрос вытеснен приходом {request.Method.Name()}");
+                    + $"новый {request.Method.Name()} отклонён с 503");
+            var headers = new SipHeaders();
+            foreach (var name in new[] { SipHeaderName.Via, SipHeaderName.From, SipHeaderName.CallId, SipHeaderName.CSeq })
+            {
+                foreach (var value in request.Headers.Values(name)) { headers.Append(name, value); }
+            }
+            if (request.To is { } to)
+            {
+                var target = to.Clone();
+                target.Tag ??= SipToken.Tag();
+                headers.Append(SipHeaderName.To, target.ToString());
+            }
+            headers.Set("Retry-After", "1");
+            try { await RespondAsync(request, new SipResponse(503, headers: headers)).ConfigureAwait(false); }
+            catch (IOException error)
+            {
+                OnDiscarded?.Invoke(SipLogLevel.Warning, $"ответ о перегрузке не отправлен: {error.Message}");
+            }
         }
-
-        _inbound.Writer.TryWrite(request);
     }
 
     /// <summary>
@@ -1261,7 +1273,10 @@ public sealed class SipTransactionLayer : IDisposable
 
         if (response.IsProvisional)
         {
-            transaction.Writer.TryWrite(new SipInviteEvent.Provisional(response));
+            if (!transaction.Writer.TryWrite(new SipInviteEvent.Provisional(response)))
+            {
+                OnDiscarded?.Invoke(SipLogLevel.Warning, "очередь 1xx полна: промежуточный ответ пропущен, место финального ответа сохранено");
+            }
 
             // Наверх про этот 1xx уже сказано, и это правильно: звонок в этот
             // момент отменяется, а не начинается.
@@ -1659,13 +1674,13 @@ public sealed class SipTransactionLayer : IDisposable
         public CancellationTokenSource? TimeoutCts { get; set; }
     }
 
-    private sealed class InviteTransaction(SipRequest request, byte[] data, ChannelWriter<SipInviteEvent> writer)
+    private sealed class InviteTransaction(SipRequest request, byte[] data, SipInviteEventQueue writer)
     {
         public SipRequest Request { get; } = request;
 
         public byte[] Data { get; } = data;
 
-        public ChannelWriter<SipInviteEvent> Writer { get; } = writer;
+        public SipInviteEventQueue Writer { get; } = writer;
 
         public InviteState State { get; set; } = InviteState.Calling;
 

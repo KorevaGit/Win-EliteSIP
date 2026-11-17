@@ -1374,6 +1374,7 @@
   <data name="SettingsMachineId" xml:space="preserve"><value>Machine ID</value></data>
   <data name="SettingsCopyId" xml:space="preserve"><value>Copy machine ID</value></data>
   <data name="SettingsPresets" xml:space="preserve"><value>Presets</value></data>
+  <data name="SettingsPresetNotApplied" xml:space="preserve"><value>Not applied</value></data>
   <data name="SettingsCheckNow" xml:space="preserve"><value>Check now</value></data>
   <data name="SettingsMelodyShort" xml:space="preserve"><value>Melody</value></data>
   <data name="SettingsOutput" xml:space="preserve"><value>Output</value></data>
