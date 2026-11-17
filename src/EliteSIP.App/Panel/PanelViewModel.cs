@@ -67,6 +67,7 @@ public sealed class MacroViewModel(string title, string tones) : Observable
 /// <summary>Одна линия: собеседник, состояние, таймер.</summary>
 public sealed class CallLineViewModel : Observable
 {
+    public string? CallId { get; init; }
     private string _title = string.Empty;
     private string _status = string.Empty;
     private bool _isActive;
@@ -499,18 +500,21 @@ public sealed class PanelViewModel : Observable
         }
     }
 
-    public bool CanHold => IsInCall;
+    private bool _canControlMedia = true;
+    public bool CanControlMedia
+    {
+        get => _canControlMedia;
+        set { Set(ref _canControlMedia, value); NotifyCallControls(); }
+    }
+
+    public bool CanHold => IsInCall && CanControlMedia;
 
     /// <summary>Микрофон глушится и до звонка — заглушённым он и поднимется.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Performance",
-        "CA1822:Пометьте члены как статические",
-        Justification = "Статическое свойство разметка не находит: привязка ищет его у объекта.")]
-    public bool CanMuteMicrophone => true;
+    public bool CanMuteMicrophone => !IsInCall || CanControlMedia;
 
-    public bool CanTransfer => IsInCall && !_isTransferEntryVisible;
+    public bool CanTransfer => IsInCall && CanControlMedia && !_isTransferEntryVisible;
 
-    public bool CanStartConference => IsInCall && !_isConferenceStarted;
+    public bool CanStartConference => IsInCall && CanControlMedia && !_isConferenceStarted;
 
     // --- Поле перевода ----------------------------------------------------
 

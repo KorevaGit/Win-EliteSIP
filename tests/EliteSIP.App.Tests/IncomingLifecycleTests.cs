@@ -18,6 +18,69 @@ namespace EliteSIP.App.Tests;
 [Collection("Settings popup windows")]
 public sealed class IncomingLifecycleTests
 {
+    [Fact]
+    public async Task Accepted_call_remains_visible_and_can_end_while_media_line_is_blocked()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pending-media-{Guid.NewGuid():N}.db");
+        using var history = new CallHistoryStore(new(path));
+        using var transport = new SocketSipTransport(new("127.0.0.1", 5060), SipCore.SipTransport.Udp);
+        using var agent = new SipUserAgent(new() { Username = "707", Domain = "localhost" }, new("707", "test"), transport);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var lines = new LineController(new SipUserAgentSignaling(agent));
+        var record = new CallRecord { CallId = "pending-media", Direction = CallDirection.Incoming, Number = "2929", AnsweredAt = DateTimeOffset.Now.AddSeconds(-5) };
+        PhoneService phone = null!;
+        PanelViewModel panel = null!;
+        Task<bool>? attaching = null;
+        CancellationToken lifetime = default;
+        try
+        {
+            WpfHost.Run(() =>
+            {
+                panel = new PanelViewModel();
+                phone = new PhoneService(new AppSettings(), panel, history,
+                    new IncomingCallPresenter(_ => { }, () => 0), Dispatcher.CurrentDispatcher, _ => { });
+                SetField(phone, "_agent", agent);
+                SetField(phone, "_lines", lines);
+                var records = (Dictionary<string, CallRecord>)typeof(PhoneService).GetField("_records", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(phone)!;
+                records.Add(record.CallId, record);
+                history.Begin(record);
+                lifetime = (CancellationToken)typeof(PhoneService).GetMethod("MediaLifetime", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(phone, [record.CallId])!;
+            });
+            attaching = Task.Run(() => lines.AttachAsync(record.CallId, new TestMedia
+            {
+                BeforeResume = () => { entered.Set(); release.Wait(); },
+            }, record.Number));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+            await Task.Run(() => WpfHost.Run(() =>
+            {
+                Invoke(phone, "SyncLines");
+                Assert.True(panel.IsInCall);
+                Assert.True(panel.IsCallButtonEnabled);
+                Assert.Equal(record.CallId, panel.ActiveLine?.CallId);
+                Assert.Equal(record.AnsweredAt, panel.ActiveLine?.ConnectedAt);
+                Assert.False(panel.CanHold);
+                Assert.False(panel.CanTransfer);
+            })).WaitAsync(TimeSpan.FromSeconds(2));
+            Task hangup = null!;
+            WpfHost.Run(() => hangup = phone.HangUpAsync());
+            await hangup.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(lifetime.IsCancellationRequested);
+            Task ended = null!;
+            WpfHost.Run(() => ended = (Task)typeof(PhoneService).GetMethod("CloseIncoming", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(phone, [record.CallId, "ended", null])!);
+            await ended.WaitAsync(TimeSpan.FromSeconds(2));
+            WpfHost.Run(() => Assert.False(panel.IsInCall));
+        }
+        finally
+        {
+            release.Set();
+            if (attaching is not null) { await attaching.WaitAsync(TimeSpan.FromSeconds(3)); }
+            await lines.DetachAsync(record.CallId);
+            if (phone is not null) { WpfHost.Run(phone.Dispose); }
+            history.Dispose();
+            File.Delete(path);
+        }
+    }
     [Theory]
     [InlineData("always", false)]
     [InlineData("header", false)]
@@ -121,10 +184,11 @@ public sealed class IncomingLifecycleTests
 
     private sealed class TestMedia : ILineMedia
     {
+        public Action? BeforeResume { get; init; }
         public bool SupportsTelephoneEvents => false;
         public bool OwnsAudio { get; private set; }
         public void SuspendAudio() => OwnsAudio = false;
-        public void ResumeAudio() => OwnsAudio = true;
+        public void ResumeAudio() { BeforeResume?.Invoke(); OwnsAudio = true; }
         public void SetMicrophoneMuted(bool muted) { }
         public void SetReceivingAudio(bool receiving) { }
         public ReadOnlyMemory<byte> MakeReoffer(MediaDirection direction) => throw new NotSupportedException();

@@ -111,7 +111,8 @@ public sealed class VoiceAudioBus : IDisposable
     public void Claim(
         AudioOwnerToken token,
         VoiceAudioConfiguration configuration,
-        VoiceAudioHandlers handlers)
+        VoiceAudioHandlers handlers,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(handlers);
@@ -120,6 +121,7 @@ public sealed class VoiceAudioBus : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
 
             // Освобождение устройства отменяется: оно снова нужно. Заодно это
             // быстрый путь для звонка сразу после отбоя — устройство не успело
@@ -141,7 +143,14 @@ public sealed class VoiceAudioBus : IDisposable
                 engine.Stop();
                 engine.Reconfigure(configuration);
                 engine.Handlers = handlers;
+                cancellationToken.ThrowIfCancellationRequested();
                 engine.Start();
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    engine.Handlers = VoiceAudioHandlers.None;
+                    engine.Stop();
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
                 _ownership.Take(token);
                 Volatile.Write(ref _published, new PublishedOwner(token, engine));
             }

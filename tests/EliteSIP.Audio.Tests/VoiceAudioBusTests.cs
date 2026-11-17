@@ -14,6 +14,33 @@ namespace EliteSIP.Audio.Tests;
 public sealed class VoiceAudioBusTests
 {
     [Fact]
+    public async Task Cancelled_driver_start_never_publishes_owner_or_replaces_next_calls_handlers()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var cancellation = new CancellationTokenSource();
+        var engine = new FakeVoiceAudioEngine { BeforeStart = () => { entered.Set(); release.Wait(); } };
+        using var bus = new VoiceAudioBus(engine, _ => new FakeVoiceAudioEngine());
+        var old = AudioOwnerToken.New();
+        var starting = Task.Run(() => bus.Claim(old, new VoiceAudioConfiguration(), new VoiceAudioHandlers(), cancellation.Token));
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+        try
+        {
+            cancellation.Cancel();
+            Assert.False(bus.IsOwner(old));
+        }
+        finally { release.Set(); }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        Assert.False(bus.IsBusy);
+        Assert.Same(VoiceAudioHandlers.None, engine.Handlers);
+        engine.BeforeStart = null;
+        var next = AudioOwnerToken.New();
+        var handlers = new VoiceAudioHandlers();
+        bus.Claim(next, new VoiceAudioConfiguration(), handlers);
+        Assert.True(bus.IsOwner(next));
+        Assert.Same(handlers, engine.Handlers);
+    }
+    [Fact]
     public async Task Diagnostic_inspection_does_not_wait_for_driver_operation()
     {
         using var entered = new ManualResetEventSlim();
@@ -281,7 +308,7 @@ public sealed class VoiceAudioBusTests
     }
 
     [Fact]
-    public void Выключенное_освобождение_оставляет_устройство_за_нами()
+    public void Выключенное_освобождение_сохраняет_движок_но_не_отменяет_Stop()
     {
         // На проводной гарнитуре отпускать нечего, а лишняя пересборка стоит
         // паузы в начале следующего звонка.
@@ -292,7 +319,9 @@ public sealed class VoiceAudioBusTests
             line,
             new VoiceAudioConfiguration { ReleasesDeviceWhenIdle = false },
             Handlers());
+        var stopsBeforeRelease = engine.StopCount;
         bus.Release(line);
+        Assert.Equal(stopsBeforeRelease + 1, engine.StopCount);
         scheduler.Fire();
 
         Assert.Equal(0, engine.DisposeCount);

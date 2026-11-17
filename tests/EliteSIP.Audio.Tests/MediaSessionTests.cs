@@ -18,6 +18,33 @@ namespace EliteSIP.Audio.Tests;
 /// </summary>
 public sealed class MediaSessionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cancelled_start_does_not_own_audio_and_releases_lifecycle_for_next_call(bool earlyMedia)
+    {
+        using var fixture = Fixture.Create();
+        using var cancellation = new CancellationTokenSource();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        fixture.Engine.BeforeStart = () => { entered.Set(); release.Wait(); };
+        var starting = earlyMedia
+            ? fixture.Session.StartListeningAsync(true, cancellation.Token)
+            : fixture.Session.StartAsync(cancellation.Token);
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
+            cancellation.Cancel();
+            Assert.False(fixture.Session.OwnsAudio);
+        }
+        finally { release.Set(); }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        Assert.False(fixture.Session.OwnsAudio);
+        Assert.False(fixture.Session.IsAudioActive);
+        using var next = Fixture.Create();
+        await next.Session.StartAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(next.Session.OwnsAudio);
+    }
     private const byte EventPayloadType = TelephoneEvent.DefaultPayloadType;
 
     /// <summary>Диапазон портов только для этих тестов — см. <c>Fixture.Create</c>.</summary>

@@ -71,6 +71,21 @@ public sealed class LineController(ILineSignaling signaling, Action<string>? onD
 
     private bool _isSwitchingLines;
 
+    /// <summary>UI snapshots must not wait for a driver operation under the line gate.</summary>
+    public bool TrySnapshot(out IReadOnlyList<LineView> lines, out bool microphoneMuted)
+    {
+        lines = Array.Empty<LineView>();
+        microphoneMuted = false;
+        if (!_gate.TryEnter()) { return false; }
+        try
+        {
+            lines = [.. _lines.Select(line => line.View)];
+            microphoneMuted = _microphoneMuted;
+            return true;
+        }
+        finally { _gate.Exit(); }
+    }
+
     private bool _microphoneMuted;
 
     /// <summary>Линии в порядке появления — том же, в котором они стоят в полосе.</summary>

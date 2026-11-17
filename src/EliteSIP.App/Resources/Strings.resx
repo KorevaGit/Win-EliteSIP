@@ -63,6 +63,7 @@
     <comment>заголовок окна панели</comment>
   </data>
   <data name="PanelYourNumber" xml:space="preserve"><value>YOUR NUMBER</value></data>
+  <data name="StatusAudioStarting" xml:space="preserve"><value>Connecting audio…</value></data>
   <data name="PanelSettings" xml:space="preserve">
     <value>Settings</value>
     <comment>шестерёнка в строке состояния</comment>
