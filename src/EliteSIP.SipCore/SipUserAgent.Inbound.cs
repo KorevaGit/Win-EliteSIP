@@ -109,7 +109,7 @@ public sealed partial class SipUserAgent
 
         Log(SipLogLevel.Info, $"<- INVITE от {call.DisplayNumber}, ответили 180");
         events.Writer.TryWrite(new SipCallEvent.State(new SipCallState.Incoming()));
-        _events.Writer.TryWrite(new SipUserAgentEvent.IncomingCall(call));
+        _events.TryWrite(new SipUserAgentEvent.IncomingCall(call));
     }
 
     /// <summary>
@@ -506,7 +506,7 @@ public sealed partial class SipUserAgent
                     var response = MakeSimpleResponse(request, 501);
                     response.Headers.Append(SipHeaderName.Allow, AllowedMethods);
                     await RespondQuietlyAsync(request, response).ConfigureAwait(false);
-                    _events.Writer.TryWrite(new SipUserAgentEvent.UnsupportedRequest(request.Method));
+                    _events.TryWrite(new SipUserAgentEvent.UnsupportedRequest(request.Method));
                     break;
                 }
 
@@ -515,7 +515,7 @@ public sealed partial class SipUserAgent
                     var response = MakeSimpleResponse(request, 405);
                     response.Headers.Append(SipHeaderName.Allow, AllowedMethods);
                     await RespondQuietlyAsync(request, response).ConfigureAwait(false);
-                    _events.Writer.TryWrite(new SipUserAgentEvent.UnsupportedRequest(request.Method));
+                    _events.TryWrite(new SipUserAgentEvent.UnsupportedRequest(request.Method));
                     break;
                 }
         }

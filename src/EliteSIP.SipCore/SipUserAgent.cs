@@ -127,11 +127,9 @@ public sealed partial class SipUserAgent : IDisposable
     private readonly SipSessionTimerPolicy _sessionTimerPolicy;
     private readonly ISipPathOpener? _pathOpener;
 
-    private readonly Channel<SipUserAgentEvent> _events =
-        Channel.CreateBounded<SipUserAgentEvent>(new BoundedChannelOptions(256)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-        });
+    private readonly SipAgentEventQueue _events = new();
+
+    public long DroppedDiagnosticEvents => _events.DroppedDiagnostics;
 
     // Идентификаторы серии регистраций: Call-ID и tag постоянны, пока агент жив.
     private readonly string _registrationCallId = SipToken.CallId();
@@ -237,7 +235,7 @@ public sealed partial class SipUserAgent : IDisposable
         _pathOpener = pathOpener;
     }
 
-    public IAsyncEnumerable<SipUserAgentEvent> Events => _events.Reader.ReadAllAsync();
+    public IAsyncEnumerable<SipUserAgentEvent> Events => _events.ReadAllAsync();
 
     public SipRegistrationState RegistrationState
     {
@@ -526,7 +524,7 @@ public sealed partial class SipUserAgent : IDisposable
 
         await _transactions.StopAsync().ConfigureAwait(false);
         SetState(new SipRegistrationState.Idle());
-        _events.Writer.TryComplete();
+        _events.TryComplete();
     }
 
     public void Dispose()
@@ -620,8 +618,8 @@ public sealed partial class SipUserAgent : IDisposable
         keepAlive?.Cancel();
 
         Log(SipLogLevel.Error, $"канал закрыт: {reason}");
-        _events.Writer.TryWrite(new SipUserAgentEvent.Registration(closed));
-        _events.Writer.TryWrite(new SipUserAgentEvent.ChannelClosed(reason));
+        _events.TryWrite(new SipUserAgentEvent.Registration(closed));
+        _events.TryWrite(new SipUserAgentEvent.ChannelClosed(reason));
     }
 
     // Регистрация
@@ -1226,7 +1224,7 @@ public sealed partial class SipUserAgent : IDisposable
 
         if (changed)
         {
-            _events.Writer.TryWrite(new SipUserAgentEvent.Registration(newState));
+            _events.TryWrite(new SipUserAgentEvent.Registration(newState));
         }
         return true;
     }
@@ -1241,11 +1239,11 @@ public sealed partial class SipUserAgent : IDisposable
             }
             _state = newState;
         }
-        _events.Writer.TryWrite(new SipUserAgentEvent.Registration(newState));
+        _events.TryWrite(new SipUserAgentEvent.Registration(newState));
     }
 
     private void Log(SipLogLevel level, string message) =>
-        _events.Writer.TryWrite(new SipUserAgentEvent.Log(level, message));
+        _events.TryWrite(new SipUserAgentEvent.Log(level, message));
 
     internal static string Describe(Exception error) => error switch
     {

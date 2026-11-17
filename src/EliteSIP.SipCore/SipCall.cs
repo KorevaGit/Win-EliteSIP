@@ -294,12 +294,12 @@ public sealed class SipRenegotiationException : Exception
 /// </summary>
 public delegate Task<ReadOnlyMemory<byte>?> SipMediaRenegotiator(string callId, ReadOnlyMemory<byte> offer);
 
-/// <summary>Внутренняя очередь событий одного звонка. Политика вытеснения та же, что в оригинале.</summary>
+/// <summary>Lifecycle events must survive a delayed consumer, including the terminal event.</summary>
 internal static class SipCallEventChannel
 {
     public static Channel<SipCallEvent> Create() =>
-        Channel.CreateBounded<SipCallEvent>(new BoundedChannelOptions(32)
+        Channel.CreateUnbounded<SipCallEvent>(new UnboundedChannelOptions
         {
-            FullMode = BoundedChannelFullMode.DropOldest,
+            AllowSynchronousContinuations = false,
         });
 }

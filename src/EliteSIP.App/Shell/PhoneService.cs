@@ -1066,10 +1066,17 @@ public sealed class PhoneService : IDisposable
     /// <summary>Читает события агента и переводит их в состояние панели.</summary>
     private async Task PumpAsync(SipUserAgent agent, CancellationToken token)
     {
+        long reportedDrops = 0;
         try
         {
             await foreach (var value in agent.Events.WithCancellation(token).ConfigureAwait(false))
             {
+                var drops = agent.DroppedDiagnosticEvents;
+                if (drops != reportedDrops)
+                {
+                    _log($"SIP: пропущено диагностических событий {drops}; очередь управления звонками сохранена");
+                    reportedDrops = drops;
+                }
                 switch (value)
                 {
                     case SipUserAgentEvent.Registration registration:
