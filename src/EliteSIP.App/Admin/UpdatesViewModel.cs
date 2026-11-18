@@ -29,7 +29,7 @@ public sealed class UpdatesViewModel : Observable
         _updates = updates;
 
         CheckNow = new RelayCommand(async _ => await CheckAsync(), _ => !_updates.IsChecking);
-        Install = new RelayCommand(_ => _updates.Offer(), _ => _updates.ReadyVersion is not null);
+        Install = new RelayCommand(_ => _updates.Offer(userInitiated: true), _ => _updates.ReadyVersion is not null);
 
         // Ход проверки — по мере того как он идёт: «проверяем», «скачиваем
         // 23 из 54 МБ», итог. В том числе у проверки, начатой не кнопкой, а

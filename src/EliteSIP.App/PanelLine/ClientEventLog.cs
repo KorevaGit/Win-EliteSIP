@@ -148,6 +148,7 @@ internal sealed class ClientEventLog : IDisposable
         Error,
         Crash,
         Connection,
+        Update,
     }
 
     internal enum Level

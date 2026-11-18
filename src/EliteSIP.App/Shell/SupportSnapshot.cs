@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text;
 using EliteSIP.App.Settings;
 using EliteSIP.Audio;
+using EliteSIP.Diagnostics;
 using Microsoft.Win32;
 
 namespace EliteSIP.App.Shell;
@@ -12,6 +14,25 @@ namespace EliteSIP.App.Shell;
 /// <summary>Разрешённые диагностические поля; файл настроек и учётные секреты не копируются.</summary>
 internal static class SupportSnapshot
 {
+    internal static string UpdaterLog()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "updates", "updater.log");
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            const int limit = 256 * 1024;
+            var start = Math.Max(0, stream.Length - limit);
+            stream.Position = start;
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            if (start != 0) { _ = reader.ReadLine(); }
+            return LogRedaction.Redact(reader.ReadToEnd());
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return $"Журнал обновляльщика недоступен: {error.GetType().Name}";
+        }
+    }
+
     internal static string Capture(AppSettings settings, bool includeAudioInventory = true)
     {
         var text = new StringBuilder();

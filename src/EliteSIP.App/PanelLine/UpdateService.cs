@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Windows.Threading;
+using EliteSIP.App.Settings;
 using EliteSIP.PanelLink;
 
 namespace EliteSIP.App.PanelLine;
@@ -15,7 +16,7 @@ namespace EliteSIP.App.PanelLine;
 /// <b>Что здесь происходит по порядку.</b>
 ///
 /// <list type="number">
-///   <item><description>Раз в два часа с разбросом приложение спрашивает канал
+///   <item><description>Раз в четыре часа с разбросом приложение спрашивает канал
 ///   и, если там новее, молча качает установщик в фоне. Оператор об этом не
 ///   знает и знать не должен: качать — нечего решать.</description></item>
 ///   <item><description>Скачанное сверяется с отпечатком из подписанного
@@ -28,13 +29,10 @@ namespace EliteSIP.App.PanelLine;
 /// </list>
 ///
 /// <b>Кнопки «Пропустить эту версию» нет.</b> Это решение оригинала, и оно
-/// перенесено как есть: пропускать версию нельзя вовсе. Отсрочка — ровно
-/// полчаса, и предела ей нет: настойчивость напоминания заменяет принуждение, а
-/// рабочее место, которое неделю жмёт «Отложить», — это вопрос настойчивости, а
-/// не политики.
+/// перенесено как есть: пропускать версию нельзя вовсе. После отказа новое
+/// автоматическое предложение откладывается на четыре часа.
 ///
-/// Полчаса отсрочки и два часа между проверками — разные сроки, и путать их не
-/// надо: первое про уже скачанное, второе про поход в сеть.
+/// Отсрочка предложения и расписание проверок действуют независимо.
 ///
 /// <b>Предложение не показывается в разговоре.</b> Проверка та же, что
 /// откладывает предустановку.
@@ -57,12 +55,12 @@ internal sealed class UpdateService : IDisposable
     /// </summary>
     ///
     /// <remarks>
-    /// Два часа с разбросом — это и есть верхняя граница ожидания. Приложение
+    /// Четыре часа с разбросом — это и есть верхняя граница ожидания. Приложение
     /// обязано ещё и спросить канал при запуске: на машине, которую выключают на
     /// ночь, именно запуск, а не такт, доставляет вчерашний выпуск и вчерашнюю
     /// правку макроса.
     /// </remarks>
-    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(2);
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(4);
 
     /// <summary>
     /// Разброс вокруг такта.
@@ -87,12 +85,13 @@ internal sealed class UpdateService : IDisposable
     private static readonly TimeSpan FirstCheckDelay = TimeSpan.FromSeconds(5);
 
     /// <summary>Через сколько напомнить о скачанном после «Отложить».</summary>
-    private static readonly TimeSpan ReminderInterval = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan ReminderInterval = TimeSpan.FromHours(4);
 
     private readonly Func<bool> _isBusy;
     private readonly Action<string?> _announce;
     private readonly Action _alsoCheckPresets;
     private readonly Action<string> _log;
+    private readonly MaintenanceSettings _schedule;
 
     private readonly DispatcherTimer _cycle = new();
     private readonly DispatcherTimer _reminder = new() { Interval = ReminderInterval };
@@ -112,12 +111,14 @@ internal sealed class UpdateService : IDisposable
         Func<bool> isBusy,
         Action<string?> announce,
         Action alsoCheckPresets,
-        Action<string> log)
+        Action<string> log,
+        MaintenanceSettings? schedule = null)
     {
         _isBusy = isBusy;
         _announce = announce;
         _alsoCheckPresets = alsoCheckPresets;
         _log = log;
+        _schedule = schedule ?? new MaintenanceSettings();
 
         _cycle.Tick += async (_, _) => await TickAsync().ConfigureAwait(true);
         _reminder.Tick += (_, _) => Offer();
@@ -199,8 +200,10 @@ internal sealed class UpdateService : IDisposable
             return;
         }
 
-        Reschedule();
-        _cycle.Interval = FirstCheckDelay;
+        var remaining = _schedule.NextUpdateCheckAt - DateTimeOffset.UtcNow;
+        _cycle.Interval = remaining is { } delay && delay > FirstCheckDelay && delay <= CheckInterval + CheckJitter
+            ? delay
+            : FirstCheckDelay;
         _cycle.Start();
     }
 
@@ -225,19 +228,31 @@ internal sealed class UpdateService : IDisposable
     ///
     /// <remarks>
     /// Зовётся и по концу разговора: предложение, отложенное на время звонка, не
-    /// должно ждать следующего получаса.
+    /// может появиться сразу после разговора, если оператор не отложил его.
     /// </remarks>
-    internal void Offer()
+    internal void Offer(bool userInitiated = false)
     {
         if (ReadyVersion is not { } version || _readyInstaller is null || AskToInstall is null)
         {
             return;
         }
 
+        if (_isOffering || _isInstalling)
+        {
+            return;
+        }
+
+        if (!userInitiated && _schedule.UpdateDeferredUntil is { } deferred
+            && deferred - DateTimeOffset.UtcNow is var remaining && remaining > TimeSpan.Zero
+            && remaining <= ReminderInterval)
+        {
+            ScheduleOffer(remaining);
+            return;
+        }
+
         if (_isBusy())
         {
-            // Не «Отложить», а «сейчас нельзя»: напоминание вернётся, как только
-            // разговор кончится.
+            ScheduleOffer(TimeSpan.FromSeconds(5));
             return;
         }
 
@@ -254,11 +269,6 @@ internal sealed class UpdateService : IDisposable
         // поверх уходящего приложения. Оператор видел то же окно снова, а
         // закрывалось всё только после второго «Обновить» (журнал 11 сентября
         // 2026: «передано обновляльщику» дважды за секунду).
-        if (_isOffering || _isInstalling)
-        {
-            return;
-        }
-
         _reminder.Stop();
 
         bool accepted;
@@ -274,8 +284,15 @@ internal sealed class UpdateService : IDisposable
 
         if (!accepted)
         {
+            _schedule.UpdateDeferredUntil = DateTimeOffset.UtcNow + ReminderInterval;
             _log($"обновление {version} отложено на {ReminderInterval.TotalMinutes:0} минут");
-            _reminder.Start();
+            ScheduleOffer(ReminderInterval);
+            return;
+        }
+
+        if (_isBusy())
+        {
+            ScheduleOffer(TimeSpan.FromSeconds(5));
             return;
         }
 
@@ -286,9 +303,17 @@ internal sealed class UpdateService : IDisposable
         {
             // Передать не вышло — предложение вернётся, как после «Отложить».
             _isInstalling = false;
+            _schedule.UpdateDeferredUntil = DateTimeOffset.UtcNow + ReminderInterval;
             _cycle.Start();
-            _reminder.Start();
+            ScheduleOffer(ReminderInterval);
         }
+    }
+
+    private void ScheduleOffer(TimeSpan delay)
+    {
+        _reminder.Stop();
+        _reminder.Interval = delay < TimeSpan.FromMilliseconds(100) ? TimeSpan.FromMilliseconds(100) : delay;
+        _reminder.Start();
     }
 
     /// <summary>Висит ли вопрос об установке на экране прямо сейчас.</summary>
@@ -346,6 +371,7 @@ internal sealed class UpdateService : IDisposable
     private async Task TickAsync()
     {
         Reschedule();
+        _schedule.NextUpdateCheckAt = DateTimeOffset.UtcNow + _cycle.Interval;
 
         // Строка на каждый такт, даже пустой: иначе проверить по журналу, что
         // такт вообще идёт и с каким шагом, было не по чему.
@@ -359,7 +385,7 @@ internal sealed class UpdateService : IDisposable
         _alsoCheckPresets();
     }
 
-    /// <summary>Ставит следующий такт: два часа плюс разброс.</summary>
+    /// <summary>Ставит следующий такт: четыре часа плюс разброс.</summary>
     private void Reschedule()
     {
         var jitter = TimeSpan.FromSeconds(

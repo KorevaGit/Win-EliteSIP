@@ -1455,7 +1455,7 @@
   <data name="UpdateLater" xml:space="preserve"><value>Later</value></data>
   <data name="UpdateNoNotes" xml:space="preserve"><value>Release notes were not provided.</value></data>
   <data name="UpdateOfferHeading" xml:space="preserve"><value>An update is available</value></data>
-  <data name="UpdateReminderShort" xml:space="preserve"><value>Remind in 30 min</value></data>
+  <data name="UpdateReminderShort" xml:space="preserve"><value>Remind in 4 hours</value></data>
   <data name="UpdateWhatsNew" xml:space="preserve"><value>What&apos;s new</value></data>
   <data name="SupportLogsCollecting" xml:space="preserve"><value>Collecting logs and device information…</value></data>
   <data name="AppearanceBackground" xml:space="preserve"><value>Window background</value></data>

@@ -55,6 +55,7 @@ if (args.Contains("--relaunch"))
     // (см. `SetupInProgress` в приложении). Поэтому сперва ждём, пока
     // установщик выйдет.
     WaitForSetupToExit(TimeSpan.FromMinutes(2));
+    ConfirmUpdate();
 
     // `--after-setup`: установщика мы уже дождались, и второй раз ждать его
     // приложению незачем — это были лишние секунды перед панелью.
@@ -206,6 +207,16 @@ async Task<int> RunAsync()
 
     // Отметка «поднять после установки» — до установки: установщик закроет
     // софтфон, и вернуть его обязан кто-то, кто переживёт установку.
+    if (installed is not null)
+    {
+        var pendingPath = Path.Combine(Paths.TrustedUpdates, UpdateReceipt.PendingName);
+        var pendingReceipt = UpdateReceipt.Parse(ReadText(pendingPath));
+        if (pendingReceipt is null || pendingReceipt.From.ToString(3) != installed.ToString(3)
+            || pendingReceipt.To.ToString(3) != manifest.Version.ToString(3))
+        {
+            File.WriteAllText(pendingPath, new UpdateReceipt(Guid.NewGuid(), installed, manifest.Version).ToString());
+        }
+    }
     await File.WriteAllTextAsync(Paths.RelaunchMarker, manifest.Version.ToString(3)).ConfigureAwait(false);
 
     if (!HandOverToInstallTask(trusted, manifest.Version))
@@ -298,6 +309,7 @@ void RelaunchIfPending()
         return;
     }
 
+    ConfirmUpdate();
     if (UserSession.IsRunningInActiveSession("EliteSIP.App"))
     {
         TryDelete(Paths.RelaunchMarker);
@@ -321,6 +333,37 @@ void RelaunchIfPending()
     {
         log.Write($"софтфон после установки всё ещё не поднят ({reason})");
     }
+}
+
+void ConfirmUpdate()
+{
+    if (Mutex.TryOpenExisting(@"Global\EliteSIP.Setup", out var setup))
+    {
+        setup.Dispose();
+        return;
+    }
+
+    var pendingPath = Path.Combine(Paths.TrustedUpdates, UpdateReceipt.PendingName);
+    if (UpdateReceipt.Parse(ReadText(pendingPath)) is not { } receipt
+        || receipt.To.ToString(3) != InstalledVersion()?.ToString(3)
+        || ReadText(Paths.RelaunchMarker)?.Trim() != receipt.To.ToString(3))
+    {
+        return;
+    }
+
+    string target = Path.Combine(Paths.TrustedUpdates, UpdateReceipt.ConfirmedName);
+    string temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+    try
+    {
+        File.WriteAllText(temporary, receipt.ToString());
+        File.Move(temporary, target, overwrite: true);
+        TryDelete(pendingPath);
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+    {
+        log.Write($"не удалось сохранить подтверждение установки: {error.GetType().Name}");
+    }
+    finally { TryDelete(temporary); }
 }
 
 /// <summary>Убирает выпуски, которые уже никому не нужны.</summary>

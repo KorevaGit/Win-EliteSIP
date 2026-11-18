@@ -10,7 +10,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
-        Width="324"
+        Width="270"
         MinWidth="270"
         SizeToContent="Height"
         ResizeMode="CanResize"

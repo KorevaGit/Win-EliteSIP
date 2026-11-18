@@ -78,7 +78,18 @@ public sealed class IncomingLifecycleTests
             Assert.True(entered.Wait(TimeSpan.FromSeconds(3)));
             await Task.Run(() => WpfHost.Run(() =>
             {
+                bool requestedAgain = false;
+                panel.Lines.CollectionChanged += (_, _) =>
+                {
+                    if (requestedAgain) { return; }
+                    requestedAgain = true;
+                    Invoke(phone, "SyncLines");
+                };
                 Invoke(phone, "SyncLines");
+                Assert.True(requestedAgain);
+                var firstLine = Assert.Single(panel.Lines);
+                Invoke(phone, "SyncLines");
+                Assert.Same(firstLine, Assert.Single(panel.Lines));
                 Assert.True(panel.IsInCall);
                 Assert.True(panel.IsCallButtonEnabled);
                 Assert.Equal(record.CallId, panel.ActiveLine?.CallId);

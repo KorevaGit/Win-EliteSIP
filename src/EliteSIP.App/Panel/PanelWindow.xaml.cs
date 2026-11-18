@@ -47,6 +47,7 @@ public partial class PanelWindow : Window
 
     private readonly DispatcherTimer _clock;
     private double _bottomEdge;
+    private Rect? _userBoundsBeforeMove;
 
     public PanelWindow(PanelViewModel model)
     {
@@ -219,10 +220,6 @@ public partial class PanelWindow : Window
         // на ней панель свёрстана. Считается от настоящей ширины за вычетом
         // рамок, а не задаётся числом: рамки у Windows 10 и 11 разные.
         //
-        // Окно при этом открывается шире — 324, на пятую часть крупнее
-        // (11 сентября 2026: «стандартный размер чуть больше»). Разница
-        // уходит в масштаб, а не в раскладку: крупнее становится всё сразу,
-        // а не одни растянутые клавиши.
         _baseFrameWidth = Frame.ActualWidth > 0
             ? Frame.ActualWidth - (ActualWidth - MinWidth)
             : 254;
@@ -238,7 +235,7 @@ public partial class PanelWindow : Window
         else
         {
             SizeToContent = SizeToContent.Manual;
-            Height = InitialHeight(Width, MinHeight, Math.Min(MaxHeight, WorkArea().Height));
+            Height = InitialHeight(MinHeight, Math.Min(MaxHeight, WorkArea().Height));
         }
 
         // Содержимое меняет высоту само — вторая линия, поле перевода, число
@@ -285,8 +282,7 @@ public partial class PanelWindow : Window
         // мыши: настройки пишутся на каждую правку, и запись на каждый пиксель
         // означала бы сотню записей на один перенос окна.
         //
-        // Закрытие тоже сохраняет — но одного его мало: машину выключают, не
-        // закрывая софтфон, и тогда OnClosed не случается вовсе.
+        // Автоматическая раскладка не считается выбором пользователя.
         if (PresentationSource.FromVisual(this) is HwndSource source)
         {
             source.AddHook(OnMessage);
@@ -313,6 +309,7 @@ public partial class PanelWindow : Window
 
         if (message == WM_ENTERSIZEMOVE)
         {
+            _userBoundsBeforeMove = new Rect(Left, Top, ActualWidth, ActualHeight);
             _isUserSizing = true;
 
             // Раз окно тянут руками, его размер задаёт рука, а не содержимое.
@@ -328,18 +325,24 @@ public partial class PanelWindow : Window
             }
         }
 
-        if (message == WM_EXITSIZEMOVE && WindowState is WindowState.Normal)
+        if (message == WM_EXITSIZEMOVE)
         {
             _isUserSizing = false;
+            var before = _userBoundsBeforeMove;
+            _userBoundsBeforeMove = null;
+            if (WindowState is not WindowState.Normal || before is null) { return 0; }
             UpdateMinimumHeight();
 
             // Выросшее окно могло уйти за нижний край. Новый низ — тот, что
             // получился в пределах экрана.
             KeepOnScreen();
 
-            SavePlacement?.Invoke(Left, Top);
+            if (Math.Abs(before.Value.X - Left) >= 0.5 || Math.Abs(before.Value.Y - Top) >= 0.5)
+            {
+                SavePlacement?.Invoke(Left, Top);
+            }
 
-            if (SizeToContent is SizeToContent.Manual)
+            if (Math.Abs(before.Value.Width - ActualWidth) >= 0.5 || Math.Abs(before.Value.Height - ActualHeight) >= 0.5)
             {
                 SaveSize?.Invoke(Width, Height);
             }
@@ -470,11 +473,10 @@ public partial class PanelWindow : Window
     /// <summary>Ниже этого клавиша перестаёт быть мишенью для мыши.</summary>
     internal const double MinimumMacroHeight = 30;
 
-    // Та же пропорция первого показа, что у Linux-клиента.
-    internal const double PhoneAspect = 4.0 / 3.0;
+    internal const double DefaultPanelHeight = 467;
 
-    internal static double InitialHeight(double width, double content, double room) =>
-        Math.Min(Math.Max(Math.Round(width * PhoneAspect), content), room);
+    internal static double InitialHeight(double content, double room) =>
+        Math.Min(Math.Max(DefaultPanelHeight, content), room);
 
     /// <summary>
     /// Высота клавиши, при которой содержимое влезает в экран; <c>null</c> —
@@ -524,11 +526,6 @@ public partial class PanelWindow : Window
         Model.Lines.CollectionChanged -= OnCallLinesChanged;
         _clock.Stop();
 
-        if (WindowState is WindowState.Normal)
-        {
-            SavePlacement?.Invoke(Left, Top);
-        }
-
         base.OnClosed(e);
     }
 
@@ -540,15 +537,10 @@ public partial class PanelWindow : Window
     /// <b>С проверкой, что это место ещё существует.</b> Панель, оставленная на
     /// втором мониторе, после его отключения оказалась бы за краем рабочего
     /// стола — то есть невидимой, притом что приложение считает её показанной.
-    /// Не поместилась — встаёт посреди основного экрана, как при первом запуске.
+    /// Не поместилась — встаёт у правого верхнего края основного экрана.
     /// </remarks>
     private void Restore()
     {
-        if (RestorePlacement?.Invoke() is not { } placement)
-        {
-            return;
-        }
-
         var visible = new Rect(
             SystemParameters.VirtualScreenLeft,
             SystemParameters.VirtualScreenTop,
@@ -557,16 +549,17 @@ public partial class PanelWindow : Window
 
         // Требуется, чтобы на экране оказался весь заголовок с кнопками, а не
         // уголок окна: панель, у которой видны две точки, не перетащить мышью.
-        var wanted = new Rect(placement.Left, placement.Top, ActualWidth, ActualHeight);
-
-        if (!visible.Contains(wanted))
+        if (RestorePlacement?.Invoke() is { } placement
+            && visible.Contains(new Rect(placement.Left, placement.Top, ActualWidth, ActualHeight)))
         {
+            Left = placement.Left;
+            Top = placement.Top;
             return;
         }
 
-        WindowStartupLocation = WindowStartupLocation.Manual;
-        Left = placement.Left;
-        Top = placement.Top;
+        var work = SystemParameters.WorkArea;
+        Left = Math.Max(work.Left, work.Right - Math.Max(Width, ActualWidth) - 14);
+        Top = work.Top;
     }
 
     /// <summary>Enter в поле номера звонит.</summary>

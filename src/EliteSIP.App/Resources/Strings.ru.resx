@@ -1433,7 +1433,7 @@
   <data name="UpdateLater" xml:space="preserve"><value>Отложить</value></data>
   <data name="UpdateNoNotes" xml:space="preserve"><value>Описание изменений для этого выпуска не добавлено.</value></data>
   <data name="UpdateOfferHeading" xml:space="preserve"><value>Доступно обновление</value></data>
-  <data name="UpdateReminderShort" xml:space="preserve"><value>Напомним через 30 мин</value></data>
+  <data name="UpdateReminderShort" xml:space="preserve"><value>Напомним через 4 часа</value></data>
   <data name="UpdateWhatsNew" xml:space="preserve"><value>Что нового</value></data>
   <data name="SupportLogsCollecting" xml:space="preserve"><value>Собираем журнал и сведения об устройствах…</value></data>
   <data name="AppearanceBackground" xml:space="preserve"><value>Фон окон</value></data>

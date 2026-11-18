@@ -428,16 +428,18 @@ public partial class App : Application, IDisposable
         // минут пачкой на канал. Как на macOS с 0.1.60.
         ClientEventLog.Shared.Start(() => _settings!, Log);
         ClientEventLog.Shared.BeginSession();
+        ReportConfirmedUpdate();
 
         // Линия обновлений (W12). Будильник у неё общий с предустановками: канал
         // один, и два независимых срока на нём разошлись бы через полгода.
         _updates = new UpdateService(
-            isBusy: () => model.IsInCall,
+            isBusy: () => _phone?.BlocksUpdateOffer == true || model.IsInCall,
             announce: version => Log(version is null
                 ? "обновление больше не ждёт"
                 : $"обновление {version} ждёт решения оператора"),
             alsoCheckPresets: () => _ = _panelLine?.CheckAsync(),
-            log: Log)
+            log: Log,
+            schedule: _settings.Maintenance)
         {
             AskToInstall = AskToInstallUpdate,
             PrepareForRestart = PrepareForUpdateRestart,
@@ -1079,6 +1081,30 @@ public partial class App : Application, IDisposable
 
     private bool _isCollectingSupportArchive;
 
+    private void ReportConfirmedUpdate()
+    {
+        if (_settings is not { } settings) { return; }
+        string path = Path.Combine(AppContext.BaseDirectory, "updates", UpdateReceipt.ConfirmedName);
+        try
+        {
+            if (!File.Exists(path) || new FileInfo(path).Length > 256) { return; }
+            if (UpdateReceipt.Parse(File.ReadAllText(path)) is not { } receipt
+                || receipt.OperationId == settings.Maintenance.LastReportedUpdate
+                || receipt.To.ToString(3) != typeof(App).Assembly.GetName().Version?.ToString(3))
+            {
+                return;
+            }
+
+            ClientEventLog.Shared.Record(ClientEventLog.Kind.Update, ClientEventLog.Level.Info,
+                $"Установлено {receipt.From.ToString(3)} → {receipt.To.ToString(3)}; операция {receipt.OperationId:N}");
+            settings.Maintenance.LastReportedUpdate = receipt.OperationId;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Log($"не удалось прочитать подтверждение установки: {error.GetType().Name}");
+        }
+    }
+
     private async Task CollectSupportArchiveAsync(Settings.SettingsViewModel model)
     {
         if (_isCollectingSupportArchive) { return; }
@@ -1112,6 +1138,7 @@ public partial class App : Application, IDisposable
                 {
                     ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)),
                     ["windows-crashes.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportCrashEvidence.Capture()),
+                    ["updater.log"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.UpdaterLog()),
                     ["history-status.txt"] = System.Text.Encoding.UTF8.GetBytes(_history?.DiagnosticSummary() ?? "history: not initialized"),
                 }));
 

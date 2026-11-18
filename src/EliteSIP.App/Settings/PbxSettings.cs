@@ -179,6 +179,27 @@ public sealed class MaintenanceSettings : Observable
 {
     private bool _logToFile = true;
     private bool _logsSipTrace = true;
+    private DateTimeOffset? _nextUpdateCheckAt;
+    private DateTimeOffset? _updateDeferredUntil;
+    private Guid? _lastReportedUpdate;
+
+    public Guid? LastReportedUpdate
+    {
+        get => _lastReportedUpdate;
+        set => Set(ref _lastReportedUpdate, value);
+    }
+
+    public DateTimeOffset? NextUpdateCheckAt
+    {
+        get => _nextUpdateCheckAt;
+        set => Set(ref _nextUpdateCheckAt, value);
+    }
+
+    public DateTimeOffset? UpdateDeferredUntil
+    {
+        get => _updateDeferredUntil;
+        set => Set(ref _updateDeferredUntil, value);
+    }
 
     /// <summary>Вести ли журнал в файл.</summary>
     ///

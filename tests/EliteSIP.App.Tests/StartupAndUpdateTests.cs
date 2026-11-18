@@ -100,6 +100,38 @@ public sealed class StartupAndUpdateTests
         finally { window.Close(); }
     });
 
+    [Fact]
+    public void Отложенное_обновление_не_показывается_снова_без_явного_запроса() => WpfHost.Run(() =>
+    {
+        var schedule = new EliteSIP.App.Settings.MaintenanceSettings();
+        bool busy = true;
+        int offers = 0;
+        UpdateService Create()
+        {
+            var service = new UpdateService(() => busy, _ => { }, () => { }, _ => { }, schedule);
+            WpfHost.SetPrivate(service, nameof(UpdateService.ReadyVersion), new Version(1, 2, 3));
+            typeof(UpdateService).GetField("_readyInstaller", System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic)!.SetValue(service, "staged.exe");
+            service.AskToInstall = _ => { offers++; return false; };
+            return service;
+        }
+
+        using (var updates = Create())
+        {
+            updates.Offer(userInitiated: true);
+            Assert.Equal(0, offers);
+            busy = false;
+            updates.Offer();
+            Assert.Equal(1, offers);
+        }
+
+        using var restarted = Create();
+        restarted.Offer();
+        Assert.Equal(1, offers);
+        restarted.Offer(userInitiated: true);
+        Assert.Equal(2, offers);
+    });
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
