@@ -171,6 +171,9 @@ public partial class App : Application, IDisposable
         // светлой и перекрашивается на глазах.
         _settings = AppSettings.Load();
         _settings.AutoSave();
+#if !DEBUG
+        AutoStart.ApplyDefault();
+#endif
 
         Strings.Apply(Chosen(_settings.Appearance.Language));
 
@@ -358,6 +361,7 @@ public partial class App : Application, IDisposable
 
         _panelWindow = new PanelWindow(model)
         {
+            Topmost = _settings.PanelAlwaysOnTop,
             // Панель, поставленную в угол над CRM, каждый запуск выбрасывало на
             // середину экрана. Это то, что на Windows замечают в первый же день.
             RestorePlacement = () => _settings.Placement is { Left: { } left, Top: { } top }
@@ -655,6 +659,10 @@ public partial class App : Application, IDisposable
         SettingsViewModel? model = null;
         model = new SettingsViewModel(_settings!)
         {
+            OnPanelAlwaysOnTopChanged = value =>
+            {
+                if (_panelWindow is { } panel) { panel.Topmost = value; }
+            },
             Updates = _updates is null ? null : new UpdatesViewModel(_updates),
 
             // Стук по портам прямо сейчас. Нужен, когда из дома перестало

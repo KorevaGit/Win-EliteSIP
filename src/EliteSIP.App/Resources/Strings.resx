@@ -1380,6 +1380,7 @@
   <data name="SettingsOutput" xml:space="preserve"><value>Output</value></data>
   <data name="SettingsPlayMelody" xml:space="preserve"><value>Play call melody</value></data>
   <data name="SettingsStartup" xml:space="preserve"><value>Start with Windows</value></data>
+  <data name="SettingsPanelAlwaysOnTop" xml:space="preserve"><value>Always on top</value></data>
   <data name="SettingsReleaseDevices" xml:space="preserve"><value>Release devices when idle</value></data>
   <data name="SettingsSelfTest" xml:space="preserve"><value>Self-test</value></data>
   <data name="SettingsOutputTestNote" xml:space="preserve"><value>Play a test signal through the selected speakers</value></data>

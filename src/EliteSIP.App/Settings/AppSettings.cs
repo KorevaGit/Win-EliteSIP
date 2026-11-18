@@ -478,6 +478,14 @@ public sealed class AppSettings : Observable
 
     public AppearanceSettings Appearance { get; init; } = new();
 
+    private bool _panelAlwaysOnTop = true;
+
+    public bool PanelAlwaysOnTop
+    {
+        get => _panelAlwaysOnTop;
+        set => Set(ref _panelAlwaysOnTop, value);
+    }
+
     public DtmfSettings Dtmf { get; init; } = new();
 
     public HistorySettings History { get; init; } = new();
@@ -678,6 +686,7 @@ public sealed class AppSettings : Observable
             WatchItems();
         }
 
+        PropertyChanged += (_, _) => TrySave(onFailure);
         Watch(Dtmf.Macros);
         Watch(Queues.Queues);
         Watch(PortKnock.Steps);

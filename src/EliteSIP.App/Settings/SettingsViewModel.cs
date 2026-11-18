@@ -631,6 +631,20 @@ public sealed class SettingsViewModel : Observable
         }
     }
 
+    public Action<bool>? OnPanelAlwaysOnTopChanged { get; init; }
+
+    public bool PanelAlwaysOnTop
+    {
+        get => Settings.PanelAlwaysOnTop;
+        set
+        {
+            if (Settings.PanelAlwaysOnTop == value) { return; }
+            Settings.PanelAlwaysOnTop = value;
+            OnPanelAlwaysOnTopChanged?.Invoke(value);
+            NotifyChanged();
+        }
+    }
+
     public bool ShowsAudio => _section is SettingsSectionKind.Audio;
 
     public bool ShowsRingtone => _section is SettingsSectionKind.Ringtone;

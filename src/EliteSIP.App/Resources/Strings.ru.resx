@@ -1358,6 +1358,7 @@
   <data name="SettingsOutput" xml:space="preserve"><value>Вывод</value></data>
   <data name="SettingsPlayMelody" xml:space="preserve"><value>Проигрывать мелодию</value></data>
   <data name="SettingsStartup" xml:space="preserve"><value>Запускать с Windows</value></data>
+  <data name="SettingsPanelAlwaysOnTop" xml:space="preserve"><value>Поверх всех окон</value></data>
   <data name="SettingsReleaseDevices" xml:space="preserve"><value>Освобождать устройства в простое</value></data>
   <data name="SettingsSelfTest" xml:space="preserve"><value>Самопроверка</value></data>
   <data name="SettingsOutputTestNote" xml:space="preserve"><value>Воспроизвести тестовый сигнал на выбранных динамиках</value></data>

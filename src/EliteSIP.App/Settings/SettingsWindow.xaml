@@ -172,6 +172,12 @@
                     <TextBlock Text="{res:Loc SettingsStartup}" Margin="7,0,0,0" VerticalAlignment="Center" />
                   </StackPanel>
                 </CheckBox>
+                <CheckBox Style="{StaticResource SettingsSwitchStyle}" IsChecked="{Binding PanelAlwaysOnTop}">
+                  <StackPanel Orientation="Horizontal">
+                    <theme:Icon Glyph="settings.monitor" Size="18" VerticalAlignment="Center" />
+                    <TextBlock Text="{res:Loc SettingsPanelAlwaysOnTop}" Margin="7,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                </CheckBox>
                 <theme:SettingsRow Tag="Restore">
                   <theme:SettingsRow.Header>
                     <StackPanel Orientation="Horizontal">

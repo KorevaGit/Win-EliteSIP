@@ -25,6 +25,25 @@ internal static class AutoStart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "EliteSIP";
+    private const string PreferencesKey = @"Software\EliteSIP";
+    private const string InitializedValue = "AutoStartInitialized";
+
+    internal static void ApplyDefault()
+    {
+        try
+        {
+            using var preferences = Registry.CurrentUser.CreateSubKey(PreferencesKey);
+            if (preferences is null || preferences.GetValue(InitializedValue) is not null) { return; }
+            using var run = Registry.CurrentUser.OpenSubKey(RunKey);
+            if (run?.GetValue(ValueName) is not null || Set(true))
+            {
+                preferences.SetValue(InitializedValue, 1);
+            }
+        }
+        catch (Exception error) when (error is System.Security.SecurityException or UnauthorizedAccessException)
+        {
+        }
+    }
 
     /// <summary>Стоит ли автозапуск и указывает ли он на эту же копию.</summary>
     ///
