@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Diagnostics;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -203,9 +204,14 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
         }
         catch (SocketException error)
         {
-            throw new IOException(
-                SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport),
-                error);
+            string reason = SipTransportFailureText.Describe(error.SocketErrorCode, Remote, Transport);
+            if (socket.SocketType == SocketType.Dgram
+                && error.SocketErrorCode is SocketError.InvalidArgument or SocketError.AddressNotAvailable)
+            {
+                Close(reason);
+            }
+
+            throw new IOException(reason, error);
         }
         catch (ObjectDisposedException error)
         {
@@ -459,6 +465,44 @@ public sealed class SocketSipTransport : ISipTransportChannel, IDisposable
         Diagnostics?.Invoke($"UDP: АТС не ответила, следующий адрес {next}; local={local}");
         _events.Writer.TryWrite(new SipTransportEvent.Ready(local));
         return local;
+    }
+
+    public bool HasPendingOnLinkAddress()
+    {
+        if (!OperatingSystem.IsWindows()) { return false; }
+        IPAddress? remote;
+        lock (_gate) { remote = _peer?.Address; }
+        if (remote is null || remote.AddressFamily != AddressFamily.InterNetwork) { return false; }
+
+        try
+        {
+            foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (adapter.OperationalStatus != OperationalStatus.Up) { continue; }
+                foreach (var address in adapter.GetIPProperties().UnicastAddresses)
+                {
+                    if (address.Address.AddressFamily == remote.AddressFamily
+                        && address.DuplicateAddressDetectionState == DuplicateAddressDetectionState.Tentative
+                        && SharesIpv4Prefix(address.Address, remote, address.PrefixLength))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        catch (NetworkInformationException)
+        {
+            return false;
+        }
+    }
+
+    private static bool SharesIpv4Prefix(IPAddress local, IPAddress remote, int length)
+    {
+        if (length is < 1 or > 32) { return false; }
+        uint localBits = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(local.GetAddressBytes());
+        uint remoteBits = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(remote.GetAddressBytes());
+        return ((localBits ^ remoteBits) >> (32 - length)) == 0;
     }
 
     public bool HasLocalRouteChanged()

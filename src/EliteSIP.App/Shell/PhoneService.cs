@@ -333,6 +333,17 @@ public sealed class PhoneService : IDisposable
         {
             // После серии переключений обслуживаем только последний ожидающий запрос.
             if (_disposed || request != Interlocked.Read(ref _connectionRequest)) { return; }
+            if (statusKey == "StatusFixingNetwork" && _transport is { } transport && transport.HasPendingOnLinkAddress())
+            {
+                _log("ожидаем готовности локального IP на пути к АТС");
+                var deadline = Environment.TickCount64 + 4000;
+                do
+                {
+                    await Task.Delay(100).ConfigureAwait(true);
+                    if (_disposed || request != Interlocked.Read(ref _connectionRequest)) { return; }
+                }
+                while (Environment.TickCount64 < deadline && transport.HasPendingOnLinkAddress());
+            }
             _panel.CanPlaceCall = false;
             if (_agent is not null)
             {
@@ -1168,7 +1179,7 @@ public sealed class PhoneService : IDisposable
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(3), token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(500), token).ConfigureAwait(false);
             await _dispatcher.InvokeAsync(() =>
             {
                 if (ReferenceEquals(_agent, agent) && _connection.CurrentCount != 0)

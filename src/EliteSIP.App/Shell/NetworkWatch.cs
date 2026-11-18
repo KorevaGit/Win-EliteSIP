@@ -31,10 +31,11 @@ internal sealed class NetworkWatch : IDisposable
     /// <summary>
     /// Сколько ждать, пока сеть перестанет меняться.
     ///
-    /// Три секунды: меньше — и мы поднимаемся раньше, чем у адаптера появится
-    /// маршрут; больше — и человек успевает заметить, что телефон молчит.
+    /// Подтверждённую смену маршрута обрабатываем быстрее, чтобы сократить
+    /// время, пока АТС направляет вызовы на старый адрес.
     /// </summary>
     private static readonly TimeSpan Settle = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan RouteSettle = TimeSpan.FromMilliseconds(250);
 
     private readonly Action _onNetworkChanged;
     private readonly Action _onResume;
@@ -60,9 +61,9 @@ internal sealed class NetworkWatch : IDisposable
             _settling.Stop();
             bool addressChanged = _addressChanged;
             _addressChanged = false;
-            bool? routeChanged = addressChanged ? null : _sipRouteChanged();
-            _log($"проверка сети: изменены адреса={addressChanged}; изменён маршрут SIP={routeChanged?.ToString() ?? "не проверялся после смены IP"}");
-            if (addressChanged || routeChanged is true)
+            bool routeChanged = _sipRouteChanged();
+            _log($"проверка сети: изменены адреса={addressChanged}; изменён маршрут SIP={routeChanged}");
+            if (routeChanged)
             {
                 _onNetworkChanged();
             }
@@ -115,7 +116,12 @@ internal sealed class NetworkWatch : IDisposable
             }
 
             _addressChanged |= addressChanged;
+            if (_settling.IsEnabled && _settling.Interval == RouteSettle)
+            {
+                return;
+            }
             _settling.Stop();
+            _settling.Interval = _sipRouteChanged() ? RouteSettle : Settle;
             _settling.Start();
         });
     }

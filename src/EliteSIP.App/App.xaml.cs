@@ -1149,10 +1149,8 @@ public partial class App : Application, IDisposable
     /// одинаково, поэтому повод пишется в журнал: разбирающему потом важно
     /// отличить переезд от отказа сервера.
     ///
-    /// Сознательно ничего не делаем в разговоре: пересборка транспорта кладёт
-    /// трубку, а разговор по живому сокету переживает и смену адреса — RTP уже
-    /// идёт, и рвать его из-за события системы нельзя. Регистрация подтянется
-    /// после того, как трубку положат.
+    /// Здоровый транспорт сохраняем до конца разговора. Закрытый канал или
+    /// смена локального маршрута до АТС требуют пересоздания соединения.
     /// </remarks>
     private void Reconnect(string reason)
     {
@@ -1161,9 +1159,11 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        ClientEventLog.Shared.NoteConnection($"Переподключение: {reason}{(_panel.IsInCall ? "; отложено до окончания разговора" : string.Empty)}");
+        bool routeChanged = reason == "сеть сменилась" && _phone.HasLocalRouteChanged();
+        bool defer = _panel.IsInCall && !routeChanged && reason != "канал закрыт";
+        ClientEventLog.Shared.NoteConnection($"Переподключение: {reason}{(defer ? "; отложено до окончания разговора" : string.Empty)}");
 
-        if (_panel.IsInCall)
+        if (defer)
         {
             // Отложить по-настоящему: прежде здесь было только обещание в
             // журнале, а поднимать после разговора было некому.
@@ -1177,6 +1177,12 @@ public partial class App : Application, IDisposable
             // «Не беспокоить» — это выбор человека, и событие системы его не
             // отменяет.
             return;
+        }
+
+        _reconnectAfterCall = null;
+        if (routeChanged)
+        {
+            Log("Изменился локальный маршрут до АТС: пересоздаём SIP-транспорт");
         }
 
         Log($"{reason}: поднимаем регистрацию заново");
