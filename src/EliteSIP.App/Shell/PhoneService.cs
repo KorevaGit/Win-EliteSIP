@@ -58,6 +58,7 @@ public sealed class PhoneService : IDisposable
 
     private SocketSipTransport? _transport;
     private PortKnocker? _knocker;
+    private int _networkSnapshotRunning;
     private SipUserAgent? _agent;
     private VoiceAudioBus? _bus;
     private LineController? _lines;
@@ -374,7 +375,20 @@ public sealed class PhoneService : IDisposable
         var pbx = _settings.Pbx;
         var address = account.Domain.Length > 0 ? account.Domain : pbx.OfficeAddress;
         _log($"подключение: номер={account.Username}; площадка={account.Site}; адрес={address}:{pbx.Port}; транспорт={pbx.Transport}; expires={pbx.RegistrationExpirySeconds}; SIP-трасса={_settings.Maintenance.LogsSipTrace}");
-        foreach (var line in SupportSnapshot.Network().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)) { _log(line); }
+        if (_settings.Maintenance.LogToFile && Interlocked.CompareExchange(ref _networkSnapshotRunning, 1, 0) == 0)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    foreach (var line in SupportSnapshot.Network().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        _log(line);
+                    }
+                }
+                finally { Volatile.Write(ref _networkSnapshotRunning, 0); }
+            });
+        }
 
         if (account.Username.Length == 0 || address.Length == 0)
         {

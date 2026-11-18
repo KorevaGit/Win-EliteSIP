@@ -27,7 +27,10 @@ public partial class FirstRunWindow : Window
         _originalAppearance = appearance?.Appearance ?? Appearance.System;
         DataContext = model;
         CommandBindings.Add(new System.Windows.Input.CommandBinding(SystemCommands.CloseWindowCommand, (_, _) => Close()));
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) { Template = null; }
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            SetResourceReference(StyleProperty, "SettingsNativeDialogWindowStyle");
+        }
         else
         {
             WindowStyle = WindowStyle.None;

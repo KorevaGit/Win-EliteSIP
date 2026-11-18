@@ -11,7 +11,7 @@ public partial class UpdateOffer : Window
         InitializeComponent();
         DataContext = new UpdateOfferContent(installed, available, notes);
         CommandBindings.Add(new System.Windows.Input.CommandBinding(SystemCommands.CloseWindowCommand, (_, _) => Close()));
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) { Template = null; }
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) { UseNativeFrame(); }
         else
         {
             WindowStyle = WindowStyle.None;
@@ -21,6 +21,13 @@ public partial class UpdateOffer : Window
             });
         }
         SourceInitialized += (_, _) => WindowCaption.Apply(this, dark);
+    }
+
+    internal void UseNativeFrame()
+    {
+        System.Windows.Shell.WindowChrome.SetWindowChrome(this, null);
+        WindowStyle = WindowStyle.SingleBorderWindow;
+        SetResourceReference(StyleProperty, "SettingsNativeDialogWindowStyle");
     }
 
     private void OnInstallClick(object sender, RoutedEventArgs e) => DialogResult = true;

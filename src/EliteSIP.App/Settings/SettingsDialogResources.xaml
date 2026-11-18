@@ -2,10 +2,12 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:theme="clr-namespace:EliteSIP.App.Theme">
   <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="GraphiteSettings.xaml" /></ResourceDictionary.MergedDictionaries>
-  <Style x:Key="SettingsDialogWindowStyle" TargetType="Window">
+  <Style x:Key="SettingsNativeDialogWindowStyle" TargetType="Window">
     <Setter Property="Background" Value="{DynamicResource PanelWindowBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style x:Key="SettingsDialogWindowStyle" TargetType="Window" BasedOn="{StaticResource SettingsNativeDialogWindowStyle}">
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Window">
       <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
         <DockPanel><Grid DockPanel.Dock="Top" Height="32"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="38" /></Grid.ColumnDefinitions>

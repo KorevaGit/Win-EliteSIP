@@ -293,7 +293,17 @@ public partial class PanelWindow : Window
         }
 
         _bottomEdge = Top + ActualHeight;
-        _clock.Start();
+        Model.Lines.CollectionChanged += OnCallLinesChanged;
+        UpdateCallClock();
+    }
+
+    private void OnCallLinesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => UpdateCallClock();
+
+    private void UpdateCallClock()
+    {
+        if (Model.Lines.Count == 0) { _clock.Stop(); }
+        else { _clock.Start(); }
     }
 
     private nint OnMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
@@ -511,6 +521,7 @@ public partial class PanelWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        Model.Lines.CollectionChanged -= OnCallLinesChanged;
         _clock.Stop();
 
         if (WindowState is WindowState.Normal)

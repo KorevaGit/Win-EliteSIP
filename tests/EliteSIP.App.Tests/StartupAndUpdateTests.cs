@@ -76,6 +76,30 @@ public sealed class StartupAndUpdateTests
         window.Close();
     });
 
+    [Theory]
+    [InlineData(Appearance.Light)]
+    [InlineData(Appearance.Dark)]
+    public void Системная_рамка_показывает_содержимое_предложения(Appearance theme) => WpfHost.Run(() =>
+    {
+        WpfHost.UseTheme(theme);
+        var window = new UpdateOffer(new Version(1, 0, 2), new Version(1, 0, 3), "- Исправление обновления", theme is Appearance.Dark);
+        try
+        {
+            window.UseNativeFrame();
+            window.ShowActivated = false;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            window.Left = -20000;
+            window.Top = -20000;
+            window.Show();
+            window.UpdateLayout();
+            var visuals = Descendants(window).ToArray();
+            Assert.Contains(visuals, visual => ReferenceEquals(visual, window.Content));
+            Assert.Contains(visuals.OfType<Button>(), button => button.IsDefault);
+            Assert.Contains(visuals.OfType<Button>(), button => button.IsCancel);
+        }
+        finally { window.Close(); }
+    });
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
