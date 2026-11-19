@@ -108,7 +108,7 @@ public sealed class JitterBuffer
     /// <summary>Глубина, после которой буфер догоняет реальное время, выбрасывая старое.</summary>
     public int MaximumDepth { get; }
 
-    public JitterStatistics Statistics { get; private set; } = new();
+    public JitterStatistics Statistics { get; private set; }
 
     /// <summary>Замеренный джиттер сети в миллисекундах. Для журнала и для RTCP.</summary>
     public double JitterMilliseconds => _jitterEstimate / _clockRate * 1000;
@@ -490,7 +490,7 @@ public sealed record JitterFrame(
     bool IsConcealment = false);
 
 /// <summary>Счётчики приёма. Показываются в журнале и уезжают в RTCP.</summary>
-public sealed record JitterStatistics
+public readonly record struct JitterStatistics
 {
     public int Received { get; init; }
 

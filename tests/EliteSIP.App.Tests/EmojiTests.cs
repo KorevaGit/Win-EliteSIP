@@ -63,6 +63,21 @@ public sealed class EmojiTests
     }
 
     [Fact]
+    public void Кэш_не_удерживает_все_встречавшиеся_картинки()
+    {
+        int opens = 0;
+        var pack = new EmojiPack([], _ => { opens++; return null; });
+        for (int index = 0; index < EmojiPack.ImageCacheCapacity; index++) { pack.Image($"emoji-{index}"); }
+        pack.Image("emoji-0");
+        Assert.Equal(EmojiPack.ImageCacheCapacity, opens);
+        pack.Image("new");
+        pack.Image("emoji-0");
+        Assert.Equal(EmojiPack.ImageCacheCapacity + 1, opens);
+        pack.Image("emoji-1");
+        Assert.Equal(EmojiPack.ImageCacheCapacity + 2, opens);
+    }
+
+    [Fact]
     public void Пакет_из_выпуска_читается_и_знает_ходовые_смайлики() => WpfHost.Run(() =>
     {
         var path = Path.Combine(AppContext.BaseDirectory, "emoji.pak");

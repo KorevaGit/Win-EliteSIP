@@ -57,6 +57,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <AssemblyTitle>EliteSIP</AssemblyTitle>
     <ApplicationIcon>Assets\AppIcon\EliteSIP.ico</ApplicationIcon>
 
     <!--

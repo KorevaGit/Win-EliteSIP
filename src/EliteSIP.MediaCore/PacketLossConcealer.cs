@@ -142,28 +142,33 @@ public sealed class PacketLossConcealer
     public short[] Receive(ReadOnlySpan<short> samples)
     {
         short[] result = samples.ToArray();
+        ReceiveInPlace(result);
+        return result;
+    }
 
+    /// <summary>Та же сшивка без копии, если вызывающему принадлежит буфер кадра.</summary>
+    public void ReceiveInPlace(Span<short> samples)
+    {
         if (_pendingBlend.Length > 0)
         {
             // Линейная сшивка: синтез уходит, настоящий звук приходит. Оба
             // сигнала в фазе — синтез продолжает ровно тот же период, — поэтому
             // двух миллисекунд достаточно, чтобы шва не было слышно.
-            int count = Math.Min(_pendingBlend.Length, result.Length);
+            int count = Math.Min(_pendingBlend.Length, samples.Length);
             for (int index = 0; index < count; index++)
             {
                 float weight = (float)(index + 1) / (count + 1);
-                float blended = (_pendingBlend[index] * (1 - weight)) + (result[index] * weight);
-                result[index] = Clamp(blended);
+                float blended = (_pendingBlend[index] * (1 - weight)) + (samples[index] * weight);
+                samples[index] = Clamp(blended);
             }
 
             _pendingBlend = [];
         }
 
-        Remember(result);
+        Remember(samples);
         EstimatedPeriod = 0;
         _pattern = [];
         _concealedSamples = 0;
-        return result;
     }
 
     /// <summary>Синтезирует кадр взамен потерянного.</summary>

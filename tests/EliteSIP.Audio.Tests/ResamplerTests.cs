@@ -13,6 +13,31 @@ namespace EliteSIP.Audio.Tests;
 /// </summary>
 public sealed class ResamplerTests
 {
+    [Theory]
+    [InlineData(8000, 48000)]
+    [InlineData(16000, 44100)]
+    [InlineData(48000, 8000)]
+    [InlineData(48000, 48000)]
+    public void Буфер_по_размеру_кадра_не_усекает_выход(int inputRate, int outputRate)
+    {
+        var compact = new Resampler(inputRate, outputRate, adjustable: true);
+        var reference = new Resampler(inputRate, outputRate, adjustable: true);
+        foreach (double correction in new[] { 1.0, 0.997, 1.003 })
+        {
+            compact.SetRateCorrection(correction);
+            reference.SetRateCorrection(correction);
+            foreach (int samples in new[] { 1, inputRate / 100, inputRate / 50, 2, inputRate / 10, 1 })
+            {
+                float[] input = Enumerable.Range(0, samples).Select(i => MathF.Sin(i * .2f)).ToArray();
+                float[] expected = new float[outputRate];
+                float[] actual = new float[compact.OutputCapacityFor(samples)];
+                int count = reference.Process(input, expected);
+                Assert.Equal(count, compact.Process(input, actual));
+                Assert.Equal(expected[..count], actual[..count]);
+            }
+        }
+    }
+
     [Fact]
     public void Равные_частоты_проходят_без_изменений()
     {

@@ -143,6 +143,13 @@ public sealed class Resampler
     /// </summary>
     public double Ratio => (double)OutputRate / InputRate;
 
+    internal int OutputCapacityFor(int inputCount)
+    {
+        if (_passthrough) { return inputCount; }
+        double ready = _historyCount + (double)inputCount - _position - _halfWidth;
+        return ready > 0 ? checked((int)Math.Ceiling(ready / _step) + 1) : 0;
+    }
+
     /// <summary>
     /// Подправляет темп: сколько отсчётов выхода выдавать на каждый ожидаемый.
     /// Единица — номинал; 0,999 — на тысячную меньше, то есть вход

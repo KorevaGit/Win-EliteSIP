@@ -2028,8 +2028,9 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
         PacketLossConcealer concealer = new(_configuration.Codec);
 
         int renderRate = _renderFormat!.SampleRate;
-        float[] decoded = new float[renderRate];
-        float[] converted = new float[renderRate];
+        int initialSamples = Math.Min(renderRate, _configuration.SamplesPerFrame);
+        float[] decoded = new float[initialSamples];
+        float[] converted = new float[Math.Max(1, Math.Min(renderRate, toRender.OutputCapacityFor(initialSamples)))];
         double lastObserved = _uptime.Elapsed.TotalSeconds;
         bool silenceChecked = false;
         WaitHandle[] wake = [token.WaitHandle, _feedWake];
@@ -2104,10 +2105,20 @@ public sealed class WasapiVoiceAudioEngine : IVoiceAudioEngine
                 // «непонятными тресками».
                 short[] samples = playback.IsConcealment
                     ? concealer.Conceal(_configuration.SamplesPerFrame)
-                    : concealer.Receive(decoder.Decode(playback.Payload.Span));
+                    : decoder.Decode(playback.Payload.Span);
+                if (!playback.IsConcealment) { concealer.ReceiveInPlace(samples); }
                 Handlers.DecodedSamples?.Invoke(samples);
 
-                int length = Math.Min(samples.Length, decoded.Length);
+                int length = Math.Min(samples.Length, renderRate);
+                if (decoded.Length < length)
+                {
+                    decoded = new float[Math.Min(renderRate, Math.Max(length, decoded.Length * 2))];
+                }
+                int outputCapacity = Math.Min(renderRate, toRender.OutputCapacityFor(length));
+                if (converted.Length < outputCapacity)
+                {
+                    converted = new float[Math.Min(renderRate, Math.Max(outputCapacity, converted.Length * 2))];
+                }
                 for (int i = 0; i < length; i++)
                 {
                     decoded[i] = samples[i] / 32768f;

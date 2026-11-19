@@ -35,7 +35,9 @@ internal sealed class EmojiPack
 
     private readonly Dictionary<string, string> _names;
     private readonly Func<string, Stream?> _open;
-    private readonly Dictionary<string, BitmapSource?> _images = [];
+    private readonly Dictionary<string, LinkedListNode<(string Name, BitmapSource? Image)>> _images = [];
+    private readonly LinkedList<(string Name, BitmapSource? Image)> _imageUse = [];
+    internal const int ImageCacheCapacity = 128;
     private readonly int _longest;
 
     internal EmojiPack(IEnumerable<string> names, Func<string, Stream?> open)
@@ -167,7 +169,9 @@ internal sealed class EmojiPack
     {
         if (_images.TryGetValue(name, out var cached))
         {
-            return cached;
+            _imageUse.Remove(cached);
+            _imageUse.AddLast(cached);
+            return cached.Value.Image;
         }
 
         BitmapSource? image = null;
@@ -192,7 +196,12 @@ internal sealed class EmojiPack
             image = null;
         }
 
-        _images[name] = image;
+        if (_imageUse.Count == ImageCacheCapacity && _imageUse.First is { } oldest)
+        {
+            _images.Remove(oldest.Value.Name);
+            _imageUse.RemoveFirst();
+        }
+        _images.Add(name, _imageUse.AddLast((name, image)));
         return image;
     }
 

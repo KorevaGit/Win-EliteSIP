@@ -18,7 +18,6 @@
         <ResourceDictionary Source="Theme/Icons.xaml" />
         <ResourceDictionary Source="Settings/Icons.Settings.xaml" />
         <ResourceDictionary Source="Theme/Controls.xaml" />
-        <ResourceDictionary Source="Theme/SettingsKit.xaml" />
         <ResourceDictionary Source="History/History.xaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>

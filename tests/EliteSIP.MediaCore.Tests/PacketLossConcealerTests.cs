@@ -186,6 +186,19 @@ public sealed class PacketLossConcealerTests
     }
 
     [Fact]
+    public void Сшивка_в_своём_буфере_даёт_те_же_отсчёты()
+    {
+        (PacketLossConcealer copy, _) = Primed();
+        (PacketLossConcealer owned, _) = Primed();
+        Assert.Equal(copy.Conceal(FrameCount), owned.Conceal(FrameCount));
+        short[] input = Voice(200, FrameCount, phase: 0.37);
+        var expected = copy.Receive(input);
+        owned.ReceiveInPlace(input);
+        Assert.Equal(expected, input);
+        Assert.Equal(copy.Conceal(FrameCount), owned.Conceal(FrameCount));
+    }
+
+    [Fact]
     public void Долгая_потеря_уходит_в_тишину_а_не_в_гудок()
     {
         (PacketLossConcealer concealer, short[] tail) = Primed();
