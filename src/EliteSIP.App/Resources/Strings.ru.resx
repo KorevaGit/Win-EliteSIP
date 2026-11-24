@@ -843,7 +843,7 @@
     <value>Гудки…</value>
   </data>
   <data name="CallStatusTalking" xml:space="preserve">
-    <value>разговор</value>
+    <value>Разговор</value>
   </data>
 
   <data name="IncomingWindowTitle" xml:space="preserve">

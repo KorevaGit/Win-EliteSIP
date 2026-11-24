@@ -35,6 +35,8 @@ public partial class PanelWindow : Window
         Model = model;
         DataContext = model;
         UpdateRows();
+        TransferPopup.CustomPopupPlacementCallback = BelowKey(TransferPopup);
+        ConfirmPopup.CustomPopupPlacementCallback = BelowKey(ConfirmPopup);
 
         // Такт разговора: ровно раз в секунду и только пока панель на экране.
         // `DispatcherTimer`, а не таймер из пула, потому что он толкает
@@ -229,7 +231,8 @@ public partial class PanelWindow : Window
             if (change.PropertyName is nameof(PanelViewModel.IsInCall) && !Model.IsInCall)
             {
                 _confirmed = null;
-                ConfirmPopup.IsOpen = false;
+                CloseConfirm();
+                Model.CancelTransferEntry();
             }
             if ((change.PropertyName is nameof(PanelViewModel.IsInCall) or nameof(PanelViewModel.IsTransferEntryVisible))
                 && !Model.IsInCall && !Model.IsTransferEntryVisible)
@@ -658,6 +661,14 @@ public partial class PanelWindow : Window
     {
         base.OnLocationChanged(e);
 
+        // Всплывающие окна — свои окна Windows и за панелью сами не едут.
+        CloseConfirm();
+        if (TransferPopup.IsOpen)
+        {
+            TransferPopup.HorizontalOffset += 0.01;
+            TransferPopup.HorizontalOffset -= 0.01;
+        }
+
         // Окно передвинули мышью — значит, новый низ и есть тот, который надо
         // держать. Без этого панель, оттащенная в угол экрана, прыгала бы
         // обратно к прежнему низу при первом же изменении высоты.
@@ -906,6 +917,75 @@ public partial class PanelWindow : Window
         ReopenTransferPopup();
     }
 
+    /// <summary>
+    /// Ушли в другую программу — всплывающие окна прячутся: они поверх всего и
+    /// закрывали бы CRM. Набранный номер перевода остаётся и вернётся с панелью.
+    /// </summary>
+    protected override void OnDeactivated(EventArgs e)
+    {
+        base.OnDeactivated(e);
+        CloseConfirm();
+        TransferPopup.SetCurrentValue(Popup.IsOpenProperty, false);
+    }
+
+    /// <summary>
+    /// Щелчок по панели мимо всплывающего окна закрывает его — и сам проходит
+    /// дальше: «Завершить», другая клавиша срабатывают с первого нажатия.
+    /// Щелчки внутри всплывающего окна сюда не доходят: у него своё окно.
+    /// </summary>
+    protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseDown(e);
+        CloseConfirm();
+        if (TransferPopup.IsOpen && !Model.IsTransferring)
+        {
+            Model.CancelTransferEntry();
+        }
+    }
+
+    /// <summary>
+    /// Стрелка — точно под серединой своей клавиши, как у macOS, даже когда
+    /// Windows сдвинула окно от края экрана; встало над клавишей — стрелка снизу.
+    /// </summary>
+    private static Theme.Icon? FindIcon(DependencyObject parent)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is Theme.Icon { IsVisible: true } icon) { return icon; }
+            if (FindIcon(child) is { } nested) { return nested; }
+        }
+
+        return null;
+    }
+
+    private void OnBubbleOpened(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(() =>
+        {
+            if (sender is not Popup { Child: FrameworkElement bubble, PlacementTarget: FrameworkElement key } popup
+                || !bubble.IsLoaded || !key.IsLoaded || PresentationSource.FromVisual(key) is not { CompositionTarget: { } target })
+            {
+                return;
+            }
+
+            var (up, down) = ReferenceEquals(popup, TransferPopup)
+                ? (TransferArrowUp, TransferArrowDown)
+                : (ConfirmArrowUp, ConfirmArrowDown);
+            var fromDevice = target.TransformFromDevice;
+            // По значку внутри клавиши: стрелка указывает на него.
+            var mark = FindIcon(key) is { ActualWidth: > 0 } icon ? (FrameworkElement)icon : key;
+            var keyCenter = fromDevice.Transform(mark.PointToScreen(new Point(mark.ActualWidth / 2, 0)));
+            keyCenter.Y = fromDevice.Transform(key.PointToScreen(new Point(0, 0))).Y;
+            var keyTop = keyCenter.Y;
+            var origin = fromDevice.Transform(bubble.PointToScreen(new Point(0, 0)));
+            var below = origin.Y >= keyTop;
+            up.Visibility = below ? Visibility.Visible : Visibility.Collapsed;
+            down.Visibility = below ? Visibility.Collapsed : Visibility.Visible;
+            var left = Math.Clamp(keyCenter.X - origin.X - 8, 12, Math.Max(12, bubble.ActualWidth - 28));
+            up.Margin = new Thickness(left, 0, 0, -1);
+            down.Margin = new Thickness(left, -1, 0, 0);
+        }, DispatcherPriority.Loaded);
+
     private void OnTransferFieldKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key is System.Windows.Input.Key.Escape)
@@ -935,14 +1015,55 @@ public partial class PanelWindow : Window
         ConfirmIcon.Glyph = glyph;
         ConfirmText.Text = question;
         ConfirmActionText.Text = action;
+        // Вопрос о другой клавише снимает подсветку с прежней.
+        CloseConfirm();
         _confirmed = confirmed;
         _asking = key;
         key.SetCurrentValue(ToggleButton.IsCheckedProperty, true);
+        ConfirmPopup.PlacementTarget = key;
         ConfirmPopup.IsOpen = true;
+        Dispatcher.BeginInvoke(() => ConfirmAction.Focus(), DispatcherPriority.Input);
     }
 
-    private void OnConfirmPopupClosed(object? sender, EventArgs e)
+    /// <summary>Enter — действие, Esc — отмена, как у вопросов macOS.</summary>
+    private void OnConfirmPopupKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key is System.Windows.Input.Key.Escape)
+        {
+            CloseConfirm();
+            e.Handled = true;
+        }
+        else if (e.Key is System.Windows.Input.Key.Enter)
+        {
+            OnConfirmClick(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Всплывающее окно — под клавишей, по центру: стрелка смотрит на неё.
+    /// Не влезает снизу — Windows сама переставит его на запасное место над ней.
+    /// </summary>
+    private static CustomPopupPlacementCallback BelowKey(Popup owner) => (popup, target, _) =>
+    {
+        // Размеры здесь в пикселях экрана, поля окна — в точках WPF.
+        var scale = owner.PlacementTarget is FrameworkElement { ActualWidth: > 0 } key ? target.Width / key.ActualWidth : 1;
+        var x = (target.Width - popup.Width) / 2;
+        return
+        [
+            new(new Point(x, target.Height - 2 * scale), PopupPrimaryAxis.Horizontal),
+            new(new Point(x, -popup.Height + 14 * scale), PopupPrimaryAxis.Horizontal),
+        ];
+    };
+
+    /// <summary>
+    /// Закрыть вопрос и снять подсветку с его клавиши — сразу, а не по
+    /// <c>Closed</c>: с анимацией тот приходит позже щелчка по соседней
+    /// клавише и гасил бы уже её, оставляя прежнюю подсвеченной.
+    /// </summary>
+    private void CloseConfirm()
+    {
+        ConfirmPopup.IsOpen = false;
         _asking?.SetCurrentValue(ToggleButton.IsCheckedProperty,
             ReferenceEquals(_asking, HoldKey) ? Model.IsOnHold : Model.IsConferenceStarted);
         _asking = null;
@@ -952,11 +1073,11 @@ public partial class PanelWindow : Window
     {
         var confirmed = _confirmed;
         _confirmed = null;
-        ConfirmPopup.IsOpen = false;
+        CloseConfirm();
         confirmed?.Invoke();
     }
 
-    private void OnConfirmCancelClick(object sender, RoutedEventArgs e) => ConfirmPopup.IsOpen = false;
+    private void OnConfirmCancelClick(object sender, RoutedEventArgs e) => CloseConfirm();
 
     /// <summary>Удержание — с подтверждением; снять удержание — сразу.</summary>
     private void OnHoldClick(object sender, RoutedEventArgs e)

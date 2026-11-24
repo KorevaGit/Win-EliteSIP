@@ -254,6 +254,7 @@ public partial class App : Application, IDisposable
 
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
         _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
+        _phone.Answered = () => Dispatcher.BeginInvoke(ShowPanel);
         _phone.RecoverConnection = () => Reconnect("канал закрыт");
         Mark("телефон");
         _responsiveness = new ResponsivenessWatch(Dispatcher, Log);

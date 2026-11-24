@@ -414,30 +414,48 @@
                   Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="22" />
               </Grid.RowDefinitions>
               <TextBlock x:Name="CallTitleLabel" Grid.Row="0"
                          theme:Emoji.Text="{Binding CallTitle}"
-                         FontSize="17" FontWeight="SemiBold"
+                         FontSize="17" FontWeight="Medium"
                          TextTrimming="CharacterEllipsis"
                          Foreground="{DynamicResource TextPrimaryBrush}" />
-              <!-- Под именем номер, справа внизу — состояние и крупное время
-                   разговора, всегда на одном месте: рядом с именем оно гуляло
-                   вместе с его длиной. -->
-              <Grid Grid.Row="1" Margin="0,1,0,0">
+              <!--
+                  Под именем одной строкой номер и состояние; нет номера —
+                  состояние у левого края. Состояние всегда золотистым, как
+                  «Гудки…»: читается с одного взгляда. Время — справа внизу,
+                  ниже и шире (разрядка), как на macOS. Высота строки задана под
+                  время с самого начала: иначе в момент ответа имя подскакивало.
+              -->
+              <Grid Grid.Row="1" VerticalAlignment="Bottom">
                 <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding ActiveLine.SecondaryNumber}" FontSize="12" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}"
-                           Visibility="{Binding IsOutgoingPending, Converter={StaticResource NotBoolToVisibility}}" />
-                <TextBlock Grid.Column="1" Text="{Binding CallStatus}" FontSize="12" VerticalAlignment="Center" Margin="8,0,8,0"
-                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
-                <TextBlock x:Name="CallDuration" Grid.Column="2" Text="{Binding ActiveLine.Duration}" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Visibility="{Binding IsOutgoingPending, Converter={StaticResource NotBoolToVisibility}}" />
+                <StackPanel x:Name="CallNumberPart" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}">
+                  <TextBlock Text="{Binding ActiveLine.SecondaryNumber}" FontSize="12"
+                             TextTrimming="CharacterEllipsis" MaxWidth="130" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Text="·" FontSize="12" Margin="5,0" Foreground="{DynamicResource TextTertiaryBrush}" />
+                </StackPanel>
+                <TextBlock x:Name="CallStatusLabel" Grid.Column="1" Text="{Binding CallStatus}" FontSize="12" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource StatusConnectingBrush}" />
+                <ItemsControl x:Name="CallDuration" Grid.Column="3" ItemsSource="{Binding ActiveLine.Duration}" VerticalAlignment="Bottom"
+                              Focusable="False" IsTabStop="False"
+                              Visibility="{Binding IsOutgoingPending, Converter={StaticResource NotBoolToVisibility}}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding}" FontSize="19" FontWeight="Bold" Margin="0,0,1.5,0"
+                                 Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </Grid>
             </Grid>
           </Grid>
@@ -626,69 +644,86 @@
         </Border>
 
         <!--
-            Номер перевода — всплывающим окном над клавишами (Enter — перевести,
-            Esc — отмена): раньше поле вставало на место макросов и прятало их.
+            Всплывающие окна — как на macOS: под своей клавишей, по центру, со
+            стрелкой к ней. Перевод: поле номера и «Отмена» / «Перевести»
+            (Enter — перевести, Esc — отмена); раньше поле вставало на место
+            макросов и прятало их.
         -->
-        <Popup x:Name="TransferPopup" PlacementTarget="{Binding ElementName=KeysRow}" Placement="Top"
-               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade"
+        <Popup x:Name="TransferPopup" PlacementTarget="{Binding ElementName=TransferKey}" Placement="Custom"
+               AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade" Opened="OnBubbleOpened"
                IsOpen="{Binding IsTransferEntryVisible, Mode=OneWay}" Closed="OnTransferPopupClosed">
-          <Border Width="{Binding ActualWidth, ElementName=KeysRow}" Padding="8" Margin="0,0,0,6"
-                  CornerRadius="{StaticResource PanelCornerRadius}" Background="{DynamicResource PanelControlBrush}"
-                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
-            <StackPanel>
-              <Border Height="38" CornerRadius="{StaticResource PanelCornerRadius}" Padding="12,0" Background="{DynamicResource PanelCallBrush}">
-                <TextBox x:Name="TransferField"
-                         Style="{StaticResource PanelTextBoxStyle}"
-                         Text="{Binding TransferNumber, UpdateSourceTrigger=PropertyChanged}"
-                         Tag="{res:Loc PanelTransferNumber}"
-                         FontSize="18"
-                         IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}"
-                         KeyDown="OnTransferFieldKeyDown" />
-              </Border>
-              <Grid Margin="0,6,0,0">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="6" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Style="{StaticResource PanelSurfaceButtonStyle}" Height="32"
-                        Content="{res:Loc PanelCancel}" FontSize="14" HorizontalContentAlignment="Center" Click="OnCancelTransferClick" />
-                <Button Grid.Column="2" Style="{StaticResource PanelCallButtonStyle}" Height="32"
-                        FontSize="14" IsEnabled="{Binding HasTransferNumber}" Command="{Binding Transfer}">
-                  <TextBlock Text="{res:Loc PanelTransfer}" Foreground="White" />
-                </Button>
-              </Grid>
-            </StackPanel>
-          </Border>
+          <StackPanel x:Name="TransferBubble" Margin="10,0,10,12">
+            <Path x:Name="TransferArrowUp" Data="M0,8 L8,0 L16,8 Z" Width="16" Height="8" HorizontalAlignment="Left" Margin="0,0,0,-1"
+                  Fill="{DynamicResource PanelControlBrush}" />
+            <Border Width="264" Padding="12" CornerRadius="{StaticResource PanelCornerRadius}" Background="{DynamicResource PanelControlBrush}"
+                    BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0" Effect="{StaticResource PanelShadow}">
+              <StackPanel>
+                <!-- Подпись «Номер перевода» стоит в пустом поле и при курсоре
+                     в нём: поле открывается уже в фокусе. -->
+                <Border Height="40" CornerRadius="{StaticResource PanelCornerRadius}" Padding="12,0" Background="{DynamicResource PanelCallBrush}">
+                  <Grid>
+                    <TextBlock Text="{res:Loc PanelTransferNumber}" FontSize="16" VerticalAlignment="Center" Margin="2,0,0,0"
+                               IsHitTestVisible="False" Foreground="{DynamicResource TextTertiaryBrush}"
+                               Visibility="{Binding HasTransferNumber, Converter={StaticResource NotBoolToVisibility}}" />
+                    <TextBox x:Name="TransferField"
+                             Style="{StaticResource PanelTextBoxStyle}"
+                             Text="{Binding TransferNumber, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="16" VerticalAlignment="Center"
+                             IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}"
+                             KeyDown="OnTransferFieldKeyDown" />
+                  </Grid>
+                </Border>
+                <Grid Margin="0,8,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Button Grid.Column="0" Style="{StaticResource PanelSurfaceButtonStyle}" Height="32"
+                          Content="{res:Loc PanelCancel}" FontSize="13" HorizontalContentAlignment="Center"
+                          IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}" Click="OnCancelTransferClick" />
+                  <Button Grid.Column="2" Style="{StaticResource PanelCallButtonStyle}" Height="32"
+                          FontSize="13" IsEnabled="{Binding HasTransferNumber}" Command="{Binding Transfer}">
+                    <TextBlock Text="{res:Loc PanelTransfer}" Foreground="White" />
+                  </Button>
+                </Grid>
+              </StackPanel>
+            </Border>
+            <Path x:Name="TransferArrowDown" Data="M0,0 L8,8 L16,0 Z" Width="16" Height="8" HorizontalAlignment="Left" Margin="0,-1,0,0"
+                  Fill="{DynamicResource PanelControlBrush}" Visibility="Collapsed" />
+          </StackPanel>
         </Popup>
 
         <!-- Подтверждение удержания и конференции — от случайного щелчка:
-             клавиши маленькие и стоят рядом. -->
-        <Popup x:Name="ConfirmPopup" PlacementTarget="{Binding ElementName=KeysRow}" Placement="Top"
-               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" Closed="OnConfirmPopupClosed">
-          <Border Width="{Binding ActualWidth, ElementName=KeysRow}" Padding="10" Margin="0,0,0,6"
-                  CornerRadius="{StaticResource PanelCornerRadius}" Background="{DynamicResource PanelControlBrush}"
-                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
-            <StackPanel>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                <theme:Icon x:Name="ConfirmIcon" Size="14" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
-                <TextBlock x:Name="ConfirmText" Margin="8,0,0,0" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+             клавиши маленькие и стоят рядом. Значок в кружке, вопрос, справа
+             «Отмена» и действие (Enter — действие, Esc — отмена). -->
+        <Popup x:Name="ConfirmPopup" PreviewKeyDown="OnConfirmPopupKeyDown" PlacementTarget="{Binding ElementName=HoldKey}" Placement="Custom"
+               AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade" Opened="OnBubbleOpened">
+          <StackPanel x:Name="ConfirmBubble" Margin="10,0,10,12">
+            <Path x:Name="ConfirmArrowUp" Data="M0,8 L8,0 L16,8 Z" Width="16" Height="8" HorizontalAlignment="Left" Margin="0,0,0,-1"
+                  Fill="{DynamicResource PanelControlBrush}" />
+            <Border Padding="14" CornerRadius="{StaticResource PanelCornerRadius}" Background="{DynamicResource PanelControlBrush}"
+                    BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="0,1,0,0" Effect="{StaticResource PanelShadow}">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource PanelSelectedBrush}">
+                    <theme:Icon x:Name="ConfirmIcon" Size="15" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+                  </Border>
+                  <TextBlock x:Name="ConfirmText" Margin="10,0,0,0" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                  <Button Style="{StaticResource PanelSurfaceButtonStyle}" Height="28" MinWidth="76" Padding="12,0"
+                          Content="{res:Loc PanelCancel}" FontSize="13" HorizontalContentAlignment="Center" Click="OnConfirmCancelClick" />
+                  <Button x:Name="ConfirmAction" Style="{StaticResource PanelCallButtonStyle}" Height="28" MinWidth="76" Margin="8,0,0,0"
+                          FontSize="13" Click="OnConfirmClick">
+                    <TextBlock x:Name="ConfirmActionText" Foreground="White" Margin="12,0" />
+                  </Button>
+                </StackPanel>
               </StackPanel>
-              <Grid Margin="0,8,0,0">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="6" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Style="{StaticResource PanelSurfaceButtonStyle}" Height="32"
-                        Content="{res:Loc PanelCancel}" FontSize="14" HorizontalContentAlignment="Center" Click="OnConfirmCancelClick" />
-                <Button Grid.Column="2" x:Name="ConfirmAction" Style="{StaticResource PanelCallButtonStyle}" Height="32"
-                        FontSize="14" Click="OnConfirmClick">
-                  <TextBlock x:Name="ConfirmActionText" Foreground="White" />
-                </Button>
-              </Grid>
-            </StackPanel>
-          </Border>
+            </Border>
+            <Path x:Name="ConfirmArrowDown" Data="M0,0 L8,8 L16,0 Z" Width="16" Height="8" HorizontalAlignment="Left" Margin="0,-1,0,0"
+                  Fill="{DynamicResource PanelControlBrush}" Visibility="Collapsed" />
+          </StackPanel>
         </Popup>
 
         <!--

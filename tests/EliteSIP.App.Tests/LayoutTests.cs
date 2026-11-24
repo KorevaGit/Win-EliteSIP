@@ -54,7 +54,7 @@ public sealed class LayoutTests
     });
 
     [Fact]
-    public void Время_разговора_справа_внизу_а_номер_под_именем() => WpfHost.Run(() =>
+    public void Время_справа_внизу_а_номер_и_состояние_под_именем() => WpfHost.Run(() =>
     {
         var model = new PanelViewModel();
         var line = new CallLineViewModel { SecondaryNumber = "172", Title = "Очень длинное название собеседника", IsActive = true, ConnectedAt = DateTimeOffset.Now.AddSeconds(-34) };
@@ -63,14 +63,24 @@ public sealed class LayoutTests
         var window = new PanelWindow(model);
         var root = WpfHost.Layout(window, 324, 700);
         var title = (TextBlock)window.FindName("CallTitleLabel");
-        var duration = (TextBlock)window.FindName("CallDuration");
+        var duration = (FrameworkElement)window.FindName("CallDuration");
+        var status = (TextBlock)window.FindName("CallStatusLabel");
+        var number = (FrameworkElement)window.FindName("CallNumberPart");
         var header = (FrameworkElement)window.FindName("CallHeader");
         var titleBox = title.TransformToAncestor(root).TransformBounds(new Rect(title.RenderSize));
         var durationBox = duration.TransformToAncestor(root).TransformBounds(new Rect(duration.RenderSize));
         var headerBox = header.TransformToAncestor(root).TransformBounds(new Rect(header.RenderSize));
         Assert.True(durationBox.Top >= titleBox.Bottom - 1);
         Assert.InRange(headerBox.Right - durationBox.Right, 0, 1);
-        Assert.Equal(22, duration.FontSize);
+        var statusBox = status.TransformToAncestor(root).TransformBounds(new Rect(status.RenderSize));
+        var numberBox = number.TransformToAncestor(root).TransformBounds(new Rect(number.RenderSize));
+        Assert.InRange(statusBox.Left - numberBox.Right, -1, 1);
+        Assert.True(durationBox.Height < 30);
+
+        // Без номера состояние встаёт на его место у левого края.
+        line.SecondaryNumber = string.Empty;
+        root.UpdateLayout();
+        Assert.InRange(status.TransformToAncestor(root).TransformBounds(new Rect(status.RenderSize)).Left - titleBox.Left, -1, 1);
     });
 
     [Fact]

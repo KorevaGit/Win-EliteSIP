@@ -863,7 +863,7 @@
     <value>Ringing…</value>
   </data>
   <data name="CallStatusTalking" xml:space="preserve">
-    <value>talking</value>
+    <value>Talking</value>
   </data>
 
   <!-- Окно входящего вызова: этап W9. -->
