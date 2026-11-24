@@ -145,6 +145,32 @@ internal sealed class MachineService
             }
         });
 
+    /// <summary>
+    /// Что делать с проверенной просьбой собрать архив. Ставит линия.
+    /// </summary>
+    internal Action<SupportRequest>? CollectSupport { get; set; }
+
+    /// <summary>
+    /// Спросить канал, не просит ли Spark архив для техподдержки. Такт отзыва.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// 404 — обычный ответ «не просят». Неподписанный объект — мусор: журналы
+    /// по нему не уходят.
+    /// </remarks>
+    internal Task CheckSupportAsync()
+        => FetchAsync("support", (data, publicKey, installationID) =>
+        {
+            try
+            {
+                CollectSupport?.Invoke(SupportRequest.Verified(data, publicKey, installationID));
+            }
+            catch (PanelLinkException error)
+            {
+                _log($"запрос архива ОТБРОШЕН: {error.Message}");
+            }
+        });
+
     /// <summary>Общий заход на канал за помашинным объектом.</summary>
     private async Task FetchAsync(string prefix, Action<byte[], PanelPublicKey, string> handle)
     {

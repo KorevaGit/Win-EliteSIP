@@ -454,21 +454,13 @@ public sealed partial class AdministrationViewModel : Observable
 
     // --- Очереди ---------------------------------------------------------
 
-    public ObservableCollection<QueueSetting> Queues { get; } = [];
+    /// <summary>
+    /// Подписи раздач — только показ: правятся в Spark и приезжают в файле
+    /// предустановок. Сама коллекция настроек, а не копия: сохранять нечего.
+    /// </summary>
+    public ObservableCollection<QueueSetting> Queues => _settings.Queues.Queues;
 
-    public void AddQueue()
-    {
-        var queue = new QueueSetting();
-        queue.PropertyChanged += (_, _) => MarkDirty();
-        Queues.Add(queue);
-        MarkDirty();
-    }
-
-    public void RemoveQueue(QueueSetting queue)
-    {
-        Queues.Remove(queue);
-        MarkDirty();
-    }
+    public bool HasQueues => Queues.Count > 0;
 
     // --- Обслуживание ----------------------------------------------------
 
@@ -765,17 +757,6 @@ public sealed partial class AdministrationViewModel : Observable
             ? OfficeAddress
             : RemoteAddress;
 
-        _settings.Queues.Queues.Clear();
-        foreach (var queue in Queues)
-        {
-            _settings.Queues.Queues.Add(new QueueSetting
-            {
-                Id = queue.Id,
-                Number = queue.Number,
-                Title = queue.Title,
-            });
-        }
-
         _settings.IncomingCall.CopyFrom(Guard);
 
         _settings.Maintenance.LogToFile = LogToFile;
@@ -835,14 +816,6 @@ public sealed partial class AdministrationViewModel : Observable
             // убирали.
             copy.PropertyChanged += (_, _) => MarkDirty();
             Macros.Add(copy);
-        }
-
-        Queues.Clear();
-        foreach (var queue in _settings.Queues.Queues)
-        {
-            var copy = new QueueSetting { Id = queue.Id, Number = queue.Number, Title = queue.Title };
-            copy.PropertyChanged += (_, _) => MarkDirty();
-            Queues.Add(copy);
         }
 
         _username = _settings.Account.Username;

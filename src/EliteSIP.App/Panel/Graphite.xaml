@@ -189,4 +189,39 @@
       </Setter.Value>
     </Setter>
   </Style>
+  <!--
+      Ползунок громкости 0–200 % — панель и настройки: скруглённая дорожка с
+      подкрашенной частью, круглый бегунок и метка на 100 % посередине.
+      Поведение (прилипание, двойной щелчок, колесо) — theme:VolumeSlider.
+  -->
+  <Style x:Key="VolumeSliderRepeatStyle" TargetType="RepeatButton">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"><Border Background="{TemplateBinding Background}" Height="6" CornerRadius="3" VerticalAlignment="Center" /></Border></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="VolumeSliderStyle" TargetType="Slider">
+    <Setter Property="Minimum" Value="0" />
+    <Setter Property="Maximum" Value="2" />
+    <Setter Property="SmallChange" Value="0.05" />
+    <Setter Property="LargeChange" Value="0.1" />
+    <Setter Property="TickFrequency" Value="0.05" />
+    <Setter Property="IsSnapToTickEnabled" Value="True" />
+    <Setter Property="IsMoveToPointEnabled" Value="True" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="theme:VolumeSlider.IsVolume" Value="True" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
+      <Grid Background="Transparent">
+        <Border Height="6" CornerRadius="3" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource ControlPressedBrush}" Opacity="0.45" />
+        <Border Width="1.5" Height="12" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{DynamicResource TextTertiaryBrush}" />
+        <Track x:Name="PART_Track" Orientation="Horizontal">
+          <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource VolumeSliderRepeatStyle}" Background="{DynamicResource TextSecondaryBrush}" /></Track.DecreaseRepeatButton>
+          <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource VolumeSliderRepeatStyle}" Background="Transparent" /></Track.IncreaseRepeatButton>
+          <Track.Thumb><Thumb Width="16" Height="16"><Thumb.Template><ControlTemplate TargetType="Thumb">
+            <Ellipse x:Name="Knob" Fill="White" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="2" />
+            <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Knob" Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" /></Trigger></ControlTemplate.Triggers>
+          </ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+        </Track>
+      </Grid>
+      <ControlTemplate.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger></ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
 </ResourceDictionary>

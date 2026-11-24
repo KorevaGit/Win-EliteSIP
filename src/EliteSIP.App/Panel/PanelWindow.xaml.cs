@@ -1,4 +1,6 @@
 using System.Windows.Media;
+using System.Windows.Controls.Primitives;
+using EliteSIP.App.Resources;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -15,36 +17,6 @@ namespace EliteSIP.App.Panel;
 /// </remarks>
 public partial class PanelWindow : Window
 {
-    public static readonly DependencyProperty UsesWideCallTitleProperty = DependencyProperty.Register(
-        nameof(UsesWideCallTitle), typeof(bool), typeof(PanelWindow), new PropertyMetadata(false));
-
-    public bool UsesWideCallTitle
-    {
-        get => (bool)GetValue(UsesWideCallTitleProperty);
-        private set => SetValue(UsesWideCallTitleProperty, value);
-    }
-
-    // Кэш измерения исключает повторную работу на каждом LayoutUpdated.
-    private (string Title, string Status, string Duration, double Width, bool Pending)? _callHeaderMeasure;
-
-    private void OnCallHeaderLayoutUpdated(object? sender, EventArgs e)
-    {
-        if (DataContext is not PanelViewModel model || CallHeader.ActualWidth <= 0)
-        {
-            return;
-        }
-        var key = (model.CallTitle ?? "", model.CallStatus ?? "", model.ActiveLine?.Duration ?? "", CallHeader.ActualWidth, model.IsOutgoingPending);
-        if (_callHeaderMeasure == key)
-        {
-            return;
-        }
-        _callHeaderMeasure = key;
-        double Width(string text, double size) => new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight, new Typeface(CallTitleLabel.FontFamily, FontStyles.Normal, FontWeights.Medium, FontStretches.Normal),
-            size, Brushes.Black, VisualTreeHelper.GetDpi(this).PixelsPerDip).WidthIncludingTrailingWhitespace;
-        UsesWideCallTitle = !model.IsOutgoingPending && Width(key.Item1, 18) + Math.Max(Width(key.Item2, 12), Width(key.Item3, 18)) + 12 > CallHeader.ActualWidth;
-    }
-
     private readonly DispatcherTimer _clock;
     private double _bottomEdge;
     private Rect? _userBoundsBeforeMove;
@@ -62,6 +34,7 @@ public partial class PanelWindow : Window
         }
         Model = model;
         DataContext = model;
+        UpdateRows();
 
         // Такт разговора: ровно раз в секунду и только пока панель на экране.
         // `DispatcherTimer`, а не таймер из пула, потому что он толкает
@@ -247,6 +220,17 @@ public partial class PanelWindow : Window
         // пересборка разметки панели весь рабочий день.
         Model.PropertyChanged += (_, change) =>
         {
+            // Перевод не удался — окно с номером возвращается; разговор
+            // кончился — спрашивать об удержании и конференции уже не о чем.
+            if (change.PropertyName is nameof(PanelViewModel.IsTransferring))
+            {
+                ReopenTransferPopup();
+            }
+            if (change.PropertyName is nameof(PanelViewModel.IsInCall) && !Model.IsInCall)
+            {
+                _confirmed = null;
+                ConfirmPopup.IsOpen = false;
+            }
             if ((change.PropertyName is nameof(PanelViewModel.IsInCall) or nameof(PanelViewModel.IsTransferEntryVisible))
                 && !Model.IsInCall && !Model.IsTransferEntryVisible)
             {
@@ -254,20 +238,20 @@ public partial class PanelWindow : Window
             }
             if (change.PropertyName is nameof(PanelViewModel.IsTransferEntryVisible)
                 or nameof(PanelViewModel.HasMacros)
-                or nameof(PanelViewModel.ShowsMacros)
+                or nameof(PanelViewModel.ShowsVolume)
                 or nameof(PanelViewModel.MacroColumns)
                 or nameof(PanelViewModel.MacroHeight)
                 or nameof(PanelViewModel.IsInCall)
                 or nameof(PanelViewModel.Trouble))
             {
-                Dispatcher.BeginInvoke(UpdateMinimumHeight, DispatcherPriority.Loaded);
+                Dispatcher.BeginInvoke(Relayout, DispatcherPriority.Loaded);
             }
         };
 
         // Число клавиш меняет число рядов, а `HasMacros` при этом может и не
         // измениться: предустановка на двенадцать клавиш вместо шести.
         Model.Macros.CollectionChanged += (_, _) =>
-            Dispatcher.BeginInvoke(UpdateMinimumHeight, DispatcherPriority.Loaded);
+            Dispatcher.BeginInvoke(Relayout, DispatcherPriority.Loaded);
 
         Restore();
 
@@ -512,7 +496,7 @@ public partial class PanelWindow : Window
     /// <summary>Рядов в видимой сетке клавиш; 0 — сетки не видно.</summary>
     private int MacroRows()
     {
-        if (!Model.HasMacros || !Model.ShowsMacros)
+        if (!Model.HasMacros)
         {
             return 0;
         }
@@ -818,16 +802,229 @@ public partial class PanelWindow : Window
         }
     }
 
+    /// <summary>Сменился состав середины: строки, предел окна и его высота.</summary>
+    private void Relayout()
+    {
+        UpdateRows();
+        UpdateMinimumHeight();
+
+        // Вернули ползунки или макросы — окно вырастает под них, а не прячет
+        // клавиши под сеткой.
+        if (SizeToContent is SizeToContent.Manual && WindowState is WindowState.Normal && Height < MinHeight)
+        {
+            Height = MinHeight;
+        }
+    }
+
+    /// <summary>
+    /// Высоты строк середины.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Растягивание с ноября 2026, как на Linux: с макросами всё лишнее — им,
+    /// громкость и клавиши своей высоты; без макросов — поровну фреймам
+    /// громкости. Поле номера (72), клавиши-значки (40) и «Позвонить» (62)
+    /// постоянной высоты. Без ползунков их строки схлопываются, а в ряду
+    /// клавиш появляется четвёртая — микрофон.
+    /// </remarks>
+    private void UpdateRows()
+    {
+        var macros = Model.HasMacros;
+        var volume = Model.ShowsVolume;
+        var keys = Middle.RowDefinitions[2];
+        var grid = Middle.RowDefinitions[4];
+
+        keys.Height = macros || !volume ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+        grid.Height = macros ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+        grid.MinHeight = macros ? Model.MacroGridMinHeight : 0;
+
+        var rows = ControlKeys.RowDefinitions;
+        for (var index = 0; index < 4; index++)
+        {
+            var gap = index % 2 == 1;
+            rows[index].MinHeight = volume && !gap ? 72 : 0;
+            rows[index].Height = !volume ? new GridLength(0)
+                : gap ? new GridLength(8)
+                : macros ? new GridLength(72)
+                : new GridLength(1, GridUnitType.Star);
+        }
+
+        var columns = KeysRow.ColumnDefinitions;
+        columns[5].Width = new GridLength(volume ? 0 : 8);
+        columns[6].Width = volume ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+
+        Macros.Visibility = macros ? Visibility.Visible : Visibility.Collapsed;
+        MacroGap.Visibility = macros ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void OnTransferClick(object sender, RoutedEventArgs e)
     {
         Model.ShowTransferEntry();
+        TransferKey.SetCurrentValue(ToggleButton.IsCheckedProperty, Model.IsTransferEntryVisible);
 
         // Поле открывается ради ввода, значит и курсор в нём. Без этого
         // оператор жмёт «Перевести», начинает набирать и обнаруживает, что
-        // цифры уходят в поле набора над ним.
-        TransferField.Focus();
+        // цифры уходят в поле набора.
+        Dispatcher.BeginInvoke(() => TransferField.Focus(), DispatcherPriority.Input);
     }
 
     private void OnCancelTransferClick(object sender, RoutedEventArgs e)
         => Model.CancelTransferEntry();
+
+    /// <summary>Окно перевода закрыли щелчком мимо — перевод отменён.</summary>
+    ///
+    /// <remarks>
+    /// Но не уходом в другую программу: номер перевода оператор подсматривает в
+    /// CRM, и набранное обязано дождаться его возвращения. Не отменяется и
+    /// идущий перевод: неудачный вернёт окно с тем же номером. Решение
+    /// откладывается на такт: окно теряет активность после закрытия всплывающего.
+    /// </remarks>
+    private void OnTransferPopupClosed(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(() =>
+        {
+            if (Model.IsTransferEntryVisible && !Model.IsTransferring && IsActive)
+            {
+                Model.CancelTransferEntry();
+            }
+        }, DispatcherPriority.Input);
+
+    /// <summary>Вернуть окно перевода, которое закрылось, пока ввод ещё идёт.</summary>
+    private void ReopenTransferPopup()
+    {
+        if (!Model.IsTransferEntryVisible || Model.IsTransferring || TransferPopup.IsOpen || !IsActive)
+        {
+            return;
+        }
+
+        TransferPopup.SetCurrentValue(Popup.IsOpenProperty, true);
+        Dispatcher.BeginInvoke(() => TransferField.Focus(), DispatcherPriority.Input);
+    }
+
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        ReopenTransferPopup();
+    }
+
+    private void OnTransferFieldKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is System.Windows.Input.Key.Escape)
+        {
+            Model.CancelTransferEntry();
+            e.Handled = true;
+        }
+        else if (e.Key is System.Windows.Input.Key.Enter && Model.HasTransferNumber && Model.Transfer?.CanExecute(null) is true)
+        {
+            Model.Transfer.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Что сделать по «Да» во всплывающем подтверждении.</summary>
+    private Action? _confirmed;
+
+    /// <summary>Клавиша, о которой спрашивают: подсвечена, пока окно открыто.</summary>
+    private ToggleButton? _asking;
+
+    /// <summary>
+    /// Спросить подтверждение над клавишами. Клавиша подсвечивается, а в окне
+    /// стоит её значок — иначе непонятно, к чему вопрос.
+    /// </summary>
+    private void Confirm(ToggleButton key, string glyph, string question, string action, Action confirmed)
+    {
+        ConfirmIcon.Glyph = glyph;
+        ConfirmText.Text = question;
+        ConfirmActionText.Text = action;
+        _confirmed = confirmed;
+        _asking = key;
+        key.SetCurrentValue(ToggleButton.IsCheckedProperty, true);
+        ConfirmPopup.IsOpen = true;
+    }
+
+    private void OnConfirmPopupClosed(object? sender, EventArgs e)
+    {
+        _asking?.SetCurrentValue(ToggleButton.IsCheckedProperty,
+            ReferenceEquals(_asking, HoldKey) ? Model.IsOnHold : Model.IsConferenceStarted);
+        _asking = null;
+    }
+
+    private void OnConfirmClick(object sender, RoutedEventArgs e)
+    {
+        var confirmed = _confirmed;
+        _confirmed = null;
+        ConfirmPopup.IsOpen = false;
+        confirmed?.Invoke();
+    }
+
+    private void OnConfirmCancelClick(object sender, RoutedEventArgs e) => ConfirmPopup.IsOpen = false;
+
+    /// <summary>Удержание — с подтверждением; снять удержание — сразу.</summary>
+    private void OnHoldClick(object sender, RoutedEventArgs e)
+    {
+        HoldKey.SetCurrentValue(ToggleButton.IsCheckedProperty, Model.IsOnHold);
+        if (Model.IsOnHold)
+        {
+            Model.ToggleHold?.Execute(null);
+            return;
+        }
+
+        Confirm(HoldKey, "pause.fill", Strings.Get("PanelConfirmHold"), Strings.Get("PanelConfirmHoldAction"),
+            () => Model.ToggleHold?.Execute(null));
+    }
+
+    private void OnConferenceClick(object sender, RoutedEventArgs e)
+    {
+        ConferenceKey.SetCurrentValue(ToggleButton.IsCheckedProperty, Model.IsConferenceStarted);
+        Confirm(ConferenceKey, "person.3.fill", Strings.Get("PanelConfirmConference"), Strings.Get("PanelConfirmConferenceAction"),
+            () => Model.StartConference?.Execute(null));
+    }
+
+    /// <summary>Громкость микрофона, к которой вернуться после выключения.</summary>
+    private double _gainBeforeMute = 1;
+
+    /// <summary>
+    /// «Микрофон»: выключить — и ползунок уходит в ноль, как у «Собеседника»;
+    /// включить — прежняя громкость. Иначе по ползунку не видно, выключен ли
+    /// микрофон.
+    /// </summary>
+    private void OnMicrophoneClick(object sender, RoutedEventArgs e)
+    {
+        var audio = Model.Audio;
+        if (!Model.IsMicrophoneMuted)
+        {
+            if (audio.MicrophoneGain > 0.001) { _gainBeforeMute = audio.MicrophoneGain; }
+            Model.ToggleMicrophone?.Execute(null);
+            if (Model.IsMicrophoneMuted && audio.GainIsAdjustable) { audio.MicrophoneGain = 0; }
+        }
+        else
+        {
+            Model.ToggleMicrophone?.Execute(null);
+            if (!Model.IsMicrophoneMuted && audio.MicrophoneGain <= 0.001) { audio.MicrophoneGain = _gainBeforeMute > 0.001 ? _gainBeforeMute : 1; }
+        }
+
+        if (sender is ToggleButton key)
+        {
+            key.SetCurrentValue(ToggleButton.IsCheckedProperty, Model.IsMicrophoneMuted);
+        }
+    }
+
+    /// <summary>Громкость собеседника, к которой вернуть звук после выключения.</summary>
+    private double _peerVolumeBeforeMute = 1;
+
+    /// <summary>«Собеседник»: звук в ноль — и обратно к прежней громкости.</summary>
+    private void OnPeerMuteClick(object sender, RoutedEventArgs e)
+    {
+        var audio = Model.Audio;
+        if (audio.PlaybackVolume > 0.001)
+        {
+            _peerVolumeBeforeMute = audio.PlaybackVolume;
+            audio.PlaybackVolume = 0;
+        }
+        else
+        {
+            audio.PlaybackVolume = _peerVolumeBeforeMute > 0.001 ? _peerVolumeBeforeMute : 1;
+        }
+
+        PeerMuteKey.SetCurrentValue(ToggleButton.IsCheckedProperty, audio.PlaybackVolume <= 0.001);
+    }
 }

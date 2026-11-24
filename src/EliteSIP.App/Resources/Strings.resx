@@ -737,16 +737,13 @@
     <value>Queues</value>
   </data>
   <data name="AdminQueueNumber" xml:space="preserve">
-    <value>Number</value>
+    <value>Look for in the name</value>
   </data>
   <data name="AdminQueueTitle" xml:space="preserve">
-    <value>Title</value>
-  </data>
-  <data name="AdminQueueAdd" xml:space="preserve">
-    <value>Add a queue</value>
+    <value>Show as</value>
   </data>
   <data name="AdminQueuesNote" xml:space="preserve">
-    <value>On a queue distribution the number tells the operator nothing. The titles from here are shown both in the incoming call window and in the history, instead of the digits.</value>
+    <value>Distribution titles are set up in Spark (EliteSIP → Queues) and arrive together with the presets. A distribution whose caller name contains the text on the left is shown with the title on the right; without a rule the name is shown as received.</value>
   </data>
   <data name="AdminMaintenanceTitle" xml:space="preserve">
     <value>Maintenance</value>
@@ -901,7 +898,7 @@
     <value>Deal call</value>
   </data>
   <data name="IncomingDistribution" xml:space="preserve">
-    <value>🔥Hot lead🔥</value>
+    <value>Call centre call</value>
   </data>
 
   <!-- Раздел «Входящие» в «Управлении»: политика защиты. -->
@@ -1381,6 +1378,16 @@
   <data name="SettingsPlayMelody" xml:space="preserve"><value>Play call melody</value></data>
   <data name="SettingsStartup" xml:space="preserve"><value>Start with Windows</value></data>
   <data name="SettingsPanelAlwaysOnTop" xml:space="preserve"><value>Always on top</value></data>
+  <data name="SettingsCallSounds" xml:space="preserve"><value>Dialing and call sounds</value></data>
+  <data name="SettingsCallSoundsToggle" xml:space="preserve"><value>Key tones and call signals</value></data>
+  <data name="SettingsCallSoundsNote" xml:space="preserve"><value>A quiet tone for each digit in the number field and a short soft signal when a call starts and ends. Played on the call device. The ringtone is set separately.</value></data>
+  <data name="SettingsPanelVolume" xml:space="preserve"><value>Volume sliders on the main window</value></data>
+  <data name="PanelPeerVolume" xml:space="preserve"><value>Caller</value></data>
+  <data name="PanelMyVolume" xml:space="preserve"><value>Microphone</value></data>
+  <data name="PanelConfirmHold" xml:space="preserve"><value>Put the call on hold?</value></data>
+  <data name="PanelConfirmHoldAction" xml:space="preserve"><value>Hold</value></data>
+  <data name="PanelConfirmConference" xml:space="preserve"><value>Start a conference?</value></data>
+  <data name="PanelConfirmConferenceAction" xml:space="preserve"><value>Start</value></data>
   <data name="SettingsReleaseDevices" xml:space="preserve"><value>Release devices when idle</value></data>
   <data name="SettingsSelfTest" xml:space="preserve"><value>Self-test</value></data>
   <data name="SettingsOutputTestNote" xml:space="preserve"><value>Play a test signal through the selected speakers</value></data>

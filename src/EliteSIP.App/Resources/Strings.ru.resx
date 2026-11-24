@@ -717,16 +717,13 @@
     <value>Очереди</value>
   </data>
   <data name="AdminQueueNumber" xml:space="preserve">
-    <value>Номер</value>
+    <value>Что искать в имени</value>
   </data>
   <data name="AdminQueueTitle" xml:space="preserve">
-    <value>Название</value>
-  </data>
-  <data name="AdminQueueAdd" xml:space="preserve">
-    <value>Добавить очередь</value>
+    <value>Как показать</value>
   </data>
   <data name="AdminQueuesNote" xml:space="preserve">
-    <value>На раздаче из очереди номер оператору ничего не говорит. Названия отсюда показываются и в окне входящего, и в истории — вместо цифр.</value>
+    <value>Подписи раздач заводятся в Spark (EliteSIP → Очереди) и приезжают вместе с предустановками. Раздача, в имени которой есть текст слева, называется подписью справа; без правила показывается имя, как оно пришло.</value>
   </data>
   <data name="AdminMaintenanceTitle" xml:space="preserve">
     <value>Обслуживание</value>
@@ -880,7 +877,7 @@
     <value>Вызов по сделке</value>
   </data>
   <data name="IncomingDistribution" xml:space="preserve">
-    <value>🔥Горячая раздача🔥</value>
+    <value>Входящий из колл-центра</value>
   </data>
 
   <data name="AdminSectionIncoming" xml:space="preserve">
@@ -1359,6 +1356,16 @@
   <data name="SettingsPlayMelody" xml:space="preserve"><value>Проигрывать мелодию</value></data>
   <data name="SettingsStartup" xml:space="preserve"><value>Запускать с Windows</value></data>
   <data name="SettingsPanelAlwaysOnTop" xml:space="preserve"><value>Поверх всех окон</value></data>
+  <data name="SettingsCallSounds" xml:space="preserve"><value>Звуки набора и разговора</value></data>
+  <data name="SettingsCallSoundsToggle" xml:space="preserve"><value>Тоны клавиш и сигналы разговора</value></data>
+  <data name="SettingsCallSoundsNote" xml:space="preserve"><value>Тихий тон на каждую цифру в поле номера, короткий мягкий сигнал, когда разговор начался и когда закончился. Звучат в устройство разговора. Рингтон настраивается отдельно.</value></data>
+  <data name="SettingsPanelVolume" xml:space="preserve"><value>Ползунки громкости на главном окне</value></data>
+  <data name="PanelPeerVolume" xml:space="preserve"><value>Собеседник</value></data>
+  <data name="PanelMyVolume" xml:space="preserve"><value>Микрофон</value></data>
+  <data name="PanelConfirmHold" xml:space="preserve"><value>Поставить на удержание?</value></data>
+  <data name="PanelConfirmHoldAction" xml:space="preserve"><value>Поставить</value></data>
+  <data name="PanelConfirmConference" xml:space="preserve"><value>Создать конференцию?</value></data>
+  <data name="PanelConfirmConferenceAction" xml:space="preserve"><value>Создать</value></data>
   <data name="SettingsReleaseDevices" xml:space="preserve"><value>Освобождать устройства в простое</value></data>
   <data name="SettingsSelfTest" xml:space="preserve"><value>Самопроверка</value></data>
   <data name="SettingsOutputTestNote" xml:space="preserve"><value>Воспроизвести тестовый сигнал на выбранных динамиках</value></data>

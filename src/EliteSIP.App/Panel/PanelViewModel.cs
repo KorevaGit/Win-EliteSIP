@@ -505,6 +505,15 @@ public sealed class PanelViewModel : Observable
         }
     }
 
+    private bool _showsVolume = true;
+
+    /// <summary>Видны ли ползунки громкости — настройка оформления.</summary>
+    public bool ShowsVolume
+    {
+        get => _showsVolume;
+        set => Set(ref _showsVolume, value);
+    }
+
     private bool _canControlMedia = true;
     public bool CanControlMedia
     {
@@ -534,7 +543,6 @@ public sealed class PanelViewModel : Observable
         {
             Set(ref _isTransferEntryVisible, value);
             NotifyChanged(nameof(CanTransfer));
-            NotifyChanged(nameof(ShowsMacros));
         }
     }
 
@@ -562,8 +570,6 @@ public sealed class PanelViewModel : Observable
 
     public bool HasMacros => Macros.Count > 0;
 
-    /// <summary>Видна ли сетка: поле перевода занимает то же место.</summary>
-    public bool ShowsMacros => !_isTransferEntryVisible;
 
     /// <summary>Сколько клавиш в ряду — задаёт администратор.</summary>
     ///
@@ -670,6 +676,13 @@ public sealed class PanelViewModel : Observable
     public ICommand? CallOrHangUp { get; set; }
 
     public ICommand? ToggleHold { get; set; }
+
+    /// <summary>
+    /// Громкость собеседника и своего микрофона — те же настройки, что в окне
+    /// настроек: ползунки панели и настроек двигаются вместе, а разговор
+    /// подхватывает значение на лету.
+    /// </summary>
+    public Settings.AudioSettings Audio { get; set; } = new();
 
     public ICommand? ToggleMicrophone { get; set; }
 

@@ -128,24 +128,26 @@ public sealed class PbxSettings : Observable
     }
 }
 
-/// <summary>Очередь: номер, которым она приходит, и как её называть человеку.</summary>
+/// <summary>Подпись раздачи: что искать в имени звонящего и как показать это человеку.</summary>
 ///
 /// <remarks>
-/// Словарь заведён ради одного: на раздаче из очереди номер бесполезен —
-/// оператор видит цифры, которые ничего ему не говорят. Администратор называет
-/// очередь словами, и эти слова показываются и в окне входящего, и в истории.
+/// Правила заводятся в Spark (вкладка «Очереди») и приезжают в файле
+/// предустановок — см. <c>QueueTitles</c>. До ноября 2026 здесь был словарь
+/// «номер очереди → название», который правился на месте и не срабатывал:
+/// номер очереди в вызов не попадает. Записи того словаря в файле настроек
+/// остаются без искомого и ничего не делают.
 /// </remarks>
 public sealed class QueueSetting : Observable
 {
-    private string _number = string.Empty;
+    private string _match = string.Empty;
     private string _title = string.Empty;
 
     public Guid Id { get; init; } = Guid.NewGuid();
 
-    public string Number
+    public string Match
     {
-        get => _number;
-        set => Set(ref _number, value);
+        get => _match;
+        set => Set(ref _match, value);
     }
 
     public string Title
@@ -270,7 +272,7 @@ public sealed class SipCredentials : Observable
         => _protectedPassword is null ? null : ProtectedSecret.Unprotect(_protectedPassword);
 }
 
-/// <summary>Очереди — список, потому что порядок в нём человеку виден.</summary>
+/// <summary>Подписи раздач — список, потому что срабатывает первое подходящее правило.</summary>
 public sealed class QueueSettings : Observable
 {
     public ObservableCollection<QueueSetting> Queues { get; init; } = [];

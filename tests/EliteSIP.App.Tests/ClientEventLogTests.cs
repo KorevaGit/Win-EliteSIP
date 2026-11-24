@@ -38,6 +38,25 @@ public sealed class ClientEventLogTests : IDisposable
         Assert.Equal("Входящий звонок завершён", item.Message);
     }
 
+    /// <summary>По признаку раздачи Spark собирает имена линий; у прочих звонков поля нет.</summary>
+    [Fact]
+    public void Distribution_flag_travels_only_with_distribution_calls()
+    {
+        var log = Make();
+
+        log.CallStarted("c1", incoming: true, "710", "GORACHAYA RAZDACHACall Center", distribution: true);
+        log.CallFinished("c1", "отбой", failed: false);
+        log.CallStarted("c2", incoming: true, "132", "Semenov_Artyom");
+        log.CallFinished("c2", "отбой", failed: false);
+        log.CallStarted("c3", incoming: false, "710", "x", distribution: true);
+        log.CallFinished("c3", "отбой", failed: false);
+
+        Assert.Equal([true, null, null], Make().Pending.Select(item => item.Distribution));
+        using var data = JsonDocument.Parse(File.ReadAllText(FilePath));
+        Assert.True(data.RootElement[0].GetProperty("distribution").GetBoolean());
+        Assert.False(data.RootElement[1].TryGetProperty("distribution", out _));
+    }
+
     [Fact]
     public void UnansweredFailedCallIsWarning()
     {

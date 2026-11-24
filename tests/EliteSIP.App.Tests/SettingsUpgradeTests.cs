@@ -105,6 +105,19 @@ public sealed class SettingsUpgradeTests : IDisposable
     }
 
     [Fact]
+    public void Ревизия_5_убирает_записи_старого_словаря_очередей()
+    {
+        var old = new AppSettings { Revision = 4 };
+        old.Queues.Queues.Add(new QueueSetting { Title = "Квартиры" });
+        old.Queues.Queues.Add(new QueueSetting { Match = "line3", Title = "Линия 3" });
+        old.Save(FilePath);
+
+        var loaded = AppSettings.Load(FilePath);
+        Assert.Equal("line3", Assert.Single(loaded.Queues.Queues).Match);
+        Assert.False(loaded.Audio.MutesSystemSounds);
+    }
+
+    [Fact]
     public void Устройства_громкость_и_усиление_не_трогаются()
     {
         Tinkered(1).Save(FilePath);

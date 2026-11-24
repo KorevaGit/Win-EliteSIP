@@ -231,6 +231,15 @@ public partial class App : Application, IDisposable
             ShowSettings = new RelayCommand(_ => ShowSettings()),
             ShowHistory = new RelayCommand(_ => ShowHistory()),
             Quit = new RelayCommand(_ => Quit()),
+            Audio = _settings.Audio,
+            ShowsVolume = _settings.Appearance.ShowsPanelVolume,
+        };
+        _settings.Appearance.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName == nameof(AppearanceSettings.ShowsPanelVolume))
+            {
+                _panel.ShowsVolume = _settings.Appearance.ShowsPanelVolume;
+            }
         };
 
         // Окно входящего вызова вместе с защитой от автокликеров (W9). Мигает
@@ -287,7 +296,13 @@ public partial class App : Application, IDisposable
 
         _panel.ToggleHold = new RelayCommand(async _ => await _phone.ToggleHoldAsync());
         _panel.ToggleMicrophone = new RelayCommand(_ => _phone.ToggleMicrophone());
-        _panel.KeyPressed = key => _phone.Sounds.PlayKeyTone(key, _settings.Audio.OutputDeviceId);
+        _panel.KeyPressed = key =>
+        {
+            if (!_settings.Audio.MutesSystemSounds)
+            {
+                _phone.Sounds.PlayKeyTone(key, _settings.Audio.OutputDeviceId);
+            }
+        };
         _panel.StartConference = new RelayCommand(async _ => await _phone.StartConferenceAsync());
         _panel.Transfer = new RelayCommand(async _ => await _phone.TransferAsync(_panel.TransferNumber));
 
@@ -359,6 +374,8 @@ public partial class App : Application, IDisposable
             HistoryDemo.Seed(_history, _settings.Account.ProfileId);
         }
 
+        KeepWindowsOnTop();
+
         _panelWindow = new PanelWindow(model)
         {
             Topmost = _settings.PanelAlwaysOnTop,
@@ -419,6 +436,7 @@ public partial class App : Application, IDisposable
             // работать только после перезапуска (так было в macOS 0.1.50).
             Reregister = Reconnect,
             AnnounceNumber = number => model.Notice = Strings.Format("PanelNumberChanged", number),
+            BuildSupportArchive = destination => BuildSupportArchiveAsync(destination),
         };
 
         _panelLine.Start();
@@ -639,6 +657,35 @@ public partial class App : Application, IDisposable
     };
 
     /// <summary>
+    /// «Поверх всех окон» — для всех окон программы сразу, как на Linux: иначе
+    /// панель поверх закрывала бы настройки, журнал и «Управление». Окно
+    /// входящего поверх всегда, правило его не трогает.
+    /// </summary>
+    private void KeepWindowsOnTop()
+    {
+        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((sender, _) =>
+        {
+            if (sender is Window window && FollowsAlwaysOnTop(window) && _settings is { } settings)
+            {
+                window.Topmost = settings.PanelAlwaysOnTop;
+            }
+            }));
+    }
+
+    private void ApplyAlwaysOnTop(bool value)
+    {
+        foreach (Window window in Windows)
+        {
+            if (FollowsAlwaysOnTop(window))
+            {
+                window.Topmost = value;
+            }
+        }
+    }
+
+    private static bool FollowsAlwaysOnTop(Window window) => window is not IncomingCallWindow;
+
+    /// <summary>
     /// Открывает настройки — или поднимает уже открытые.
     /// </summary>
     ///
@@ -663,7 +710,7 @@ public partial class App : Application, IDisposable
         {
             OnPanelAlwaysOnTopChanged = value =>
             {
-                if (_panelWindow is { } panel) { panel.Topmost = value; }
+                ApplyAlwaysOnTop(value);
             },
             Updates = _updates is null ? null : new UpdatesViewModel(_updates),
 
@@ -1105,6 +1152,33 @@ public partial class App : Application, IDisposable
         }
     }
 
+    /// <summary>
+    /// Архив журналов для техподдержки: по кнопке в настройках и молча — по
+    /// запросу из Spark (<see cref="PanelLineHost.BuildSupportArchive"/>).
+    /// </summary>
+    private Task<string> BuildSupportArchiveAsync(string destination)
+    {
+        var summary = $"EliteSIP {Settings.SettingsViewModel.Version}"
+            + $"{Environment.NewLine}машина: {_settings?.Panel.InstallationID}"
+            + $"{Environment.NewLine}добавочный: {_settings?.Account.Username}"
+            + $"{Environment.NewLine}собрано: {DateTimeOffset.Now:O}"
+            + $"{Environment.NewLine}ОС: {Platform.MachinePlatform.Name} ({System.Runtime.InteropServices.RuntimeInformation.OSDescription})"
+            + $"{Environment.NewLine}процесс: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}, {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}"
+            + $"{Environment.NewLine}журнал в файл: {_settings?.Maintenance.LogToFile}; SIP-трасса: {_settings?.Maintenance.LogsSipTrace}"
+            + $"{Environment.NewLine}площадка: {_settings?.Account.Site}; АТС: {_settings?.Account.Domain}; транспорт: {_settings?.Pbx.Transport}";
+        summary += $"{Environment.NewLine}регистрация: {_panel?.Registration}; отключён: {_panel?.IsOfflineByChoice}";
+
+        return Task.Run(() => SupportArchive.MakeFromDirectory(
+            Path.GetDirectoryName(AppSettings.DefaultPath)!, summary, destination, _logFile,
+            new Dictionary<string, byte[]>
+            {
+                ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)),
+                ["windows-crashes.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportCrashEvidence.Capture()),
+                ["updater.log"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.UpdaterLog()),
+                ["history-status.txt"] = System.Text.Encoding.UTF8.GetBytes(_history?.DiagnosticSummary() ?? "history: not initialized"),
+            }));
+    }
+
     private async Task CollectSupportArchiveAsync(Settings.SettingsViewModel model)
     {
         if (_isCollectingSupportArchive) { return; }
@@ -1122,25 +1196,7 @@ public partial class App : Application, IDisposable
                 Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
                 SupportArchive.SuggestedName());
 
-            var summary = $"EliteSIP {Settings.SettingsViewModel.Version}"
-                + $"{Environment.NewLine}машина: {_settings?.Panel.InstallationID}"
-                + $"{Environment.NewLine}добавочный: {_settings?.Account.Username}"
-                + $"{Environment.NewLine}собрано: {DateTimeOffset.Now:O}"
-                + $"{Environment.NewLine}ОС: {System.Runtime.InteropServices.RuntimeInformation.OSDescription}"
-                + $"{Environment.NewLine}процесс: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}, {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}"
-                + $"{Environment.NewLine}журнал в файл: {_settings?.Maintenance.LogToFile}; SIP-трасса: {_settings?.Maintenance.LogsSipTrace}"
-                + $"{Environment.NewLine}площадка: {_settings?.Account.Site}; АТС: {_settings?.Account.Domain}; транспорт: {_settings?.Pbx.Transport}";
-            summary += $"{Environment.NewLine}регистрация: {_panel?.Registration}; отключён: {_panel?.IsOfflineByChoice}";
-
-            var made = await Task.Run(() => SupportArchive.MakeFromDirectory(
-                Path.GetDirectoryName(AppSettings.DefaultPath)!, summary, destination, _logFile,
-                new Dictionary<string, byte[]>
-                {
-                    ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)),
-                    ["windows-crashes.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportCrashEvidence.Capture()),
-                    ["updater.log"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.UpdaterLog()),
-                    ["history-status.txt"] = System.Text.Encoding.UTF8.GetBytes(_history?.DiagnosticSummary() ?? "history: not initialized"),
-                }));
+            var made = await BuildSupportArchiveAsync(destination);
 
             model.ReportSupport(Strings.Format("SupportLogsCollected", System.IO.Path.GetFileName(made)), SupportArea.Logs);
         }

@@ -190,13 +190,22 @@ internal sealed class ClientEventLog : IDisposable
 
         [JsonPropertyName("peer_name")]
         public string? PeerName { get; init; }
+
+        /// <summary>
+        /// Входящий был раздачей. По таким событиям Spark собирает имена линий
+        /// для вкладки «Очереди». У прочих событий поля нет вовсе.
+        /// </summary>
+        [JsonPropertyName("distribution")]
+        public bool? Distribution { get; init; }
     }
 
     /// <summary>Чем кончилась отправка: код ответа (<c>null</c> — ответа нет) и просьба сервера подождать.</summary>
     internal readonly record struct SendResult(HttpStatusCode? Status, TimeSpan? RetryAfter);
 
-    private sealed class Call(string direction, string? number, string? name)
+    private sealed class Call(string direction, string? number, string? name, bool distribution)
     {
+        public bool Distribution { get; } = distribution;
+
         public string Direction { get; } = direction;
         public string? Number { get; } = number;
         public string? Name { get; } = name;
@@ -420,11 +429,11 @@ internal sealed class ClientEventLog : IDisposable
         }
     }
 
-    internal void CallStarted(string callId, bool incoming, string? number = null, string? name = null)
+    internal void CallStarted(string callId, bool incoming, string? number = null, string? name = null, bool distribution = false)
     {
         lock (_gate)
         {
-            _calls[callId] = new Call(incoming ? "in" : "out", CleanPeer(number, 128), CleanPeer(name, 256));
+            _calls[callId] = new Call(incoming ? "in" : "out", CleanPeer(number, 128), CleanPeer(name, 256), incoming && distribution);
         }
     }
 
@@ -457,7 +466,7 @@ internal sealed class ClientEventLog : IDisposable
                     $"{title} завершён",
                     direction: call.Direction,
                     duration: Math.Max(0, (int)(_now() - answered).TotalSeconds),
-                    peerNumber: call.Number, peerName: call.Name);
+                    peerNumber: call.Number, peerName: call.Name, distribution: call.Distribution);
             }
             else
             {
@@ -465,7 +474,7 @@ internal sealed class ClientEventLog : IDisposable
                     Kind.Call,
                     failed ? Level.Warning : Level.Info,
                     $"{title} без ответа: {reason}",
-                    direction: call.Direction, peerNumber: call.Number, peerName: call.Name);
+                    direction: call.Direction, peerNumber: call.Number, peerName: call.Name, distribution: call.Distribution);
             }
         }
     }
@@ -510,7 +519,8 @@ internal sealed class ClientEventLog : IDisposable
         string? direction = null,
         int? duration = null,
         string? peerNumber = null,
-        string? peerName = null)
+        string? peerName = null,
+        bool distribution = false)
     {
         if (_forgotten)
         {
@@ -537,6 +547,7 @@ internal sealed class ClientEventLog : IDisposable
             DurationSeconds = duration,
             PeerNumber = peerNumber,
             PeerName = peerName,
+            Distribution = distribution ? true : null,
         });
 
         if (_pending.Count > Capacity)

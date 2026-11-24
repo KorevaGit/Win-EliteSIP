@@ -74,7 +74,7 @@ internal sealed class PanelLineHost : IDisposable
         _dispatcher = Dispatcher.CurrentDispatcher;
         _workFormatSync = new WorkFormatSync(settings.Panel, SendWorkFormatRequestAsync, log);
 
-        _presets = new PresetService(() => _settings, ApplyPreset, isBlocked, log);
+        _presets = new PresetService(() => _settings, ApplyPreset, isBlocked, log, ApplyQueues);
         _presets.NoteContact = () => _settings.Panel.LastContactAt = DateTimeOffset.UtcNow;
 
         _machine = new MachineService(
@@ -85,6 +85,7 @@ internal sealed class PanelLineHost : IDisposable
         {
             ApplyConfig = config => OnUi(() => ReceiveConfig(config)),
         };
+        _machine.CollectSupport = request => OnUi(() => _ = SendSupportArchiveAsync(request));
 
         // Пятнадцать минут: столько ждёт правка сотрудника в Spark и столько же
         // живёт отвязанная машина. Предустановки — в общем двухчасовом такте с
@@ -162,6 +163,125 @@ internal sealed class PanelLineHost : IDisposable
         {
             await _workFormatSync.SendAsync().ConfigureAwait(true);
             await _machine.CheckConfigAsync().ConfigureAwait(true);
+            if (_disposed) { return; }
+            await _machine.CheckSupportAsync().ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
+    /// Собрать архив журналов в файл по этому пути — то же, что кнопка
+    /// «Собрать журналы» в настройках. Ставит приложение: из чего собирается
+    /// архив, знает оно.
+    /// </summary>
+    internal Func<string, Task>? BuildSupportArchive { get; set; }
+
+    /// <summary>Больше сервер обновлений не примет (<c>maxSupportArchive</c>).</summary>
+    internal const long MaxSupportArchive = 32L << 20;
+
+    private bool _sendingSupport;
+
+    /// <summary>
+    /// Молча собрать архив по просьбе Spark и отправить его на сервер обновлений.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Человеку за машиной не показывается ничего: архив нужен техподдержке, а
+    /// не ему, и окно посреди смены сбивало бы с разговора. След остаётся в
+    /// журнале машины, который видит Spark. Архив собирается в каталоге
+    /// настроек, а не во временном: там он закрыт правами пользователя, и
+    /// удаляется сразу после отправки. Не ушёл — следующий такт попробует снова,
+    /// пока запрос не истёк.
+    /// </remarks>
+    private async Task SendSupportArchiveAsync(SupportRequest request)
+    {
+        var panel = _settings.Panel;
+        if (_sendingSupport || _disposed || BuildSupportArchive is null
+            || string.Equals(request.RequestID, panel.SentSupportRequest, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (request.ExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            _log($"запрос архива {request.RequestID[..8]} истёк — не отправляется");
+            return;
+        }
+
+        var channelKey = panel.ChannelKey();
+        var url = Provisioning.Current?.Updates?.SupportUploadUrl(request.RequestID);
+        if (channelKey is null || url is null)
+        {
+            return;
+        }
+
+        _sendingSupport = true;
+        var directory = Path.GetDirectoryName(AppSettings.DefaultPath)!;
+        var path = Path.Combine(directory, $"support-{request.RequestID}.zip");
+        try
+        {
+            // Архив, оставшийся от отправки, которую оборвало закрытие
+            // приложения: в нём журналы, и лежать на диске ему незачем.
+            foreach (var stale in Directory.GetFiles(directory, "support-*.zip"))
+            {
+                File.Delete(stale);
+            }
+
+            _log($"Spark просит архив для техподдержки ({request.RequestID[..8]}) — собираем");
+            await BuildSupportArchive(path).ConfigureAwait(true);
+            var size = new FileInfo(path).Length;
+            if (size > MaxSupportArchive)
+            {
+                // Повтор дал бы тот же размер: запрос считается отвеченным.
+                panel.SentSupportRequest = request.RequestID;
+                ClientEventLog.Shared.Record(ClientEventLog.Kind.Error, ClientEventLog.Level.Warning,
+                    $"Архив для техподдержки не отправлен: {size / (1 << 20)} МБ, больше предела 32 МБ");
+                return;
+            }
+
+            await using var file = File.OpenRead(path);
+            using var content = new System.Net.Http.StreamContent(file);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+            using var message = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, url) { Content = content };
+            ChannelRequest.Authorize(message, panel.InstallationID, channelKey);
+            ChannelRequest.Describe(message, panel.AppliedRevision, panel.AppliedConfigRevision);
+            using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            using var response = await ChannelRequest.Client.SendAsync(message, deadline.Token).ConfigureAwait(true);
+
+            switch (response.StatusCode)
+            {
+                case System.Net.HttpStatusCode.NoContent or System.Net.HttpStatusCode.OK:
+                    panel.SentSupportRequest = request.RequestID;
+                    _log($"архив для техподдержки отправлен: {size / 1024} КБ");
+                    ClientEventLog.Shared.Record(ClientEventLog.Kind.Config, ClientEventLog.Level.Info,
+                        $"Архив для техподдержки отправлен по запросу Spark ({Math.Max(1, size / 1024)} КБ)");
+                    break;
+
+                case System.Net.HttpStatusCode.NotFound:
+                    // Запрос уже снят: истёк в Spark или машину отвязали.
+                    panel.SentSupportRequest = request.RequestID;
+                    _log("архив для техподдержки: запрос на сервере уже снят");
+                    break;
+
+                default:
+                    _log($"архив для техподдержки: сервер ответил {(int)response.StatusCode}, повтор следующим тактом");
+                    break;
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException
+            or System.Net.Http.HttpRequestException or TaskCanceledException)
+        {
+            _log($"архив для техподдержки не отправлен: {error.Message}; повтор следующим тактом");
+        }
+        finally
+        {
+            _sendingSupport = false;
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+            }
         }
     }
 
@@ -224,8 +344,11 @@ internal sealed class PanelLineHost : IDisposable
         _presets.HostBecameIdle();
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         _machineTimer.Stop();
         _workFormatSync.Dispose();
     }
@@ -405,6 +528,13 @@ internal sealed class PanelLineHost : IDisposable
 
     /// <summary>О какой устаревшей ревизии уже сказали. Только в памяти: после перезапуска — ещё раз.</summary>
     private int? _reportedStaleRevision;
+
+    private void ApplyQueues(PresetBundle.QueueBlock queues)
+    {
+        _settings.Apply(queues);
+        _log($"подписи раздач применены: ревизия {queues.Revision}, правил {queues.Titles.Count}");
+        StateChanged?.Invoke();
+    }
 
     private void ApplyPreset(PresetBundle.Entry entry)
     {
@@ -606,7 +736,8 @@ internal static class MachineReset
         // Ротированные файлы журнала: elitesip-<время>.log.
         try
         {
-            foreach (var rotated in Directory.GetFiles(directory, "elitesip-*.log"))
+            foreach (var rotated in Directory.GetFiles(directory, "elitesip-*.log")
+                .Concat(Directory.GetFiles(directory, "support-*.zip")))
             {
                 try
                 {

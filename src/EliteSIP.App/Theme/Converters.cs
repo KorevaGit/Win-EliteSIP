@@ -97,3 +97,13 @@ public sealed class EnumToBoolConverter : IValueConverter
         return target.IsEnum ? Enum.Parse(target, text) : System.Convert.ChangeType(text, target, culture);
     }
 }
+
+/// <summary>Громкость на нуле — звук выключен.</summary>
+public sealed class IsZeroConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is double share && share <= 0.001;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

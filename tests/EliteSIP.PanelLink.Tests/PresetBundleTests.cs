@@ -20,6 +20,51 @@ public sealed class PresetBundleTests
         Assert.Equal(2, entry.SchemaVersion);
     }
 
+    [Fact]
+    public void Файл_без_подписей_раздач_разбирается_как_прежде()
+        => Assert.Null(PresetBundle.Verified(Fixture.SignedBundle, Fixture.PublicKey).Queues);
+
+    [Fact]
+    public void Подписи_раздач_приезжают_своим_блоком()
+    {
+        var bundle = PresetBundle.Decode(Encoding.UTF8.GetBytes("""
+            {"format":1,"generated_at":"2026-11-24T09:00:00Z","presets":[],
+             "queues":{"revision":7,"titles":[
+               {"match":" GORACHAYA ","title":"🔥Горячая раздача🔥"},
+               {"match":"","title":"без искомого"},
+               {"match":"line3dep"},
+               "мусор"]}}
+            """));
+
+        Assert.NotNull(bundle.Queues);
+        Assert.Equal(7, bundle.Queues.Revision);
+        Assert.Equal([new PresetBundle.QueueTitle("GORACHAYA", "🔥Горячая раздача🔥")], bundle.Queues.Titles);
+    }
+
+    /// <summary>Испорченный блок подписей не уносит с собой предустановки.</summary>
+    [Theory]
+    [InlineData("\"queues\":\"мусор\"")]
+    [InlineData("\"queues\":{\"titles\":[]}")]
+    [InlineData("\"queues\":null")]
+    public void Негодный_блок_подписей_теряется_в_одиночку(string block)
+    {
+        var bundle = PresetBundle.Decode(Encoding.UTF8.GetBytes(
+            "{\"format\":1,\"generated_at\":\"2026-11-24T09:00:00Z\",\"presets\":[]," + block + "}"));
+
+        Assert.Null(bundle.Queues);
+    }
+
+    /// <summary>Пустой список — тоже ревизия: правила убраны.</summary>
+    [Fact]
+    public void Пустой_список_подписей_остаётся_блоком()
+    {
+        var bundle = PresetBundle.Decode(Encoding.UTF8.GetBytes(
+            "{\"format\":1,\"generated_at\":\"2026-11-24T09:00:00Z\",\"presets\":[],\"queues\":{\"revision\":2,\"titles\":null}}"));
+
+        Assert.Equal(2, bundle.Queues?.Revision);
+        Assert.Empty(bundle.Queues!.Titles);
+    }
+
     /// <summary>
     /// Ровно то, ради чего линия подписывается: подделанный байт обязан
     /// отвергаться, а не применяться на всех рабочих местах.

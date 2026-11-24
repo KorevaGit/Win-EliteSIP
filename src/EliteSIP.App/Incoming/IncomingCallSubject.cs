@@ -30,11 +30,11 @@ public enum IncomingCallKind
 /// потому что новичка он сбивает: в окне видно вызов от собственного
 /// добавочного, и выглядит это как ошибка, а не как начало своего звонка.
 ///
-/// <b>Словарь очередей на боевом сервере не срабатывает — снято 27 августа
-/// 2026.</b> Живые INVITE показали, что диалплан CallerID не подменяет, и ни
-/// одна запись словаря там не появится никогда. Прямой признак раздачи —
-/// заголовок <c>X-Autoanswer</c>; запасной — форма <c>From</c>: на раздаче имя
-/// есть и номер внешний, прямой внешний звонок приходит вообще без имени.
+/// <b>Раздачу опознаёт не номер.</b> Живые INVITE показали, что диалплан
+/// CallerID не подменяет: номер очереди в вызов не попадает. Прямой признак
+/// раздачи — заголовок <c>X-Autoanswer</c>; запасной — форма <c>From</c>: на
+/// раздаче имя есть и номер внешний, прямой внешний звонок приходит вообще
+/// без имени. Называет раздачу имя из <c>From</c> — см. <see cref="QueueTitles"/>.
 ///
 /// Одно место на все вызовы окна, включая проверочный показ из настроек: иначе
 /// проверка показывала бы не то, что увидит оператор на боевом вызове, — а ради
@@ -72,13 +72,12 @@ public sealed record IncomingCallSubject
     /// <summary>Прятать ли мобильный под маской — настройка места, см. <c>IncomingCallSettings.MasksMobileNumbers</c>.</summary>
     private bool MasksMobileNumbers { get; init; } = true;
 
-    /// <summary>Заголовок раздачи.</summary>
+    /// <summary>Заголовок раздачи, пришедшей без имени.</summary>
     ///
     /// <remarks>
-    /// Строкой в коде, а не настройкой, и это отмена словаря очередей: сорок
-    /// заполненных записей не совпадали ни с одним боевым вызовом и не могли
-    /// совпасть. Настройка, которую невозможно заполнить правильно, — это не
-    /// настройка, а обряд.
+    /// Общий и нейтральный: до ноября 2026 здесь стояло «Горячая раздача», и
+    /// так подписывалась любая линия колл-центра. Раздачу с именем называет
+    /// <see cref="QueueTitles"/>.
     /// </remarks>
     public static string DistributionTitle => Strings.Get("IncomingDistribution");
 
@@ -146,19 +145,22 @@ public sealed record IncomingCallSubject
     /// <summary>Разбирает вызов по тому, что пришло в INVITE.</summary>
     ///
     /// <remarks>
-    /// Свой добавочный проверяется <b>раньше</b> словаря: администратор,
-    /// вписавший туда собственный номер, иначе получил бы «раздачу» вместо
-    /// звонка по сделке. Сравнение по цифрам — номер приходит из SIP, а в
-    /// настройки его вписывает человек.
+    /// Свой добавочный проверяется <b>раньше</b> признаков раздачи: вызов по
+    /// сделке иначе назывался бы раздачей. Сравнение по цифрам — номер
+    /// приходит из SIP, а в настройки его вписывает человек.
     /// </remarks>
+    /// <param name="titles">
+    /// правила подписи раздач; <c>null</c> — действующие
+    /// (<see cref="QueueTitles.Current"/>).
+    /// </param>
     public static IncomingCallSubject Classify(
         string callerNumber,
         string? callerName,
         bool requestsAutoAnswer,
         string ownNumber,
         bool masksMobileNumbers,
-        string? queueTitle = null)
-        => Sort(callerNumber, callerName, requestsAutoAnswer, ownNumber, queueTitle)
+        IReadOnlyList<QueueTitles.Rule>? titles = null)
+        => Sort(callerNumber, callerName, requestsAutoAnswer, ownNumber, titles)
             with { MasksMobileNumbers = masksMobileNumbers };
 
     private static IncomingCallSubject Sort(
@@ -166,24 +168,14 @@ public sealed record IncomingCallSubject
         string? callerName,
         bool requestsAutoAnswer,
         string ownNumber,
-        string? queueTitle)
+        IReadOnlyList<QueueTitles.Rule>? titles)
     {
         var own = Digits(ownNumber);
         var caller = Digits(callerNumber);
-        var named = queueTitle?.Trim();
 
         if (own.Length > 0 && own == caller)
         {
             return new IncomingCallSubject(IncomingCallKind.SelfCall, DealTitle, callerNumber, callerName);
-        }
-
-        // Название из словаря — уточнение поверх общего заголовка, и потому
-        // проверяется раньше признаков раздачи, но позже своего добавочного:
-        // администратор вписал номер очереди затем, чтобы она называлась своим
-        // именем, а не общим «горячая раздача».
-        if (!string.IsNullOrEmpty(named))
-        {
-            return new IncomingCallSubject(IncomingCallKind.Queue, named, callerNumber, callerName);
         }
 
         // Просьба снять трубку самостоятельно — и есть признак раздачи. Прямой
@@ -196,7 +188,10 @@ public sealed record IncomingCallSubject
         // ответ на вопрос «что это за вызов».
         if (requestsAutoAnswer || IsCampaign(caller, callerName))
         {
-            return new IncomingCallSubject(IncomingCallKind.Queue, DistributionTitle, callerNumber, callerName);
+            // Какая это линия, говорит имя: правило из Spark, иначе само имя
+            // в читаемом виде. Имени нет — общий заголовок.
+            var title = QueueTitles.Headline(callerName, titles) ?? DistributionTitle;
+            return new IncomingCallSubject(IncomingCallKind.Queue, title, callerNumber, callerName);
         }
 
         return new IncomingCallSubject(IncomingCallKind.Caller, string.Empty, callerNumber, callerName);

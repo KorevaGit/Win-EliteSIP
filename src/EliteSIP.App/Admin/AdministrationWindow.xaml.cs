@@ -161,16 +161,6 @@ public partial class AdministrationWindow : Window
     private static MacroSetting? Macro(object sender)
         => (sender as FrameworkElement)?.DataContext as MacroSetting;
 
-    private void OnQueueAddClick(object sender, RoutedEventArgs e) => Model.AddQueue();
-
-    private void OnQueueRemoveClick(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is QueueSetting queue)
-        {
-            Model.RemoveQueue(queue);
-        }
-    }
-
     private void OnKnockAddClick(object sender, RoutedEventArgs e) => Model.AddKnockStep();
 
     private void OnKnockRemoveClick(object sender, RoutedEventArgs e)

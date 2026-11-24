@@ -100,7 +100,7 @@
           поле перевода, число макросов, — живёт здесь.
       -->
       <RowDefinition Height="5*" />
-      <RowDefinition Height="10" />
+      <RowDefinition Height="8" />
       <!-- Неподвижный низ: звонок и история. С 0.1.60 от окна не растёт —
            лишняя высота вся уходит клавишам. -->
       <RowDefinition Height="62" />
@@ -340,64 +340,19 @@
 
     <!-- ==================== Изменчивая середина ==================== -->
 
-    <Grid Grid.Row="2">
+    <Grid Grid.Row="2" x:Name="Middle">
       <!--
           Середина — сетка, а не стопка: стопка отдаёт детям ровно их
           высоту, и растянутое окно оставляло бы под макросами пустоту.
-          Растут два ряда — кнопки управления и макросы; остальные по
-          содержимому.
+          Высоты строк громкости, клавиш и макросов выставляет код окна
+          (UpdateRows): растягивание — макросам, без них поровну фреймам
+          громкости; поле номера, клавиши-значки и низ постоянной высоты.
       -->
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
-        <!--
-            Кто получает высоту растянутого окна (30 сентября 2026, владелец).
-
-            Клавиш нет — всю получают кнопки управления.
-
-            Клавиши есть — кнопки управления получают небольшой запас высоты
-            (96 → 112), остальное уходит клавишам. Звёздочки с пределами, а не
-            расчёт в коде: у кнопок вес в сто раз больше, и они первыми
-            добирают до своего потолка; у сетки клавиш нижний предел — её
-            собственная высота, так что срезаться ей некуда.
-        -->
-        <RowDefinition MinHeight="96">
-          <RowDefinition.Style>
-            <Style TargetType="RowDefinition">
-              <Setter Property="Height" Value="*" />
-              <Style.Triggers>
-                <MultiDataTrigger>
-                  <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding HasMacros}" Value="True" />
-                    <Condition Binding="{Binding ShowsMacros}" Value="True" />
-                  </MultiDataTrigger.Conditions>
-                  <Setter Property="Height" Value="100*" />
-                  <Setter Property="MaxHeight" Value="112" />
-                </MultiDataTrigger>
-              </Style.Triggers>
-            </Style>
-          </RowDefinition.Style>
-        </RowDefinition>
+        <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
-        <RowDefinition>
-          <!-- Макросы растут, только когда видны: пустой ряд со звёздочкой
-               забирал бы свою долю высоты и под полем перевода. -->
-          <RowDefinition.Style>
-            <Style TargetType="RowDefinition">
-              <Setter Property="Height" Value="Auto" />
-              <Style.Triggers>
-                <MultiDataTrigger>
-                  <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding HasMacros}" Value="True" />
-                    <Condition Binding="{Binding ShowsMacros}" Value="True" />
-                  </MultiDataTrigger.Conditions>
-                  <Setter Property="Height" Value="*" />
-                  <Setter Property="MinHeight" Value="{Binding MacroGridMinHeight}" />
-                </MultiDataTrigger>
-              </Style.Triggers>
-            </Style>
-          </RowDefinition.Style>
-        </RowDefinition>
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
@@ -453,86 +408,37 @@
             </Grid>
 
             <!--
-                Карточка собеседника. Слева имя и номер, справа таймер и состояние.
+                Карточка собеседника: имя, под ним номер, справа внизу время.
             -->
-            <Grid x:Name="CallHeader" LayoutUpdated="OnCallHeaderLayoutUpdated" VerticalAlignment="Center"
+            <Grid x:Name="CallHeader" VerticalAlignment="Center"
                   Visibility="{Binding IsInCall, Converter={StaticResource BoolToVisibility}}">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" MaxWidth="145" />
-              </Grid.ColumnDefinitions>
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
-              <TextBlock x:Name="CallTitleLabel" Grid.Row="0" Grid.Column="0"
+              <TextBlock x:Name="CallTitleLabel" Grid.Row="0"
                          theme:Emoji.Text="{Binding CallTitle}"
-                         Margin="0,0,12,0"
-                         FontSize="18" FontWeight="Medium"
+                         FontSize="17" FontWeight="SemiBold"
                          TextTrimming="CharacterEllipsis"
-                         Foreground="{DynamicResource TextPrimaryBrush}">
-                <TextBlock.Style>
-                  <Style TargetType="TextBlock">
-                    <Style.Triggers>
-                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Grid.ColumnSpan" Value="2" /></DataTrigger>
-                      <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
-                        <Setter Property="Grid.RowSpan" Value="2" />
-                        <Setter Property="VerticalAlignment" Value="Center" />
-                      </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </TextBlock.Style>
-              </TextBlock>
-              <TextBlock Grid.Row="1" Grid.Column="0"
-                         Text="{Binding ActiveLine.SecondaryNumber}"
-                         Margin="0,2,12,0" FontSize="12"
-                         TextTrimming="CharacterEllipsis"
-                         Foreground="{DynamicResource TextSecondaryBrush}"
-                         Visibility="{Binding ActiveLine.SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
-              <TextBlock Grid.Row="0" Grid.Column="1"
-                         Text="{Binding ActiveLine.Duration}"
-                         HorizontalAlignment="Right"
-                         FontSize="18" FontWeight="Medium"
-                         Foreground="{DynamicResource TextPrimaryBrush}">
-                <TextBlock.Style>
-                  <Style TargetType="TextBlock">
-                    <Style.Triggers>
-                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                      <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
-                        <Setter Property="Grid.RowSpan" Value="2" />
-                        <Setter Property="VerticalAlignment" Value="Center" />
-                      </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </TextBlock.Style>
-              </TextBlock>
-              <TextBlock Grid.Column="1"
-                         Text="{Binding CallStatus}"
-                         HorizontalAlignment="Right"
-                         TextTrimming="CharacterEllipsis"
-                         Foreground="{DynamicResource TextSecondaryBrush}">
-                <TextBlock.Style>
-                  <Style TargetType="TextBlock">
-                    <Setter Property="Grid.Row" Value="1" />
-                    <Setter Property="FontSize" Value="12" />
-                    <Setter Property="Margin" Value="0,2,0,0" />
-                    <Style.Triggers>
-                      <DataTrigger Binding="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                      <DataTrigger Binding="{Binding IsOutgoingPending}" Value="True">
-                        <Setter Property="Grid.Row" Value="0" />
-                        <Setter Property="Grid.RowSpan" Value="2" />
-                        <Setter Property="VerticalAlignment" Value="Center" />
-                        <Setter Property="FontSize" Value="18" />
-                        <Setter Property="Margin" Value="0" />
-                      </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </TextBlock.Style>
-              </TextBlock>
-              <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0" Visibility="{Binding UsesWideCallTitle, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock Text="{Binding ActiveLine.Duration}" FontSize="12" FontWeight="Medium" Margin="0,0,6,0" />
-                <TextBlock Text="{Binding CallStatus}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-              </StackPanel>
+                         Foreground="{DynamicResource TextPrimaryBrush}" />
+              <!-- Под именем номер, справа внизу — состояние и крупное время
+                   разговора, всегда на одном месте: рядом с именем оно гуляло
+                   вместе с его длиной. -->
+              <Grid Grid.Row="1" Margin="0,1,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding ActiveLine.SecondaryNumber}" FontSize="12" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding IsOutgoingPending, Converter={StaticResource NotBoolToVisibility}}" />
+                <TextBlock Grid.Column="1" Text="{Binding CallStatus}" FontSize="12" VerticalAlignment="Center" Margin="8,0,8,0"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock x:Name="CallDuration" Grid.Column="2" Text="{Binding ActiveLine.Duration}" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Visibility="{Binding IsOutgoingPending, Converter={StaticResource NotBoolToVisibility}}" />
+              </Grid>
             </Grid>
           </Grid>
         </Border>
@@ -602,167 +508,259 @@
         </ItemsControl>
       </Grid>
 
-      <!-- Шапка → ряд управления. -->
-      <Border Grid.Row="1" Height="10" />
+      <!-- Шапка → громкость и клавиши. -->
+      <Border Grid.Row="1" Height="8" />
 
       <!--
-          Ряд управления. Четыре кнопки в два ряда, а не четыре в один: панель
-          270 точек шириной, и «Конференция» в четверти этой ширины не читается.
+          Громкость и клавиши. КЦ подстраивает громкость собеседника и свою
+          постоянно, а «Удержать», «Перевести» и «Конференция» нужны редко:
+          два широких фрейма громкости высотой с поле номера, под ними три
+          маленькие клавиши-значка. Громкость — те же значения, что в
+          настройках: ползунки двигаются вместе, разговор подхватывает их на
+          лету. Без ползунков (оформление) в ряду появляется микрофон.
 
-          Виден и в покое, только выключенным. Прятать его целиком значит
-          менять геометрию панели ровно в момент ответа на вызов: макросы и всё
-          под ними подскакивали бы на его высоту.
+          Ряд клавиш виден и в покое, только выключенным: прятать его значит
+          менять геометрию панели ровно в момент ответа на вызов.
       -->
-      <Grid Grid.Row="2">
+      <Grid Grid.Row="2" x:Name="ControlKeys">
         <Grid.RowDefinitions>
-          <RowDefinition Height="*" MinHeight="44" />
+          <RowDefinition Height="*" MinHeight="72" />
           <RowDefinition Height="8" />
-          <RowDefinition Height="*" MinHeight="44" />
+          <RowDefinition Height="*" MinHeight="72" />
+          <RowDefinition Height="8" />
+          <RowDefinition Height="40" />
         </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="8" />
-          <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid.Resources>
+          <Style x:Key="VolumeFrameStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="{StaticResource PanelCornerRadius}" />
+            <Setter Property="Padding" Value="10,8,12,8" />
+            <Setter Property="Background" Value="{DynamicResource PanelCallBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelEdgeBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Effect" Value="{StaticResource PanelShadow}" />
+          </Style>
+          <Style x:Key="VolumeHeadStyle" TargetType="ToggleButton" BasedOn="{StaticResource PanelControlKeyStyle}">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinWidth" Value="132" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Tag" Value="Warning" />
+          </Style>
+          <Style x:Key="IconKeyStyle" TargetType="ToggleButton" BasedOn="{StaticResource PanelControlKeyStyle}">
+            <Setter Property="MinHeight" Value="0" />
+          </Style>
+        </Grid.Resources>
 
-        <ToggleButton Grid.Row="0" Grid.Column="0"
-                      Style="{StaticResource PanelControlKeyStyle}"
-                      IsChecked="{Binding IsOnHold, Mode=OneWay}"
-                      IsEnabled="{Binding CanHold}"
-                      Command="{Binding ToggleHold}">
-          <StackPanel Orientation="Horizontal">
-            <theme:Icon Size="10" VerticalAlignment="Center"
-                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}">
+        <Border Grid.Row="0" x:Name="PeerVolumeFrame" Style="{StaticResource VolumeFrameStyle}"
+                Visibility="{Binding ShowsVolume, Converter={StaticResource BoolToVisibility}}">
+          <Grid VerticalAlignment="Center">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <!-- Нажатие уводит звук собеседника в ноль и краснеет; повторное
+                   возвращает прежнюю громкость. -->
+              <ToggleButton x:Name="PeerMuteKey" Style="{StaticResource VolumeHeadStyle}"
+                            IsChecked="{Binding Audio.PlaybackVolume, Mode=OneWay, Converter={StaticResource IsZero}}"
+                            Click="OnPeerMuteClick" ToolTip="{res:Loc PanelPeerVolume}" AutomationProperties.Name="{res:Loc PanelPeerVolume}">
+                <StackPanel Orientation="Horizontal" Margin="10,0,12,0">
+                  <theme:Icon Glyph="settings.headphones" Size="16" VerticalAlignment="Center"
+                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                  <TextBlock Text="{res:Loc PanelPeerVolume}" Margin="8,0,0,0" FontSize="13" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <TextBlock Grid.Column="1" Text="{Binding Audio.PlaybackVolume, Converter={StaticResource Percent}}"
+                         FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+            </Grid>
+            <Slider Grid.Row="1" x:Name="PeerVolume" Style="{StaticResource VolumeSliderStyle}"
+                    Value="{Binding Audio.PlaybackVolume}" AutomationProperties.Name="{res:Loc PanelPeerVolume}" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="2" x:Name="MicrophoneVolumeFrame" Style="{StaticResource VolumeFrameStyle}"
+                Visibility="{Binding ShowsVolume, Converter={StaticResource BoolToVisibility}}">
+          <Grid VerticalAlignment="Center">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <!-- Нажатие выключает микрофон и краснеет; повторное включает. -->
+              <ToggleButton x:Name="MicrophoneVolumeKey" Style="{StaticResource VolumeHeadStyle}"
+                            IsChecked="{Binding IsMicrophoneMuted, Mode=OneWay}" IsEnabled="{Binding CanMuteMicrophone}"
+                            Click="OnMicrophoneClick" ToolTip="{res:Loc PanelMicrophone}" AutomationProperties.Name="{res:Loc PanelMicrophone}">
+                <StackPanel Orientation="Horizontal" Margin="10,0,12,0">
+                  <theme:Icon Size="16" VerticalAlignment="Center"
+                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}">
+                    <theme:Icon.Style>
+                      <Style TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
+                        <Setter Property="Glyph" Value="settings.mic" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsMicrophoneMuted}" Value="True">
+                            <Setter Property="Glyph" Value="mic.slash.fill" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </theme:Icon.Style>
+                  </theme:Icon>
+                  <TextBlock Text="{res:Loc PanelMyVolume}" Margin="8,0,0,0" FontSize="13" VerticalAlignment="Center" />
+                </StackPanel>
+              </ToggleButton>
+              <TextBlock Grid.Column="1" Text="{Binding Audio.MicrophoneGain, Converter={StaticResource Percent}}"
+                         FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+            </Grid>
+            <!-- Недоступен при автоматической регулировке — как в настройках. -->
+            <Slider Grid.Row="1" x:Name="MicrophoneVolume" Style="{StaticResource VolumeSliderStyle}"
+                    Value="{Binding Audio.MicrophoneGain}" IsEnabled="{Binding Audio.GainIsAdjustable}"
+                    AutomationProperties.Name="{res:Loc PanelMyVolume}" />
+          </Grid>
+        </Border>
+
+        <!--
+            Номер перевода — всплывающим окном над клавишами (Enter — перевести,
+            Esc — отмена): раньше поле вставало на место макросов и прятало их.
+        -->
+        <Popup x:Name="TransferPopup" PlacementTarget="{Binding ElementName=KeysRow}" Placement="Top"
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade"
+               IsOpen="{Binding IsTransferEntryVisible, Mode=OneWay}" Closed="OnTransferPopupClosed">
+          <Border Width="{Binding ActualWidth, ElementName=KeysRow}" Padding="8" Margin="0,0,0,6"
+                  CornerRadius="{StaticResource PanelCornerRadius}" Background="{DynamicResource PanelControlBrush}"
+                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
+            <StackPanel>
+              <Border Height="38" CornerRadius="{StaticResource PanelCornerRadius}" Padding="12,0" Background="{DynamicResource PanelCallBrush}">
+                <TextBox x:Name="TransferField"
+                         Style="{StaticResource PanelTextBoxStyle}"
+                         Text="{Binding TransferNumber, UpdateSourceTrigger=PropertyChanged}"
+                         Tag="{res:Loc PanelTransferNumber}"
+                         FontSize="18"
+                         IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}"
+                         KeyDown="OnTransferFieldKeyDown" />
+              </Border>
+              <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="6" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Style="{StaticResource PanelSurfaceButtonStyle}" Height="32"
+                        Content="{res:Loc PanelCancel}" FontSize="14" HorizontalContentAlignment="Center" Click="OnCancelTransferClick" />
+                <Button Grid.Column="2" Style="{StaticResource PanelCallButtonStyle}" Height="32"
+                        FontSize="14" IsEnabled="{Binding HasTransferNumber}" Command="{Binding Transfer}">
+                  <TextBlock Text="{res:Loc PanelTransfer}" Foreground="White" />
+                </Button>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </Popup>
+
+        <!-- Подтверждение удержания и конференции — от случайного щелчка:
+             клавиши маленькие и стоят рядом. -->
+        <Popup x:Name="ConfirmPopup" PlacementTarget="{Binding ElementName=KeysRow}" Placement="Top"
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" Closed="OnConfirmPopupClosed">
+          <Border Width="{Binding ActualWidth, ElementName=KeysRow}" Padding="10" Margin="0,0,0,6"
+                  CornerRadius="{StaticResource PanelCornerRadius}" Background="{DynamicResource PanelControlBrush}"
+                  BorderBrush="{DynamicResource PanelEdgeBrush}" BorderThickness="1">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <theme:Icon x:Name="ConfirmIcon" Size="14" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock x:Name="ConfirmText" Margin="8,0,0,0" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+              </StackPanel>
+              <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="6" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Style="{StaticResource PanelSurfaceButtonStyle}" Height="32"
+                        Content="{res:Loc PanelCancel}" FontSize="14" HorizontalContentAlignment="Center" Click="OnConfirmCancelClick" />
+                <Button Grid.Column="2" x:Name="ConfirmAction" Style="{StaticResource PanelCallButtonStyle}" Height="32"
+                        FontSize="14" Click="OnConfirmClick">
+                  <TextBlock x:Name="ConfirmActionText" Foreground="White" />
+                </Button>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </Popup>
+
+        <!--
+            Имена для доступности стоят на всём, что нажимается: теми же именами
+            живая проверка находит элементы в окне, не целясь в него мышью.
+            Конференция — штатное действие, а не макрос: приложение знает, что
+            комната собрана.
+        -->
+        <Grid Grid.Row="4" x:Name="KeysRow">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="0" />
+            <ColumnDefinition Width="0" />
+          </Grid.ColumnDefinitions>
+          <ToggleButton Grid.Column="0" x:Name="HoldKey"
+                        IsChecked="{Binding IsOnHold, Mode=OneWay}" IsEnabled="{Binding CanHold}" Click="OnHoldClick"
+                        AutomationProperties.Name="{res:Loc PanelHold}">
+            <ToggleButton.Style>
+              <Style TargetType="ToggleButton" BasedOn="{StaticResource IconKeyStyle}">
+                <Setter Property="ToolTip" Value="{res:Loc PanelHold}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsOnHold}" Value="True"><Setter Property="ToolTip" Value="{res:Loc PanelResume}" /></DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </ToggleButton.Style>
+            <theme:Icon Size="14" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}">
               <theme:Icon.Style>
                 <Style TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
                   <Setter Property="Glyph" Value="pause.fill" />
                   <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsOnHold}" Value="True">
-                      <Setter Property="Glyph" Value="play.fill" />
-                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsOnHold}" Value="True"><Setter Property="Glyph" Value="play.fill" /></DataTrigger>
                   </Style.Triggers>
                 </Style>
               </theme:Icon.Style>
             </theme:Icon>
-            <TextBlock Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center">
-              <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                  <Setter Property="Text" Value="{res:Loc PanelHold}" />
-                  <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsOnHold}" Value="True">
-                      <Setter Property="Text" Value="{res:Loc PanelResume}" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </TextBlock.Style>
-            </TextBlock>
-          </StackPanel>
-        </ToggleButton>
-
-        <ToggleButton Grid.Row="0" Grid.Column="2"
-                      Style="{StaticResource PanelControlKeyStyle}"
-                      Tag="Warning"
-                      IsChecked="{Binding IsMicrophoneMuted, Mode=OneWay}"
-                      IsEnabled="{Binding CanMuteMicrophone}"
-                      Command="{Binding ToggleMicrophone}">
-          <StackPanel Orientation="Horizontal">
-            <theme:Icon Size="10" VerticalAlignment="Center"
-                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}">
+          </ToggleButton>
+          <ToggleButton Grid.Column="2" x:Name="ConferenceKey" Style="{StaticResource IconKeyStyle}"
+                        IsChecked="{Binding IsConferenceStarted, Mode=OneWay}" IsEnabled="{Binding CanStartConference}" Click="OnConferenceClick"
+                        ToolTip="{res:Loc PanelConference}" AutomationProperties.Name="{res:Loc PanelConference}">
+            <theme:Icon Glyph="person.3.fill" Size="14" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+          </ToggleButton>
+          <ToggleButton Grid.Column="4" x:Name="TransferKey" Style="{StaticResource IconKeyStyle}"
+                        AutomationProperties.AutomationId="TransferKey" AutomationProperties.Name="{res:Loc PanelTransfer}"
+                        ToolTip="{res:Loc PanelTransfer}"
+                        IsChecked="{Binding IsTransferEntryVisible, Mode=OneWay}" IsEnabled="{Binding CanTransfer}" Click="OnTransferClick">
+            <theme:Icon Glyph="phone.arrow.right" Size="14" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+          </ToggleButton>
+          <!-- Без ползунков громкости микрофон отключается здесь. -->
+          <ToggleButton Grid.Column="6" x:Name="MicrophoneKey" Style="{StaticResource IconKeyStyle}" Tag="Warning"
+                        Visibility="{Binding ShowsVolume, Converter={StaticResource NotBoolToVisibility}}"
+                        IsChecked="{Binding IsMicrophoneMuted, Mode=OneWay}" IsEnabled="{Binding CanMuteMicrophone}" Click="OnMicrophoneClick"
+                        ToolTip="{res:Loc PanelMicrophone}" AutomationProperties.Name="{res:Loc PanelMicrophone}">
+            <theme:Icon Size="14" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}">
               <theme:Icon.Style>
                 <Style TargetType="theme:Icon" BasedOn="{StaticResource {x:Type theme:Icon}}">
                   <Setter Property="Glyph" Value="mic.fill" />
                   <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsMicrophoneMuted}" Value="True">
-                      <Setter Property="Glyph" Value="mic.slash.fill" />
-                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsMicrophoneMuted}" Value="True"><Setter Property="Glyph" Value="mic.slash.fill" /></DataTrigger>
                   </Style.Triggers>
                 </Style>
               </theme:Icon.Style>
             </theme:Icon>
-            <!--
-                Подпись меняется вместе с состоянием, как у «Удержать»: всегда
-                «Микрофон» при подсветке выключенного читалось ровно наоборот.
-            -->
-            <TextBlock Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center">
-              <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                  <Setter Property="Text" Value="{res:Loc PanelMicrophone}" />
-                  <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsMicrophoneMuted}" Value="True">
-                      <Setter Property="Text" Value="{res:Loc PanelMicrophoneOff}" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </TextBlock.Style>
-            </TextBlock>
-          </StackPanel>
-        </ToggleButton>
-
-        <!--
-            Имена для доступности стоят на всём, что нажимается: в оригинале
-            это был `compatAccessibilityLabel`, и заведён он был не ради
-            экранного диктора одного — теми же именами живая проверка находит
-            элементы в окне, не целясь в него мышью.
-        -->
-        <ToggleButton Grid.Row="2" Grid.Column="0"
-                      Style="{StaticResource PanelControlKeyStyle}"
-                      AutomationProperties.AutomationId="TransferKey"
-                      AutomationProperties.Name="Перевести"
-                      IsChecked="{Binding IsTransferEntryVisible, Mode=OneWay}"
-                      IsEnabled="{Binding CanTransfer}"
-                      Click="OnTransferClick">
-          <StackPanel Orientation="Horizontal">
-            <theme:Icon Glyph="phone.arrow.right" Size="10" VerticalAlignment="Center"
-                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-            <TextBlock Text="{res:Loc PanelTransfer}" Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center" />
-          </StackPanel>
-        </ToggleButton>
-
-        <!--
-            Конференция — штатное действие, а не макрос: она посылает серверный
-            код тонами и помечает линию, то есть приложение знает, что комната
-            собрана. Макросом это выглядело бы так же, но приложение не знало бы
-            ничего.
-        -->
-        <ToggleButton Grid.Row="2" Grid.Column="2"
-                      Style="{StaticResource PanelControlKeyStyle}"
-                      IsChecked="{Binding IsConferenceStarted, Mode=OneWay}"
-                      IsEnabled="{Binding CanStartConference}"
-                      Command="{Binding StartConference}">
-          <StackPanel Orientation="Horizontal">
-            <theme:Icon Glyph="person.3.fill" Size="10" VerticalAlignment="Center"
-                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
-            <TextBlock Text="{res:Loc PanelConference}" Margin="4,0,0,0" FontSize="12" VerticalAlignment="Center" />
-          </StackPanel>
-        </ToggleButton>
+          </ToggleButton>
+        </Grid>
       </Grid>
 
-      <!--
-          Ряд управления → то, что под ним. Единственная граница между ними —
-          воздух; когда снизу пусто, нет и его.
-      -->
-      <Border Grid.Row="3" Height="10">
-        <Border.Style>
-          <Style TargetType="Border">
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers>
-              <DataTrigger Binding="{Binding IsTransferEntryVisible}" Value="True">
-                <Setter Property="Visibility" Value="Visible" />
-              </DataTrigger>
-              <DataTrigger Binding="{Binding HasMacros}" Value="True">
-                <Setter Property="Visibility" Value="Visible" />
-              </DataTrigger>
-              <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                  <Condition Binding="{Binding HasMacros}" Value="False" />
-                  <Condition Binding="{Binding IsTransferEntryVisible}" Value="False" />
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Visibility" Value="Collapsed" />
-              </MultiDataTrigger>
-            </Style.Triggers>
-          </Style>
-        </Border.Style>
-      </Border>
+      <!-- Зазор под макросами; без них его нет. -->
+      <Border Grid.Row="3" x:Name="MacroGap" Height="8" />
 
       <!--
           Сетка макросов на месте бывшего дайлпада. Крупная подпись, три в ряд,
@@ -770,21 +768,7 @@
           Вне разговора клавиши видны, но выключены — раскладка должна
           запоминаться глазами до того, как начнётся звонок.
       -->
-      <ItemsControl Grid.Row="4" ItemsSource="{Binding Macros}">
-        <ItemsControl.Style>
-          <Style TargetType="ItemsControl">
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers>
-              <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                  <Condition Binding="{Binding HasMacros}" Value="True" />
-                  <Condition Binding="{Binding ShowsMacros}" Value="True" />
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Visibility" Value="Visible" />
-              </MultiDataTrigger>
-            </Style.Triggers>
-          </Style>
-        </ItemsControl.Style>
+      <ItemsControl Grid.Row="4" x:Name="Macros" ItemsSource="{Binding Macros}">
 
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
@@ -831,47 +815,6 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <!--
-          Поле перевода занимает место сетки макросов, а не встаёт под ней: пока
-          оператор набирает номер перевода, макросы всё равно не нужны, а лишний
-          ярус пришлось бы отнять у чего-то другого.
-      -->
-      <StackPanel Grid.Row="5" Visibility="{Binding IsTransferEntryVisible, Converter={StaticResource BoolToVisibility}}">
-        <Border Height="34"
-                CornerRadius="{StaticResource PanelCornerRadius}"
-                Padding="12,0"
-                Background="{DynamicResource PanelCallBrush}">
-          <TextBox x:Name="TransferField"
-                   Style="{StaticResource PanelTextBoxStyle}"
-                   Text="{Binding TransferNumber, UpdateSourceTrigger=PropertyChanged}"
-                   Tag="{res:Loc PanelTransferNumber}"
-                   FontSize="18"
-                   IsEnabled="{Binding IsTransferring, Converter={StaticResource NotBool}}" />
-        </Border>
-
-        <Grid Margin="0,4,0,0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="8" />
-            <ColumnDefinition Width="*" />
-          </Grid.ColumnDefinitions>
-
-          <Button Grid.Column="0"
-                  Style="{StaticResource PanelSurfaceButtonStyle}"
-                  Height="30"
-                  Content="{res:Loc PanelCancel}"
-                  FontSize="14"
-                  Click="OnCancelTransferClick" />
-
-          <Button Grid.Column="2"
-                  Style="{StaticResource PanelCallButtonStyle}"
-                  Height="30"
-                  Content="{res:Loc PanelTransfer}"
-                  FontSize="14"
-                  IsEnabled="{Binding HasTransferNumber}"
-                  Command="{Binding Transfer}" />
-        </Grid>
-      </StackPanel>
     </Grid>
 
     <!-- ==================== Неподвижный низ ==================== -->

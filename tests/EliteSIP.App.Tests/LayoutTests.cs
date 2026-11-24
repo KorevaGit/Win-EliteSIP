@@ -54,24 +54,59 @@ public sealed class LayoutTests
     });
 
     [Fact]
-    public void Длинное_имя_переносит_таймер_вниз_и_возвращает_при_расширении() => WpfHost.Run(() =>
+    public void Время_разговора_справа_внизу_а_номер_под_именем() => WpfHost.Run(() =>
     {
         var model = new PanelViewModel();
         var line = new CallLineViewModel { SecondaryNumber = "172", Title = "Очень длинное название собеседника", IsActive = true, ConnectedAt = DateTimeOffset.Now.AddSeconds(-34) };
         model.Lines.Add(line);
         model.ActiveLine = line;
-        model.CallStatus = "разговор";
         var window = new PanelWindow(model);
-        var root = (FrameworkElement)window.Content;
-        root.Measure(new Size(324, 700));
-        root.Arrange(new Rect(0, 0, 324, 700));
-        root.UpdateLayout();
-        Assert.True(window.UsesWideCallTitle);
-        root.Measure(new Size(900, 700));
-        root.Arrange(new Rect(0, 0, 900, 700));
-        root.UpdateLayout();
-        Assert.False(window.UsesWideCallTitle);
+        var root = WpfHost.Layout(window, 324, 700);
+        var title = (TextBlock)window.FindName("CallTitleLabel");
+        var duration = (TextBlock)window.FindName("CallDuration");
+        var header = (FrameworkElement)window.FindName("CallHeader");
+        var titleBox = title.TransformToAncestor(root).TransformBounds(new Rect(title.RenderSize));
+        var durationBox = duration.TransformToAncestor(root).TransformBounds(new Rect(duration.RenderSize));
+        var headerBox = header.TransformToAncestor(root).TransformBounds(new Rect(header.RenderSize));
+        Assert.True(durationBox.Top >= titleBox.Bottom - 1);
+        Assert.InRange(headerBox.Right - durationBox.Right, 0, 1);
+        Assert.Equal(22, duration.FontSize);
     });
+
+    [Fact]
+    public void Громкость_на_панели_высотой_с_поле_номера_и_клавиши_значки_постоянной_высоты() => WpfHost.Run(() =>
+    {
+        var window = new PanelWindow(new PanelViewModel());
+        WpfHost.Layout(window, 324, 700);
+        Assert.True(((FrameworkElement)window.FindName("PeerVolumeFrame")).ActualHeight >= 72);
+        Assert.True(((FrameworkElement)window.FindName("MicrophoneVolumeFrame")).ActualHeight >= 72);
+        Assert.Equal(40, ((FrameworkElement)window.FindName("HoldKey")).ActualHeight);
+        Assert.Equal(Visibility.Collapsed, ((FrameworkElement)window.FindName("MicrophoneKey")).Visibility);
+    });
+
+    [Fact]
+    public void Без_ползунков_микрофон_становится_четвёртой_клавишей() => WpfHost.Run(() =>
+    {
+        var model = new PanelViewModel { ShowsVolume = false };
+        var window = new PanelWindow(model);
+        WpfHost.Layout(window, 324, 700);
+        Assert.Equal(Visibility.Collapsed, ((FrameworkElement)window.FindName("PeerVolumeFrame")).Visibility);
+        var microphone = (FrameworkElement)window.FindName("MicrophoneKey");
+        var hold = (FrameworkElement)window.FindName("HoldKey");
+        Assert.Equal(Visibility.Visible, microphone.Visibility);
+        Assert.Equal(40, hold.ActualHeight);
+        Assert.InRange(microphone.ActualWidth - hold.ActualWidth, -1, 1);
+    });
+
+    [Fact]
+    public void Ползунок_громкости_прилипает_к_100_и_колесо_шагает_по_5() 
+    {
+        Assert.Equal(1, VolumeSlider.Stick(1.05));
+        Assert.Equal(1.2, VolumeSlider.Stick(1.2));
+        Assert.Equal(1.05, VolumeSlider.Wheel(1, 120, 0, 2), 6);
+        Assert.Equal(0, VolumeSlider.Wheel(0.02, -120, 0, 2), 6);
+        Assert.Equal(2, VolumeSlider.Wheel(2, 120, 0, 2), 6);
+    }
 
     [Fact]
     public void Отключённый_профиль_показывает_только_подпись_без_номера_и_точки() => WpfHost.Run(() =>
@@ -265,8 +300,10 @@ public sealed class LayoutTests
         var natural = MeasurePanel(double.PositiveInfinity, withMacros: true);
         var tall = MeasurePanel(1000, withMacros: true);
 
-        Assert.Equal(96, natural.Controls, 0.5);
-        Assert.Equal(112, tall.Controls, 0.5);
+        // Громкость 72 + 8 + 72, зазор 8 и клавиши-значки 40: с макросами
+        // постоянной высоты, растягивание целиком — макросам.
+        Assert.Equal(200, natural.Controls, 0.5);
+        Assert.Equal(200, tall.Controls, 0.5);
         Assert.True(tall.Key > natural.Key + 20, $"клавиша {natural.Key:0} → {tall.Key:0}");
         Assert.InRange(tall.Font, 10.8, 18);
         Assert.Equal(natural.Bottom, tall.Bottom, 0.5);
@@ -287,7 +324,7 @@ public sealed class LayoutTests
         var natural = frame.DesiredSize.Height;
 
         var tight = MeasurePanel(natural, withMacros: true);
-        Assert.Equal(96, tight.Controls, 0.5);
+        Assert.Equal(200, tight.Controls, 0.5);
     });
 
     [Fact]

@@ -36,7 +36,7 @@ public sealed class MobileNumberMaskTests
     {
         var subject = IncomingCallSubject.Classify(Mobile, "Лиды", true, Own, masksMobileNumbers: false);
 
-        Assert.Equal(IncomingCallSubject.DistributionTitle, subject.Headline);
+        Assert.Equal("Лиды", subject.Headline);
         Assert.Equal(Mobile, subject.SecondaryNumber);
     }
 

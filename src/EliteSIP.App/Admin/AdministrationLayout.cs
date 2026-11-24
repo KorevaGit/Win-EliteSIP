@@ -43,7 +43,7 @@ public sealed partial class AdministrationViewModel
     public bool HasSupport => Support is not null;
     public bool ManagedSaveWarning => _settings.Panel.Mode is PanelMode.Managed && _settings.Panel.HasChannelKey;
     public string MobilePreview => Guard.MasksMobileNumbers ? "+7 ••• •••-••-67" : "+7 900 123-45-67";
-    public string IncomingPreviewTitle => Queues.FirstOrDefault()?.Title is { Length: > 0 } title ? title : Strings.Get("AdminSectionIncoming");
+    public string IncomingPreviewTitle => Queues.FirstOrDefault(queue => queue.Match.Length > 0)?.Title is { Length: > 0 } title ? title : Strings.Get("AdminSectionIncoming");
     public string AutoAnswerPreview => Strings.Get(Guard.AutoAnswer switch
     {
         AutoAnswerModes.Always => "AdminAnswerAlwaysShort",

@@ -173,6 +173,11 @@ internal static class Provisioning
         /// </summary>
         public Uri? LogsUrl() => Address("logs");
 
+        /// <summary>
+        /// Куда машина шлёт архив для техподдержки (<c>POST /support/&lt;запрос&gt;</c>).
+        /// </summary>
+        public Uri? SupportUploadUrl(string requestID) => Address($"support/{requestID}");
+
         private Uri? Address(string path) => Address(BaseUrl, path);
 
         private static Uri? Address(string baseUrl, string path)
@@ -350,6 +355,13 @@ internal static class ChannelRequest
         // По этому заголовку Spark ставит в карточке сотрудника «Работает»:
         // применённая ревизия догнала выложенную, правка дошла до машины.
         request.Headers.TryAddWithoutValidation("X-EliteSIP-Config", appliedConfigRevision.ToString(invariant));
+
+        // Система машины — Spark показывает её под версией в списке сотрудников.
+        request.Headers.TryAddWithoutValidation("X-EliteSIP-Platform", Platform.MachinePlatform.Family);
+        if (Platform.MachinePlatform.Name.Length > 0)
+        {
+            request.Headers.TryAddWithoutValidation("X-EliteSIP-OS", Platform.MachinePlatform.Name);
+        }
     }
 
     internal static string AppVersion { get; } =

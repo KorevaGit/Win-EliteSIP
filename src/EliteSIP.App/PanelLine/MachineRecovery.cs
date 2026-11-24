@@ -18,13 +18,22 @@ internal sealed class MachineRecovery
         Timeout = TimeSpan.FromSeconds(15),
     };
 
+    /// <summary>
+    /// Сколько помнить принятую заявку. Spark отвечает 202 и машине, которую
+    /// ещё знает, не заводя заявки; без срока такая квитанция навсегда
+    /// закрывала бы отправку в следующее окно восстановления. Сутки — длина окна.
+    /// </summary>
+    internal static readonly TimeSpan ReceiptLifetime = TimeSpan.FromHours(24);
+
     private bool _sending;
+
+    internal sealed record Submission(byte[] Payload, IReadOnlyDictionary<string, string> Proofs);
 
     internal async Task CheckAsync(AppSettings settings, Action<string> log)
     {
         var panel = settings.Panel;
         if (_sending || !panel.HasChannelKey || panel.AppliedRevision < 1
-            || panel.RecoverySubmittedInstallationID == panel.InstallationID)
+            || HasFreshReceipt(panel, DateTimeOffset.UtcNow))
         {
             return;
         }
@@ -47,74 +56,93 @@ internal sealed class MachineRecovery
                 return;
             }
 
-            var key = panel.MachineKey();
-            var channel = panel.ChannelKey();
-            if (key is null || channel is null || string.IsNullOrWhiteSpace(panel.PresetName))
+            var submission = Prepare(settings, installationID, out var skipped);
+            if (submission is null)
             {
+                log($"восстановление Spark: заявка не собрана — {skipped}");
                 return;
             }
 
-            var profiles = settings.Profiles.Append(ProfileSwitch.Snapshot(settings)).ToArray();
-            var main = profiles.FirstOrDefault(profile => profile.ProfileId == (panel.MainProfileId ?? settings.Account.ProfileId));
-            if (main is null)
-            {
-                return;
-            }
-
-            var extra = profiles.Where(profile => profile.ProfileId != main.ProfileId)
-                .OrderBy(profile => profile.Username, StringComparer.Ordinal).ToArray();
-            var payload = JsonSerializer.SerializeToUtf8Bytes(new
-            {
-                installation_id = installationID,
-                channel_key_hash = ChannelKey.Hash(channel),
-                public_key = MachineKeyPair.FromBase64(key).PublicKeyBase64,
-                device_name = Environment.MachineName,
-                extension = main.Username,
-                label = main.DisplayName,
-                work_format = main.Site == WorkplaceSite.Remote ? "remote" : "office",
-                work_format_locked = panel.IsWorkFormatLocked,
-                preset_id = panel.PresetID,
-                preset_name = panel.PresetName,
-                preset_revision = panel.AppliedRevision,
-                config_revision = panel.AppliedConfigRevision,
-                fields = PresetFields(settings),
-                lines = extra.Select(profile => new { extension = profile.Username, label = profile.DisplayName }),
-            });
-
-            var message = new byte["elitesip-recovery-v1\n"u8.Length + payload.Length];
-            "elitesip-recovery-v1\n"u8.CopyTo(message);
-            payload.CopyTo(message, "elitesip-recovery-v1\n"u8.Length);
-            var proofs = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var profile in profiles)
-            {
-                var password = profile.Password();
-                if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(profile.Username)
-                    || !proofs.TryAdd(profile.Username, Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(password), message))))
-                {
-                    return;
-                }
-            }
-
-            using var response = await Client.PostAsJsonAsync(endpoint, new { payload, proofs }).ConfigureAwait(true);
+            using var response = await Client.PostAsJsonAsync(endpoint, new { payload = submission.Payload, proofs = submission.Proofs }).ConfigureAwait(true);
             if (response.StatusCode == HttpStatusCode.Accepted && panel.InstallationID == installationID)
             {
                 panel.RecoverySubmittedInstallationID = installationID;
+                panel.RecoverySubmittedAt = DateTimeOffset.UtcNow;
                 log("восстановление Spark: заявка принята");
             }
-            else if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Conflict)
+            else
             {
                 log($"восстановление Spark: заявка отклонена ({(int)response.StatusCode})");
             }
         }
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException
-                                      or CryptographicException or FormatException or PanelLinkException)
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException
+                                      or CryptographicException or FormatException or PanelLinkException
+                                      or InvalidOperationException or NotSupportedException)
         {
-            log("восстановление Spark: заявку не удалось отправить");
+            log($"восстановление Spark: заявку не удалось отправить ({error.GetType().Name}: {error.Message})");
         }
         finally
         {
             _sending = false;
         }
+    }
+
+    internal static bool HasFreshReceipt(PanelSettings panel, DateTimeOffset now)
+        => panel.RecoverySubmittedInstallationID == panel.InstallationID
+           && now - panel.RecoverySubmittedAt < ReceiptLifetime;
+
+    internal static Submission? Prepare(AppSettings settings, string installationID, out string skipped)
+    {
+        var panel = settings.Panel;
+        var key = panel.MachineKey();
+        var channel = panel.ChannelKey();
+        if (key is null || channel is null || string.IsNullOrWhiteSpace(panel.PresetName))
+        {
+            skipped = key is null ? "нет ключа машины" : channel is null ? "нет ключа канала" : "нет названия предустановки";
+            return null;
+        }
+
+        var profiles = settings.Profiles.Append(ProfileSwitch.Snapshot(settings)).ToArray();
+        var main = profiles.FirstOrDefault(profile => profile.ProfileId == (panel.MainProfileId ?? settings.Account.ProfileId))
+            ?? profiles[^1];
+
+        var extra = profiles.Where(profile => profile.ProfileId != main.ProfileId)
+            .OrderBy(profile => profile.Username, StringComparer.Ordinal).ToArray();
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            installation_id = installationID,
+            channel_key_hash = ChannelKey.Hash(channel),
+            public_key = MachineKeyPair.FromBase64(key).PublicKeyBase64,
+            device_name = Environment.MachineName,
+            extension = main.Username,
+            label = main.DisplayName,
+            work_format = main.Site == WorkplaceSite.Remote ? "remote" : "office",
+            work_format_locked = panel.IsWorkFormatLocked,
+            preset_id = panel.PresetID,
+            preset_name = panel.PresetName,
+            preset_revision = panel.AppliedRevision,
+            config_revision = panel.AppliedConfigRevision,
+            fields = PresetFields(settings),
+            lines = extra.Select(profile => new { extension = profile.Username, label = profile.DisplayName }),
+        });
+
+        var message = new byte["elitesip-recovery-v1\n"u8.Length + payload.Length];
+        "elitesip-recovery-v1\n"u8.CopyTo(message);
+        payload.CopyTo(message, "elitesip-recovery-v1\n"u8.Length);
+        var proofs = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var profile in profiles)
+        {
+            var password = profile.Password();
+            if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(profile.Username)
+                || !proofs.TryAdd(profile.Username, Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(password), message))))
+            {
+                skipped = $"у номера «{profile.Username}» нет SIP-пароля или он повторяется";
+                return null;
+            }
+        }
+
+        skipped = string.Empty;
+        return new Submission(payload, proofs);
     }
 
     private static object PresetFields(AppSettings settings)

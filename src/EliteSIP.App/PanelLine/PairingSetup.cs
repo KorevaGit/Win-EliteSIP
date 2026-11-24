@@ -34,7 +34,7 @@ internal static class PairingSetup
     private static readonly TimeSpan ConfigRetryDelay = TimeSpan.FromSeconds(2);
 
     /// <summary>Что забрано с сервера: конфигурация и, если нашлась, предустановка.</summary>
-    internal sealed record Fetched(MachineConfig Config, PresetBundle.Entry? Preset);
+    internal sealed record Fetched(MachineConfig Config, PresetBundle.Entry? Preset, PresetBundle.QueueBlock? Queues = null);
 
     /// <summary>Забирает конфигурацию и предустановку.</summary>
     ///
@@ -68,13 +68,16 @@ internal static class PairingSetup
         // Предустановки нет в файле — конфигурация всё равно ложится, а
         // предустановка подтянется первым же опросом.
         PresetBundle.Entry? preset = null;
+        PresetBundle.QueueBlock? queues = null;
         if (config.PresetID.Length > 0
             && Provisioning.Current?.Updates?.PresetsUrl() is { } presetsUrl
             && await GetAsync(presetsUrl, installationID, channelKey, cancellation).ConfigureAwait(false) is { } bundle)
         {
             try
             {
-                preset = PresetBundle.Verified(bundle, publicKey).EntryOf(config.PresetID);
+                var verified = PresetBundle.Verified(bundle, publicKey);
+                preset = verified.EntryOf(config.PresetID);
+                queues = verified.Queues;
             }
             catch (PanelLinkException)
             {
@@ -83,7 +86,7 @@ internal static class PairingSetup
             }
         }
 
-        return new Fetched(config, preset);
+        return new Fetched(config, preset, queues);
     }
 
     /// <summary>
@@ -110,6 +113,11 @@ internal static class PairingSetup
             settings.Apply(ManagedFields.Parse(preset.Fields));
             settings.Panel.AppliedRevision = preset.Revision;
             settings.Panel.AppliedAt = DateTimeOffset.UtcNow;
+        }
+
+        if (fetched.Queues is { } queues)
+        {
+            settings.Apply(queues);
         }
 
         settings.Apply(fetched.Config, adminAccess, log);

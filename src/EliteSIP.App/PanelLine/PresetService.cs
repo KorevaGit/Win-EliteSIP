@@ -28,6 +28,7 @@ internal sealed class PresetService
 {
     private readonly Func<AppSettings> _settings;
     private readonly Action<PresetBundle.Entry> _apply;
+    private readonly Action<PresetBundle.QueueBlock>? _applyQueues;
     private readonly Func<bool> _isBlocked;
     private readonly Action<string> _log;
 
@@ -54,10 +55,12 @@ internal sealed class PresetService
         Func<AppSettings> settings,
         Action<PresetBundle.Entry> apply,
         Func<bool> isBlocked,
-        Action<string> log)
+        Action<string> log,
+        Action<PresetBundle.QueueBlock>? applyQueues = null)
     {
         _settings = settings;
         _apply = apply;
+        _applyQueues = applyQueues;
         _isBlocked = isBlocked;
         _log = log;
     }
@@ -225,6 +228,17 @@ internal sealed class PresetService
         }
 
         var panel = _settings().Panel;
+
+        // Подписи раздач — раньше предустановки и независимо от неё: у них своя
+        // ревизия, и правят их чаще. Ждать им нечего — на месте они не
+        // редактируются, а идущий разговор уже назван. Сравнение на неравенство:
+        // файл подписан, а счётчик в Spark после восстановления базы может
+        // начаться заново.
+        if (bundle.Queues is { } queues && queues.Revision != panel.AppliedQueuesRevision)
+        {
+            _applyQueues?.Invoke(queues);
+        }
+
         var entry = bundle.EntryOf(panel.PresetID);
         if (entry is null)
         {

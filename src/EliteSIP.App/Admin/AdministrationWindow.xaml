@@ -369,27 +369,18 @@
                     <DataTemplate DataType="{x:Type settings:QueueSetting}">
                       <Grid Margin="0,3">
                         <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="110" />
-                          <ColumnDefinition Width="6" />
                           <ColumnDefinition Width="*" />
-                          <ColumnDefinition Width="6" />
-                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="10" />
+                          <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
-                          <TextBox Style="{StaticResource PanelTextBoxStyle}" FontFamily="Consolas" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" Tag="{res:Loc AdminQueueNumber}" />
-                        </Border>
-                        <Border Grid.Column="2" Height="33" CornerRadius="7" Padding="6,0" Background="{DynamicResource SettingsFieldBrush}">
-                          <TextBox Style="{StaticResource PanelTextBoxStyle}" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Tag="{res:Loc AdminQueueTitle}" />
-                        </Border>
-                        <Button Grid.Column="4" Style="{StaticResource SettingsButtonStyle}" Padding="6,2" ToolTip="{res:Loc AdminMacroRemove}" Click="OnQueueRemoveClick">
-                          <theme:Icon Glyph="trash" Size="12" />
-                        </Button>
+                        <TextBlock Grid.Column="0" FontFamily="Consolas" Text="{Binding Match}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" />
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <theme:SettingsIndented>
-                  <Button Style="{StaticResource SettingsButtonStyle}" HorizontalAlignment="Left" Content="{res:Loc AdminQueueAdd}" Click="OnQueueAddClick" />
+                  <theme:SettingsNote Text="{res:Loc AdminQueuesNote}" />
                 </theme:SettingsIndented>
               </theme:SettingsSection>
             </StackPanel>

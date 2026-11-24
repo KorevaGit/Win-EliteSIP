@@ -59,6 +59,25 @@ internal static class PresetApply
         settings.IncomingCall.IsServerManaged = settings.Panel.IsManaged;
     }
 
+    /// <summary>Заменяет подписи раздач приехавшими и запоминает их ревизию.</summary>
+    ///
+    /// <remarks>
+    /// Заменяет целиком: правило, убранное в Spark, обязано исчезнуть и здесь.
+    /// </remarks>
+    internal static void Apply(this AppSettings settings, PresetBundle.QueueBlock queues)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(queues);
+
+        settings.Queues.Queues.Clear();
+        foreach (var title in queues.Titles)
+        {
+            settings.Queues.Queues.Add(new QueueSetting { Match = title.Match, Title = title.Title });
+        }
+
+        settings.Panel.AppliedQueuesRevision = queues.Revision;
+    }
+
     /// <summary>
     /// Тронуто ли хоть одно поле, которым управляет панель.
     /// </summary>
@@ -73,9 +92,8 @@ internal static class PresetApply
     /// не человек, а само наложение полей, и попадание его в сравнение означало
     /// бы, что связка рвётся от собственного признака связки.
     ///
-    /// Очередей здесь нет, и это не забывчивость: панель ими не управляет — в
-    /// контракте таких полей нет вовсе. Названия раздач заводит администратор на
-    /// месте, и связки с панелью они не рвут.
+    /// Подписей раздач здесь нет, и это не забывчивость: на месте они не
+    /// правятся вовсе, только показываются, — разойтись с панелью им нечем.
     /// </remarks>
     internal static bool DiffersInPanelManagedFields(this AppSettings settings, AppSettings other)
     {

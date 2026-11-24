@@ -29,6 +29,23 @@ public sealed record PresetBundle
     public required IReadOnlyList<Entry> Presets { get; init; }
 
     /// <summary>Одна предустановка в файле.</summary>
+    /// <summary>
+    /// Подписи раздач — общие для всех предустановок, со своей ревизией.
+    /// <c>null</c> — в файле их нет: панель старше или правил ещё не заводили.
+    /// </summary>
+    public QueueBlock? Queues { get; init; }
+
+    /// <summary>Блок подписей раздач.</summary>
+    public sealed record QueueBlock
+    {
+        public required int Revision { get; init; }
+
+        public required IReadOnlyList<QueueTitle> Titles { get; init; }
+    }
+
+    /// <summary>Правило: что искать в имени звонящего и как это показать.</summary>
+    public sealed record QueueTitle(string Match, string Title);
+
     public sealed record Entry
     {
         /// <summary>
@@ -106,7 +123,45 @@ public sealed record PresetBundle
             Format = wire.Format,
             GeneratedAt = WireJson.Timestamp(wire.GeneratedAt),
             Presets = entries,
+            Queues = ParseQueues(wire.Queues),
         };
+    }
+
+    /// <summary>
+    /// Разбирает блок подписей, молча теряя непонятное.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Терпимо, как управляемые поля: испорченный блок подписей не должен
+    /// уносить с собой предустановки, без которых машина не звонит. Ревизии
+    /// нет — блока нет; строка без искомого или подписи пропускается.
+    /// </remarks>
+    private static QueueBlock? ParseQueues(JsonElement queues)
+    {
+        if (queues.ValueKind is not JsonValueKind.Object
+            || !queues.TryGetProperty("revision", out var revision)
+            || !revision.TryGetInt32(out var number))
+        {
+            return null;
+        }
+
+        List<QueueTitle> titles = [];
+        if (queues.TryGetProperty("titles", out var list) && list.ValueKind is JsonValueKind.Array)
+        {
+            foreach (var item in list.EnumerateArray())
+            {
+                if (item.ValueKind is JsonValueKind.Object
+                    && item.TryGetProperty("match", out var match) && match.ValueKind is JsonValueKind.String
+                    && item.TryGetProperty("title", out var title) && title.ValueKind is JsonValueKind.String
+                    && match.GetString()!.Trim() is { Length: > 0 } what
+                    && title.GetString()!.Trim() is { Length: > 0 } shown)
+                {
+                    titles.Add(new QueueTitle(what, shown));
+                }
+            }
+        }
+
+        return new QueueBlock { Revision = number, Titles = titles };
     }
 
     /// <summary>
@@ -131,6 +186,9 @@ public sealed record PresetBundle
 
         [JsonPropertyName("presets")]
         public IReadOnlyList<WireEntry>? Presets { get; init; }
+
+        [JsonPropertyName("queues")]
+        public JsonElement Queues { get; init; }
     }
 
     private sealed class WireEntry

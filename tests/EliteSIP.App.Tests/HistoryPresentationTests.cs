@@ -30,7 +30,7 @@ public sealed class HistoryPresentationTests
     {
         CallRecord record = Incoming("712", name: "Call_Center", distribution: true);
 
-        Assert.Equal(IncomingCallSubject.DistributionTitle, HistoryPresentation.Title(record, Own, Masks));
+        Assert.Equal("Call Center", HistoryPresentation.Title(record, Own, Masks));
         Assert.Equal("712", HistoryPresentation.Subtitle(record, Own, Masks));
     }
 
