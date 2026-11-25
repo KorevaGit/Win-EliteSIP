@@ -14,18 +14,41 @@ namespace EliteSIP.App.Shell;
 /// <summary>Разрешённые диагностические поля; файл настроек и учётные секреты не копируются.</summary>
 internal static class SupportSnapshot
 {
-    internal static string UpdaterLog()
+    internal static string SavedRuntimeState(string name) =>
+        ReadLogTail(Path.Combine(Path.GetDirectoryName(AppSettings.DefaultPath)!, name));
+
+    internal static string InstallerLogs()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "updates", "updater.log");
+        try
+        {
+            var directory = new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "updates"));
+            return string.Join(Environment.NewLine, directory.EnumerateFiles("install-*.log")
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .Take(3)
+                .Select(file => $"[{file.Name}]{Environment.NewLine}{ReadLogTail(file.FullName)}"));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return $"Журналы установщика недоступны: {error.GetType().Name}";
+        }
+    }
+
+    internal static string UpdaterLog() =>
+        ReadLogTail(Path.Combine(AppContext.BaseDirectory, "updates", "updater.log"));
+
+    private static string ReadLogTail(string path)
+    {
         try
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             const int limit = 256 * 1024;
-            var start = Math.Max(0, stream.Length - limit);
-            stream.Position = start;
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            if (start != 0) { _ = reader.ReadLine(); }
-            return LogRedaction.Redact(reader.ReadToEnd());
+            var length = stream.Length;
+            var buffer = new byte[(int)Math.Min(length, limit)];
+            stream.Position = length - buffer.Length;
+            int read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+            int offset = length > buffer.Length ? Array.IndexOf(buffer, (byte)'\n', 0, read) + 1 : 0;
+            if (length > buffer.Length && offset == 0) { return string.Empty; }
+            return LogRedaction.Redact(Encoding.UTF8.GetString(buffer, offset, read - offset));
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {

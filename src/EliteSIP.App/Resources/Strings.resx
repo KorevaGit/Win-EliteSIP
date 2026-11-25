@@ -1480,4 +1480,5 @@
 <data name="TransparencyLight" xml:space="preserve"><value>Light</value></data>
 <data name="TransparencyMedium" xml:space="preserve"><value>Medium</value></data>
 <data name="TransparencyStrong" xml:space="preserve"><value>Strong</value></data>
+  <data name="UpdatesWaitingForTask" xml:space="preserve"><value>Installation is queued. Windows did not start the update task immediately.</value></data>
 </root>

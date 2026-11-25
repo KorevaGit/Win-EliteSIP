@@ -86,6 +86,9 @@ public sealed class LogFile : IDisposable
     private readonly Channel<Job> _queue = Channel.CreateBounded<Job>(
         new BoundedChannelOptions(4096) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
     private const long MaximumPendingBytes = 8 * 1024 * 1024;
+    internal const int MaximumMessageCharacters = 16 * 1024;
+    private const int MaximumSipBytes = 16 * 1024;
+    private long _nextRotationAttempt;
     private long _pendingBytes;
     private long _droppedLines;
     private long _writeFailures;
@@ -156,10 +159,24 @@ public sealed class LogFile : IDisposable
     /// <summary>Пишет одну строку. Возврат немедленный: файл трогается на своей очереди.</summary>
     public void Write(string message, string level, DateTime? date = null)
     {
-        // Маскирование делается здесь, а не на очереди, ровно по одной причине:
-        // так его нельзя обойти, добавив второй путь записи.
-        string line = FormatLine(date ?? DateTime.Now, level, LogRedaction.Redact(message));
-        Enqueue(new Job(Line: line));
+        if (message.Length > MaximumMessageCharacters)
+        {
+            message = message[..MaximumMessageCharacters] + " [запись сокращена]";
+        }
+        Enqueue(new Job(Line: message) { Timestamp = date ?? DateTime.Now, Level = level });
+    }
+
+    /// <summary>Копирует ограниченную часть SIP-кадра, чтобы обработать её вне потока транспорта.</summary>
+    public void WriteSipTrace(bool outgoing, ReadOnlyMemory<byte> data)
+    {
+        byte[] copy = data.Span[..Math.Min(data.Length, MaximumSipBytes)].ToArray();
+        Enqueue(new Job
+        {
+            Timestamp = DateTime.Now,
+            Sip = copy,
+            Outgoing = outgoing,
+            Truncated = data.Length > MaximumSipBytes,
+        });
     }
 
     /// <summary>
@@ -203,9 +220,11 @@ public sealed class LogFile : IDisposable
     /// каталог журнала, ни переименовать файл — то есть незакрытый
     /// <see cref="LogFile"/> ломает и уборку, и следующую ротацию.
     /// </summary>
+    public void DisposeWithoutWaiting() => _queue.Writer.TryComplete();
+
     public void Dispose()
     {
-        _queue.Writer.TryComplete();
+        DisposeWithoutWaiting();
         // При медленном диске очередь продолжит завершение сама. Закрывать её
         // файл с вызывающего потока после тайм-аута нельзя.
         _ = Task.WaitAny([_worker], TimeSpan.FromSeconds(5));
@@ -214,13 +233,22 @@ public sealed class LogFile : IDisposable
 
     // MARK: - Внутреннее, всё на очереди
 
-    private sealed record Job(string? Line = null, Action? Work = null, TaskCompletionSource<bool>? Done = null);
+    private sealed record Job(string? Line = null, Action? Work = null, TaskCompletionSource<bool>? Done = null)
+    {
+        internal DateTime Timestamp { get; init; }
+        internal string Level { get; init; } = "i";
+        internal byte[]? Sip { get; init; }
+        internal bool Outgoing { get; init; }
+        internal bool Truncated { get; init; }
+        internal long PendingBytes => (Line?.Length ?? 0) * 2L + (Sip?.Length ?? 0);
+        internal bool HasMessage => Line is not null || Sip is not null;
+    }
 
     private void Enqueue(Job job)
     {
         // Очередь закрыта — значит журнал уже остановлен. Терять строку на этом
         // этапе допустимо; бросать исключение из журнала — нет.
-        var bytes = (job.Line?.Length ?? 0) * 2L;
+        long bytes = job.PendingBytes;
         if (Interlocked.Add(ref _pendingBytes, bytes) > MaximumPendingBytes)
         {
             Interlocked.Add(ref _pendingBytes, -bytes);
@@ -230,20 +258,25 @@ public sealed class LogFile : IDisposable
         if (!_queue.Writer.TryWrite(job))
         {
             Interlocked.Add(ref _pendingBytes, -bytes);
-            if (job.Line is not null) { Interlocked.Increment(ref _droppedLines); }
+            if (job.HasMessage) { Interlocked.Increment(ref _droppedLines); }
         }
     }
 
     private bool RunOnQueueAndWait(Action work, TimeSpan? timeout = null)
     {
         var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_queue.Writer.TryWrite(new Job(Work: work, Done: done)))
+        using var deadline = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(5));
+        try
+        {
+            _queue.Writer.WriteAsync(new Job(Work: work, Done: done), deadline.Token)
+                .AsTask().GetAwaiter().GetResult();
+            _ = Task.WhenAny(done.Task, _worker).WaitAsync(deadline.Token).GetAwaiter().GetResult();
+            return done.Task.IsCompletedSuccessfully && done.Task.Result;
+        }
+        catch (Exception error) when (error is ChannelClosedException or OperationCanceledException)
         {
             return false;
         }
-
-        _ = Task.WaitAny([done.Task, _worker], timeout ?? TimeSpan.FromSeconds(5));
-        return done.Task.IsCompletedSuccessfully && done.Task.Result;
     }
 
     private async Task RunQueue()
@@ -254,7 +287,17 @@ public sealed class LogFile : IDisposable
             {
                 try
                 {
-                    if (job.Line is not null) { Append(job.Line); }
+                    if (job.Sip is { } sip)
+                    {
+                        string prefix = job.Outgoing ? "-> " : "<- ";
+                        string body = LogRedaction.Redact(Utf8NoBom.GetString(sip));
+                        Append(FormatLine(job.Timestamp, job.Level, prefix + body
+                            + (job.Truncated ? " [SIP-трасса сокращена]" : string.Empty)));
+                    }
+                    else if (job.Line is { } line)
+                    {
+                        Append(FormatLine(job.Timestamp, job.Level, LogRedaction.Redact(line)));
+                    }
                     job.Work?.Invoke();
                     job.Done?.TrySetResult(true);
                 }
@@ -264,7 +307,7 @@ public sealed class LogFile : IDisposable
                     // Недоступный диск не должен останавливать всю очередь.
                     job.Done?.TrySetResult(false);
                 }
-                finally { Interlocked.Add(ref _pendingBytes, -(job.Line?.Length ?? 0) * 2L); }
+                finally { Interlocked.Add(ref _pendingBytes, -job.PendingBytes); }
             }
         }
         finally
@@ -273,8 +316,8 @@ public sealed class LogFile : IDisposable
             while (_queue.Reader.TryRead(out var pending))
             {
                 pending.Done?.TrySetResult(false);
-                Interlocked.Add(ref _pendingBytes, -(pending.Line?.Length ?? 0) * 2L);
-                if (pending.Line is not null) { Interlocked.Increment(ref _droppedLines); }
+                Interlocked.Add(ref _pendingBytes, -pending.PendingBytes);
+                if (pending.HasMessage) { Interlocked.Increment(ref _droppedLines); }
             }
             CloseFile();
         }
@@ -309,48 +352,58 @@ public sealed class LogFile : IDisposable
     {
         byte[] data = Utf8NoBom.GetBytes(line + "\n");
 
-        _file ??= AppendOnlyFile.Open(CurrentFilePath);
+        if (_file is null)
+        {
+            OpenFile();
+        }
         if (_file is null)
         {
             Interlocked.Increment(ref _writeFailures);
             return;
         }
 
+        if (_writtenBytes > 0 && _writtenBytes + data.Length > _settings.MaximumFileBytes)
+        {
+            if (Environment.TickCount64 < _nextRotationAttempt || !Rotate())
+            {
+                Interlocked.Increment(ref _droppedLines);
+                return;
+            }
+        }
+
+        if (_file is null)
+        {
+            Interlocked.Increment(ref _writeFailures);
+            return;
+        }
+
+        // Даём записать одну строку при тестовом или вручную заданном маленьком лимите.
         var written = _file.Append(data);
         if (written != data.Length) { Interlocked.Increment(ref _writeFailures); }
         _writtenBytes += written;
-
-        if (_writtenBytes >= _settings.MaximumFileBytes)
-        {
-            Rotate();
-        }
     }
 
-    private void Rotate()
+    private bool Rotate()
     {
         CloseFile();
 
-        string stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmmss", CultureInfo.InvariantCulture);
-        string destination = Path.Combine(
-            _settings.Directory,
-            $"{RotatedPrefix}{stamp}.{FileExtension}");
-
-        // Совпадение имени возможно только при двух ротациях в одну секунду —
-        // то есть при потолке в несколько байт. Такой файл проще перезаписать,
-        // чем городить счётчик.
-        TryDelete(destination);
+        string stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmmssfffffff", CultureInfo.InvariantCulture);
+        string destination = Path.Combine(_settings.Directory, $"{RotatedPrefix}{stamp}.{FileExtension}");
         try
         {
             File.Move(CurrentFilePath, destination);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // Не переехало — значит текущий файл останется расти дальше. Это
-            // хуже, чем ротация, но лучше, чем потеря журнала.
+            Interlocked.Increment(ref _writeFailures);
+            _nextRotationAttempt = Environment.TickCount64 + 5_000;
+            OpenFile();
+            return false;
         }
 
         OpenFile();
         Prune();
+        return true;
     }
 
     /// <summary>Убирает лишние файлы: сначала по сроку, потом по числу.</summary>

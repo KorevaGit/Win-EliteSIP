@@ -282,17 +282,19 @@ internal sealed class UpdateService : IDisposable
             _isOffering = false;
         }
 
+        // Входящий может закрыть диалог в его вложенном цикле сообщений.
+        // Повторяем предложение после вызова без четырёхчасовой отсрочки.
+        if (_isBusy())
+        {
+            ScheduleOffer(TimeSpan.FromSeconds(5));
+            return;
+        }
+
         if (!accepted)
         {
             _schedule.UpdateDeferredUntil = DateTimeOffset.UtcNow + ReminderInterval;
             _log($"обновление {version} отложено на {ReminderInterval.TotalMinutes:0} минут");
             ScheduleOffer(ReminderInterval);
-            return;
-        }
-
-        if (_isBusy())
-        {
-            ScheduleOffer(TimeSpan.FromSeconds(5));
             return;
         }
 
@@ -361,6 +363,10 @@ internal sealed class UpdateService : IDisposable
         if (UpdateHandoff.Trigger(_log))
         {
             PrepareForRestart?.Invoke();
+        }
+        else
+        {
+            LastResult = Resources.Strings.Get("UpdatesWaitingForTask");
         }
 
         // Согласие записано: даже если задачу не удалось разбудить, она
@@ -610,6 +616,18 @@ internal sealed class UpdateService : IDisposable
         try
         {
             Directory.CreateDirectory(directory);
+
+            if (File.Exists(path))
+            {
+                await using var cached = File.OpenRead(path);
+                if (cached.Length == manifest.Size
+                    && string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(cached, cancellation).ConfigureAwait(true)),
+                        manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    _log($"обновление {manifest.Version.ToString(3)} взято из проверенного локального файла");
+                    return path;
+                }
+            }
 
             using HttpRequestMessage request = new(HttpMethod.Get, manifest.Url);
             request.Headers.TryAddWithoutValidation(

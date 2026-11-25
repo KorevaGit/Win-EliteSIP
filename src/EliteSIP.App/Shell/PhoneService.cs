@@ -448,9 +448,7 @@ public sealed class PhoneService : IDisposable
         // регистрируется.
         if (_settings.Maintenance.LogsSipTrace)
         {
-            _transport.Trace = (outgoing, data) => _log(
-                (outgoing ? "-> " : "<- ")
-                + LogRedaction.Redact(System.Text.Encoding.UTF8.GetString(data.Span)));
+            _transport.Trace = SipTrace;
         }
 
         // Стук по портам (W11): открыть себе дорогу до АТС перед регистрацией.
@@ -687,6 +685,10 @@ public sealed class PhoneService : IDisposable
     /// два окна входящего на экране — это выбор, которого оператор не делал, и
     /// оба лида в нём теряются одинаково.
     /// </remarks>
+    internal Action<bool, ReadOnlyMemory<byte>>? SipTrace { get; set; }
+
+    internal Action? IncomingOffered { get; set; }
+
     private void Offer(SipIncomingCall call)
     {
         if (_agent is null || _bus is null || _lines is null || _incoming.IsVisible)
@@ -717,6 +719,7 @@ public sealed class PhoneService : IDisposable
         _history.Begin(record);
         _records[call.CallId] = record;
         ClientEventLog.Shared.CallStarted(call.CallId, incoming: true, record.Number, record.DisplayName, record.WasDistribution);
+        IncomingOffered?.Invoke();
 
         // Следим за завершением и при автоподъёме: его ветка ниже выходит
         // без окна. Иначе BYE/CANCEL закрывает SIP-диалог, но линия, звук
@@ -1183,7 +1186,12 @@ public sealed class PhoneService : IDisposable
                         break;
 
                     case SipUserAgentEvent.IncomingCall incoming:
-                        await _dispatcher.InvokeAsync(() => Offer(incoming.Call));
+                        var queuedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                        await _dispatcher.InvokeAsync(() =>
+                        {
+                            _log($"входящий {incoming.Call.CallId}: ожидание UI {System.Diagnostics.Stopwatch.GetElapsedTime(queuedAt).TotalMilliseconds:0} мс");
+                            Offer(incoming.Call);
+                        });
                         break;
 
                     case SipUserAgentEvent.ChannelClosed closed:

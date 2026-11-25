@@ -10,6 +10,23 @@ namespace EliteSIP.App.Tests;
 public sealed class SettingsUpgradeTests : IDisposable
 {
     [Fact]
+    public void Startup_recovers_profile_and_preserves_damaged_file()
+    {
+        var original = new AppSettings();
+        original.Setup.IsCompleted = true;
+        original.Account.Username = "256";
+        original.Save(FilePath);
+        File.WriteAllText(FilePath, "damaged");
+
+        var loaded = AppSettings.LoadForStartup(FilePath, out bool recovered);
+
+        Assert.True(recovered);
+        Assert.True(loaded.Setup.IsCompleted);
+        Assert.Equal("256", loaded.Account.Username);
+        Assert.Equal("damaged", File.ReadAllText(FilePath + AppSettings.UnreadableSuffix));
+    }
+
+    [Fact]
     public void Support_trace_is_enabled_once_for_existing_installations()
     {
         var old = new AppSettings { Revision = 3 };

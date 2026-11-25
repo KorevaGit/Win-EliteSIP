@@ -132,6 +132,30 @@ public sealed class StartupAndUpdateTests
         Assert.Equal(2, offers);
     });
 
+    [Fact]
+    public void Incoming_call_interrupts_offer_without_deferring_for_four_hours() => WpfHost.Run(() =>
+    {
+        var schedule = new EliteSIP.App.Settings.MaintenanceSettings();
+        bool busy = false;
+        int offers = 0;
+        using var updates = new UpdateService(() => busy, _ => { }, () => { }, _ => { }, schedule);
+        WpfHost.SetPrivate(updates, nameof(UpdateService.ReadyVersion), new Version(1, 2, 3));
+        typeof(UpdateService).GetField("_readyInstaller", System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.NonPublic)!.SetValue(updates, "staged.exe");
+        updates.AskToInstall = _ =>
+        {
+            offers++;
+            busy = true;
+            return false;
+        };
+
+        updates.Offer();
+        Assert.Null(schedule.UpdateDeferredUntil);
+        busy = false;
+        updates.Offer();
+        Assert.Equal(2, offers);
+    });
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)

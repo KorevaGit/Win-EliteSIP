@@ -114,6 +114,13 @@ public sealed class IncomingCallPresenter : IDisposable
         // него высота карточки известна только вёрстке. В оригинале это стоило
         // случайной позиции целиком — окно уезжало за край ровно на свою высоту,
         // потому что позицию считали по нулевому размеру.
+        window.ContentRendered += (_, _) =>
+        {
+            if (ReferenceEquals(_window, window) && _clock is { } clock)
+            {
+                _log($"окно входящего: первая отрисовка через {clock.Elapsed.TotalMilliseconds:0} мс");
+            }
+        };
         window.Show();
 
         var saved = policy.IsEnabled && policy.IsRandomPositionEnabled ? null : RestorePlacement?.Invoke();
@@ -146,7 +153,9 @@ public sealed class IncomingCallPresenter : IDisposable
 
         // Звонок — после показа: устройство открывается десятки миллисекунд, и
         // делать это до `window.Show()` значит задержать саму карточку.
+        var ringtoneStartedAt = Stopwatch.GetTimestamp();
         StartRingtone?.Invoke();
+        _log($"окно входящего: запуск рингтона {Stopwatch.GetElapsedTime(ringtoneStartedAt).TotalMilliseconds:0} мс");
 
         _log(PlacementSummary(window.PhysicalFrame));
     }

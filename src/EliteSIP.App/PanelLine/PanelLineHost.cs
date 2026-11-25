@@ -679,6 +679,10 @@ internal static class MachineReset
 
         foreach (var name in new[]
         {
+            Path.GetFileName(AppSettings.DefaultPath) + AppSettings.RecoverySuffix,
+            Path.GetFileName(AppSettings.DefaultPath) + AppSettings.RecoverySuffix + ".tmp",
+            Path.GetFileName(AppSettings.DefaultPath) + AppSettings.UnreadableSuffix,
+            Path.GetFileName(AppSettings.DefaultPath) + ".tmp",
             Path.GetFileName(AppSettings.DefaultPath),
             PairingStore.FileName,
             "history.db",
@@ -687,11 +691,17 @@ internal static class MachineReset
             "history.db.pending",
             "history.db.pending.tmp",
             "activation-draft.dat",
+            Shell.RuntimeDiagnostics.NetworkFile,
+            Shell.RuntimeDiagnostics.NetworkFile + ".tmp",
+            Shell.RuntimeDiagnostics.AudioFile,
+            Shell.RuntimeDiagnostics.AudioFile + ".tmp",
             "window-background.png",
             "window-background.png.tmp",
             "elitesip.log",
             "crash.log",
             ClientEventLog.FileName,
+            ClientEventLog.FileName + ".tmp",
+            ClientEventLog.FileName + ".session",
         })
         {
             try
@@ -752,6 +762,15 @@ internal static class MachineReset
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             failures.Add("elitesip-*.log");
+        }
+
+        if (failures.Count == 0)
+        {
+            try { File.Delete(Path.Combine(directory, AppSettings.ResetMarkerName)); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                failures.Add(AppSettings.ResetMarkerName);
+            }
         }
 
         return failures;

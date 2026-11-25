@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
@@ -23,6 +24,8 @@ namespace EliteSIP.Diagnostics;
 /// </summary>
 public static class SupportArchive
 {
+    private const int MaximumLogFiles = 16;
+    private const int MaximumLogBytes = 4 * 1024 * 1024;
     /// <summary>Собирает текущий, ротированные и аварийный журналы, даже без активного писателя.</summary>
     public static string MakeFromDirectory(string directory, string summary, string destination, LogFile? current = null,
         IReadOnlyDictionary<string, byte[]>? extras = null)
@@ -97,17 +100,22 @@ public static class SupportArchive
             var report = new StringBuilder();
             if (collectionNote is not null) { report.AppendLine(collectionNote); }
             var copied = 0;
-            foreach (string path in logs)
+            foreach (string path in logs.Take(MaximumLogFiles))
             {
                 var name = Path.GetFileName(path);
                 var index = 2;
                 var entryName = name;
                 while (!used.Add(entryName)) { entryName = $"logs-{index++}/{name}"; }
-                var included = CopyLog(archive, path, entryName);
+                var (included, shortened) = CopyLog(archive, path, entryName);
                 if (included) { copied++; }
-                report.AppendLine(CultureInfo.InvariantCulture, $"{(included ? "добавлен" : "не удалось прочитать")}: {entryName}");
+                string status = included ? "добавлен" : "не удалось прочитать";
+                report.AppendLine(CultureInfo.InvariantCulture, $"{status}: {entryName}{(shortened ? " (только конец файла)" : "")}");
             }
             report.Insert(0, $"Файлов журнала добавлено: {copied} из {logs.Count}{Environment.NewLine}");
+            if (logs.Count > MaximumLogFiles)
+            {
+                report.AppendLine(CultureInfo.InvariantCulture, $"Пропущено файлов сверх лимита: {logs.Count - MaximumLogFiles}.");
+            }
             if (logs.Count == 0) { report.AppendLine("Файлы журнала не найдены. Проверьте, включена ли запись журнала в Управлении."); }
             WriteEntry(archive, "collection.txt", new UTF8Encoding(false).GetBytes(report.ToString()));
         }
@@ -127,11 +135,11 @@ public static class SupportArchive
 
     private static void WriteEntry(ZipArchive archive, string name, byte[] contents)
     {
-        using Stream entry = archive.CreateEntry(name, CompressionLevel.Optimal).Open();
+        using Stream entry = archive.CreateEntry(name, CompressionLevel.Fastest).Open();
         entry.Write(contents, 0, contents.Length);
     }
 
-    private static bool CopyLog(ZipArchive archive, string path, string entryName)
+    private static (bool Included, bool Shortened) CopyLog(ZipArchive archive, string path, string entryName)
     {
         // Текущий файл журнала открыт на запись прямо сейчас, поэтому читается с
         // FileShare.ReadWrite. Пропавший или занятый файл архив не роняет: цель
@@ -144,16 +152,45 @@ public static class SupportArchive
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return false;
+            return (false, false);
         }
 
         using (source)
         {
-            using Stream entry = archive.CreateEntry(entryName, CompressionLevel.Optimal).Open();
-            using var reader = new StreamReader(source);
-            using var writer = new StreamWriter(entry, new UTF8Encoding(false));
-            while (reader.ReadLine() is { } line) { writer.WriteLine(LogRedaction.Redact(line)); }
+            long length = source.Length;
+            int count = (int)Math.Min(length, MaximumLogBytes);
+            bool shortened = length > count;
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(count);
+            try
+            {
+                source.Position = length - count;
+                int read;
+                try { read = source.ReadAtLeast(buffer.AsSpan(0, count), count, throwOnEndOfStream: false); }
+                catch (IOException) { return (false, shortened); }
+
+                // Не включаем начало неполной строки: там мог быть фрагмент секрета
+                // без названия поля. Размер снимка больше не меняется при дозаписи.
+                int offset = 0;
+                if (shortened)
+                {
+                    int newline = Array.IndexOf(buffer, (byte)'\n', 0, read);
+                    offset = newline < 0 ? read : newline + 1;
+                }
+
+                using var snapshot = new MemoryStream(buffer, offset, read - offset);
+                using Stream entry = archive.CreateEntry(entryName, CompressionLevel.Fastest).Open();
+                using var reader = new StreamReader(snapshot);
+                using var writer = new StreamWriter(entry, new UTF8Encoding(false));
+                while (reader.ReadLine() is { } line)
+                {
+                    writer.WriteLine(LogRedaction.Redact(line));
+                }
+                return (true, shortened);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+            }
         }
-        return true;
     }
 }

@@ -29,6 +29,8 @@ public partial class App : Application, IDisposable
     private WindowBackgroundService? _background;
     private AppSettings? _settings;
     private SettingsWindow? _settingsWindow;
+    private UpdateOffer? _updateOffer;
+    private RuntimeDiagnostics? _runtimeDiagnostics;
     private CallHistoryWindow? _historyWindow;
     private CallHistoryStore? _history;
     private PanelViewModel? _panel;
@@ -169,8 +171,25 @@ public partial class App : Application, IDisposable
         // Порядок важен: настройки читаются до языка, язык — до палитры, палитра
         // — до первого окна. Иначе панель успевает нарисоваться английской и
         // светлой и перекрашивается на глазах.
-        _settings = AppSettings.Load();
-        _settings.AutoSave();
+        try
+        {
+            _settings = AppSettings.LoadForStartup(AppSettings.DefaultPath, out bool recovered);
+            if (recovered) { EarlyLog("профиль восстановлен из резервной копии"); }
+        }
+        catch (InvalidDataException error)
+        {
+            EarlyLog($"профиль недоступен: {error.Message} {error.InnerException?.GetType().Name}");
+            OfferProfileRecoveryArchive();
+            Shutdown();
+            return;
+        }
+
+        try { _settings.SeedRecoveryCopy(AppSettings.DefaultPath); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            EarlyLog($"резервная копия профиля не сохранена: {error.GetType().Name}");
+        }
+        _settings.AutoSave(error => EarlyLog($"профиль не сохранён: {error.GetType().Name}"));
 #if !DEBUG
         AutoStart.ApplyDefault();
 #endif
@@ -254,6 +273,14 @@ public partial class App : Application, IDisposable
 
         // Телефон: то, что связывает панель с сигнализацией, звуком и историей.
         _phone = new PhoneService(_settings, _panel, _history, _incoming, Dispatcher, Log);
+        _phone.SipTrace = (outgoing, data) =>
+        {
+            if (_settings.Maintenance.LogToFile)
+            {
+                Volatile.Read(ref _logFile)?.WriteSipTrace(outgoing, data);
+            }
+        };
+        _phone.IncomingOffered = () => _updateOffer?.Close();
         _phone.Answered = () => Dispatcher.BeginInvoke(ShowPanel);
         _phone.RecoverConnection = () => Reconnect("канал закрыт");
         Mark("телефон");
@@ -565,7 +592,12 @@ public partial class App : Application, IDisposable
         // Выключение Windows и выход из системы: снять регистрацию, пока нас
         // ещё не убили. Без этого сервер две минуты раздаёт вызовы на
         // выключенную машину.
-        SessionEnding += (_, _) => LeaveTheAir(TimeSpan.FromSeconds(2));
+        SessionEnding += (_, args) =>
+        {
+            Log($"завершение сеанса Windows: {args.ReasonSessionEnding}");
+            ClientEventLog.Shared.NoteShutdown($"завершение сеанса Windows: {args.ReasonSessionEnding}");
+            LeaveTheAir(TimeSpan.FromSeconds(2));
+        };
 
         // Пробуждение и смена сети — то, чего у настольного телефона не бывает,
         // а у ноутбука бывает дважды в день.
@@ -574,6 +606,7 @@ public partial class App : Application, IDisposable
         // переезда с одной сети в другую открытый на шлюзе порт выдан адресу,
         // которого у нас больше нет. И то и другое лечится одним и тем же —
         // поднять связь заново, а стук переиграть.
+        _runtimeDiagnostics = new RuntimeDiagnostics(_settings, Log);
         _networkWatch = new NetworkWatch(
             () => Dispatcher.BeginInvoke(() => Reconnect("сеть сменилась")),
             () => Dispatcher.BeginInvoke(() => Reconnect("машина проснулась")),
@@ -699,7 +732,7 @@ public partial class App : Application, IDisposable
     {
         if (_settingsWindow is { IsLoaded: true })
         {
-            _settingsWindow.Activate();
+            RestoreWindow(_settingsWindow);
             return;
         }
 
@@ -845,7 +878,7 @@ public partial class App : Application, IDisposable
     {
         if (_administrationWindow is { IsLoaded: true })
         {
-            _administrationWindow.Activate();
+            RestoreWindow(_administrationWindow);
             return;
         }
 
@@ -1173,8 +1206,11 @@ public partial class App : Application, IDisposable
             Path.GetDirectoryName(AppSettings.DefaultPath)!, summary, destination, _logFile,
             new Dictionary<string, byte[]>
             {
-                ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!)),
+                ["environment.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.Capture(_settings!, includeAudioInventory: false)),
+                ["network-state.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.SavedRuntimeState(RuntimeDiagnostics.NetworkFile)),
+                ["audio-state.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.SavedRuntimeState(RuntimeDiagnostics.AudioFile)),
                 ["windows-crashes.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportCrashEvidence.Capture()),
+                ["installer-logs.txt"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.InstallerLogs()),
                 ["updater.log"] = System.Text.Encoding.UTF8.GetBytes(SupportSnapshot.UpdaterLog()),
                 ["history-status.txt"] = System.Text.Encoding.UTF8.GetBytes(_history?.DiagnosticSummary() ?? "history: not initialized"),
             }));
@@ -1300,18 +1336,14 @@ public partial class App : Application, IDisposable
             return;
         }
 
-        if (!_panelWindow.IsVisible)
-        {
-            _panelWindow.Show();
-        Mark("панель");
-        }
+        RestoreWindow(_panelWindow);
+    }
 
-        if (_panelWindow.WindowState is WindowState.Minimized)
-        {
-            _panelWindow.WindowState = WindowState.Normal;
-        }
-
-        _panelWindow.Activate();
+    private static void RestoreWindow(Window window)
+    {
+        if (!window.IsVisible) { window.Show(); }
+        if (window.WindowState == WindowState.Minimized) { window.WindowState = WindowState.Normal; }
+        window.Activate();
     }
 
     private void TogglePanel()
@@ -1371,7 +1403,18 @@ public partial class App : Application, IDisposable
         var offer = new UpdateOffer(_updates!.Installed, version, _updates.ReadyNotes, _appearance!.IsDark);
         if (owner is { IsLoaded: true }) { offer.Owner = owner; }
         else { offer.WindowStartupLocation = WindowStartupLocation.CenterScreen; }
-        return offer.ShowDialog() is true;
+        offer.ContentRendered += (_, _) => Log($"предложение обновления {version} показано");
+        _updateOffer = offer;
+        try
+        {
+            var accepted = offer.ShowDialog() is true;
+            Log($"предложение обновления {version} закрыто; подтверждено={accepted}");
+            return accepted;
+        }
+        finally
+        {
+            _updateOffer = null;
+        }
     }
 
     /// <summary>
@@ -1416,6 +1459,17 @@ public partial class App : Application, IDisposable
     private void ResetMachine()
     {
         ClientEventLog.Shared.NoteShutdown("сброс машины");
+        _runtimeDiagnostics?.Dispose();
+        _runtimeDiagnostics = null;
+        _settings?.DisableWrites();
+        try
+        {
+            File.WriteAllText(Path.Combine(Path.GetDirectoryName(AppSettings.DefaultPath)!, AppSettings.ResetMarkerName), "");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            EarlyLog($"отметка сброса не сохранена: {error.GetType().Name}");
+        }
         _updates?.Dispose();
         _updates = null;
 
@@ -1460,6 +1514,7 @@ public partial class App : Application, IDisposable
     {
         // Подпись для Spark: снятие регистрации при выходе — не сбой. Причина,
         // названная раньше (обновление), главнее.
+        Log("выход через Quit");
         ClientEventLog.Shared.NoteShutdown("выход из приложения");
         LeaveTheAir(TimeSpan.FromSeconds(2));
         ClientEventLog.Shared.FinishSession();
@@ -1548,7 +1603,7 @@ public partial class App : Application, IDisposable
     {
         if (_historyWindow is { IsLoaded: true })
         {
-            _historyWindow.Activate();
+            RestoreWindow(_historyWindow);
             return;
         }
 
@@ -1571,6 +1626,31 @@ public partial class App : Application, IDisposable
         _historyWindow.RedialRequested += number => _panel!.DialedNumber = number;
         _historyWindow.Closed += (_, _) => _historyWindow = null;
         _historyWindow.Show();
+    }
+
+    private static void OfferProfileRecoveryArchive()
+    {
+        if (MessageBox.Show("Не удалось прочитать или восстановить профиль. Сохранить архив для поддержки?",
+            "EliteSIP", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var save = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = SupportArchive.SuggestedName(),
+            Filter = "ZIP (*.zip)|*.zip",
+        };
+        if (save.ShowDialog() != true) { return; }
+        try
+        {
+            SupportArchive.MakeFromDirectory(Path.GetDirectoryName(AppSettings.DefaultPath)!,
+                "EliteSIP: профиль недоступен", save.FileName);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(error.Message, "EliteSIP", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -1681,6 +1761,8 @@ public partial class App : Application, IDisposable
         _appearance?.Dispose();
         _appearance = null;
 
+        _runtimeDiagnostics?.Dispose();
+        _runtimeDiagnostics = null;
         _networkWatch?.Dispose();
         _networkWatch = null;
 

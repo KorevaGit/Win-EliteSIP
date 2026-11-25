@@ -1458,4 +1458,5 @@
 <data name="TransparencyLight" xml:space="preserve"><value>Лёгкая</value></data>
 <data name="TransparencyMedium" xml:space="preserve"><value>Средняя</value></data>
 <data name="TransparencyStrong" xml:space="preserve"><value>Сильная</value></data>
+  <data name="UpdatesWaitingForTask" xml:space="preserve"><value>Установка в очереди. Windows не запустила задачу обновления сразу.</value></data>
 </root>

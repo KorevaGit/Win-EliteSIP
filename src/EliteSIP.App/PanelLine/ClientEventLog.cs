@@ -37,7 +37,7 @@ namespace EliteSIP.App.PanelLine;
 /// </remarks>
 internal sealed class ClientEventLog : IDisposable
 {
-    internal static ClientEventLog Shared { get; } = new(DefaultPath);
+    internal static ClientEventLog Shared { get; } = new(DefaultPath, backgroundPersistence: true);
 
     /// <summary>Сколько событий держим, пока сервер недоступен. Старые вытесняются.</summary>
     internal const int Capacity = 1000;
@@ -85,6 +85,10 @@ internal sealed class ClientEventLog : IDisposable
     };
 
     private readonly Lock _gate = new();
+    private readonly Lock _diskGate = new();
+    private readonly bool _backgroundPersistence;
+    private Task? _writer;
+    private bool _writePending;
     private readonly string? _path;
     private readonly Func<DateTimeOffset> _now;
     private readonly List<Event> _pending = [];
@@ -117,9 +121,10 @@ internal sealed class ClientEventLog : IDisposable
     /// </summary>
     private string? _shutdownReason;
 
-    internal ClientEventLog(string? path, Func<DateTimeOffset>? now = null)
+    internal ClientEventLog(string? path, Func<DateTimeOffset>? now = null, bool backgroundPersistence = false)
     {
         _path = path;
+        _backgroundPersistence = backgroundPersistence;
         _now = now ?? (() => DateTimeOffset.UtcNow);
 
         if (path is not null)
@@ -302,10 +307,11 @@ internal sealed class ClientEventLog : IDisposable
             _pending.Clear();
             _calls.Clear();
             _settings = null;
-            _forgotten = true;
+            Volatile.Write(ref _forgotten, true);
             try { if (_path is not null) { File.Delete(_path + ".session"); } }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
         }
+        lock (_diskGate) { }
     }
 
     // События
@@ -359,6 +365,9 @@ internal sealed class ClientEventLog : IDisposable
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(750));
         try { SendAsync(deadline.Token).WaitAsync(deadline.Token).GetAwaiter().GetResult(); }
         catch (Exception error) when (error is OperationCanceledException or HttpRequestException or IOException) { }
+        Task? writer;
+        lock (_gate) { writer = _writer; }
+        writer?.Wait(TimeSpan.FromMilliseconds(300));
         Dispose();
     }
 
@@ -785,11 +794,61 @@ internal sealed class ClientEventLog : IDisposable
             return;
         }
 
+        if (!_backgroundPersistence)
+        {
+            WriteSnapshot(_path, _pending);
+            return;
+        }
+
+        _writePending = true;
+        _writer ??= Task.Run(() => PersistPendingAsync(_path));
+    }
+
+    private async Task PersistPendingAsync(string path)
+    {
+        while (true)
+        {
+            await Task.Delay(150).ConfigureAwait(false);
+            Event[] snapshot;
+            lock (_gate)
+            {
+                if (_forgotten || !_writePending)
+                {
+                    _writer = null;
+                    return;
+                }
+
+                _writePending = false;
+                snapshot = [.. _pending];
+            }
+
+            lock (_diskGate)
+            {
+                if (!Volatile.Read(ref _forgotten))
+                {
+                    WriteSnapshot(path, snapshot);
+                }
+            }
+
+            lock (_gate)
+            {
+                if (!_writePending)
+                {
+                    _writer = null;
+                    return;
+                }
+            }
+        }
+    }
+
+    private static void WriteSnapshot(string path, IReadOnlyList<Event> entries)
+    {
         try
         {
-            var temporary = _path + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(_pending, Format));
-            File.Move(temporary, _path, overwrite: true);
+            var temporary = path + ".tmp";
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+            File.WriteAllText(temporary, JsonSerializer.Serialize(entries, Format));
+            File.Move(temporary, path, overwrite: true);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {

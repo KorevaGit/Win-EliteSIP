@@ -115,6 +115,8 @@ internal static class UpdateHandoff
                 Arguments = $"/Run /TN \"{TaskName}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
             };
 
             using var process = Process.Start(start);
@@ -123,25 +125,41 @@ internal static class UpdateHandoff
                 return false;
             }
 
+            var output = process.StandardOutput.ReadToEndAsync();
+            var errors = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(10_000))
             {
+                ReportTriggerFailure("истекло время ожидания schtasks", log);
                 return false;
             }
 
             if (process.ExitCode != 0)
             {
-                log($"задача обновления не запустилась (код {process.ExitCode}) — подождём её такта");
-
+                var detail = string.Join(" ", new[] { errors, output }
+                    .Where(task => task.IsCompletedSuccessfully)
+                    .Select(task => task.Result.Trim())
+                    .Where(value => value.Length > 0));
+                ReportTriggerFailure($"код {process.ExitCode}; {detail}", log);
                 return false;
             }
 
+            log("запуск задачи обновления подтверждён планировщиком");
             return true;
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException)
         {
-            log($"задача обновления не запустилась: {error.Message} — подождём её такта");
+            ReportTriggerFailure(error.Message, log);
 
             return false;
         }
+    }
+
+    private static void ReportTriggerFailure(string detail, Action<string> log)
+    {
+        detail = detail.ReplaceLineEndings(" ").Trim();
+        if (detail.Length > 400) { detail = detail[..400]; }
+        var message = $"задача обновления не запустилась: {detail}";
+        log($"{message} — подождём её такта");
+        ClientEventLog.Shared.NoteError(message);
     }
 }
