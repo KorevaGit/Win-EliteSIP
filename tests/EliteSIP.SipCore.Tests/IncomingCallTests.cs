@@ -361,6 +361,33 @@ public sealed class IncomingCallTests
         Assert.Single(ringing.Select(response => response.To?.Tag).Distinct(StringComparer.Ordinal));
     }
 
+    /// <summary>
+    /// Живой случай macOS 26 ноября 2026 (машина 204, раздача с 710): три копии
+    /// одного INVITE пришли за 106 мс, раньше нашего 100 Trying. Копии ушли
+    /// наверх как новые вызовы и получили 486 «занято» — на ту же транзакцию.
+    /// Asterisk принял 486 и отдал лид другому агенту, а окно звонило дальше.
+    /// </summary>
+    [Fact]
+    public async Task Копии_INVITE_до_первого_ответа_не_получают_486()
+    {
+        ScriptedSipServer server = AcceptingServer();
+        using SipUserAgent agent = await RegisteredAgentAsync(server);
+        Task<SipIncomingCall?> pending = AwaitIncomingCallAsync(agent);
+
+        SipRequest invite = MakeInvite();
+        server.Inject(invite);
+        server.Inject(invite);
+        server.Inject(invite);
+        Assert.NotNull(await pending.WaitAsync(TimeSpan.FromSeconds(3)));
+        await Task.Delay(300);
+        // Снимок до остановки: сама остановка отвечает 486 на звонящий вызов.
+        List<SipResponse> responses = [.. InviteResponses(server)];
+        await agent.StopAsync();
+
+        Assert.DoesNotContain(responses, response => response.StatusCode == 486);
+        Assert.Contains(responses, response => response.StatusCode == 180);
+    }
+
     // Отмена
 
     [Fact]

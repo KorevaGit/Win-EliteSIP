@@ -186,7 +186,7 @@
     <value>Switching between office and remote requires the administrator password.</value>
   </data>
   <data name="AdminUnlockWorkplaceWarning" xml:space="preserve">
-    <value>The work format was locked by EliteSupport. Switching between office and remote takes this machine offline: configuration updates, new keys and new PBX addresses stop arriving, and you take over managing the client. To go back, use “Return online” in Support — the panel will then replace local changes. While settings are open the switch is available; the machine goes offline only if you actually switch it.</value>
+    <value>The work format was locked by Spark. Switching between office and remote takes this machine offline: configuration updates, new keys and new PBX addresses stop arriving, and you take over managing the client. To go back, use “Return online” in Support — the panel will then replace local changes. While settings are open the switch is available; the machine goes offline only if you actually switch it.</value>
   </data>
   <data name="AdminUnlockWorkplaceEnter" xml:space="preserve">
     <value>Unlock</value>
@@ -892,7 +892,7 @@
     <value>To answer, press</value>
   </data>
   <data name="IncomingDealPrompt" xml:space="preserve">
-    <value>This is your own deal call — answer it to start dialling the client.</value>
+    <value>Answer to start the call to the client</value>
   </data>
   <data name="IncomingDeal" xml:space="preserve">
     <value>Deal call</value>
@@ -1481,4 +1481,16 @@
 <data name="TransparencyMedium" xml:space="preserve"><value>Medium</value></data>
 <data name="TransparencyStrong" xml:space="preserve"><value>Strong</value></data>
   <data name="UpdatesWaitingForTask" xml:space="preserve"><value>Installation is queued. Windows did not start the update task immediately.</value></data>
+  <data name="IncomingWithdrawnCaption" xml:space="preserve">
+    <value>Call withdrawn</value>
+  </data>
+  <data name="IncomingWithdrawnNotice" xml:space="preserve">
+    <value>Cancelled or taken by another agent</value>
+  </data>
+  <data name="HistoryOutcomeWithdrawn" xml:space="preserve">
+    <value>cancelled or taken by another</value>
+  </data>
+  <data name="AdminIncomingShowWithdrawn" xml:space="preserve">
+    <value>Show a withdrawn call</value>
+  </data>
 </root>

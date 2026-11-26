@@ -933,6 +933,7 @@ public partial class App : Application, IDisposable
         administration = new AdministrationViewModel(_settings!, _access,
             asDeal => PreviewIncomingCall(asDeal, administration?.Guard, administration?.Username))
         {
+            WithdrawnPreview = () => PreviewWithdrawnCall(administration?.Guard, administration?.Username),
             Support = support,
             Updates = _updates is null ? null : new UpdatesViewModel(_updates),
             // Отчёт последнего вызова — то немногое в «Управлении», что не
@@ -1033,6 +1034,14 @@ public partial class App : Application, IDisposable
             policy.ToPolicy(),
             onAnswer: () => { },
             onDecline: () => { });
+    }
+
+    /// <summary>Проверка пометки снятой раздачи: звонит как раздача, через 1,5 с — пометка.</summary>
+    private async void PreviewWithdrawnCall(IncomingCallSettings? draft, string? draftNumber)
+    {
+        PreviewIncomingCall(asDealCall: false, draft, draftNumber);
+        await Task.Delay(TimeSpan.FromSeconds(1.5));
+        _incoming?.ShowWithdrawn(Strings.Get("IncomingWithdrawnNotice"));
     }
 
     /// <summary>Проводит мастер. <c>false</c> — человек отказался.</summary>

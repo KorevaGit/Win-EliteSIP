@@ -102,6 +102,7 @@ public sealed partial class AdministrationViewModel : Observable
         Guard.PropertyChanged += (_, _) => MarkDirty();
         PreviewDistribution = new RelayCommand(_ => preview?.Invoke(false));
         PreviewDeal = new RelayCommand(_ => preview?.Invoke(true), _ => Username.Length > 0);
+        PreviewWithdrawn = new RelayCommand(_ => WithdrawnPreview?.Invoke());
 
         // Порядок и группы — из оригинала. Заголовок группы несёт та строка,
         // которая её открывает; у первой группы заголовка нет намеренно.
@@ -184,6 +185,16 @@ public sealed partial class AdministrationViewModel : Observable
     /// свой: так проверка заодно показывает, что добавочный вообще опознаётся.
     /// </remarks>
     public RelayCommand PreviewDeal { get; }
+
+    /// <summary>
+    /// Показать снятую раздачу: окно звонит как раздача, а через полторы секунды
+    /// встаёт пометка «Вызов снят» — так, как это выглядит у оператора, чью
+    /// раздачу забрал другой.
+    /// </summary>
+    public RelayCommand PreviewWithdrawn { get; }
+
+    /// <inheritdoc cref="PreviewWithdrawn"/>
+    public Action? WithdrawnPreview { get; init; }
 
     /// <summary>Отчёт защиты по последнему вызову. <c>null</c> — вызовов не было.</summary>
     public string? LastGuardReport

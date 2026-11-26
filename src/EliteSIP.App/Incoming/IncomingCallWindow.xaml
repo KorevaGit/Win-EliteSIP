@@ -33,8 +33,18 @@
                             IsIncoming="True"
                             IsCompleted="True"
                             Size="16"
-                            VerticalAlignment="Center"
-                            Foreground="{DynamicResource OutcomeAnsweredBrush}" />
+                            VerticalAlignment="Center">
+        <history:OutcomeBadge.Style>
+          <Style TargetType="history:OutcomeBadge">
+            <Setter Property="Foreground" Value="{DynamicResource OutcomeAnsweredBrush}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsWithdrawn}" Value="True">
+                <Setter Property="Foreground" Value="Gray" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </history:OutcomeBadge.Style>
+      </history:OutcomeBadge>
 
       <TextBlock DockPanel.Dock="Left"
                  Margin="6,0,0,0"
@@ -61,7 +71,17 @@
                   AutomationProperties.Name="{res:Loc IncomingGuardOn}"
                   Visibility="{Binding IsGuarded, Converter={StaticResource BoolToVisibility}}" />
     </DockPanel>
+    <!-- Снятый вызов гаснет: принять его уже нельзя. -->
     <Border Background="{DynamicResource PanelCallBrush}" CornerRadius="10" Effect="{StaticResource PanelShadow}" Padding="12,16" MinHeight="116" Margin="0,8,0,0">
+    <Border.Style>
+      <Style TargetType="Border">
+        <Style.Triggers>
+          <DataTrigger Binding="{Binding IsWithdrawn}" Value="True">
+            <Setter Property="Opacity" Value="0.55" />
+          </DataTrigger>
+        </Style.Triggers>
+      </Style>
+    </Border.Style>
     <!-- Копируется только видимый номер; маска и обработчик копирования сохранены. -->
     <StackPanel x:Name="NumberBlock"
                 VerticalAlignment="Center"
@@ -92,26 +112,47 @@
                  FontSize="18"
                  Foreground="{DynamicResource TextSecondaryBrush}"
                  Visibility="{Binding SecondaryNumber, Converter={StaticResource PresenceToVisibility}}" />
-    </StackPanel>
-    </Border>
-    <StackPanel Margin="0,10,0,0">
+
+      <!-- Звонок по сделке: подсказка второй строкой в самой карточке, золотистым — на обоях серая строка над кнопками не читалась. -->
       <TextBlock Text="{res:Loc IncomingDealPrompt}"
-                 Margin="0,0,0,6"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center" Margin="0,6,0,0"
                  FontSize="15"
                  TextWrapping="Wrap"
-                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Foreground="{DynamicResource StatusConnectingBrush}"
                  Visibility="{Binding IsSelfCall, Converter={StaticResource BoolToVisibility}}" />
+    </StackPanel>
+    </Border>
+    <Grid Margin="0,10,0,0">
+    <!-- Пометка встаёт на место кнопок, а не вместо них: высота окна не дёргается, а нажать на погашенную кнопку уже нельзя. -->
+    <StackPanel>
+      <StackPanel.Style>
+        <Style TargetType="StackPanel">
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding IsWithdrawn}" Value="True">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </StackPanel.Style>
       <!-- Цифровые цели нейтральны и принимают только мышь через прежний путь защиты. -->
       <StackPanel Visibility="{Binding HasChoice, Converter={StaticResource BoolToVisibility}}">
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-          <TextBlock Text="{res:Loc IncomingDigitPrompt}"
-                     FontSize="15"
-                     Foreground="{DynamicResource TextSecondaryBrush}" />
-          <TextBlock Text="{Binding Answer}"
-                     Margin="4,0,0,0"
-                     FontSize="15"
-                     FontWeight="SemiBold" />
-        </StackPanel>
+        <!-- На графитовой плашке и крупнее: на обоях серая строка не читалась. Цифра — золотистым. -->
+        <Border Background="{DynamicResource PanelControlBrush}" CornerRadius="10" Padding="0,4" Margin="0,0,0,6">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+            <TextBlock Text="{res:Loc IncomingDigitPrompt}"
+                       VerticalAlignment="Center"
+                       FontSize="16"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="{Binding Answer}"
+                       Margin="6,0,0,0"
+                       VerticalAlignment="Center"
+                       FontSize="25"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource StatusConnectingBrush}" />
+          </StackPanel>
+        </Border>
         <ItemsControl ItemsSource="{Binding Targets}" Margin="-3,0,-3,6">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -120,10 +161,13 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate>
+              <!-- Как имя в карточке: тот же кегль и непрозрачная графитовая поверхность. -->
               <Button Style="{StaticResource PanelSurfaceButtonStyle}"
+                      Background="{DynamicResource PanelCallBrush}"
                       Margin="3,0" Padding="0"
-                      Height="50"
-                      FontSize="20"
+                      Height="56"
+                      FontSize="25"
+                      FontWeight="SemiBold"
                       Content="{Binding}"
                       Command="{Binding DataContext.AttemptCommand,
                                         RelativeSource={RelativeSource AncestorType=Window}}"
@@ -195,5 +239,15 @@
         </Button>
       </Grid>
     </StackPanel>
+    <!-- Во всю высоту кнопок: в режиме цифр их три ряда. -->
+    <Border Background="{DynamicResource PanelControlBrush}" CornerRadius="10" Padding="12,0"
+            Visibility="{Binding IsWithdrawn, Converter={StaticResource BoolToVisibility}}">
+      <TextBlock Text="{Binding Withdrawn}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                 TextAlignment="Center" TextWrapping="Wrap"
+                 FontSize="16"
+                 Foreground="{DynamicResource StatusConnectingBrush}" />
+    </Border>
+    </Grid>
   </StackPanel>
 </Window>

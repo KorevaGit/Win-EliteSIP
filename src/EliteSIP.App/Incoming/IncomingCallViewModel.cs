@@ -23,6 +23,7 @@ namespace EliteSIP.App.Incoming;
 public sealed class IncomingCallViewModel : Observable
 {
     private string? _refusal;
+    private string? _withdrawn;
     private bool _numberCopied;
 
     public IncomingCallViewModel(
@@ -101,7 +102,26 @@ public sealed class IncomingCallViewModel : Observable
         }
     }
 
-    public string Caption => _refusal ?? Strings.Get(_numberCopied ? "IncomingNumberCopied" : "IncomingCaption");
+    public string Caption => _withdrawn is not null
+        ? Strings.Get("IncomingWithdrawnCaption")
+        : _refusal ?? Strings.Get(_numberCopied ? "IncomingNumberCopied" : "IncomingCaption");
+
+    /// <summary>
+    /// Раздача снята станцией до ответа: текст пометки на месте кнопок, шапка —
+    /// «Вызов снят», карточка гаснет. <c>null</c> — вызов ещё звонит.
+    /// </summary>
+    public string? Withdrawn
+    {
+        get => _withdrawn;
+        set
+        {
+            Set(ref _withdrawn, value);
+            NotifyChanged(nameof(Caption));
+            NotifyChanged(nameof(IsWithdrawn));
+        }
+    }
+
+    public bool IsWithdrawn => _withdrawn is not null;
 
     /// <summary>Номер для копирования щелчком; <c>null</c> — скрыт или его нет.</summary>
     public string? CopyableNumber => Subject.CopyableNumber;

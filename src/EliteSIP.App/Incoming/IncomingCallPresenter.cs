@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Threading;
 using EliteSIP.CallGuard;
 
 namespace EliteSIP.App.Incoming;
@@ -38,6 +39,10 @@ public sealed class IncomingCallPresenter : IDisposable
     private Action? _onAnswer;
     private Action? _onDecline;
     private CallGuardPolicy? _policy;
+    private DispatcherTimer? _noticeTimer;
+
+    /// <summary>Сколько догорает пометка снятой раздачи.</summary>
+    internal static readonly TimeSpan NoticeDuration = TimeSpan.FromSeconds(1.3);
 
     /// <summary>
     /// Где окно было в прошлый раз — чтобы следующая позиция гарантированно
@@ -53,7 +58,61 @@ public sealed class IncomingCallPresenter : IDisposable
         _taskbarWindow = taskbarWindow;
     }
 
-    public bool IsVisible => _window is not null;
+    /// <summary>
+    /// Окно ждёт решения оператора. Догорающая пометка снятой раздачи сюда не
+    /// входит: принять такой вызов уже нельзя, и новый входящий её просто сменит.
+    /// </summary>
+    public bool IsVisible => _window is not null && !IsShowingNotice;
+
+    /// <summary>На месте кнопок — пометка «Отменён или принят другим менеджером».</summary>
+    public bool IsShowingNotice => _model?.Withdrawn is not null;
+
+    /// <summary>
+    /// Раздача снята станцией до ответа: окно не исчезает молча, а под шапкой
+    /// «Вызов снят» показывает пометку на месте кнопок и гаснет само через
+    /// <see cref="NoticeDuration"/>.
+    /// </summary>
+    ///
+    /// <remarks>
+    /// Раздача «звонить всем» живёт около секунды: её забирает первый нажавший,
+    /// и у остальных окно просто пропадало — выглядело это как сбой. Причину
+    /// станция не сообщает (в CANCEL нет Reason), поэтому пометка называет оба
+    /// случая. Перенесено из macOS 1.0.6.
+    /// </remarks>
+    public void ShowWithdrawn(string message)
+    {
+        if (_window is null || _model is null || IsShowingNotice)
+        {
+            return;
+        }
+
+        StopRingtone?.Invoke();
+        IncomingCallWindow.StopFlashingTaskbar(_taskbarWindow());
+        _pointer?.Dispose();
+        _pointer = null;
+        if (_session is not null)
+        {
+            LastReport = _session.Report;
+        }
+        _session = null;
+        _onAnswer = null;
+        _onDecline = null;
+        _model.Refusal = null;
+        _model.Withdrawn = message;
+
+        _noticeTimer = new DispatcherTimer { Interval = NoticeDuration };
+        _noticeTimer.Tick += (_, _) => Hide();
+        _noticeTimer.Start();
+    }
+
+    /// <summary>Убирает догорающую пометку сразу — перед своим исходящим.</summary>
+    public void DismissNotice()
+    {
+        if (IsShowingNotice)
+        {
+            Hide();
+        }
+    }
 
     public Func<ScreenPoint?>? RestorePlacement { get; init; }
 
@@ -167,6 +226,9 @@ public sealed class IncomingCallPresenter : IDisposable
         // и по отбою, и по ответу, и звонок обязан замолчать в тот же миг, а
         // не после закрытия окна.
         StopRingtone?.Invoke();
+
+        _noticeTimer?.Stop();
+        _noticeTimer = null;
 
         // И мигание кнопки — только если оно было заказано этой карточкой:
         // `Hide` зовут и в начале `Show`, до всякого мигания.

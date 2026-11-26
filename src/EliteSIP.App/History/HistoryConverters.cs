@@ -30,6 +30,13 @@ public sealed class OutcomeTextConverter : IValueConverter
                 : duration.ToString(@"mm\:ss", culture);
         }
 
+        // Раздача без ответа — не «пропущен»: её отменили или принял другой
+        // менеджер, и вины оператора в этой строке нет (macOS 1.0.6).
+        if (record.Direction == CallDirection.Incoming && record.WasDistribution && record.Outcome == CallOutcome.Missed)
+        {
+            return Resources.Strings.Get("HistoryOutcomeWithdrawn");
+        }
+
         return record.Outcome.Title() ?? string.Empty;
     }
 

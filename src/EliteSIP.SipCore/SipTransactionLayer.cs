@@ -144,6 +144,16 @@ public sealed class SipTransactionLayer : IDisposable
     private readonly Dictionary<string, CachedResponse> _sentResponses = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// Запросы, ушедшие наверх и ещё без ответа: ключ — branch и метод, значение — когда пришли.
+    ///
+    /// Ретрансмиссия, пришедшая раньше первого ответа, в <see cref="_sentResponses"/>
+    /// ещё не найдётся — и без этого списка ушла бы наверх вторым запросом. Живой
+    /// случай 26 ноября 2026 (macOS, машина 204): три копии INVITE за 106 мс
+    /// получили «занято» на собственную транзакцию, и Asterisk отдал лид другому агенту.
+    /// </summary>
+    private readonly Dictionary<string, long> _pendingInbound = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Ожидающие готовности канала — каждый со своим таймером.
     ///
     /// Словарь, а не список, потому что таймер у каждого свой. Общий таймер
@@ -541,6 +551,7 @@ public sealed class SipTransactionLayer : IDisposable
         {
             Remember(response, branch);
         }
+        ForgetPending(request);
         await _channel.SendAsync(response.Encoded()).ConfigureAwait(false);
     }
 
@@ -565,6 +576,8 @@ public sealed class SipTransactionLayer : IDisposable
 
         string callId = request.CallId
             ?? throw new SipTransactionException(SipTransactionErrorKind.NotReady, "в запросе нет Call-ID");
+
+        ForgetPending(request);
 
         lock (_gate)
         {
@@ -681,10 +694,9 @@ public sealed class SipTransactionLayer : IDisposable
 
         ForgetServerInviteByBranch(branch);
 
-        if (wasAccepted)
-        {
-            _serverInviteEvents.Writer.TryWrite(new SipServerInviteEvent.NotAcknowledged(callId));
-        }
+        _serverInviteEvents.Writer.TryWrite(wasAccepted
+            ? new SipServerInviteEvent.NotAcknowledged(callId)
+            : new SipServerInviteEvent.Rejected(callId));
     }
 
     /// <summary>
@@ -737,10 +749,9 @@ public sealed class SipTransactionLayer : IDisposable
             _sentResponses.Remove(branch);
         }
 
-        if (wasAccepted)
-        {
-            _serverInviteEvents.Writer.TryWrite(new SipServerInviteEvent.Acknowledged(callId));
-        }
+        _serverInviteEvents.Writer.TryWrite(wasAccepted
+            ? new SipServerInviteEvent.Acknowledged(callId)
+            : new SipServerInviteEvent.Rejected(callId));
         return true;
     }
 
@@ -786,6 +797,47 @@ public sealed class SipTransactionLayer : IDisposable
             {
                 _sentResponses.Remove(branch);
             }
+        }
+    }
+
+    private static string? PendingKey(SipRequest request) =>
+        request.TopVia?.Branch is string branch ? $"{branch}|{request.Method.Name()}" : null;
+
+    private void ForgetPending(SipRequest request)
+    {
+        if (PendingKey(request) is not string key)
+        {
+            return;
+        }
+        lock (_gate)
+        {
+            _pendingInbound.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// Отмечает запрос как ушедший наверх. <see langword="false"/> — это копия
+    /// запроса, на который мы ещё не ответили: ответ уйдёт на первый экземпляр,
+    /// а следующие копии получат его из кэша.
+    /// </summary>
+    private bool AdmitPending(SipRequest request)
+    {
+        if (PendingKey(request) is not string key)
+        {
+            return true;
+        }
+        lock (_gate)
+        {
+            long now = Environment.TickCount64;
+            long limit = (long)_timers.TransactionTimeout.TotalMilliseconds;
+            foreach (string expired in _pendingInbound
+                .Where(pair => now - pair.Value >= limit)
+                .Select(pair => pair.Key)
+                .ToList())
+            {
+                _pendingInbound.Remove(expired);
+            }
+            return _pendingInbound.TryAdd(key, now);
         }
     }
 
@@ -1099,6 +1151,12 @@ public sealed class SipTransactionLayer : IDisposable
             catch (IOException)
             {
             }
+            return;
+        }
+
+        if (!AdmitPending(request))
+        {
+            OnDiscarded?.Invoke(SipLogLevel.Debug, $"копия {request.Method.Name()} до первого ответа — ждёт ответа на первый экземпляр");
             return;
         }
 

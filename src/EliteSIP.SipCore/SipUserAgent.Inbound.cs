@@ -24,6 +24,23 @@ public sealed partial class SipUserAgent
             return;
         }
 
+        // Тот же Call-ID без To-tag — копия INVITE уже идущего к нам вызова, а не
+        // второй вызов. «Занято» на неё ушло бы в ту же транзакцию и сняло бы наш
+        // собственный вызов на станции (macOS, 26 ноября 2026).
+        if (request.To?.Tag is null && request.CallId is string duplicateId)
+        {
+            bool known;
+            lock (_gate)
+            {
+                known = _calls.ContainsKey(duplicateId);
+            }
+            if (known)
+            {
+                Log(SipLogLevel.Debug, "<- копия INVITE уже идущего вызова — без ответа, ответит транзакция");
+                return;
+            }
+        }
+
         // To-tag означает запрос внутри уже существующего диалога. Если тройка
         // идентификаторов не совпала ни с одной линией, это не новый звонок и не
         // «занято», а неизвестный диалог.
@@ -464,6 +481,26 @@ public sealed partial class SipUserAgent
             // котором собеседник не знает, а оператор говорит в пустоту.
             Log(SipLogLevel.Warning, "ACK не пришёл за 32 с — закрываем звонок");
             await HangUpAsync(notAcknowledged.CallId).ConfigureAwait(false);
+            return;
+        }
+
+        if (value is SipServerInviteEvent.Rejected rejected)
+        {
+            // Обычно вызов к этому времени уже снят тем же отказом. Если он всё
+            // ещё звонит — отказ ушёл мимо звонка, и станция вызов уже отдала:
+            // ответ оператора ушёл бы в пустоту.
+            ActiveCall? ringing;
+            lock (_gate)
+            {
+                ringing = _calls.TryGetValue(rejected.CallId, out ActiveCall? call)
+                    && call.Role == CallRole.Callee && call.Dialog is null ? call : null;
+            }
+            if (ringing is null)
+            {
+                return;
+            }
+            Log(SipLogLevel.Warning, "станция закрыла вызов отказом, а он ещё звонил — снимаем");
+            FinishCall(ringing.CallId, new SipCallEvent.Ended("вызов ушёл другому"), ringing.Writer);
         }
     }
 

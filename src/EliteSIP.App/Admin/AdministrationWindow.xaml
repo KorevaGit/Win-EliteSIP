@@ -578,6 +578,7 @@
                 <WrapPanel>
                   <Button Style="{StaticResource SettingsButtonStyle}" Content="{res:Loc AdminGuardCheckShow}" Command="{Binding PreviewDistribution}" />
                   <Button Style="{StaticResource SettingsButtonStyle}" Margin="6,0,0,0" Content="{res:Loc AdminGuardCheckDeal}" Command="{Binding PreviewDeal}" />
+                  <Button Style="{StaticResource SettingsButtonStyle}" Margin="6,0,0,0" Content="{res:Loc AdminIncomingShowWithdrawn}" Command="{Binding PreviewWithdrawn}" />
                 </WrapPanel>
               </theme:SettingsIndented>
               <theme:SettingsRow Header="{res:Loc AdminGuardLastCall}" Visibility="{Binding LastGuardReport, Converter={StaticResource PresenceToVisibility}}">

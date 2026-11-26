@@ -618,6 +618,7 @@ public sealed class PhoneService : IDisposable
     /// <summary>Звонит по набранному номеру.</summary>
     public async Task PlaceCallAsync(string number)
     {
+        _incoming.DismissNotice();
         number = number.Trim();
         if (!_panel.CanPlaceCall || _connection.CurrentCount == 0
             || _agent is null || _bus is null || _lines is null || number.Length == 0)
@@ -947,7 +948,18 @@ public sealed class PhoneService : IDisposable
         => _dispatcher.InvokeAsync(() =>
         {
             CancelMediaStart(callId);
-            _incoming.Hide();
+
+            // Раздача, снятая станцией до ответа: её мог взять другой менеджер,
+            // а мог положить сам клиент — пометка называет оба случая. Свой
+            // отказ окно уже закрыло, и пометки нет.
+            if (_records.TryGetValue(callId, out var ringing) && ringing.WasDistribution && !ringing.IsAnswered)
+            {
+                _incoming.ShowWithdrawn(Strings.Get("IncomingWithdrawnNotice"));
+            }
+            else
+            {
+                _incoming.Hide();
+            }
 
             if (_records.Remove(callId, out var record))
             {

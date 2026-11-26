@@ -52,4 +52,11 @@ public abstract record SipServerInviteEvent
     /// разговор, о котором знаем только мы.
     /// </summary>
     public sealed record NotAcknowledged(string CallId) : SipServerInviteEvent;
+
+    /// <summary>
+    /// Транзакция закрыта отказом (3xx–6xx): ACK пришёл или ждать его больше
+    /// нечего. Для станции вызова к нам больше нет — и звонящее окно обязано
+    /// погаснуть, чем бы этот отказ ни был вызван.
+    /// </summary>
+    public sealed record Rejected(string CallId) : SipServerInviteEvent;
 }
